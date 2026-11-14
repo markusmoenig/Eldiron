@@ -58,17 +58,17 @@ impl Editor {
             let tools = self.server_ctx.tools.read();
             json!({"command":tools.current_game_tool_command_id(),"editor_mode":tools.editor_mode,"editor_index":tools.curr_editor_tool})
         };
-        let map = self.documents.project.get_map(&self.server_ctx);
+        let map = self.documents.project.get_map(&self.server_ctx.shared);
         let region = self
             .documents.project
             .regions
             .iter()
-            .find(|r| r.id == self.server_ctx.curr_region);
+            .find(|r| r.id == self.server_ctx.shared.curr_region);
         json!({"session":self.scepter_session(),"region":region.map(|r|json!({"id":r.id,"name":r.name,"map":r.map.id})),
-            "project_context":format!("{:?}",self.server_ctx.pc),"map_context":format!("{:?}",self.server_ctx.get_map_context()),
-            "view":match self.server_ctx.editor_view_mode{EditorViewMode::D2=>if self.documents.project.get_map(&self.server_ctx).is_some_and(|m|m.camera==rusterix::MapCamera::TwoDIso){"2d_iso"}else{"2d"},EditorViewMode::Iso=>"iso",EditorViewMode::Orbit=>"orbit",EditorViewMode::FirstP=>"firstp"},
+            "project_context":format!("{:?}",self.server_ctx.shared.pc),"map_context":format!("{:?}",self.server_ctx.shared.get_map_context()),
+            "view":match self.server_ctx.shared.editor_view_mode{EditorViewMode::D2=>if self.documents.project.get_map(&self.server_ctx.shared).is_some_and(|m|m.camera==rusterix::MapCamera::TwoDIso){"2d_iso"}else{"2d"},EditorViewMode::Iso=>"iso",EditorViewMode::Orbit=>"orbit",EditorViewMode::FirstP=>"firstp"},
             "tool":tool,
-            "selected_tile":self.server_ctx.curr_tile_id,"viewport":viewport,"camera_parameters":camera_parameters,
+            "selected_tile":self.server_ctx.shared.curr_tile_id,"viewport":viewport,"camera_parameters":camera_parameters,
             "camera":region.map(|r|json!({"position":r.editing_position_3d.into_array(),"center":r.editing_look_at_3d.into_array(),"offset":r.map.offset.into_array(),"grid_size":r.map.grid_size})),
             "selection":map.map(|m|json!({"vertices":m.selected_vertices,"linedefs":m.selected_linedefs,"sectors":m.selected_sectors,"geometry":m.selected_geometry_objects,"faces":m.selected_geometry_faces,"geometry_vertices":m.selected_geometry_vertices,"entity":m.selected_entity_item})),
             "cursor":map.map(|m|json!({"grid":m.curr_grid_pos.map(|p|p.into_array()),"world":m.curr_grid_pos_3d.map(|p|p.into_array())}))})
@@ -180,11 +180,11 @@ impl Editor {
     }
     fn scepter_activate_region(&mut self, i: usize, ui: &mut TheUI, ctx: &mut TheContext) {
         let id = self.documents.project.regions[i].id;
-        if self.server_ctx.curr_region != id
-            || self.server_ctx.get_map_context() != MapContext::Region
+        if self.server_ctx.shared.curr_region != id
+            || self.server_ctx.shared.get_map_context() != MapContext::Region
         {
-            self.server_ctx.curr_region = id;
-            self.server_ctx.editing_pos_buffer = None;
+            self.server_ctx.shared.curr_region = id;
+            self.server_ctx.shared.editing_pos_buffer = None;
             crate::undo::project_helper::set_project_context(
                 ctx,
                 ui,
@@ -203,7 +203,7 @@ impl Editor {
             self.documents.project
                 .regions
                 .iter()
-                .position(|r| r.id == self.server_ctx.curr_region)
+                .position(|r| r.id == self.server_ctx.shared.curr_region)
                 .ok_or("No active region".into())
         }
     }
@@ -289,7 +289,7 @@ impl Editor {
         } else {
             ProjectContext::Region(self.documents.project.regions[i].id)
         };
-        if self.server_ctx.pc != pc {
+        if self.server_ctx.shared.pc != pc {
             crate::undo::project_helper::set_project_context(
                 ctx,
                 ui,
@@ -316,7 +316,7 @@ impl Editor {
         let center = super::scepter_map::point(c.center)?;
         let pos = c.position.map(super::scepter_map::point).transpose()?;
         let view = match c.view.as_deref() {
-            None => self.server_ctx.editor_view_mode,
+            None => self.server_ctx.shared.editor_view_mode,
             Some("2d") | Some("2d_iso") => EditorViewMode::D2,
             Some("iso") => EditorViewMode::Iso,
             Some("orbit") => EditorViewMode::Orbit,
@@ -358,7 +358,7 @@ impl Editor {
             if let Some(scale) = c.scale {
                 region.map.grid_size = scale;
             }
-            self.server_ctx.center_map_at_grid_pos(
+            self.server_ctx.shared.center_map_at_grid_pos(
                 Vec2::zero(),
                 Vec2::new(center.x, center.z),
                 &mut region.map,
@@ -374,13 +374,13 @@ impl Editor {
         }
         ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(view_index));
         if view == EditorViewMode::D2 {
-            self.server_ctx.store_edit_view_2d_for_map(
+            self.server_ctx.shared.store_edit_view_2d_for_map(
                 region.map.id,
                 region.map.offset,
                 region.map.grid_size,
             );
         } else {
-            self.server_ctx.store_edit_view_for_map(
+            self.server_ctx.shared.store_edit_view_for_map(
                 region.map.id,
                 view,
                 region.editing_position_3d,
@@ -393,7 +393,7 @@ impl Editor {
                     let scale = self.server_ctx.camera.iso_camera.scale;
                     region.editing_iso_scale = Some(scale);
                     self.server_ctx
-                        .store_edit_view_iso_scale_for_map(region.map.id, scale);
+                        .shared.store_edit_view_iso_scale_for_map(region.map.id, scale);
                 }
                 EditorViewMode::Orbit => {
                     region.editing_position_orbit_3d = Some(region.editing_position_3d);
@@ -421,8 +421,8 @@ impl Editor {
         }
         use rusterix::D3Camera;
         let i = region_index(&self.documents.project, &c.region)?;
-        if self.documents.project.regions[i].id != self.server_ctx.curr_region
-            || self.server_ctx.get_map_context() != MapContext::Region
+        if self.documents.project.regions[i].id != self.server_ctx.shared.curr_region
+            || self.server_ctx.shared.get_map_context() != MapContext::Region
         {
             return Err("editor_view requires the current map region".into());
         }
@@ -449,7 +449,7 @@ impl Editor {
             fov: None,
             pitch: None,
         };
-        match self.server_ctx.editor_view_mode {
+        match self.server_ctx.shared.editor_view_mode {
             EditorViewMode::D2 => {
                 c.view = Some("2d".into());
                 let grid = r.map.grid_size.max(0.1);
@@ -502,8 +502,8 @@ mod tests {
     fn scepter_feed_reports_selection_and_content_and_detects_expired_cursors() {
         let mut editor = Editor::new();
         editor.documents.project = Project::default();
-        editor.server_ctx.curr_region = editor.documents.project.regions[0].id;
-        editor.server_ctx.pc = ProjectContext::Region(editor.server_ctx.curr_region);
+        editor.server_ctx.shared.curr_region = editor.documents.project.regions[0].id;
+        editor.server_ctx.shared.pc = ProjectContext::Region(editor.server_ctx.shared.curr_region);
         let mut ui = TheUI::new();
         let start = editor.scepter_context(&mut ui);
         let cursor = start["context"]["cursor_sequence"].as_u64().unwrap();
@@ -574,8 +574,8 @@ mod focus_tests {
     fn scepter_focus_survives_normal_view_switching_and_preview_uses_fractional_zoom() {
         let mut editor = Editor::new();
         editor.documents.project = Project::default();
-        editor.server_ctx.curr_region = editor.documents.project.regions[0].id;
-        editor.server_ctx.pc = ProjectContext::Region(editor.server_ctx.curr_region);
+        editor.server_ctx.shared.curr_region = editor.documents.project.regions[0].id;
+        editor.server_ctx.shared.pc = ProjectContext::Region(editor.server_ctx.shared.curr_region);
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(768, 512, 1.);
         let revision = editor.scepter_revision();
@@ -589,7 +589,7 @@ mod focus_tests {
             };
             editor.scepter_focus(focus, &mut ui, &mut ctx).unwrap();
             let request: RegionRenderPreview = serde_json::from_value(
-                json!({"region":{"id":editor.server_ctx.curr_region},"editor_view":true}),
+                json!({"region":{"id":editor.server_ctx.shared.curr_region},"editor_view":true}),
             )
             .unwrap();
             let preview = editor.scepter_preview_request(request, &mut ui).unwrap();

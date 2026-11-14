@@ -309,7 +309,7 @@ impl Creator {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         match event {
             TheEvent::ContextMenuSelected(_, id)
@@ -320,7 +320,7 @@ impl Creator {
                 self.edit = None;
                 self.options = Options::default();
                 if project
-                    .get_map(server)
+                    .get_map(&server.shared)
                     .is_some_and(|map| map.camera == rusterix::MapCamera::TwoDIso)
                 {
                     self.options.iso = true;
@@ -460,7 +460,7 @@ impl Creator {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> Result<(), String> {
         let settings = self.options.settings();
         if let Some(id) = self.edit {
@@ -554,7 +554,7 @@ impl Creator {
                 source = staged.tilemaps.remove(0);
             }
             let source_id = source.id;
-            let previous_context = server.pc;
+            let previous_context = server.shared.pc;
             let atom = ProjectUndoAtom::CreateTileSource(Box::new(source), collection, tiles);
             atom.redo(project, ui, ctx, server);
             if self.options.add_all {
@@ -1000,7 +1000,7 @@ mod tests {
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(800, 600, 1.);
         ui.init(&mut ctx);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         atom.redo(&mut project, &mut ui, &mut ctx, &mut server);
         assert_eq!(project.tiles.len(), before + 2);
         assert!(project.get_tilemap(id).is_some());
@@ -1042,7 +1042,7 @@ mod tests {
             &mut ui,
             &mut ctx,
             &mut project,
-            &mut ServerContext::default(),
+            &mut CreatorContext::default(),
         );
         assert!(ui.get_widget("Tileset Lighting").is_some());
         assert!(ui.get_widget("Tileset FPS").is_some());

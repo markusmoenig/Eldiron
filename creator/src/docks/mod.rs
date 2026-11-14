@@ -48,7 +48,7 @@ pub trait Dock: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
     }
 
@@ -73,7 +73,7 @@ pub trait Dock: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
     }
 
@@ -88,7 +88,7 @@ pub trait Dock: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         false
     }
@@ -98,7 +98,7 @@ pub trait Dock: Send + Sync {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         _project: &mut Project,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) -> bool {
         false
     }
@@ -108,7 +108,7 @@ pub trait Dock: Send + Sync {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         _project: &mut Project,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) -> bool {
         false
     }
@@ -120,7 +120,7 @@ pub trait Dock: Send + Sync {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         _project: &mut Project,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         false
     }
@@ -165,7 +165,7 @@ pub trait Dock: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
     }
 
@@ -175,7 +175,7 @@ pub trait Dock: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
     }
 
@@ -192,7 +192,7 @@ pub trait Dock: Send + Sync {
         &self,
         size: Vec2<i32>,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         sources: &mut crate::minimap::native::Sources,
     ) -> Option<
         std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
@@ -209,7 +209,7 @@ pub trait Dock: Send + Sync {
         buffer: &mut TheRGBABuffer,
         project: &Project,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> bool {
         false
     }
@@ -225,7 +225,7 @@ pub trait Dock: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         debug: &EldrinDebugModule,
     ) {
     }

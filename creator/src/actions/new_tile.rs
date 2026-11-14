@@ -64,7 +64,7 @@ impl Action for NewTile {
         &self,
         _map: &Map,
         _ctx: &mut TheContext,
-        _server_ctx: &ServerContext,
+        _server_ctx: &CreatorContext,
     ) -> bool {
         _server_ctx.docks.read().dock == "Tiles"
     }
@@ -74,7 +74,7 @@ impl Action for NewTile {
         project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let size = self
             .nodeui
@@ -104,9 +104,9 @@ impl Action for NewTile {
         tile.set_default_materials();
         let id = tile.id;
         project.tiles.insert(id, tile);
-        project.place_tile_at_picker_selection(id, server_ctx.curr_tile_board_cell.take());
-        server_ctx.curr_tile_id = Some(id);
-        server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
+        project.place_tile_at_picker_selection(id, server_ctx.shared.curr_tile_board_cell.take());
+        server_ctx.shared.curr_tile_id = Some(id);
+        server_ctx.shared.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Tilepicker"),
@@ -129,7 +129,7 @@ impl Action for NewTile {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

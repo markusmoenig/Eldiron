@@ -1320,7 +1320,7 @@ fn scene(mut p: Project) -> (Project, Uuid) {
     map.properties
         .set("iso_brush_follow_mesh_bounds", Value::Bool(true));
     map.properties.set("iso_brush_snap", Value::Bool(true));
-    ServerContext::default().center_map_at_grid_pos(
+    CreatorContext::default().shared.center_map_at_grid_pos(
         Vec2::new(1280., 900.),
         Vec2::new(9.4, 9.8),
         &mut map,

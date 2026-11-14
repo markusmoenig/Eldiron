@@ -793,7 +793,7 @@ impl Dock for HelpDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) {
         self.refresh_rules(ui, ctx, project, true, &_server_ctx.reference);
         Self::clear_input(ui);
@@ -805,7 +805,7 @@ impl Dock for HelpDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) -> bool {
         self.refresh_rules(ui, ctx, project, false, &_server.reference)
     }
@@ -816,7 +816,7 @@ impl Dock for HelpDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         if let TheEvent::Custom(id, TheValue::Text(command)) = event
             && id.name == HELP_FEEDBACK_ACTION
@@ -885,7 +885,7 @@ mod tests {
         let mut ctx = TheContext::new(900, 650, 1.);
         let mut ui = TheUI::new();
         ui.canvas = dock.setup(&mut ctx);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         dock.activate(&mut ui, &mut ctx, &project, &mut server);
         dock.navigate_to_command("action basic_attack", &mut ui, &mut ctx, &project, &server.reference);
         let history = dock.history.clone();

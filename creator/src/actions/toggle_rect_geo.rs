@@ -36,9 +36,9 @@ impl Action for ToggleRectGeo {
         None
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.editor_view_mode == EditorViewMode::D2
-            && server_ctx.editing_surface.is_none()
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.editor_view_mode == EditorViewMode::D2
+            && server_ctx.shared.editing_surface.is_none()
             && server_ctx.docks.read().get_state() != DockManagerState::Editor
     }
 
@@ -47,9 +47,9 @@ impl Action for ToggleRectGeo {
         _map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
-        server_ctx.no_rect_geo_on_map = !server_ctx.no_rect_geo_on_map;
+        server_ctx.shared.no_rect_geo_on_map = !server_ctx.shared.no_rect_geo_on_map;
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Client Properties"),
@@ -69,7 +69,7 @@ impl Action for ToggleRectGeo {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

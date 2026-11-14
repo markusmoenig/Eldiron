@@ -14,7 +14,7 @@ const MODES: [HudMode; 9] = [
 fn fixture(
     mode: HudMode,
     orbit: bool,
-) -> (Hud, Map, ServerContext, TheContext, Assets, TheRGBABuffer) {
+) -> (Hud, Map, CreatorContext, TheContext, Assets, TheRGBABuffer) {
     let mut assets = Assets::default();
     let mut texture = rusterix::Texture::alloc(63, 29);
     for (y, row) in texture.data.chunks_exact_mut(63 * 4).enumerate() {
@@ -38,18 +38,18 @@ fn fixture(
         .set("source", Value::Source(PixelSource::TileId(tile_id)));
     sector.properties.set("floor_light", Value::Bool(true));
     map.sectors.push(sector);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::Region(map.id);
-    server.editor_view_mode = if orbit {
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::Region(map.id);
+    server.shared.editor_view_mode = if orbit {
         EditorViewMode::Orbit
     } else {
         EditorViewMode::D2
     };
-    server.hover_cursor = Some(Vec2::new(1.25, -2.5));
-    server.hover_cursor_3d = Some(Vec3::new(1.1, 2.2, -3.3));
-    server.hover_height = Some(3.5);
-    server.background_progress = Some("Preparing fixture".into());
-    server.selected_hud_icon_index = 999;
+    server.shared.hover_cursor = Some(Vec2::new(1.25, -2.5));
+    server.shared.hover_cursor_3d = Some(Vec3::new(1.1, 2.2, -3.3));
+    server.shared.hover_height = Some(3.5);
+    server.shared.background_progress = Some("Preparing fixture".into());
+    server.shared.selected_hud_icon_index = 999;
     let mut ctx = TheContext::new(SIZE.0 as usize, SIZE.1 as usize, 1.);
     let mut light = TheRGBABuffer::new(TheDim::sized(3, 3));
     for (i, p) in light.pixels_mut().chunks_exact_mut(4).enumerate() {
@@ -94,7 +94,7 @@ fn prepare(
     size: (usize, usize),
     map: &Map,
     ctx: &TheContext,
-    server: &ServerContext,
+    server: &CreatorContext,
     id: Option<u32>,
     assets: &Assets,
     style: &HudStyle,
@@ -137,7 +137,7 @@ fn acknowledge(
     scope: HudScope,
     size: (usize, usize),
     map: &Map,
-    server: &mut ServerContext,
+    server: &mut CreatorContext,
 ) -> bool {
     #[cfg(feature = "native-ui")]
     {
@@ -167,7 +167,7 @@ fn reference_hud_commands_preserve_all_eighteen_pre_extraction_rgba_fixtures() {
                 &style(),
             );
             assert_eq!(
-                server.selected_hud_icon_index, 999,
+                server.shared.selected_hud_icon_index, 999,
                 "preparation cannot clamp live input selection"
             );
             assert!(
@@ -270,7 +270,7 @@ fn hud_frames_require_painted_source_scope_and_never_promote_prepared_hit_geomet
         &map,
         &mut server
     ));
-    assert_eq!(server.selected_hud_icon_index, 0);
+    assert_eq!(server.shared.selected_hud_icon_index, 0);
     assert_eq!(
         hud.hit_test(scope, size(), Vec2::new(500, 5), &map, &server),
         HudHit::Action(HudAction::GeometryMode { resize: true })
@@ -339,7 +339,7 @@ fn hud_frames_require_painted_source_scope_and_never_promote_prepared_hit_geomet
         &mut map,
         &mut server,
     );
-    assert_eq!(server.geometry_gizmo_op, GeometryGizmoOp::Resize);
+    assert_eq!(server.shared.geometry_gizmo_op, GeometryGizmoOp::Resize);
     assert!(effects.overlay_dirty && !effects.scene_dirty);
     assert!(!hud.frame_input_current(scope, size(), &map, &server));
 }
@@ -648,7 +648,7 @@ fn native_hud_frames_compose_raw_sources_and_swash_commands_without_display_pixe
                 (SIZE.0 as u32, SIZE.1 as u32),
             );
             assert_eq!(serde_json::to_vec(&map).unwrap(), authored);
-            assert_eq!(server.selected_hud_icon_index, 999);
+            assert_eq!(server.shared.selected_hud_icon_index, 999);
             let receipts = list.receipts().collect::<Vec<_>>();
             assert!(hud.presented_paint(&frame, &receipts, scope, size(), &map, &mut server));
             let warm = gpu.transfers();
@@ -867,14 +867,14 @@ fn unpainted_and_stale_reference_hud_regions_never_retarget_authoring_clicks() {
         &mut server
     ));
     map.changed = map.changed.wrapping_add(1);
-    server.selected_hud_icon_index = 2;
+    server.shared.selected_hud_icon_index = 2;
     assert_eq!(
         hud.hit_test(scope, size(), Vec2::new(880, 35), &map, &server),
         HudHit::Unavailable
     );
     assert!(hud.clicked(880, 35, &mut map, &mut ui, &mut ctx, &mut server));
     assert_eq!(
-        server.selected_hud_icon_index, 2,
+        server.shared.selected_hud_icon_index, 2,
         "stale input cannot apply the old selection"
     );
     assert!(!hud.clicked(100, 100, &mut map, &mut ui, &mut ctx, &mut server));
@@ -921,10 +921,10 @@ fn shortcut_guidance_commands_keep_reference_blending_and_bottom_geometry() {
 fn hud_preparation_accepts_resolved_slots_without_context_or_action_callbacks() {
     let mut hud = Hud::new(HudMode::Selection);
     let map = Map::default();
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::Region(map.id);
-    server.curr_action_id = Some(Uuid::new_v4());
-    server.selected_hud_icon_index = 7;
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::Region(map.id);
+    server.shared.curr_action_id = Some(Uuid::new_v4());
+    server.shared.selected_hud_icon_index = 7;
     let assets = Assets::default();
     let scope = scope();
     let slots = [
@@ -952,7 +952,7 @@ fn hud_preparation_accepts_resolved_slots_without_context_or_action_callbacks() 
         },
         &style(),
     );
-    assert_eq!(server.selected_hud_icon_index, 7);
+    assert_eq!(server.shared.selected_hud_icon_index, 7);
     assert!(hud.icon_rects.is_empty());
     assert!(acknowledge(
         &mut hud,
@@ -962,7 +962,7 @@ fn hud_preparation_accepts_resolved_slots_without_context_or_action_callbacks() 
         &map,
         &mut server
     ));
-    assert_eq!(server.selected_hud_icon_index, 1);
+    assert_eq!(server.shared.selected_hud_icon_index, 1);
     assert_eq!(hud.icon_rects.len(), 2);
     assert_eq!(
         hud.hit_test(scope, size(), Vec2::new(830, 30), &map, &server),
@@ -1005,7 +1005,7 @@ fn hud_preparation_accepts_resolved_slots_without_context_or_action_callbacks() 
         &map,
         &mut server
     ));
-    assert_eq!(server.selected_hud_icon_index, 0);
+    assert_eq!(server.shared.selected_hud_icon_index, 0);
 }
 
 #[test]
@@ -1021,8 +1021,8 @@ fn procedural_icon_hud_preparation_retains_parameters_without_materializing_prev
     sector.properties.set("noise_intensity", Value::Float(0.6));
     sector.properties.set("pixelization", Value::Int(7));
     map.sectors.push(sector);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::Region(map.id);
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::Region(map.id);
     let assets = Assets::default();
     let source = serde_json::to_vec(&map).unwrap();
     let frame = hud.prepare_frame(

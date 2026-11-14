@@ -42,7 +42,7 @@ pub trait EditorTool: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut shared::context::ServerContext,
         jobs: &CreatorJobs,
         reference: &CreatorReference,
         creator_history: &CreatorHistory,

@@ -226,12 +226,12 @@ impl PrefabsEditorDock {
     }
 
     fn ray_drag_point(
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         origin: Vec3<f32>,
         normal: Vec3<f32>,
     ) -> Option<Vec3<f32>> {
-        let ray_origin = server_ctx.hover_ray_origin_3d?;
-        let ray_direction = server_ctx.hover_ray_dir_3d?;
+        let ray_origin = server_ctx.shared.hover_ray_origin_3d?;
+        let ray_direction = server_ctx.shared.hover_ray_dir_3d?;
         let denominator = ray_direction.dot(normal);
         if denominator.abs() <= 1e-6 {
             return None;
@@ -731,8 +731,8 @@ impl PrefabsEditorDock {
         true
     }
 
-    fn active_asset_id(server_ctx: &ServerContext) -> Option<Uuid> {
-        match server_ctx.pc {
+    fn active_asset_id(server_ctx: &CreatorContext) -> Option<Uuid> {
+        match server_ctx.shared.pc {
             ProjectContext::Prefab(asset_id) => Some(asset_id),
             _ => None,
         }
@@ -2281,7 +2281,7 @@ impl PrefabsEditorDock {
         &mut self,
         project: &mut Project,
         asset_id: Uuid,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> bool {
         if !self.door_preview_open {
             return false;
@@ -2304,7 +2304,7 @@ impl PrefabsEditorDock {
         &mut self,
         project: &mut Project,
         asset_id: Uuid,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> Result<(), String> {
         let before = project
             .prefab_editor_map
@@ -2441,7 +2441,7 @@ impl Dock for PrefabsEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let Some(asset_id) = Self::active_asset_id(server_ctx) else {
             return;
@@ -2451,7 +2451,7 @@ impl Dock for PrefabsEditorDock {
         self.selected_effect_id = None;
         self.effect_preset_applying = false;
         self.effect_drag = None;
-        server_ctx.selected_prefab_effect_id = None;
+        server_ctx.shared.selected_prefab_effect_id = None;
         self.door_preview_open = false;
         self.sync_mode(ui, ctx, project);
         self.sync_part_tree(ui, ctx, project, asset_id);
@@ -2473,7 +2473,7 @@ impl Dock for PrefabsEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         let Some(asset) = Self::active_asset_id(server) else {
             return false;
@@ -2490,7 +2490,7 @@ impl Dock for PrefabsEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         let ProjectContext::Prefab(asset) = owner else {
             return false;
@@ -2523,7 +2523,7 @@ impl Dock for PrefabsEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         #[cfg(feature = "native-ui")]
         if let TheEvent::GraphInteractionStarted(id, binding) = event
@@ -2597,7 +2597,7 @@ impl Dock for PrefabsEditorDock {
         if self.mode == PrefabEditorMode::Effects {
             match event {
                 TheEvent::RenderViewClicked(id, _) if id.name == PREFAB_VIEW => {
-                    if let Some(GeoId::Gizmo(gizmo)) = server_ctx.geo_hit
+                    if let Some(GeoId::Gizmo(gizmo)) = server_ctx.shared.geo_hit
                         && let Some(asset) = project.block_props.get(&asset_id)
                         && let Some((effect_id, direction_handle)) = Self::effect_id_for_gizmo(asset, gizmo)
                         && let Some((part_id, attachment_id)) =
@@ -2608,7 +2608,7 @@ impl Dock for PrefabsEditorDock {
                         && let Some((part_world, world_to_part)) = Self::effect_part_frame(asset, part_id)
                     {
                         self.selected_effect_id = Some(effect_id);
-                        server_ctx.selected_prefab_effect_id = Some(effect_id);
+                        server_ctx.shared.selected_prefab_effect_id = Some(effect_id);
                         let local = Vec3::from(attachment.position);
                         let world = Mat4::<f32>::from_col_arrays(part_world)
                             * Vec4::new(local.x, local.y, local.z, 1.);
@@ -2794,7 +2794,7 @@ impl Dock for PrefabsEditorDock {
                     self.palette_dock.activate(ui, ctx, project, server_ctx);
                 } else if self.mode == PrefabEditorMode::Effects {
                     self.sync_effect_editor(ui, ctx, project, asset_id);
-                    server_ctx.selected_prefab_effect_id = self.selected_effect_id;
+                    server_ctx.shared.selected_prefab_effect_id = self.selected_effect_id;
                 }
                 ctx.ui.redraw_all = true;
                 true
@@ -2809,7 +2809,7 @@ impl Dock for PrefabsEditorDock {
                 } else if self.effect_inspector_page == 3 {
                     self.effect_inspector_page = 1;
                 }
-                server_ctx.selected_prefab_effect_id = Some(id.uuid);
+                server_ctx.shared.selected_prefab_effect_id = Some(id.uuid);
                 self.sync_effect_editor(ui, ctx, project, asset_id);
                 ctx.ui.redraw_all = true;
                 true
@@ -2904,7 +2904,7 @@ impl Dock for PrefabsEditorDock {
                 let preset = "Flame";
                 match self.add_particle_preset(project, asset_id, preset) {
                     Ok(_) => {
-                        server_ctx.selected_prefab_effect_id = self.selected_effect_id;
+                        server_ctx.shared.selected_prefab_effect_id = self.selected_effect_id;
                         Self::push_project_undo(before, project, ctx, &server_ctx.history);
                         Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_effect_editor(ui, ctx, project, asset_id);
@@ -2925,7 +2925,7 @@ impl Dock for PrefabsEditorDock {
                 match self.add_light_effect(project, asset_id) {
                     Ok(_) => {
                         self.effect_inspector_page = 3;
-                        server_ctx.selected_prefab_effect_id = self.selected_effect_id;
+                        server_ctx.shared.selected_prefab_effect_id = self.selected_effect_id;
                         Self::push_project_undo(before, project, ctx, &server_ctx.history);
                         Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_effect_editor(ui, ctx, project, asset_id);
@@ -2945,7 +2945,7 @@ impl Dock for PrefabsEditorDock {
                 let before = project.clone();
                 match self.duplicate_selected_effect(project, asset_id) {
                     Ok(_) => {
-                        server_ctx.selected_prefab_effect_id = self.selected_effect_id;
+                        server_ctx.shared.selected_prefab_effect_id = self.selected_effect_id;
                         Self::push_project_undo(before, project, ctx, &server_ctx.history);
                         Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_effect_editor(ui, ctx, project, asset_id);
@@ -3003,7 +3003,7 @@ impl Dock for PrefabsEditorDock {
                     }
                 }
                 self.selected_effect_id = None;
-                server_ctx.selected_prefab_effect_id = None;
+                server_ctx.shared.selected_prefab_effect_id = None;
                 Self::push_project_undo(before, project, ctx, &server_ctx.history);
                 Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 self.sync_effect_editor(ui, ctx, project, asset_id);
@@ -3646,7 +3646,7 @@ impl Dock for PrefabsEditorDock {
                     self.sync_part_inspector(ui, ctx, project, asset_id);
                     return true;
                 }
-                server_ctx.curr_block_asset_name = project
+                server_ctx.shared.curr_block_asset_name = project
                     .block_props
                     .get(&asset_id)
                     .map(|asset| asset.name.clone());
@@ -4221,7 +4221,7 @@ impl Dock for PrefabsEditorDock {
         &self,
         size: Vec2<i32>,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         sources: &mut crate::minimap::native::Sources,
     ) -> Option<
         std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
@@ -4240,7 +4240,7 @@ impl Dock for PrefabsEditorDock {
         buffer: &mut TheRGBABuffer,
         project: &Project,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> bool {
         self.mode == PrefabEditorMode::Tiles
             && self

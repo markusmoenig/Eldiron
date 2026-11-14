@@ -87,7 +87,7 @@ impl Dock for LogDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &Project,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) {
         if let Some(widget) = ui.get_widget("LogEdit") {
             ctx.ui.set_focus(widget.id());

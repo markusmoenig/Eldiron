@@ -32,9 +32,9 @@ impl Editor {
     }
     pub(crate) fn native_display_owns_viewport(&self) -> bool {
         self.native_viewport.enabled
-            && !self.server_ctx.game_mode
-            && !self.server_ctx.game_input_mode
-            && !self.server_ctx.text_game_mode
+            && !self.server_ctx.shared.game_mode
+            && !self.server_ctx.shared.game_input_mode
+            && !self.server_ctx.shared.text_game_mode
             && self.server_ctx.tools.read()
                 .active_editor_display_owner(&self.server_ctx)
                 .is_some()
@@ -51,7 +51,7 @@ impl Editor {
                     document,
                     view: view.id().clone(),
                     size: (dim.width as usize, dim.height as usize),
-                    context: self.server_ctx.pc,
+                    context: self.server_ctx.shared.pc,
                     owner,
                     epoch: self.native_viewport.epoch,
                 })
@@ -103,7 +103,7 @@ impl Editor {
         {
             ctx.ui.set_focus(&binding.view);
         }
-        let Some(map) = self.documents.project.get_map(&self.server_ctx) else {
+        let Some(map) = self.documents.project.get_map(&self.server_ctx.shared) else {
             self.invalidate_native_display_viewport(ui);
             return Ok(None);
         };
@@ -213,7 +213,7 @@ impl Editor {
             NativeDisplayOutcome::CommitAction(id) => {
                 // Single platform-thread transaction: dispatch before processing
                 // another document event. No generic queued Apply can cross tabs.
-                if Some(id) == self.server_ctx.curr_action_id
+                if Some(id) == self.server_ctx.shared.curr_action_id
                     && self.documents.active_id() == Some(binding.document)
                 {
                     self.sidebar.handle_event(

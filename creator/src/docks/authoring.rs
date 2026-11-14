@@ -145,7 +145,7 @@ impl Dock for AuthoringDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.refresh_from_selection(ui, ctx, project, server_ctx);
     }
@@ -156,7 +156,7 @@ impl Dock for AuthoringDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match event {
             TheEvent::ValueChanged(id, value) if id.name == "DockAuthoringEditor" => {
@@ -220,7 +220,7 @@ impl Dock for AuthoringDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if let Some(entity_key) = self.current_entity
             && let Some(undo) = self.entity_undos.get_mut(&entity_key)
@@ -238,7 +238,7 @@ impl Dock for AuthoringDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if let Some(entity_key) = self.current_entity
             && let Some(undo) = self.entity_undos.get_mut(&entity_key)
@@ -278,7 +278,7 @@ impl AuthoringDock {
     fn target_from_content_item(
         &self,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         id: &TheId,
     ) -> Option<AuthoringTarget> {
         if matches!(
@@ -297,7 +297,7 @@ impl AuthoringDock {
             return Some(AuthoringTarget::ItemTemplate(id.references));
         }
 
-        let region = project.get_region(&server_ctx.curr_region)?;
+        let region = project.get_region(&server_ctx.shared.curr_region)?;
         if id.name == "Screen Content List Item" || id.name == "Region Content List Item" {
             if let Some(sector) = region
                 .map
@@ -306,7 +306,7 @@ impl AuthoringDock {
                 .find(|sector| sector.creator_id == id.uuid)
             {
                 return Some(AuthoringTarget::Sector(
-                    server_ctx.curr_region,
+                    server_ctx.shared.curr_region,
                     sector.id,
                     sector.creator_id,
                 ));
@@ -318,7 +318,7 @@ impl AuthoringDock {
                 .find(|linedef| linedef.creator_id == id.uuid)
             {
                 return Some(AuthoringTarget::Linedef(
-                    server_ctx.curr_region,
+                    server_ctx.shared.curr_region,
                     linedef.id,
                     linedef.creator_id,
                 ));
@@ -348,13 +348,13 @@ impl AuthoringDock {
     fn current_target(
         &self,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> Option<AuthoringTarget> {
         // Linked Prefab geometry is rendered with derived object IDs and is not
         // stored in `map.geometry_objects`. The Geometry tool records the
         // owning instance instead, so resolve that selection back to the shared
         // source asset whose authoring data all linked instances use.
-        if let Some(region) = project.get_region(&server_ctx.curr_region)
+        if let Some(region) = project.get_region(&server_ctx.shared.curr_region)
             && let Some(instance_id) = region.map.selected_block_prop_instances.first()
             && let Some(instance) = region
                 .map
@@ -366,14 +366,14 @@ impl AuthoringDock {
             return Some(AuthoringTarget::PrefabInstance(region.id, instance.id));
         }
 
-        if server_ctx.block_tool_active
-            && let Some(asset_id) = server_ctx.curr_block_asset_id
+        if server_ctx.shared.block_tool_active
+            && let Some(asset_id) = server_ctx.shared.curr_block_asset_id
             && project.block_props.contains_key(&asset_id)
         {
             return Some(AuthoringTarget::PrefabAsset(asset_id));
         }
 
-        let region = project.get_region(&server_ctx.curr_region)?;
+        let region = project.get_region(&server_ctx.shared.curr_region)?;
         let map = &region.map;
 
         // Placed content owns its authoring; no global template is required.
@@ -385,7 +385,7 @@ impl AuthoringDock {
                 return Some(AuthoringTarget::RegionCharacter(region.id, id));
             }
         }
-        match server_ctx.pc {
+        match server_ctx.shared.pc {
             ProjectContext::RegionItemInstance(r, id)
                 if project.get_region(&r)?.items.contains_key(&id) =>
             {
@@ -408,7 +408,7 @@ impl AuthoringDock {
                 .any(|object| object.id == object_id)
         {
             return Some(AuthoringTarget::GeometryObject(
-                server_ctx.curr_region,
+                server_ctx.shared.curr_region,
                 object_id,
             ));
         }
@@ -417,7 +417,7 @@ impl AuthoringDock {
             && let Some(sector) = map.find_sector(sector_id)
         {
             return Some(AuthoringTarget::Sector(
-                server_ctx.curr_region,
+                server_ctx.shared.curr_region,
                 sector.id,
                 sector.creator_id,
             ));
@@ -427,13 +427,13 @@ impl AuthoringDock {
             && let Some(linedef) = map.find_linedef(linedef_id)
         {
             return Some(AuthoringTarget::Linedef(
-                server_ctx.curr_region,
+                server_ctx.shared.curr_region,
                 linedef.id,
                 linedef.creator_id,
             ));
         }
 
-        match server_ctx.pc {
+        match server_ctx.shared.pc {
             ProjectContext::Character(id)
             | ProjectContext::CharacterData(id)
             | ProjectContext::CharacterCode(id)
@@ -452,7 +452,7 @@ impl AuthoringDock {
             _ => {}
         }
 
-        match server_ctx.curr_region_content {
+        match server_ctx.shared.curr_region_content {
             ContentContext::ItemInstance(id) if region.items.contains_key(&id) => {
                 return Some(AuthoringTarget::RegionItem(region.id, id));
             }
@@ -466,7 +466,7 @@ impl AuthoringDock {
                     .find(|sector| sector.creator_id == creator_id)
                 {
                     return Some(AuthoringTarget::Sector(
-                        server_ctx.curr_region,
+                        server_ctx.shared.curr_region,
                         sector.id,
                         sector.creator_id,
                     ));
@@ -475,14 +475,14 @@ impl AuthoringDock {
             _ => {}
         }
 
-        match server_ctx.curr_character {
+        match server_ctx.shared.curr_character {
             ContentContext::CharacterTemplate(id) if project.characters.contains_key(&id) => {
                 return Some(AuthoringTarget::CharacterTemplate(id));
             }
             _ => {}
         }
 
-        match server_ctx.curr_item {
+        match server_ctx.shared.curr_item {
             ContentContext::ItemTemplate(id) if project.items.contains_key(&id) => {
                 return Some(AuthoringTarget::ItemTemplate(id));
             }
@@ -611,7 +611,7 @@ impl AuthoringDock {
         }
     }
 
-    fn write_current(&self, project: &mut Project, server_ctx: &ServerContext, text: String) {
+    fn write_current(&self, project: &mut Project, server_ctx: &CreatorContext, text: String) {
         let Some(target) = self.current_target(project, server_ctx) else {
             return;
         };
@@ -689,7 +689,7 @@ impl AuthoringDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) {
         let target = self.current_target(project, server_ctx);
         self.apply_target_to_ui(target, ui, ctx, project);
@@ -700,7 +700,7 @@ impl AuthoringDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         id: &TheId,
     ) {
         let target = self
@@ -762,7 +762,7 @@ impl AuthoringDock {
 mod tests {
     use super::*;
 
-    fn project_with_selected_geometry_object() -> (Project, ServerContext, Uuid) {
+    fn project_with_selected_geometry_object() -> (Project, CreatorContext, Uuid) {
         let mut project = Project::default();
         let region = &mut project.regions[0];
         let region_id = region.id;
@@ -771,9 +771,9 @@ mod tests {
         region.map.geometry_objects.push(object);
         region.map.selected_geometry_objects = vec![object_id];
 
-        let mut server_ctx = ServerContext::default();
-        server_ctx.curr_region = region_id;
-        server_ctx.pc = ProjectContext::Region(region_id);
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.curr_region = region_id;
+        server_ctx.shared.pc = ProjectContext::Region(region_id);
         (project, server_ctx, object_id)
     }
 
@@ -790,8 +790,8 @@ mod tests {
         region.items.insert(id, item);
         region.items.insert(other_id, other);
         region.map.selected_entity_item = Some(id);
-        let mut ctx = ServerContext::default();
-        ctx.curr_region = region.id;
+        let mut ctx = CreatorContext::default();
+        ctx.shared.curr_region = region.id;
         let dock = AuthoringDock::new();
         let target = AuthoringTarget::RegionItem(region.id, id);
         assert_eq!(dock.current_target(&p, &ctx), Some(target));
@@ -801,7 +801,7 @@ mod tests {
         assert!(p.items.is_empty());
         assert!(p.regions[0].items[&other_id].authoring.is_empty());
         assert_eq!(dock.target_display_title(&p, target), "West door");
-        ctx.pc = ProjectContext::RegionItemInstance(ctx.curr_region, id);
+        ctx.shared.pc = ProjectContext::RegionItemInstance(ctx.shared.curr_region, id);
         p.regions[0].map.selected_entity_item = None;
         assert_eq!(dock.current_target(&p, &ctx), Some(target));
     }
@@ -814,7 +814,7 @@ mod tests {
         assert_eq!(
             dock.current_target(&project, &server_ctx),
             Some(AuthoringTarget::GeometryObject(
-                server_ctx.curr_region,
+                server_ctx.shared.curr_region,
                 object_id
             ))
         );
@@ -824,7 +824,7 @@ mod tests {
     fn geometry_object_authoring_uses_its_data_property() {
         let (mut project, server_ctx, object_id) = project_with_selected_geometry_object();
         let dock = AuthoringDock::new();
-        let target = AuthoringTarget::GeometryObject(server_ctx.curr_region, object_id);
+        let target = AuthoringTarget::GeometryObject(server_ctx.shared.curr_region, object_id);
 
         assert_eq!(
             dock.read_target_text(&project, target),
@@ -855,8 +855,8 @@ mod tests {
         project.regions[0].map.block_prop_instances.push(instance);
         project.regions[0].map.selected_block_prop_instances = vec![instance_id];
 
-        let mut server_ctx = ServerContext::default();
-        server_ctx.curr_region = region_id;
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.curr_region = region_id;
         let dock = AuthoringDock::new();
 
         assert_eq!(

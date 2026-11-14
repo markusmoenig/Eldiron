@@ -297,9 +297,9 @@ impl Action for RemapTile {
         None
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
         server_ctx.docks.read().dock == "Tiles"
-            && (server_ctx.curr_tile_source.is_some() || server_ctx.curr_tile_id.is_some())
+            && (server_ctx.shared.curr_tile_source.is_some() || server_ctx.shared.curr_tile_id.is_some())
     }
 
     fn apply_project(
@@ -307,7 +307,7 @@ impl Action for RemapTile {
         project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let remap_all = self.nodeui.get_bool_value(REMAP_ALL_ID).unwrap_or(false);
         let remap_mode =
@@ -339,7 +339,7 @@ impl Action for RemapTile {
         } else {
             let mut edits = Vec::new();
 
-            if let Some(source) = server_ctx.curr_tile_source {
+            if let Some(source) = server_ctx.shared.curr_tile_source {
                 match source {
                     TileSource::SingleTile(tile_id) => {
                         if let Some(tile) = project.tiles.get_mut(&tile_id) {
@@ -350,7 +350,7 @@ impl Action for RemapTile {
                         }
                     }
                 }
-            } else if let Some(tile_id) = server_ctx.curr_tile_id
+            } else if let Some(tile_id) = server_ctx.shared.curr_tile_id
                 && let Some(tile) = project.tiles.get_mut(&tile_id)
             {
                 let prev = tile.clone();
@@ -386,7 +386,7 @@ impl Action for RemapTile {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

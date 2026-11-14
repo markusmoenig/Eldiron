@@ -48,21 +48,21 @@ pub struct PropsOverlay {
     deletable: bool,
 }
 impl PropsOverlay {
-    fn source(&self, server: &ServerContext) -> PropsSource {
+    fn source(&self, server: &CreatorContext) -> PropsSource {
         PropsSource {
-            context: server.pc,
-            view: server.editor_view_mode,
-            asset: server.curr_block_asset_id,
-            name: server.curr_block_asset_name.clone(),
-            operation: server.block_operation,
-            stroke: server.block_stroke_mode,
-            rotation: server.block_rotation_quarters,
-            damage: server.block_damage_enabled,
-            grid_size: server.block_grid_cell_size,
-            grid_level: server.block_grid_level,
-            height: server.block_height_cells,
-            width: server.block_span_extra_cells,
-            depth: server.block_depth_extra_cells,
+            context: server.shared.pc,
+            view: server.shared.editor_view_mode,
+            asset: server.shared.curr_block_asset_id,
+            name: server.shared.curr_block_asset_name.clone(),
+            operation: server.shared.block_operation,
+            stroke: server.shared.block_stroke_mode,
+            rotation: server.shared.block_rotation_quarters,
+            damage: server.shared.block_damage_enabled,
+            grid_size: server.shared.block_grid_cell_size,
+            grid_level: server.shared.block_grid_level,
+            height: server.shared.block_height_cells,
+            width: server.shared.block_span_extra_cells,
+            depth: server.shared.block_depth_extra_cells,
             recipe: self.recipe.clone(),
             resizable: self.resizable,
             subdivisions: self.subdivisions,
@@ -72,21 +72,21 @@ impl PropsOverlay {
         }
     }
 
-    pub fn sync(&mut self, project: &Project, server: &ServerContext) {
+    pub fn sync(&mut self, project: &Project, server: &CreatorContext) {
         let before = self.source(server);
         self.palette = project.palette.clone();
-        self.subdivisions = project.get_map(server).map_or(1., |m| m.subdivisions);
+        self.subdivisions = project.get_map(&server.shared).map_or(1., |m| m.subdivisions);
         self.builtin = server
-            .curr_block_asset_id
+            .shared.curr_block_asset_id
             .is_some_and(|id| crate::blocks::block_asset(id).is_some());
-        self.recipe = server.curr_block_asset_id.and_then(|id| {
+        self.recipe = server.shared.curr_block_asset_id.and_then(|id| {
             project
                 .procedural_appearances
                 .get(&id)
                 .and_then(|s| denrim_materials::geometry::Document::parse(s).ok())
                 .map(|doc| (id, props_recipe::published(&doc)))
         });
-        self.resizable = server.curr_block_asset_id.is_some_and(|id| {
+        self.resizable = server.shared.curr_block_asset_id.is_some_and(|id| {
             crate::blocks::block_asset(id).is_some()
                 || project
                     .block_props
@@ -94,7 +94,7 @@ impl PropsOverlay {
                     .is_some_and(crate::blocks::prefab_uses_auto_sizing)
         });
         self.deletable = server
-            .curr_block_asset_id
+            .shared.curr_block_asset_id
             .is_some_and(|id| project.block_props.contains_key(&id));
         if before != self.source(server) {
             self.frames.invalidate();
@@ -134,13 +134,13 @@ impl PropsOverlay {
         scope: PanelScope,
         size: (usize, usize),
         colors: crate::hud::HudColors,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> PanelFrame<PropsSource, Action> {
         let source = self.source(server);
         let mut frame = PanelBuilder::new(size, colors);
         let viewport_width = i32::try_from(size.0).unwrap_or(i32::MAX);
         let viewport_height = i32::try_from(size.1).unwrap_or(i32::MAX);
-        if !server.editor_view_mode.is_3d() || viewport_width < 340 || viewport_height < 250 {
+        if !server.shared.editor_view_mode.is_3d() || viewport_width < 340 || viewport_height < 250 {
             return frame.finish(&mut self.frames, scope, source);
         }
         let width = 420.min(viewport_width - 16);
@@ -162,7 +162,7 @@ impl PropsOverlay {
             &format!(
                 "{} · {}",
                 fl!("tool_blocks"),
-                server.curr_block_asset_name.as_deref().unwrap_or("")
+                server.shared.curr_block_asset_name.as_deref().unwrap_or("")
             ),
             TheFontSettings {
                 size: 13.,
@@ -184,7 +184,7 @@ impl PropsOverlay {
             frame.button(
                 TheDim::rect(x + i as i32 * (w + 6), y, w, 28),
                 label,
-                server.block_operation == i as i32,
+                server.shared.block_operation == i as i32,
                 Action::Event(TheEvent::IndexChanged(
                     TheId::named("Blocks Dock Operation"),
                     i,
@@ -198,7 +198,7 @@ impl PropsOverlay {
             frame.button(
                 TheDim::rect(x + i as i32 * (half + gap), y + 34, half, 28),
                 label,
-                server.block_stroke_mode == i as i32,
+                server.shared.block_stroke_mode == i as i32,
                 Action::Event(TheEvent::IndexChanged(
                     TheId::named("Blocks Dock Stroke"),
                     i,
@@ -210,12 +210,12 @@ impl PropsOverlay {
             &format!(
                 "{}: {}°",
                 fl!("props_rotate"),
-                server.block_rotation_quarters.rem_euclid(4) * 90
+                server.shared.block_rotation_quarters.rem_euclid(4) * 90
             ),
             false,
             Action::Event(TheEvent::ValueChanged(
                 TheId::named("Props Rotation"),
-                TheValue::Float((server.block_rotation_quarters + 1).rem_euclid(4) as f32),
+                TheValue::Float((server.shared.block_rotation_quarters + 1).rem_euclid(4) as f32),
             )),
         );
         frame.button(
@@ -259,20 +259,20 @@ impl PropsOverlay {
         }
         if self.recipe.is_none() {
             if server
-                .curr_block_asset_id
+                .shared.curr_block_asset_id
                 .is_some_and(|id| crate::blocks::block_asset(id).is_some())
             {
                 frame.button(
                     TheDim::rect(x, y + 136, half, 28),
-                    &if server.block_damage_enabled {
+                    &if server.shared.block_damage_enabled {
                         fl!("block_damage_damaged")
                     } else {
                         fl!("block_damage_clean")
                     },
-                    server.block_damage_enabled,
+                    server.shared.block_damage_enabled,
                     Action::Event(TheEvent::IndexChanged(
                         TheId::named("Blocks Dock Damage"),
-                        usize::from(!server.block_damage_enabled),
+                        usize::from(!server.shared.block_damage_enabled),
                     )),
                 );
             }
@@ -290,9 +290,9 @@ impl PropsOverlay {
         }
         frame.finish(&mut self.frames, scope, source)
     }
-    fn reference_scope(&self, server: &ServerContext) -> PanelScope {
+    fn reference_scope(&self, server: &CreatorContext) -> PanelScope {
         PanelScope {
-            document: server.pc.id().unwrap_or_default(),
+            document: server.shared.pc.id().unwrap_or_default(),
             tool: self.frames.owner(),
             revision: 0,
         }
@@ -301,7 +301,7 @@ impl PropsOverlay {
         &mut self,
         buffer: &mut TheRGBABuffer,
         ctx: &mut TheContext,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) {
         let size = (
             buffer.dim().width.max(0) as usize,
@@ -331,7 +331,7 @@ impl PropsOverlay {
         receipts: &[theframework::paint::FrameReceipt],
         scope: PanelScope,
         size: (usize, usize),
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.frames
             .presented_paint(frame, receipts, scope, size, &self.source(server))
@@ -341,7 +341,7 @@ impl PropsOverlay {
         frame: &PanelFrame<PropsSource, Action>,
         scope: PanelScope,
         size: (usize, usize),
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.frames
             .command_source_current(frame, scope, size, &self.source(server))
@@ -351,7 +351,7 @@ impl PropsOverlay {
         frame: &PanelFrame<PropsSource, Action>,
         scope: PanelScope,
         size: (usize, usize),
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.frames.is_presented_frame(frame)
             && self.frames.input_current(scope, size, &self.source(server))
@@ -361,7 +361,7 @@ impl PropsOverlay {
         scope: PanelScope,
         size: (usize, usize),
         point: Vec2<i32>,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> PanelHit<Action> {
         self.frames
             .hit_test(scope, size, &self.source(server), point)
@@ -377,7 +377,7 @@ impl PropsOverlay {
         event: &MapEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         if self.native_input {
             return false;
@@ -413,7 +413,7 @@ impl PropsOverlay {
         event: &MapEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> PanelEvent {
         match event {
             MapEvent::MapDragged(_) | MapEvent::MapUp(_) if self.down => {
@@ -457,7 +457,7 @@ impl PropsOverlay {
         action: Action,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) {
         match action {
             Action::Event(event) => ctx.ui.send(event),
@@ -473,14 +473,14 @@ impl PropsOverlay {
                             } else {
                                 fl!("props_level_height")
                             },
-                            server.block_grid_cell_size,
+                            server.shared.block_grid_cell_size,
                             0.05,
                             16.,
                         ),
                         (
                             "Level",
                             fl!("props_level"),
-                            server.block_grid_level as f32,
+                            server.shared.block_grid_level as f32,
                             -128.,
                             128.,
                         ),
@@ -499,21 +499,21 @@ impl PropsOverlay {
                             (
                                 "Height",
                                 fl!("props_height"),
-                                server.block_height_cells,
+                                server.shared.block_height_cells,
                                 0.05,
                                 16.,
                             ),
                             (
                                 "Width",
                                 fl!("props_width"),
-                                server.block_span_extra_cells,
+                                server.shared.block_span_extra_cells,
                                 0.,
                                 16.,
                             ),
                             (
                                 "Depth",
                                 fl!("props_depth"),
-                                server.block_depth_extra_cells,
+                                server.shared.block_depth_extra_cells,
                                 0.,
                                 16.,
                             ),

@@ -95,11 +95,11 @@ use ProjectUndoAtom::*;
 impl ProjectUndoAtom {
     fn refresh_prefab_editor_after_project_restore(
         ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) {
         // Project snapshots restore both compiled parts and their authoring graphs.
         // Reload the pane too, so its next edit cannot reapply the undone graph.
-        if matches!(server_ctx.pc, ProjectContext::Prefab(_)) {
+        if matches!(server_ctx.shared.pc, ProjectContext::Prefab(_)) {
             ctx.ui.send(TheEvent::Custom(
                 TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
                 TheValue::Empty,
@@ -112,7 +112,7 @@ impl ProjectUndoAtom {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         pc: ProjectContext,
         restored_map: &Map,
         previous_map: Option<&Map>,
@@ -127,7 +127,7 @@ impl ProjectUndoAtom {
             let prefabs = project.block_props.clone();
             server_ctx.reference.write().set_block_props(prefabs.clone());
             server_ctx.jobs.scene_mut().set_block_props(prefabs);
-            if server_ctx.pc.is_prefab() {
+            if server_ctx.shared.pc.is_prefab() {
                 let used_incremental = previous_map
                     .map(|previous| {
                         ToolList::try_incremental_map_edit(previous, restored_map, server_ctx)
@@ -156,7 +156,7 @@ impl ProjectUndoAtom {
         let map = if let Some(id) = parent {
             project.get_region_mut(&id).map(|region| &mut region.map)
         } else {
-            project.get_map_mut(server_ctx)
+            project.get_map_mut(&server_ctx.shared)
         };
         if let Some(map) = map {
             let revision = map.changed.max(restored_map.changed).wrapping_add(1);
@@ -206,7 +206,7 @@ impl ProjectUndoAtom {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         pc: ProjectContext,
         restored_region: &Region,
     ) {
@@ -413,7 +413,7 @@ impl ProjectUndoAtom {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         match self {
             MapEdit(pc, old, new) => {
@@ -512,7 +512,7 @@ impl ProjectUndoAtom {
             AddRegion(region) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_regions_id)
                     {
                         project.remove_region(&region.id);
                         region_node.remove_child_by_uuid(&region.id);
@@ -527,14 +527,14 @@ impl ProjectUndoAtom {
                     let mut node = gen_region_tree_node(&region);
                     node.set_open(true);
                     if let Some(region_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_regions_id)
                     {
                         region_node.add_child_at(*index, node);
                     }
                     let region_id: Uuid = region.id;
                     project.regions.insert(*index, region);
 
-                    server_ctx.curr_region = region_id;
+                    server_ctx.shared.curr_region = region_id;
                     set_project_context(
                         ctx,
                         ui,
@@ -564,7 +564,7 @@ impl ProjectUndoAtom {
             AddRegionCharacterInstance(region_id, character) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_regions_id)
                     {
                         region_node.remove_widget_by_uuid(&character.id);
                     }
@@ -578,7 +578,7 @@ impl ProjectUndoAtom {
                         if let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id) {
                             region_node.set_open(true);
                         }
-                        server_ctx.curr_region = region.id;
+                        server_ctx.shared.curr_region = region.id;
                         set_project_context(
                             ctx,
                             ui,
@@ -620,7 +620,7 @@ impl ProjectUndoAtom {
             AddRegionItemInstance(region_id, item) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_regions_id)
                     {
                         region_node.remove_widget_by_uuid(&item.id);
                     }
@@ -634,7 +634,7 @@ impl ProjectUndoAtom {
                         if let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id) {
                             region_node.set_open(true);
                         }
-                        server_ctx.curr_region = region.id;
+                        server_ctx.shared.curr_region = region.id;
                         set_project_context(
                             ctx,
                             ui,
@@ -682,7 +682,7 @@ impl ProjectUndoAtom {
             AddCharacter(character) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_characters_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_characters_id)
                     {
                         project.remove_character(&character.id);
                         region_node.remove_child_by_uuid(&character.id);
@@ -696,7 +696,7 @@ impl ProjectUndoAtom {
                     let mut node = gen_character_tree_node(&character);
                     node.set_open(true);
                     if let Some(character_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_characters_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_characters_id)
                     {
                         character_node.add_child_at(*index, node);
                     }
@@ -734,7 +734,7 @@ impl ProjectUndoAtom {
             AddItem(item) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_items_id)
                     {
                         project.remove_item(&item.id);
                         remove_item_tree(region_node, &item.id);
@@ -746,7 +746,7 @@ impl ProjectUndoAtom {
                     let item = item.clone();
 
                     if let Some(item_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_items_id)
                     {
                         append_item_tree(item_node, &item, project, true);
                     }
@@ -789,7 +789,7 @@ impl ProjectUndoAtom {
             AddTilemap(tilemap) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(tilemap_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_tilemaps_id)
                     {
                         // Find the index of the tilemap in the project
                         if let Some(index) =
@@ -808,7 +808,7 @@ impl ProjectUndoAtom {
                     let mut node = gen_tilemap_tree_node(&tilemap);
                     node.set_open(true);
                     if let Some(tilemap_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_tilemaps_id)
                     {
                         tilemap_node.add_child_at(*index, node);
                     }
@@ -872,7 +872,7 @@ impl ProjectUndoAtom {
             AddScreen(screen) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(screen_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_screens_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_screens_id)
                     {
                         project.remove_screen(&screen.id);
                         screen_node.remove_child_by_uuid(&screen.id);
@@ -886,7 +886,7 @@ impl ProjectUndoAtom {
                     let mut node = gen_screen_tree_node(&screen);
                     node.set_open(true);
                     if let Some(screen_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_screens_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_screens_id)
                     {
                         screen_node.add_child_at(*index, node);
                     }
@@ -922,8 +922,8 @@ impl ProjectUndoAtom {
             AddAsset(asset) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     let parent_id = match &asset.buffer {
-                        AssetBuffer::Audio(_) => server_ctx.tree_assets_audio_id,
-                        _ => server_ctx.tree_assets_fonts_id,
+                        AssetBuffer::Audio(_) => server_ctx.shared.tree_assets_audio_id,
+                        _ => server_ctx.shared.tree_assets_fonts_id,
                     };
                     if let Some(asset_node) = tree_layout.get_node_by_id_mut(&parent_id) {
                         project.remove_asset(&asset.id);
@@ -938,8 +938,8 @@ impl ProjectUndoAtom {
                     let mut node = gen_asset_tree_node(&asset);
                     node.set_open(true);
                     let parent_id = match &asset.buffer {
-                        AssetBuffer::Audio(_) => server_ctx.tree_assets_audio_id,
-                        _ => server_ctx.tree_assets_fonts_id,
+                        AssetBuffer::Audio(_) => server_ctx.shared.tree_assets_audio_id,
+                        _ => server_ctx.shared.tree_assets_fonts_id,
                     };
                     if let Some(asset_node) = tree_layout.get_node_by_id_mut(&parent_id) {
                         let insert_index = (*index).min(asset_node.childs.len());
@@ -977,7 +977,7 @@ impl ProjectUndoAtom {
             AddAvatar(avatar) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(avatar_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_avatars_id)
                     {
                         project.remove_avatar(&avatar.id);
                         avatar_node.remove_child_by_uuid(&avatar.id);
@@ -991,7 +991,7 @@ impl ProjectUndoAtom {
                     let mut node = gen_avatar_tree_node(&avatar);
                     node.set_open(true);
                     if let Some(avatar_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_avatars_id)
                     {
                         avatar_node.add_child_at(*index, node);
                     }
@@ -1142,7 +1142,7 @@ impl ProjectUndoAtom {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         match self {
             MapEdit(pc, old, new) => {
@@ -1247,14 +1247,14 @@ impl ProjectUndoAtom {
                     let mut node = gen_region_tree_node(&region);
                     node.set_open(true);
                     if let Some(region_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_regions_id)
                     {
                         region_node.add_child(node);
                     }
                     let region_id: Uuid = region.id;
                     project.regions.push(region);
 
-                    server_ctx.curr_region = region_id;
+                    server_ctx.shared.curr_region = region_id;
                     set_project_context(
                         ctx,
                         ui,
@@ -1268,7 +1268,7 @@ impl ProjectUndoAtom {
             RemoveRegion(_, region) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_regions_id)
                     {
                         region_node.remove_child_by_uuid(&region.id);
                     }
@@ -1278,7 +1278,7 @@ impl ProjectUndoAtom {
                         if let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id) {
                             region_node.set_open(true);
                         }
-                        server_ctx.curr_region = region.id;
+                        server_ctx.shared.curr_region = region.id;
                         set_project_context(
                             ctx,
                             ui,
@@ -1334,7 +1334,7 @@ impl ProjectUndoAtom {
             RemoveRegionCharacterInstance(_, region_id, character) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_regions_id)
                     {
                         region_node.remove_widget_by_uuid(&character.id);
                     }
@@ -1348,7 +1348,7 @@ impl ProjectUndoAtom {
                         if let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id) {
                             region_node.set_open(true);
                         }
-                        server_ctx.curr_region = region.id;
+                        server_ctx.shared.curr_region = region.id;
                         set_project_context(
                             ctx,
                             ui,
@@ -1396,7 +1396,7 @@ impl ProjectUndoAtom {
             RemoveRegionItemInstance(_, region_id, item) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_regions_id)
                     {
                         region_node.remove_widget_by_uuid(&item.id);
                     }
@@ -1410,7 +1410,7 @@ impl ProjectUndoAtom {
                         if let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id) {
                             region_node.set_open(true);
                         }
-                        server_ctx.curr_region = region.id;
+                        server_ctx.shared.curr_region = region.id;
                         set_project_context(
                             ctx,
                             ui,
@@ -1425,7 +1425,7 @@ impl ProjectUndoAtom {
             AddCharacter(character) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_characters_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_characters_id)
                     {
                         let mut character = character.clone();
 
@@ -1462,7 +1462,7 @@ impl ProjectUndoAtom {
             RemoveCharacter(_, character) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(character_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_characters_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_characters_id)
                     {
                         character_node.remove_child_by_uuid(&character.id);
                     }
@@ -1500,7 +1500,7 @@ impl ProjectUndoAtom {
             }
             AddItem(item) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id) {
+                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_items_id) {
                         let mut item = item.clone();
 
                         if let Some(bytes) = crate::Embedded::get("eldrin/item.eldrin") {
@@ -1534,7 +1534,7 @@ impl ProjectUndoAtom {
             RemoveItem(_, item) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(character_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_items_id)
                     {
                         remove_item_tree(character_node, &item.id);
                     }
@@ -1579,7 +1579,7 @@ impl ProjectUndoAtom {
             }
             AddTilemap(tilemap) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id)
+                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_tilemaps_id)
                     {
                         let tilemap = tilemap.clone();
 
@@ -1604,7 +1604,7 @@ impl ProjectUndoAtom {
             RemoveTilemap(_, tilemap) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(tilemap_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_tilemaps_id)
                     {
                         tilemap_node.remove_child_by_uuid(&tilemap.id);
                     }
@@ -1675,7 +1675,7 @@ impl ProjectUndoAtom {
             }
             AddScreen(screen) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_screens_id)
+                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_screens_id)
                     {
                         let screen = screen.clone();
 
@@ -1700,7 +1700,7 @@ impl ProjectUndoAtom {
             RemoveScreen(_, screen) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(screen_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_screens_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_screens_id)
                     {
                         screen_node.remove_child_by_uuid(&screen.id);
                     }
@@ -1739,8 +1739,8 @@ impl ProjectUndoAtom {
             AddAsset(asset) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     let parent_id = match &asset.buffer {
-                        AssetBuffer::Audio(_) => server_ctx.tree_assets_audio_id,
-                        _ => server_ctx.tree_assets_fonts_id,
+                        AssetBuffer::Audio(_) => server_ctx.shared.tree_assets_audio_id,
+                        _ => server_ctx.shared.tree_assets_fonts_id,
                     };
                     if let Some(node) = tree_layout.get_node_by_id_mut(&parent_id) {
                         let asset = asset.clone();
@@ -1766,12 +1766,12 @@ impl ProjectUndoAtom {
             RemoveAsset(_, asset) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(asset_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_fonts_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_assets_fonts_id)
                     {
                         asset_node.remove_child_by_uuid(&asset.id);
                     }
                     if let Some(asset_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_audio_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_assets_audio_id)
                     {
                         asset_node.remove_child_by_uuid(&asset.id);
                     }
@@ -1809,7 +1809,7 @@ impl ProjectUndoAtom {
 
             AddAvatar(avatar) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+                    if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_avatars_id)
                     {
                         let avatar = avatar.clone();
 
@@ -1834,7 +1834,7 @@ impl ProjectUndoAtom {
             RemoveAvatar(_, avatar) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(avatar_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_avatars_id)
                     {
                         avatar_node.remove_child_by_uuid(&avatar.id);
                     }
@@ -1987,7 +1987,7 @@ fn move_region_character_pos(
     project: &mut Project,
     ui: &mut TheUI,
     ctx: &mut TheContext,
-    server_ctx: &mut ServerContext,
+    server_ctx: &mut CreatorContext,
     region_id: Uuid,
     instance_id: Uuid,
     pos: Vec3<f32>,
@@ -2011,7 +2011,7 @@ fn move_region_character_pos(
         }
     }
 
-    if let Some(map) = project.get_map_mut(server_ctx) {
+    if let Some(map) = project.get_map_mut(&server_ctx.shared) {
         for entity in map.entities.iter_mut() {
             if entity.creator_id == instance_id {
                 entity.position = pos;
@@ -2024,7 +2024,7 @@ fn move_region_item_pos(
     project: &mut Project,
     ui: &mut TheUI,
     ctx: &mut TheContext,
-    server_ctx: &mut ServerContext,
+    server_ctx: &mut CreatorContext,
     region_id: Uuid,
     instance_id: Uuid,
     pos: Vec3<f32>,
@@ -2060,7 +2060,7 @@ fn move_region_item_pos(
         }
     }
 
-    if let Some(map) = project.get_map_mut(server_ctx) {
+    if let Some(map) = project.get_map_mut(&server_ctx.shared) {
         for item in map.items.iter_mut() {
             if item.creator_id == instance_id {
                 item.position = pos;
@@ -2107,7 +2107,7 @@ mod tests {
         assert_eq!(atom.pc(), Some(ProjectContext::Prefab(id)));
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(64, 64, 1.);
-        let mut server_ctx = ServerContext::default();
+        let mut server_ctx = CreatorContext::default();
         assert!(!server_ctx.jobs.scene_initialized());
         assert!(!server_ctx.reference.initialized());
         let mut history = crate::undo::project_undo::ProjectUndo::new();
@@ -2168,7 +2168,7 @@ mod tests {
         let mut project = before;
         let mut ui = TheUI::default();
         let mut ctx = TheContext::new(64, 64, 1.0);
-        let mut server_ctx = ServerContext::default();
+        let mut server_ctx = CreatorContext::default();
         atom.redo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
         assert!(project.screens.contains_key(&id));
         assert!(server_ctx.reference.read().assets.tiles.contains_key(&tile_id));
@@ -2176,7 +2176,7 @@ mod tests {
         assert!(!project.screens.contains_key(&id));
         assert!(!project.tiles.contains_key(&tile_id));
         assert!(!server_ctx.reference.read().assets.tiles.contains_key(&tile_id));
-        assert_eq!(server_ctx.pc, context);
+        assert_eq!(server_ctx.shared.pc, context);
         atom.redo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
         assert_eq!(project.tiles[&tile_id], after.tiles[&tile_id]);
         assert!(project.screens.contains_key(&id));
@@ -2195,7 +2195,7 @@ mod tests {
         let atom = ProjectUndoAtom::ProceduralMaterialEdit(id, before.clone(), after.clone());
         let mut ui = TheUI::default();
         let mut ctx = TheContext::new(64, 64, 1.0);
-        let mut server_ctx = ServerContext::default();
+        let mut server_ctx = CreatorContext::default();
         atom.undo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
         assert_eq!(project.procedural_materials[&id], before);
         atom.redo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
@@ -2226,7 +2226,7 @@ mod tests {
         );
         let mut ui = TheUI::default();
         let mut ctx = TheContext::new(64, 64, 1.0);
-        let mut server_ctx = ServerContext::default();
+        let mut server_ctx = CreatorContext::default();
 
         assert!(atom.is_iso_paint_only());
         atom.undo(&mut project, &mut ui, &mut ctx, &mut server_ctx);

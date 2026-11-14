@@ -37,9 +37,9 @@ impl Action for DuplicateTile {
         None
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
         server_ctx.docks.read().dock == "Tiles"
-            && (server_ctx.curr_tile_source.is_some() || server_ctx.curr_tile_id.is_some())
+            && (server_ctx.shared.curr_tile_source.is_some() || server_ctx.shared.curr_tile_id.is_some())
     }
 
     fn apply_project(
@@ -47,9 +47,9 @@ impl Action for DuplicateTile {
         project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
-        if let Some(tile_id) = server_ctx.curr_tile_id {
+        if let Some(tile_id) = server_ctx.shared.curr_tile_id {
             if let Some(mut tile) = project.tiles.get(&tile_id).cloned() {
                 tile.id = Uuid::new_v4();
                 let id = tile.id;
@@ -68,9 +68,9 @@ impl Action for DuplicateTile {
                     project.material_compositions.insert(id, composition);
                 }
                 project.tiles.insert(id, tile);
-                project.place_tile_at_picker_selection(id, server_ctx.curr_tile_board_cell.take());
-                server_ctx.curr_tile_id = Some(id);
-                server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
+                project.place_tile_at_picker_selection(id, server_ctx.shared.curr_tile_board_cell.take());
+                server_ctx.shared.curr_tile_id = Some(id);
+                server_ctx.shared.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
 
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Tilepicker"),
@@ -95,7 +95,7 @@ impl Action for DuplicateTile {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

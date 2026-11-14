@@ -7,30 +7,30 @@ pub enum ActionMapScope {
     RegionWorld,
 }
 impl ActionMapScope {
-    pub fn map<'a>(self, project: &'a Project, server: &ServerContext) -> Option<&'a Map> {
+    pub fn map<'a>(self, project: &'a Project, server: &CreatorContext) -> Option<&'a Map> {
         match self {
-            Self::Selected => project.get_map(server),
+            Self::Selected => project.get_map(&server.shared),
             Self::RegionWorld => project
-                .get_region(&server.curr_region)
+                .get_region(&server.shared.curr_region)
                 .map(|region| &region.map),
         }
     }
     pub fn map_mut<'a>(
         self,
         project: &'a mut Project,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> Option<&'a mut Map> {
         match self {
-            Self::Selected => project.get_map_mut(server),
+            Self::Selected => project.get_map_mut(&server.shared),
             Self::RegionWorld => project
-                .get_region_mut(&server.curr_region)
+                .get_region_mut(&server.shared.curr_region)
                 .map(|region| &mut region.map),
         }
     }
-    pub fn undo_context(self, server: &ServerContext) -> ProjectContext {
+    pub fn undo_context(self, server: &CreatorContext) -> ProjectContext {
         match self {
-            Self::Selected => server.pc,
-            Self::RegionWorld => ProjectContext::Region(server.curr_region),
+            Self::Selected => server.shared.pc,
+            Self::RegionWorld => ProjectContext::Region(server.shared.curr_region),
         }
     }
 }

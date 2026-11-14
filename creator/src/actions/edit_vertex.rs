@@ -179,8 +179,8 @@ impl Action for EditVertex {
         None
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
             map.selected_vertices.len() == 1
         } else {
             map.selected_geometry_vertices.len() == 1
@@ -255,11 +255,11 @@ impl Action for EditVertex {
         }
     }
 
-    fn load_params_project(&mut self, project: &Project, server_ctx: &mut ServerContext) {
+    fn load_params_project(&mut self, project: &Project, server_ctx: &mut CreatorContext) {
         let mut tile_icon = TheRGBABuffer::new(TheDim::sized(36, 36));
         let mut tile_id = Uuid::nil();
 
-        if let Some(map) = project.get_map(server_ctx)
+        if let Some(map) = project.get_map(&server_ctx.shared)
             && let Some(vertex_id) = map.selected_vertices.first()
             && let Some(vertex) = map.find_vertex(*vertex_id)
             && let Some(Value::Source(PixelSource::TileId(id))) = vertex.properties.get("source")
@@ -284,7 +284,7 @@ impl Action for EditVertex {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let mut changed = false;
         let prev = map.clone();
@@ -389,7 +389,7 @@ impl Action for EditVertex {
                     }
                 }
                 if !map.properties.contains("default_terrain_tile") {
-                    if let Some(id) = server_ctx.curr_tile_id {
+                    if let Some(id) = server_ctx.shared.curr_tile_id {
                         map.properties.set(
                             "default_terrain_tile",
                             Value::Source(PixelSource::TileId(id)),
@@ -399,7 +399,7 @@ impl Action for EditVertex {
             }
             map.changed = map.changed.wrapping_add(1);
             Some(ProjectUndoAtom::MapEdit(
-                server_ctx.pc,
+                server_ctx.shared.pc,
                 Box::new(prev),
                 Box::new(map.clone()),
             ))
@@ -418,7 +418,7 @@ impl Action for EditVertex {
         project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         if let TheEvent::TileDropped(id, tile_id, index) = event
             && id.name == "actionTile"
@@ -460,9 +460,9 @@ mod tests {
         action.nodeui.set_bool_value("actionTerrainControl", true);
         action.nodeui.set_f32_value("actionVertexY", 1.5);
         action.nodeui.set_f32_value("actionTerrainRadius", 6.);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let material = Uuid::new_v4();
-        server.curr_tile_id = Some(material);
+        server.shared.curr_tile_id = Some(material);
         let undo = action
             .apply(
                 &mut map,
@@ -501,8 +501,8 @@ mod tests {
         map.selected_geometry_vertices.push((object_id, 0));
 
         let mut ctx = TheContext::new(64, 64, 1.0);
-        let mut server_ctx = ServerContext::default();
-        server_ctx.editor_view_mode = EditorViewMode::Iso;
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.editor_view_mode = EditorViewMode::Iso;
 
         assert!(EditVertex::new().is_applicable(&map, &mut ctx, &server_ctx));
     }
@@ -530,8 +530,8 @@ mod tests {
 
         let mut ui = TheUI::default();
         let mut ctx = TheContext::new(64, 64, 1.0);
-        let mut server_ctx = ServerContext::default();
-        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.pc = ProjectContext::Region(Uuid::new_v4());
 
         let Some(ProjectUndoAtom::MapEdit(_, old_map, new_map)) =
             action.apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)

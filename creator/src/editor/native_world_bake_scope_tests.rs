@@ -12,9 +12,9 @@ fn frozen_bake_scope_survives_missing_layout_and_rejects_retired_completed_sourc
         let region = editor.documents.project.regions[0].id;
         let map = editor.documents.project.regions[0].map.id;
         editor.documents.project.regions[0].map.camera = MapCamera::ThreeDIso;
-        editor.server_ctx.curr_region = region;
-        editor.server_ctx.pc = ProjectContext::Region(region);
-        editor.server_ctx.editor_view_mode = EditorViewMode::Iso;
+        editor.server_ctx.shared.curr_region = region;
+        editor.server_ctx.shared.pc = ProjectContext::Region(region);
+        editor.server_ctx.shared.editor_view_mode = EditorViewMode::Iso;
         editor.native_viewport.enabled = true;
         editor.server_ctx.reference.bind_context(gpu.clone());
         let mut ui = TheUI::new();
@@ -77,7 +77,7 @@ fn frozen_bake_scope_survives_missing_layout_and_rejects_retired_completed_sourc
             4 => editor
                 .documents
                 .install(editor.documents.project.clone(), None, false),
-            5 => editor.server_ctx.editor_view_mode = EditorViewMode::D2,
+            5 => editor.server_ctx.shared.editor_view_mode = EditorViewMode::D2,
             _ => (),
         }
         editor.update_native_bake(&mut ui, &mut ctx);
@@ -180,9 +180,9 @@ fn hidden_world_bakes_linked_prefab_paint_and_retires_catalog_edits() {
     let map_id = region.map.id;
     let map_changed = region.map.changed;
     let authored_paint = serde_json::to_vec(&editor.documents.project.block_prop_paint).unwrap();
-    editor.server_ctx.curr_region = region_id;
-    editor.server_ctx.pc = ProjectContext::Region(region_id);
-    editor.server_ctx.editor_view_mode = EditorViewMode::Iso;
+    editor.server_ctx.shared.curr_region = region_id;
+    editor.server_ctx.shared.pc = ProjectContext::Region(region_id);
+    editor.server_ctx.shared.editor_view_mode = EditorViewMode::Iso;
     editor.server_ctx.camera.iso_camera.scale = 3.;
     editor.native_viewport.enabled = true;
     editor.server_ctx.reference.bind_context(gpu.clone());

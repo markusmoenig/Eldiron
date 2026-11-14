@@ -57,8 +57,8 @@ impl Action for EditingSlice {
         None
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.editing_surface.is_none() && server_ctx.editor_view_mode == EditorViewMode::D2
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.editing_surface.is_none() && server_ctx.shared.editor_view_mode == EditorViewMode::D2
     }
 
     fn apply_project(
@@ -66,7 +66,7 @@ impl Action for EditingSlice {
         _project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let pos = self
             .nodeui
@@ -78,8 +78,8 @@ impl Action for EditingSlice {
             .unwrap_or(2)
             .max(1);
 
-        server_ctx.editing_slice = pos as f32;
-        server_ctx.editing_slice_height = height as f32;
+        server_ctx.shared.editing_slice = pos as f32;
+        server_ctx.shared.editing_slice_height = height as f32;
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Client Properties"),
@@ -97,7 +97,7 @@ impl Action for EditingSlice {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

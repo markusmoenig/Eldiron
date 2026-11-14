@@ -61,7 +61,7 @@ impl Default for PaletteOverview {
 impl PaletteOverview {
     fn binding(
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> Option<Binding> {
@@ -74,7 +74,7 @@ impl PaletteOverview {
             return None;
         }
         Some(Binding {
-            document: server.document_instance,
+            document: server.shared.document_instance,
             index: project.palette.current_index as usize,
             view: view.id().clone(),
             rect: [dim.x, dim.y, dim.width, dim.height],
@@ -84,7 +84,7 @@ impl PaletteOverview {
     pub(crate) fn publish(
         &mut self,
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> bool {
@@ -98,7 +98,7 @@ impl PaletteOverview {
     pub(crate) fn prepare(
         &mut self,
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> Option<Token> {
@@ -212,7 +212,7 @@ impl PaletteOverview {
         id: &TheId,
         at: Vec2<i32>,
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> Result<Option<[u8; 4]>, ()> {
@@ -235,13 +235,13 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
         sidebar::Sidebar,
     };
     let mut project = Project::default();
-    let mut server = ServerContext::new();
+    let mut server = CreatorContext::new();
     {
         let mut manager = server.docks.write();
         manager.dock = "Palette".into();
         manager.state = DockManagerState::Editor;
     }
-    server.palette_tool_active = true;
+    server.shared.palette_tool_active = true;
     let mut cases = Vec::new();
     for size in [Vec2::new(143, 83), Vec2::new(84, 144)] {
         let mut ctx = TheContext::new(size.x as usize, size.y as usize, 1.);
@@ -309,8 +309,8 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
         );
         let token = owner.prepare(&project, &server, &mut ui, &ctx).unwrap();
         owner.presented(Some(token));
-        let mut document = ServerContext::new();
-        document.palette_tool_active = true;
+        let mut document = CreatorContext::new();
+        document.shared.palette_tool_active = true;
         assert!(
             owner
                 .color(&id, Vec2::zero(), &project, &document, &mut ui, &ctx)

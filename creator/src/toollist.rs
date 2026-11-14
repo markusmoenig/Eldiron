@@ -141,10 +141,10 @@ mod tests {
         let mut prefab_map = Map::default();
         prefab_map.name = "Isolated Prefab".to_string();
         project.prefab_editor_map = Some(prefab_map);
-        let mut server_ctx = ServerContext::default();
-        server_ctx.pc = ProjectContext::Prefab(Uuid::new_v4());
-        server_ctx.editor_view_mode = EditorViewMode::Orbit;
-        server_ctx.geometry_edit_mode = GeometryEditMode::Detail;
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.pc = ProjectContext::Prefab(Uuid::new_v4());
+        server_ctx.shared.editor_view_mode = EditorViewMode::Orbit;
+        server_ctx.shared.geometry_edit_mode = GeometryEditMode::Detail;
 
         ToolList::get_tool_map_mut(&mut project, &server_ctx)
             .unwrap()
@@ -184,13 +184,13 @@ mod tests {
 
     #[test]
     fn prefab_geometry_input_uses_the_isolated_render_view() {
-        let mut server_ctx = ServerContext::default();
+        let mut server_ctx = CreatorContext::default();
         assert_eq!(
             crate::utils::map_editor_render_view_name(&server_ctx),
             "PolyView"
         );
 
-        server_ctx.pc = ProjectContext::Prefab(Uuid::new_v4());
+        server_ctx.shared.pc = ProjectContext::Prefab(Uuid::new_v4());
         assert_eq!(
             crate::utils::map_editor_render_view_name(&server_ctx),
             "PrefabView"
@@ -398,7 +398,7 @@ impl ToolList {
         ui: &TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         #[cfg(feature = "native-ui")]
         if self.native_display_mode {
@@ -416,7 +416,7 @@ impl ToolList {
         if self
             .editor_display_session
             .as_ref()
-            .is_some_and(|session| session.project_context != server_ctx.pc)
+            .is_some_and(|session| session.project_context != server_ctx.shared.pc)
         {
             self.cancel_editor_display_session( &server_ctx.actions);
             return false;
@@ -436,7 +436,7 @@ impl ToolList {
 
         let Some((owner, expected, result)) = self.editor_display_session.as_mut().map(|session| {
             let expected = session.working_display().clone();
-            if let Some(map) = project.get_map(server_ctx) {
+            if let Some(map) = project.get_map(&server_ctx.shared) {
                 session.set_grid_subdivisions(map.subdivisions);
             }
             let result = session.handle_event_with_modifiers(
@@ -462,7 +462,7 @@ impl ToolList {
                 true
             }
             EditorDisplayResult::GridSubdivisionChanged(subdivision) => {
-                if let Some(map) = project.get_map_mut(server_ctx) {
+                if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                     map.subdivisions = subdivision;
                 }
                 {
@@ -518,13 +518,13 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         coord: Vec2<i32>,
     ) -> bool {
-        if server_ctx.get_map_context() != MapContext::Region {
+        if server_ctx.shared.get_map_context() != MapContext::Region {
             return false;
         }
-        let Some(map) = project.get_map(server_ctx) else {
+        let Some(map) = project.get_map(&server_ctx.shared) else {
             return false;
         };
         let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx) else {
@@ -539,7 +539,7 @@ impl ToolList {
             crate::actions::prefab_hud_material_slots_for_selected_instances(map, &server_ctx.reference)
         {
             slots.len()
-        } else if let Some(action_id) = server_ctx.curr_action_id {
+        } else if let Some(action_id) = server_ctx.shared.curr_action_id {
             let actionlist = server_ctx.actions.read();
             actionlist
                 .get_action_by_id(action_id)
@@ -559,7 +559,7 @@ impl ToolList {
         for index in 0..slot_count as i32 {
             let rect = TheDim::rect(x + index * icon_size, 0, icon_size, 60);
             if rect.contains(coord) {
-                server_ctx.selected_hud_icon_index = index;
+                server_ctx.shared.selected_hud_icon_index = index;
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimap"),
                     TheValue::Empty,
@@ -576,18 +576,18 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         coord: Vec2<i32>,
     ) -> bool {
         let Some(face) = self.viewcube_face_at(ui, server_ctx, coord) else {
             return false;
         };
 
-        let region_center = if server_ctx.pc.is_prefab() {
+        let region_center = if server_ctx.shared.pc.is_prefab() {
             None
         } else {
             project
-                .get_region(&server_ctx.curr_region)
+                .get_region(&server_ctx.shared.curr_region)
                 .map(|region| region.editing_position_3d)
         };
         let camera = {
@@ -622,13 +622,13 @@ impl ToolList {
     fn viewcube_face_at(
         &mut self,
         ui: &mut TheUI,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         coord: Vec2<i32>,
     ) -> Option<crate::viewcube::ViewCubeFace> {
         if self.native_world_input {
             return None;
         }
-        if server_ctx.editor_view_mode != EditorViewMode::Orbit {
+        if server_ctx.shared.editor_view_mode != EditorViewMode::Orbit {
             return None;
         }
         let dim = crate::utils::map_editor_render_view(ui, server_ctx)
@@ -637,10 +637,10 @@ impl ToolList {
         crate::viewcube::ViewCube::hit_test(coord, dim, &edit_camera.orbit_camera)
     }
 
-    fn shortcut_context(map: Option<&Map>, server_ctx: &ServerContext) -> ShortcutContext {
+    fn shortcut_context(map: Option<&Map>, server_ctx: &CreatorContext) -> ShortcutContext {
         ShortcutContext {
-            editor_view_mode: server_ctx.editor_view_mode,
-            current_tool: server_ctx.curr_map_tool_type,
+            editor_view_mode: server_ctx.shared.editor_view_mode,
+            current_tool: server_ctx.shared.curr_map_tool_type,
             has_geometry_objects: map
                 .map(|map| !map.selected_geometry_objects.is_empty())
                 .unwrap_or(false),
@@ -730,33 +730,33 @@ impl ToolList {
 
     fn get_tool_map_mut<'a>(
         project: &'a mut Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> Option<&'a mut Map> {
-        if !server_ctx.pc.is_prefab()
-            && server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
-            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+        if !server_ctx.shared.pc.is_prefab()
+            && server_ctx.shared.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
+            && server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail
         {
             project
-                .get_region_mut(&server_ctx.curr_region)
+                .get_region_mut(&server_ctx.shared.curr_region)
                 .map(|region| &mut region.map)
         } else {
-            project.get_map_mut(server_ctx)
+            project.get_map_mut(&server_ctx.shared)
         }
     }
 
-    fn paste_position(server_ctx: &ServerContext) -> Option<Vec2<f32>> {
+    fn paste_position(server_ctx: &CreatorContext) -> Option<Vec2<f32>> {
         server_ctx
-            .hover_cursor
+            .shared.hover_cursor
             .or_else(|| {
                 server_ctx
-                    .hover_cursor_3d
+                    .shared.hover_cursor_3d
                     .map(|pos| Vec2::new(pos.x, pos.z))
             })
             .or_else(|| {
                 server_ctx
-                    .geo_hit
-                    .map(|_| Vec2::new(server_ctx.geo_hit_pos.x, server_ctx.geo_hit_pos.z))
+                    .shared.geo_hit
+                    .map(|_| Vec2::new(server_ctx.shared.geo_hit_pos.x, server_ctx.shared.geo_hit_pos.z))
             })
     }
 
@@ -765,7 +765,7 @@ impl ToolList {
     /// and undo/source-update path before its presentation scope disappears.
     pub(crate) fn cancel_native_world_gesture(
         &mut self, ui: &mut TheUI, ctx: &mut TheContext,
-        project: &mut Project, server: &mut ServerContext,
+        project: &mut Project, server: &mut CreatorContext,
     ) {
         let undo = self.current_tool_map_event(MapEvent::MapEscape,ui,ctx,project,server);
         self.update_map_context(ui,ctx,project,server,undo);
@@ -780,10 +780,10 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
-        if server_ctx.pc.is_prefab() {
-            let ProjectContext::Prefab(asset_id) = server_ctx.pc else {
+        if server_ctx.shared.pc.is_prefab() {
+            let ProjectContext::Prefab(asset_id) = server_ctx.shared.pc else {
                 return None;
             };
             let undo_atom = self
@@ -795,8 +795,8 @@ impl ToolList {
                 map.changed += 1;
             }
             return undo_atom;
-        } else if server_ctx.get_map_context() == MapContext::Region {
-            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+        } else if server_ctx.shared.get_map_context() == MapContext::Region {
+            if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
                 let terrain_drag = matches!(map_event, MapEvent::MapDragged(_))
                     && Self::selected_edit_affects_terrain(&region.map, server_ctx);
                 let revision = region.map.changed;
@@ -1197,8 +1197,8 @@ impl ToolList {
         sectors.extend(cutout_handles);
     }
 
-    fn selected_edit_affects_terrain(map: &Map, server_ctx: &ServerContext) -> bool {
-        match server_ctx.curr_map_tool_type {
+    fn selected_edit_affects_terrain(map: &Map, server_ctx: &CreatorContext) -> bool {
+        match server_ctx.shared.curr_map_tool_type {
             MapToolType::Vertex => {
                 let topology = rusterix::MapTopology::build(map);
                 map.selected_vertices
@@ -1713,10 +1713,10 @@ impl ToolList {
     pub(crate) fn try_incremental_map_edit(
         old_map: &Map,
         new_map: &Map,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> bool {
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
-            if server_ctx.curr_map_tool_type == MapToolType::Rect
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
+            if server_ctx.shared.curr_map_tool_type == MapToolType::Rect
                 && let Some(dirty_chunks) = Self::changed_d2_rect_paint_chunks(old_map, new_map)
             {
                 crate::utils::editor_scene_replace_incremental_map_update(
@@ -1823,12 +1823,12 @@ impl ToolList {
         }
     }
 
-    fn apply_live_geometry_owner_replacement(map: &Map, server_ctx: &ServerContext) -> bool {
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+    fn apply_live_geometry_owner_replacement(map: &Map, server_ctx: &CreatorContext) -> bool {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
             return false;
         }
         if !matches!(
-            server_ctx.curr_map_tool_type,
+            server_ctx.shared.curr_map_tool_type,
             MapToolType::Vertex
                 | MapToolType::Linedef
                 | MapToolType::Sector
@@ -1837,7 +1837,7 @@ impl ToolList {
             return false;
         }
 
-        if server_ctx.curr_map_tool_type == MapToolType::Selection {
+        if server_ctx.shared.curr_map_tool_type == MapToolType::Selection {
             let owners: FxHashSet<GeoId> = map
                 .selected_geometry_objects
                 .iter()
@@ -1875,7 +1875,7 @@ impl ToolList {
 
         let topology = rusterix::MapTopology::build(map);
         let include_terrain = Self::selected_edit_affects_terrain(map, server_ctx);
-        let mut owners = match server_ctx.curr_map_tool_type {
+        let mut owners = match server_ctx.shared.curr_map_tool_type {
             MapToolType::Vertex => topology.owners_for_vertices(map, map.selected_vertices.clone()),
             MapToolType::Linedef => {
                 topology.owners_for_linedefs(map, map.selected_linedefs.clone())
@@ -2287,7 +2287,7 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if self.editor_mode || self.prefab_mode || !self.palette_mode {
             return;
@@ -2304,10 +2304,10 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         self.palette_mode = !self.palette_mode;
-        server_ctx.palette_tool_active = self.palette_mode;
+        server_ctx.shared.palette_tool_active = self.palette_mode;
 
         ctx.ui.set_widget_state(
             Self::PALETTE_BUTTON_NAME.to_string(),
@@ -2430,7 +2430,7 @@ impl ToolList {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if self.editor_mode && self.curr_editor_tool < self.editor_tools.len() {
             self.editor_tools[self.curr_editor_tool].deactivate();
@@ -2441,7 +2441,7 @@ impl ToolList {
         self.palette_mode = false;
         self.previous_sidebar_mode = None;
         self.previous_palette_dock = None;
-        server_ctx.palette_tool_active = false;
+        server_ctx.shared.palette_tool_active = false;
 
         if let Some(list) = ui.get_vlayout("Tool List Layout") {
             self.set_active_editor(list, ctx);
@@ -2455,7 +2455,7 @@ impl ToolList {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         undo_atom: Option<ProjectUndoAtom>,
     ) {
         if let Some(undo_atom) = undo_atom {
@@ -2464,9 +2464,9 @@ impl ToolList {
                     if undo_atom.is_iso_paint_only() {
                         ctx.ui.redraw_all = true;
                     } else {
-                        let rect_paint_dirty_chunks = if server_ctx.curr_map_tool_type
+                        let rect_paint_dirty_chunks = if server_ctx.shared.curr_map_tool_type
                             == MapToolType::Rect
-                            && server_ctx.editor_view_mode != EditorViewMode::D2
+                            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
                             && let ProjectUndoAtom::MapEdit(_, old_map, new_map) = &undo_atom
                         {
                             Self::changed_rect_paint_chunks(old_map, new_map)
@@ -2474,15 +2474,15 @@ impl ToolList {
                             None
                         };
                         let geometry_replacement_plan = if rect_paint_dirty_chunks.is_none()
-                            && server_ctx.editor_view_mode != EditorViewMode::D2
+                            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
                             && let ProjectUndoAtom::MapEdit(_, old_map, new_map) = &undo_atom
                         {
                             Self::changed_geometry_replacement_plan(old_map, new_map, &server_ctx.reference)
                         } else {
                             None
                         };
-                        if server_ctx.editor_view_mode == EditorViewMode::D2
-                            && server_ctx.editing_surface.is_some()
+                        if server_ctx.shared.editor_view_mode == EditorViewMode::D2
+                            && server_ctx.shared.editing_surface.is_some()
                             || rect_paint_dirty_chunks.is_some()
                             || geometry_replacement_plan.is_some()
                         {
@@ -2493,8 +2493,8 @@ impl ToolList {
                         // Rebuilding here would clear that preview and visibly reload the map
                         // as soon as the stroke is committed.
                         let mut used_incremental_scene_update = rect_stroke_streams_scene_update(
-                            server_ctx.curr_map_tool_type,
-                            server_ctx.editor_view_mode,
+                            server_ctx.shared.curr_map_tool_type,
+                            server_ctx.shared.editor_view_mode,
                         );
                         if let Some(dirty_chunks) = rect_paint_dirty_chunks
                             && let ProjectUndoAtom::MapEdit(_, _, new_map) = &undo_atom
@@ -2544,7 +2544,7 @@ impl ToolList {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         assets: &Assets,
     ) {
         let current_tool_id = self
@@ -2554,11 +2554,11 @@ impl ToolList {
         if self.editor_display_session.as_ref().is_some_and(|session| {
             let owner_is_active = match session.owner {
                 EditorDisplayOwner::Action(action_id) => {
-                    Some(action_id) == server_ctx.curr_action_id
+                    Some(action_id) == server_ctx.shared.curr_action_id
                 }
                 EditorDisplayOwner::Tool(tool_id) => Some(tool_id) == current_tool_id,
             };
-            owner_is_active && session.project_context == server_ctx.pc
+            owner_is_active && session.project_context == server_ctx.shared.pc
         }) {
             if let Some(session) = self.editor_display_session.as_mut() {
                 session.set_grid_subdivisions(map.subdivisions);
@@ -2568,7 +2568,7 @@ impl ToolList {
         }
         self.game_tools[self.curr_game_tool].draw_hud(buffer, map, ctx, server_ctx, assets);
         crate::hud::Hud::draw_shortcut_guidance(buffer, map, ctx, server_ctx);
-        if server_ctx.editor_view_mode == EditorViewMode::Orbit {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::Orbit {
             let camera = server_ctx.camera
                 .orbit_camera
                 .clone();
@@ -2583,7 +2583,7 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         if self.native_world_input
             && let Some(translated) = crate::utils::native_prefab_view_event(event, server_ctx, ui)
@@ -2634,39 +2634,39 @@ impl ToolList {
                 TheEvent::StateChanged(_, _) | TheEvent::KeyDown(_) => false,
                 TheEvent::KeyCodeDown(TheValue::KeyCode(code))
                     if server_ctx.polyview_has_focus(ctx)
-                        && server_ctx.editor_view_mode == EditorViewMode::FirstP
-                        && !server_ctx.game_input_mode
+                        && server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+                        && !server_ctx.shared.game_input_mode
                         && *code == TheKeyCode::Space =>
                 {
                     false
                 }
                 TheEvent::KeyCodeDown(TheValue::KeyCode(code))
                     if server_ctx.polyview_has_focus(ctx)
-                        && server_ctx.editor_view_mode == EditorViewMode::FirstP
-                        && server_ctx.editor_fly_nav_active
+                        && server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.shared.editor_fly_nav_active
                         && *code == TheKeyCode::Escape =>
                 {
                     false
                 }
                 TheEvent::KeyCodeUp(TheValue::KeyCode(code))
                     if *code == TheKeyCode::Space
-                        && !server_ctx.game_mode
-                        && !server_ctx.game_input_mode =>
+                        && !server_ctx.shared.game_mode
+                        && !server_ctx.shared.game_input_mode =>
                 {
                     false
                 }
                 TheEvent::KeyUp(TheValue::Char(c))
-                    if server_ctx.editor_view_mode == EditorViewMode::FirstP
-                        && !server_ctx.game_mode
-                        && !server_ctx.game_input_mode
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+                        && !server_ctx.shared.game_mode
+                        && !server_ctx.shared.game_input_mode
                         && matches!(c.to_ascii_lowercase(), 'w' | 'a' | 's' | 'd') =>
                 {
                     false
                 }
                 TheEvent::RenderViewContext(id, _)
                     if id.name == "PolyView"
-                        && server_ctx.editor_view_mode != EditorViewMode::D2
-                        && !server_ctx.game_input_mode =>
+                        && server_ctx.shared.editor_view_mode != EditorViewMode::D2
+                        && !server_ctx.shared.game_input_mode =>
                 {
                     false
                 }
@@ -2675,8 +2675,8 @@ impl ToolList {
                 | TheEvent::RenderViewUp(id, _)
                 | TheEvent::RenderViewHoverChanged(id, _)
                     if id.name == "PolyView"
-                        && server_ctx.editor_view_mode == EditorViewMode::FirstP
-                        && server_ctx.editor_fly_nav_active =>
+                        && server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.shared.editor_fly_nav_active =>
                 {
                     false
                 }
@@ -2693,9 +2693,9 @@ impl ToolList {
         match event {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Editor View Switch" {
-                    let prev_mode = server_ctx.editor_view_mode;
+                    let prev_mode = server_ctx.shared.editor_view_mode;
                     let projection_center = project
-                        .get_map(server_ctx)
+                        .get_map(&server_ctx.shared)
                         .filter(|m| {
                             prev_mode == EditorViewMode::D2
                                 && (*index == 0 || *index == 1)
@@ -2715,15 +2715,15 @@ impl ToolList {
                     let old = prev_mode.is_3d();
 
                     // Persist region camera anchors before switching.
-                    if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                    if let Some(region) = project.get_region_ctx_mut(&server_ctx.shared) {
                         if prev_mode == EditorViewMode::D2 {
-                            server_ctx.store_edit_view_2d_for_map(
+                            server_ctx.shared.store_edit_view_2d_for_map(
                                 region.map.id,
                                 region.map.offset,
                                 region.map.grid_size,
                             );
                         } else {
-                            server_ctx.store_edit_view_for_map(
+                            server_ctx.shared.store_edit_view_for_map(
                                 region.map.id,
                                 prev_mode,
                                 region.editing_position_3d,
@@ -2733,7 +2733,7 @@ impl ToolList {
                                 let iso_scale =
                                     server_ctx.camera.iso_camera.scale();
                                 server_ctx
-                                    .store_edit_view_iso_scale_for_map(region.map.id, iso_scale);
+                                    .shared.store_edit_view_iso_scale_for_map(region.map.id, iso_scale);
                             }
                             match prev_mode {
                                 EditorViewMode::Iso => {
@@ -2767,20 +2767,20 @@ impl ToolList {
                         }
                     }
 
-                    server_ctx.editor_view_mode = EditorViewMode::from_toolbar_index(*index as i32);
-                    let new_mode = server_ctx.editor_view_mode;
+                    server_ctx.shared.editor_view_mode = EditorViewMode::from_toolbar_index(*index as i32);
+                    let new_mode = server_ctx.shared.editor_view_mode;
                     let new = new_mode.is_3d();
                     self.box_select_armed = false;
 
                     if new_mode != EditorViewMode::FirstP {
-                        server_ctx.editor_fly_nav_active = false;
-                        server_ctx.editor_fly_nav_space_down = false;
+                        server_ctx.shared.editor_fly_nav_active = false;
+                        server_ctx.shared.editor_fly_nav_space_down = false;
                         let edit_camera = &mut server_ctx.camera;
                         edit_camera.move_action = None;
                         edit_camera.reset_mouse_tracking();
                     }
 
-                    if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                    if let Some(region) = project.get_region_ctx_mut(&server_ctx.shared) {
                         region.map.camera = match new_mode {
                             EditorViewMode::D2 => {
                                 if *index == 1 {
@@ -2795,35 +2795,35 @@ impl ToolList {
                     }
 
                     // Restore region camera anchor for the selected view mode.
-                    if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                    if let Some(region) = project.get_region_ctx_mut(&server_ctx.shared) {
                         if new_mode == EditorViewMode::D2 {
                             if let Some((offset, grid_size)) =
-                                server_ctx.load_edit_view_2d_for_map(region.map.id)
+                                server_ctx.shared.load_edit_view_2d_for_map(region.map.id)
                             {
                                 region.map.offset = offset;
                                 region.map.grid_size = grid_size;
                             } else {
-                                server_ctx.center_map_at_grid_pos(
+                                server_ctx.shared.center_map_at_grid_pos(
                                     Vec2::zero(),
                                     Vec2::new(0.0, -1.0),
                                     &mut region.map,
                                 );
                             }
                             if let Some(center) = projection_center {
-                                server_ctx.center_map_at_grid_pos(
+                                server_ctx.shared.center_map_at_grid_pos(
                                     Vec2::zero(),
                                     center,
                                     &mut region.map,
                                 );
                             }
                         } else if let Some((pos, look)) =
-                            server_ctx.load_edit_view_for_map(region.map.id, new_mode)
+                            server_ctx.shared.load_edit_view_for_map(region.map.id, new_mode)
                         {
                             region.editing_position_3d = pos;
                             region.editing_look_at_3d = look;
                             if new_mode == EditorViewMode::Iso
                                 && let Some(iso_scale) =
-                                    server_ctx.load_edit_view_iso_scale_for_map(region.map.id)
+                                    server_ctx.shared.load_edit_view_iso_scale_for_map(region.map.id)
                             {
                                 server_ctx.camera
                                     .iso_camera
@@ -2881,13 +2881,13 @@ impl ToolList {
                     }
 
                     self.sync_props_availability(ui, ctx, project, server_ctx);
-                    if let Some(editing_pos_buffer) = server_ctx.editing_pos_buffer {
-                        if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                    if let Some(editing_pos_buffer) = server_ctx.shared.editing_pos_buffer {
+                        if let Some(region) = project.get_region_ctx_mut(&server_ctx.shared) {
                             region.editing_position_3d = editing_pos_buffer;
                         }
-                        server_ctx.editing_pos_buffer = None;
+                        server_ctx.shared.editing_pos_buffer = None;
                     }
-                    server_ctx.editing_surface = None;
+                    server_ctx.shared.editing_surface = None;
 
                     server_ctx.reference.write().client.scene.d2_static.clear();
                     server_ctx.reference.write().client.scene.d2_dynamic.clear();
@@ -2919,10 +2919,10 @@ impl ToolList {
                 if plain_key
                     && polyview_focused
                     && !text_input_focused
-                    && !server_ctx.game_mode
-                    && !server_ctx.game_input_mode
-                    && !server_ctx.text_game_mode
-                    && server_ctx.editor_view_mode == EditorViewMode::FirstP
+                    && !server_ctx.shared.game_mode
+                    && !server_ctx.shared.game_input_mode
+                    && !server_ctx.shared.text_game_mode
+                    && server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
                 {
                     let action = match c.to_ascii_lowercase() {
                         'w' => Some(crate::editcamera::CustomMoveAction::Forward),
@@ -2942,13 +2942,13 @@ impl ToolList {
                 if plain_key
                     && polyview_focused
                     && !text_input_focused
-                    && !server_ctx.game_input_mode
-                    && !server_ctx.text_game_mode
-                    && !server_ctx.game_mode
+                    && !server_ctx.shared.game_input_mode
+                    && !server_ctx.shared.text_game_mode
+                    && !server_ctx.shared.game_mode
                     && !self.editor_mode
                     && self.current_game_tool_is("tool.rect")
                     && project
-                        .get_map(server_ctx)
+                        .get_map(&server_ctx.shared)
                         .is_some_and(|map| map.camera == MapCamera::TwoDIso)
                     && matches!(c, ',' | '.')
                 {
@@ -2965,14 +2965,14 @@ impl ToolList {
                 let shortcut_resolution = if plain_key
                     && polyview_focused
                     && !text_input_focused
-                    && !server_ctx.game_input_mode
-                    && !server_ctx.text_game_mode
+                    && !server_ctx.shared.game_input_mode
+                    && !server_ctx.shared.text_game_mode
                     && !self.editor_mode
                     && !self.current_game_tool_is("tool.game")
-                    && !server_ctx.game_mode
+                    && !server_ctx.shared.game_mode
                 {
                     let shortcut_context =
-                        Self::shortcut_context(project.get_map(server_ctx), server_ctx);
+                        Self::shortcut_context(project.get_map(&server_ctx.shared), server_ctx);
                     ShortcutResolver::from_toml(&project.shortcuts).resolve(*c, shortcut_context)
                 } else {
                     None
@@ -2987,15 +2987,15 @@ impl ToolList {
                 if plain_key
                     && polyview_focused
                     && !text_input_focused
-                    && !server_ctx.game_input_mode
-                    && !server_ctx.text_game_mode
-                    && !server_ctx.game_mode
-                    && server_ctx.editor_view_mode != EditorViewMode::D2
-                    && (server_ctx.curr_map_tool_type == MapToolType::Selection
+                    && !server_ctx.shared.game_input_mode
+                    && !server_ctx.shared.text_game_mode
+                    && !server_ctx.shared.game_mode
+                    && server_ctx.shared.editor_view_mode != EditorViewMode::D2
+                    && (server_ctx.shared.curr_map_tool_type == MapToolType::Selection
                         || self.current_game_tool_is("tool.geometry"))
                     && let Some(op) = gizmo_op
                 {
-                    server_ctx.geometry_gizmo_op = op;
+                    server_ctx.shared.geometry_gizmo_op = op;
                     self.update_geometry_overlay_3d(project, server_ctx);
                     {
                         let mut rusterix = server_ctx.reference.write();
@@ -3016,8 +3016,8 @@ impl ToolList {
                 if plain_key
                     && polyview_focused
                     && !text_input_focused
-                    && !server_ctx.game_input_mode
-                    && !server_ctx.text_game_mode
+                    && !server_ctx.shared.game_input_mode
+                    && !server_ctx.shared.text_game_mode
                     && !self.editor_mode
                     && self.current_game_tool_is("tool.blocks")
                     && matches!(
@@ -3033,7 +3033,7 @@ impl ToolList {
                         server_ctx,
                     );
                     self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
-                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                    if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                         self.update_geometry_overlay_3d(project, server_ctx);
                     }
                     return true;
@@ -3041,25 +3041,25 @@ impl ToolList {
 
                 let preserve_geometry_object_shortcut = plain_key
                     && polyview_focused
-                    && server_ctx.editor_view_mode != EditorViewMode::D2
-                    && server_ctx.curr_map_tool_type == MapToolType::Selection
+                    && server_ctx.shared.editor_view_mode != EditorViewMode::D2
+                    && server_ctx.shared.curr_map_tool_type == MapToolType::Selection
                     && matches!(c, 'r' | 'R')
                     && project
-                        .get_map(server_ctx)
+                        .get_map(&server_ctx.shared)
                         .is_some_and(|map| !map.selected_geometry_objects.is_empty());
                 let preserve_prefab_instance_shortcut = plain_key
                     && polyview_focused
-                    && server_ctx.editor_view_mode != EditorViewMode::D2
-                    && server_ctx.curr_map_tool_type == MapToolType::Selection
+                    && server_ctx.shared.editor_view_mode != EditorViewMode::D2
+                    && server_ctx.shared.curr_map_tool_type == MapToolType::Selection
                     && matches!(c, 'r' | 'R' | 'f' | 'F' | 'd' | 'D' | 'a' | 'A')
                     && project
-                        .get_map(server_ctx)
+                        .get_map(&server_ctx.shared)
                         .is_some_and(|map| !map.selected_block_prop_instances.is_empty());
 
                 if plain_key
                     && !text_input_focused
-                    && !server_ctx.game_input_mode
-                    && !server_ctx.text_game_mode
+                    && !server_ctx.shared.game_input_mode
+                    && !server_ctx.shared.text_game_mode
                     && !preserve_geometry_object_shortcut
                     && !preserve_prefab_instance_shortcut
                     && !suppress_tool_accel
@@ -3080,7 +3080,7 @@ impl ToolList {
                                 break;
                             }
                         }
-                    } else if !self.current_game_tool_is("tool.game") && !server_ctx.game_mode {
+                    } else if !self.current_game_tool_is("tool.game") && !server_ctx.shared.game_mode {
                         for tool in self.game_tools.iter() {
                             if let Some(acc) = tool.accel()
                                 && acc.to_ascii_lowercase() == c.to_ascii_lowercase()
@@ -3105,7 +3105,7 @@ impl ToolList {
                 if let Some(ShortcutResolution::Run(action)) = shortcut_resolution {
                     if action == ShortcutAction::BoxSelect {
                         if !matches!(
-                            server_ctx.curr_map_tool_type,
+                            server_ctx.shared.curr_map_tool_type,
                             MapToolType::Selection
                                 | MapToolType::Vertex
                                 | MapToolType::Linedef
@@ -3116,7 +3116,7 @@ impl ToolList {
                             self.set_tool_widget_state_by_uuid(uuid, ctx);
                             self.set_tool(uuid, ui, ctx, project, server_ctx);
                         }
-                        server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
+                        server_ctx.shared.geometry_edit_mode = GeometryEditMode::Geometry;
                         self.box_select_armed = true;
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -3135,12 +3135,12 @@ impl ToolList {
                     if server_ctx.polyview_has_focus(ctx) {
                         if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                             let plain_grid_shortcut = plain_key
-                                && !server_ctx.game_mode
-                                && !server_ctx.game_input_mode
-                                && server_ctx.curr_map_tool_type != MapToolType::Game;
+                                && !server_ctx.shared.game_mode
+                                && !server_ctx.shared.game_input_mode
+                                && server_ctx.shared.curr_map_tool_type != MapToolType::Game;
                             if plain_grid_shortcut
                                 && (*c == ',' || *c == '.')
-                                && server_ctx.editor_view_mode != EditorViewMode::D2
+                                && server_ctx.shared.editor_view_mode != EditorViewMode::D2
                             {
                                 let delta = if *c == ',' { -1 } else { 1 };
                                 map.subdivisions =
@@ -3169,15 +3169,15 @@ impl ToolList {
                                 return true;
                             } else if plain_grid_shortcut
                                 && Self::is_grid_subdivision_key(*c)
-                                && server_ctx.curr_map_tool_type != MapToolType::Selection
+                                && server_ctx.shared.curr_map_tool_type != MapToolType::Selection
                             {
                                 return false;
-                            } else if server_ctx.editor_view_mode != EditorViewMode::D2
-                                && !server_ctx.game_input_mode
-                                && server_ctx.curr_map_tool_type != MapToolType::Game
+                            } else if server_ctx.shared.editor_view_mode != EditorViewMode::D2
+                                && !server_ctx.shared.game_input_mode
+                                && server_ctx.shared.curr_map_tool_type != MapToolType::Game
                             {
                                 if (*c == 'd' || *c == 'D') && !preserve_prefab_instance_shortcut {
-                                    server_ctx.geometry_edit_mode = GeometryEditMode::Detail;
+                                    server_ctx.shared.geometry_edit_mode = GeometryEditMode::Detail;
                                     self.update_geometry_overlay_3d(project, server_ctx);
                                     server_ctx.reference.write().set_dirty();
                                     return false;
@@ -3192,16 +3192,16 @@ impl ToolList {
                                 server_ctx,
                             );
                             self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
-                            if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                            if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                                 self.update_geometry_overlay_3d(project, server_ctx);
                             }
                         }
 
-                        if server_ctx.get_map_context() == MapContext::Region
-                            && !server_ctx.rotated_entities.is_empty()
-                            && let Some(region) = project.get_region_mut(&server_ctx.curr_region)
+                        if server_ctx.shared.get_map_context() == MapContext::Region
+                            && !server_ctx.shared.rotated_entities.is_empty()
+                            && let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region)
                         {
-                            for (id, (_from, to)) in server_ctx.rotated_entities.drain() {
+                            for (id, (_from, to)) in server_ctx.shared.rotated_entities.drain() {
                                 if let Some(instance) = region.characters.get_mut(&id) {
                                     instance.orientation = to;
                                 }
@@ -3212,7 +3212,7 @@ impl ToolList {
                                 }
                             }
                         } else {
-                            server_ctx.rotated_entities.clear();
+                            server_ctx.shared.rotated_entities.clear();
                         }
                     }
                 }
@@ -3222,7 +3222,7 @@ impl ToolList {
                     || ui.ctrl
                     || ui.logo
                     || ui.alt
-                    || server_ctx.game_input_mode
+                    || server_ctx.shared.game_input_mode
                     || preserve_geometry_object_shortcut
                     || suppress_tool_accel
                 {
@@ -3325,7 +3325,7 @@ impl ToolList {
                 }
                 if id.name == Self::TEXT_PLAY_BUTTON_NAME && *state == TheWidgetState::Clicked {
                     self.text_game_mode = !self.text_game_mode;
-                    server_ctx.text_game_mode = self.text_game_mode;
+                    server_ctx.shared.text_game_mode = self.text_game_mode;
                     ctx.ui.set_widget_state(
                         Self::TEXT_PLAY_BUTTON_NAME.to_string(),
                         if self.text_game_mode {
@@ -3335,14 +3335,14 @@ impl ToolList {
                         },
                     );
 
-                    if self.current_game_tool_is("tool.game") && server_ctx.game_mode {
+                    if self.current_game_tool_is("tool.game") && server_ctx.shared.game_mode {
                         if let Some(stack) = ui.get_stack_layout("Game Output Stack") {
                             stack.set_index(if self.text_game_mode { 1 } else { 0 });
                         }
                         if self.text_game_mode {
                             crate::textplay::TextGameState::request_activation(
                                 crate::textplay::TextGameState::GAME_INPUT_ID,
-                                server_ctx.document_instance,
+                                server_ctx.shared.document_instance,
                                 ui,
                                 ctx,
                             );
@@ -3360,11 +3360,11 @@ impl ToolList {
                 }
                 if id.name == "Editor View Switch"
                     && *state == TheWidgetState::Clicked
-                    && server_ctx.editor_view_mode == EditorViewMode::D2
-                    && server_ctx.editing_surface.is_some()
+                    && server_ctx.shared.editor_view_mode == EditorViewMode::D2
+                    && server_ctx.shared.editing_surface.is_some()
                 {
                     // Re-clicking 2D while editing a profile/surface should exit surface mode.
-                    server_ctx.editing_surface = None;
+                    server_ctx.shared.editing_surface = None;
                     server_ctx.reference.write().client.scene.d2_static.clear();
                     server_ctx.reference.write().client.scene.d2_dynamic.clear();
                     server_ctx.reference.write().set_dirty();
@@ -3402,7 +3402,7 @@ impl ToolList {
 
                 if let Some(id) = &ctx.ui.focus {
                     if id.name == "PolyView"
-                        || (server_ctx.pc.is_prefab() && id.name == "PrefabView")
+                        || (server_ctx.shared.pc.is_prefab() && id.name == "PrefabView")
                     {
                         if self.box_select_armed && *code == TheKeyCode::Escape {
                             self.box_select_armed = false;
@@ -3423,21 +3423,21 @@ impl ToolList {
                             ctx.ui.redraw_all = true;
                             return true;
                         }
-                        if server_ctx.editor_view_mode == EditorViewMode::FirstP
-                            && !server_ctx.game_input_mode
+                        if server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+                            && !server_ctx.shared.game_input_mode
                             && *code == TheKeyCode::Space
                         {
-                            if server_ctx.editor_fly_nav_space_down {
+                            if server_ctx.shared.editor_fly_nav_space_down {
                                 return true;
                             }
-                            server_ctx.editor_fly_nav_space_down = true;
-                            server_ctx.editor_fly_nav_mouse_down = false;
-                            server_ctx.editor_fly_nav_active = !server_ctx.editor_fly_nav_active;
+                            server_ctx.shared.editor_fly_nav_space_down = true;
+                            server_ctx.shared.editor_fly_nav_mouse_down = false;
+                            server_ctx.shared.editor_fly_nav_active = !server_ctx.shared.editor_fly_nav_active;
                             server_ctx.camera
                                 .reset_mouse_tracking();
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
-                                if server_ctx.editor_fly_nav_active {
+                                if server_ctx.shared.editor_fly_nav_active {
                                     fl!("status_firstp_fly_nav_on")
                                 } else {
                                     fl!("status_firstp_fly_nav_off")
@@ -3447,9 +3447,9 @@ impl ToolList {
                             return true;
                         }
 
-                        let invert_2d_pan = server_ctx.editor_view_mode == EditorViewMode::D2
+                        let invert_2d_pan = server_ctx.shared.editor_view_mode == EditorViewMode::D2
                             && !cfg!(target_os = "macos");
-                        if server_ctx.editor_view_mode == EditorViewMode::D2
+                        if server_ctx.shared.editor_view_mode == EditorViewMode::D2
                             && *code == TheKeyCode::Up
                         {
                             if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
@@ -3457,7 +3457,7 @@ impl ToolList {
                             }
                             return false;
                         }
-                        if server_ctx.editor_view_mode == EditorViewMode::D2
+                        if server_ctx.shared.editor_view_mode == EditorViewMode::D2
                             && *code == TheKeyCode::Down
                         {
                             if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
@@ -3465,7 +3465,7 @@ impl ToolList {
                             }
                             return false;
                         }
-                        if server_ctx.editor_view_mode == EditorViewMode::D2
+                        if server_ctx.shared.editor_view_mode == EditorViewMode::D2
                             && *code == TheKeyCode::Left
                         {
                             if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
@@ -3473,7 +3473,7 @@ impl ToolList {
                             }
                             return false;
                         }
-                        if server_ctx.editor_view_mode == EditorViewMode::D2
+                        if server_ctx.shared.editor_view_mode == EditorViewMode::D2
                             && *code == TheKeyCode::Right
                         {
                             if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
@@ -3483,10 +3483,10 @@ impl ToolList {
                         }
                         if *code == TheKeyCode::Escape {
                             if let Some(_map) = Self::get_tool_map_mut(project, server_ctx) {
-                                if server_ctx.editor_fly_nav_active {
-                                    server_ctx.editor_fly_nav_active = false;
-                                    server_ctx.editor_fly_nav_mouse_down = false;
-                                    server_ctx.editor_fly_nav_space_down = false;
+                                if server_ctx.shared.editor_fly_nav_active {
+                                    server_ctx.shared.editor_fly_nav_active = false;
+                                    server_ctx.shared.editor_fly_nav_mouse_down = false;
+                                    server_ctx.shared.editor_fly_nav_space_down = false;
                                     server_ctx.camera.move_action = None;
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
@@ -3495,8 +3495,8 @@ impl ToolList {
                                     ctx.ui.redraw_all = true;
                                     return true;
                                 }
-                                if server_ctx.paste_clipboard.is_some() {
-                                    server_ctx.paste_clipboard = None;
+                                if server_ctx.shared.paste_clipboard.is_some() {
+                                    server_ctx.shared.paste_clipboard = None;
                                     return true;
                                 }
 
@@ -3508,7 +3508,7 @@ impl ToolList {
                                     server_ctx,
                                 );
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
-                                if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                                     self.update_geometry_overlay_3d(project, server_ctx);
                                 }
                             }
@@ -3522,7 +3522,7 @@ impl ToolList {
                                     server_ctx,
                                 );
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
-                                if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                                     self.update_geometry_overlay_3d(project, server_ctx);
                                 }
                             }
@@ -3531,9 +3531,9 @@ impl ToolList {
                 }
             }
             TheEvent::KeyUp(TheValue::Char(c)) => {
-                if server_ctx.editor_view_mode == EditorViewMode::FirstP
-                    && !server_ctx.game_mode
-                    && !server_ctx.game_input_mode
+                if server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+                    && !server_ctx.shared.game_mode
+                    && !server_ctx.shared.game_input_mode
                     && matches!(c.to_ascii_lowercase(), 'w' | 'a' | 's' | 'd')
                 {
                     server_ctx.camera.move_action = None;
@@ -3543,18 +3543,18 @@ impl ToolList {
             }
             TheEvent::KeyCodeUp(TheValue::KeyCode(code)) => {
                 if *code == TheKeyCode::Space {
-                    server_ctx.editor_fly_nav_space_down = false;
+                    server_ctx.shared.editor_fly_nav_space_down = false;
                 }
             }
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
-                    if server_ctx.editor_view_mode == EditorViewMode::FirstP
-                        && server_ctx.editor_fly_nav_active
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.shared.editor_fly_nav_active
                     {
                         return true;
                     }
 
-                    if !server_ctx.game_mode && !server_ctx.game_input_mode {
+                    if !server_ctx.shared.game_mode && !server_ctx.shared.game_input_mode {
                         #[cfg(target_os = "macos")]
                         {
                             self.macos_primary_orbit_drag = None;
@@ -3587,7 +3587,7 @@ impl ToolList {
                         if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                             if coord.y > 20 {
                                 // Test for Paste operation
-                                if let Some(paste) = &server_ctx.paste_clipboard {
+                                if let Some(paste) = &server_ctx.shared.paste_clipboard {
                                     if let Some(hover) = Self::paste_position(server_ctx) {
                                         let prev = map.clone();
                                         let prev_counts = (
@@ -3606,16 +3606,16 @@ impl ToolList {
                                         let inserted = post_counts != prev_counts;
 
                                         if inserted {
-                                            if server_ctx.curr_map_tool_type == MapToolType::Vertex
+                                            if server_ctx.shared.curr_map_tool_type == MapToolType::Vertex
                                             {
                                                 map.selected_linedefs.clear();
                                                 map.selected_sectors.clear();
-                                            } else if server_ctx.curr_map_tool_type
+                                            } else if server_ctx.shared.curr_map_tool_type
                                                 == MapToolType::Linedef
                                             {
                                                 map.selected_vertices.clear();
                                                 map.selected_sectors.clear();
-                                            } else if server_ctx.curr_map_tool_type
+                                            } else if server_ctx.shared.curr_map_tool_type
                                                 == MapToolType::Sector
                                             {
                                                 map.selected_vertices.clear();
@@ -3627,10 +3627,10 @@ impl ToolList {
                                             // use a fully consistent map immediately.
                                             map.sanitize();
                                             map.changed += 1;
-                                            server_ctx.paste_clipboard = None;
+                                            server_ctx.shared.paste_clipboard = None;
 
                                             let undo_atom = ProjectUndoAtom::MapEdit(
-                                                server_ctx.pc,
+                                                server_ctx.shared.pc,
                                                 Box::new(prev),
                                                 Box::new(map.clone()),
                                             );
@@ -3665,34 +3665,34 @@ impl ToolList {
                             }
                         }
 
-                        if server_ctx.editor_view_mode != EditorViewMode::D2
+                        if server_ctx.shared.editor_view_mode != EditorViewMode::D2
                             && let Some(render_view) =
                                 crate::utils::map_editor_render_view(ui, server_ctx)
                         {
                             if let Some(rc) =
                                 self.get_geometry_hit(render_view, *coord, project, server_ctx)
                             {
-                                server_ctx.geo_hit = Some(rc.0);
-                                server_ctx.geo_hit_pos = rc.1;
+                                server_ctx.shared.geo_hit = Some(rc.0);
+                                server_ctx.shared.geo_hit_pos = rc.1;
                             } else {
-                                server_ctx.geo_hit = None;
-                                server_ctx.geo_hit_pos = Vec3::zero();
+                                server_ctx.shared.geo_hit = None;
+                                server_ctx.shared.geo_hit_pos = Vec3::zero();
                             }
                         }
 
                         if self.box_select_armed {
                             // Box Select starts a rectangle even when the drag
                             // begins over geometry or a gizmo.
-                            server_ctx.geo_hit = None;
-                            server_ctx.geo_hit_pos = Vec3::zero();
-                            server_ctx.hover = (None, None, None);
+                            server_ctx.shared.geo_hit = None;
+                            server_ctx.shared.geo_hit_pos = Vec3::zero();
+                            server_ctx.shared.hover = (None, None, None);
                         }
 
                         #[cfg(target_os = "macos")]
-                        if server_ctx.editor_view_mode == EditorViewMode::Orbit
+                        if server_ctx.shared.editor_view_mode == EditorViewMode::Orbit
                             && !self.box_select_armed
-                            && server_ctx.curr_map_tool_type != MapToolType::Terrain
-                            && server_ctx.geo_hit.is_none()
+                            && server_ctx.shared.curr_map_tool_type != MapToolType::Terrain
+                            && server_ctx.shared.geo_hit.is_none()
                         {
                             self.macos_primary_orbit_drag = Some(MacOsPrimaryOrbitDrag {
                                 origin: *coord,
@@ -3716,9 +3716,9 @@ impl ToolList {
                                 .is_some_and(ProjectUndoAtom::is_iso_paint_only);
                             self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
 
-                            if server_ctx.editor_view_mode != EditorViewMode::D2
+                            if server_ctx.shared.editor_view_mode != EditorViewMode::D2
                                 && !paint_only_undo
-                                && server_ctx.curr_map_tool_type != MapToolType::Rect
+                                && server_ctx.shared.curr_map_tool_type != MapToolType::Rect
                             {
                                 self.update_geometry_overlay_3d(project, server_ctx);
                             }
@@ -3742,18 +3742,18 @@ impl ToolList {
             }
             TheEvent::RenderViewContext(id, coord) => {
                 if id.name == "PolyView"
-                    && !server_ctx.game_mode
-                    && !server_ctx.game_input_mode
-                    && server_ctx.editor_view_mode != EditorViewMode::D2
+                    && !server_ctx.shared.game_mode
+                    && !server_ctx.shared.game_input_mode
+                    && server_ctx.shared.editor_view_mode != EditorViewMode::D2
                 {
                     server_ctx.camera
                         .reset_mouse_tracking();
 
-                    if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-                        server_ctx.editor_fly_nav_active = true;
-                        server_ctx.editor_fly_nav_mouse_down = true;
-                        server_ctx.editor_fly_nav_space_down = false;
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::FirstP {
+                        server_ctx.shared.editor_fly_nav_active = true;
+                        server_ctx.shared.editor_fly_nav_mouse_down = true;
+                        server_ctx.shared.editor_fly_nav_space_down = false;
+                        if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
                             server_ctx.camera
                                 .mouse_dragged_firstp(region, coord);
                         }
@@ -3770,11 +3770,11 @@ impl ToolList {
             }
             TheEvent::RenderViewDragged(id, coord) => {
                 if id.name == "PolyView" {
-                    if server_ctx.editor_view_mode == EditorViewMode::FirstP
-                        && server_ctx.editor_fly_nav_active
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.shared.editor_fly_nav_active
                     {
-                        if server_ctx.editor_fly_nav_mouse_down {
-                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if server_ctx.shared.editor_fly_nav_mouse_down {
+                            if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
                                 server_ctx.camera
                                     .mouse_dragged_firstp(region, coord);
                             }
@@ -3793,7 +3793,7 @@ impl ToolList {
                     }
 
                     #[cfg(target_os = "macos")]
-                    if server_ctx.editor_view_mode == EditorViewMode::Orbit
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::Orbit
                         && !ui.right_mouse_down
                         && let Some(mut navigation) = self.macos_primary_orbit_drag
                     {
@@ -3831,21 +3831,21 @@ impl ToolList {
                         return true;
                     }
 
-                    if server_ctx.editor_view_mode != EditorViewMode::D2
-                        && !server_ctx.game_mode
-                        && !server_ctx.game_input_mode
+                    if server_ctx.shared.editor_view_mode != EditorViewMode::D2
+                        && !server_ctx.shared.game_mode
+                        && !server_ctx.shared.game_input_mode
                     {
                         let orbit_drag = !self.box_select_armed
-                            && server_ctx.editor_view_mode == EditorViewMode::Orbit
+                            && server_ctx.shared.editor_view_mode == EditorViewMode::Orbit
                             && (ui.right_mouse_down || ui.alt);
                         let pan_drag = !self.box_select_armed
                             && matches!(
-                                server_ctx.editor_view_mode,
+                                server_ctx.shared.editor_view_mode,
                                 EditorViewMode::Orbit | EditorViewMode::Iso
                             )
                             && (ui.ctrl
                                 || ui.logo
-                                || (server_ctx.editor_view_mode == EditorViewMode::Iso
+                                || (server_ctx.shared.editor_view_mode == EditorViewMode::Iso
                                     && (ui.right_mouse_down || ui.alt)));
 
                         if orbit_drag {
@@ -3873,7 +3873,7 @@ impl ToolList {
                                 crate::utils::map_editor_render_view(ui, server_ctx)
                         {
                             let dim = *render_view.dim();
-                            if server_ctx.pc.is_prefab() {
+                            if server_ctx.shared.pc.is_prefab() {
                                 let camera = {
                                     let edit_camera = &mut server_ctx.camera;
                                     edit_camera
@@ -3888,7 +3888,7 @@ impl ToolList {
                                 ctx.ui.redraw_all = true;
                                 return true;
                             } else if let Some(region) =
-                                project.get_region_mut(&server_ctx.curr_region)
+                                project.get_region_mut(&server_ctx.shared.curr_region)
                             {
                                 server_ctx.camera
                                     .mouse_dragged_pan_3d(
@@ -3904,22 +3904,22 @@ impl ToolList {
                         }
                     }
 
-                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                         // Map dragging handled by tools.
                     }
 
-                    if server_ctx.editor_view_mode != EditorViewMode::D2
+                    if server_ctx.shared.editor_view_mode != EditorViewMode::D2
                         && let Some(render_view) =
                             crate::utils::map_editor_render_view(ui, server_ctx)
                     {
                         if let Some(rc) =
                             self.get_geometry_hit(render_view, *coord, project, server_ctx)
                         {
-                            server_ctx.geo_hit = Some(rc.0);
-                            server_ctx.geo_hit_pos = rc.1;
+                            server_ctx.shared.geo_hit = Some(rc.0);
+                            server_ctx.shared.geo_hit_pos = rc.1;
                         } else {
-                            server_ctx.geo_hit = None;
-                            server_ctx.geo_hit_pos = Vec3::zero();
+                            server_ctx.shared.geo_hit = None;
+                            server_ctx.shared.geo_hit_pos = Vec3::zero();
                         }
                     }
 
@@ -3938,10 +3938,10 @@ impl ToolList {
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
 
-                        if server_ctx.editor_view_mode != EditorViewMode::D2
+                        if server_ctx.shared.editor_view_mode != EditorViewMode::D2
                             && self.should_refresh_3d_overlay()
                         {
-                            if server_ctx.curr_map_tool_type == MapToolType::Rect {
+                            if server_ctx.shared.curr_map_tool_type == MapToolType::Rect {
                                 self.update_tool_preview_overlay_3d(project, server_ctx);
                             } else {
                                 self.update_geometry_overlay_3d(project, server_ctx);
@@ -3954,13 +3954,13 @@ impl ToolList {
             }
             TheEvent::RenderViewUp(id, coord) => {
                 if id.name == "PolyView" {
-                    if server_ctx.editor_view_mode == EditorViewMode::FirstP
-                        && server_ctx.editor_fly_nav_active
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.shared.editor_fly_nav_active
                     {
-                        if server_ctx.editor_fly_nav_mouse_down {
-                            server_ctx.editor_fly_nav_active = false;
-                            server_ctx.editor_fly_nav_mouse_down = false;
-                            server_ctx.editor_fly_nav_space_down = false;
+                        if server_ctx.shared.editor_fly_nav_mouse_down {
+                            server_ctx.shared.editor_fly_nav_active = false;
+                            server_ctx.shared.editor_fly_nav_mouse_down = false;
+                            server_ctx.shared.editor_fly_nav_space_down = false;
                             server_ctx.camera
                                 .reset_mouse_tracking();
                             ctx.ui.send(TheEvent::SetStatusText(
@@ -3989,7 +3989,7 @@ impl ToolList {
                             return true;
                         }
                     }
-                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                    if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                         server_ctx.camera
                             .reset_mouse_tracking();
                     }
@@ -4012,7 +4012,7 @@ impl ToolList {
                             }
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
-                        if server_ctx.editor_view_mode != EditorViewMode::D2
+                        if server_ctx.shared.editor_view_mode != EditorViewMode::D2
                             && !paint_only_undo
                             && self.should_refresh_3d_overlay()
                         {
@@ -4021,8 +4021,8 @@ impl ToolList {
                     }
                     self.box_select_armed = false;
 
-                    if server_ctx.get_map_context() == MapContext::Region {
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    if server_ctx.shared.get_map_context() == MapContext::Region {
+                        if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
                             let mut move_atoms: Vec<ProjectUndoAtom> = Vec::new();
 
                             for (id, (from, to)) in server_ctx.shared.moved_entities.drain() {
@@ -4064,9 +4064,9 @@ impl ToolList {
                             }
                         }
                     } else {
-                        server_ctx.moved_entities.clear();
-                        server_ctx.moved_items.clear();
-                        server_ctx.moved_item_surface_placements.clear();
+                        server_ctx.shared.moved_entities.clear();
+                        server_ctx.shared.moved_items.clear();
+                        server_ctx.shared.moved_item_surface_placements.clear();
                     }
 
                     redraw = true;
@@ -4074,10 +4074,10 @@ impl ToolList {
             }
             TheEvent::RenderViewHoverChanged(id, coord) => {
                 if id.name == "PolyView" {
-                    if server_ctx.editor_view_mode == EditorViewMode::FirstP
-                        && server_ctx.editor_fly_nav_active
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.shared.editor_fly_nav_active
                     {
-                        if !server_ctx.editor_fly_nav_mouse_down
+                        if !server_ctx.shared.editor_fly_nav_mouse_down
                             && let Some(view_size) =
                                 crate::utils::map_editor_render_view(ui, server_ctx).map(|view| {
                                     let dim = *view.dim();
@@ -4092,24 +4092,24 @@ impl ToolList {
                         return true;
                     }
 
-                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                    if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                         if let Some(render_view) =
                             crate::utils::map_editor_render_view(ui, server_ctx)
                         {
                             if let Some(rc) =
                                 self.get_geometry_hit(render_view, *coord, project, server_ctx)
                             {
-                                server_ctx.geo_hit = Some(rc.0);
-                                server_ctx.geo_hit_pos = rc.1;
+                                server_ctx.shared.geo_hit = Some(rc.0);
+                                server_ctx.shared.geo_hit_pos = rc.1;
                             } else {
-                                server_ctx.geo_hit = None;
-                                server_ctx.geo_hit_pos = Vec3::zero();
+                                server_ctx.shared.geo_hit = None;
+                                server_ctx.shared.geo_hit_pos = Vec3::zero();
                             }
                             // println!("{:?}", server_ctx.geo_hit);
                         }
                     }
                     {
-                        let old_hover = server_ctx.hover;
+                        let old_hover = server_ctx.shared.hover;
                         let undo_atom = self.current_tool_map_event(
                             MapEvent::MapHover(*coord),
                             ui,
@@ -4127,13 +4127,13 @@ impl ToolList {
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
 
-                        if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                            let hover_changed = old_hover != server_ctx.hover;
-                            let fast_preview_tool = server_ctx.curr_map_tool_type
+                        if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
+                            let hover_changed = old_hover != server_ctx.shared.hover;
+                            let fast_preview_tool = server_ctx.shared.curr_map_tool_type
                                 == MapToolType::Rect
                                 || paint_only_undo;
 
-                            if server_ctx.block_tool_active && self.should_refresh_3d_overlay() {
+                            if server_ctx.shared.block_tool_active && self.should_refresh_3d_overlay() {
                                 self.update_geometry_overlay_3d(project, server_ctx);
                             } else if hover_changed && !fast_preview_tool {
                                 self.update_geometry_overlay_3d(project, server_ctx);
@@ -4357,7 +4357,7 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let Some(map) = Self::get_tool_map_mut(project, server_ctx) else {
             return false;
@@ -4380,7 +4380,7 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.game_tools[self.curr_game_tool].tool_event(
             ToolEvent::DeActivate,
@@ -4400,10 +4400,10 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         if self.editor_mode || !self.current_game_tool_is("tool.game") {
-            server_ctx.game_mode = false;
+            server_ctx.shared.game_mode = false;
             return false;
         }
 
@@ -4443,9 +4443,9 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
-        self.props_3d_available = server_ctx.editor_view_mode.is_3d();
+        self.props_3d_available = server_ctx.shared.editor_view_mode.is_3d();
         if !self.props_3d_available
             && self.get_game_tool_uuid_by_command_id("tool.blocks") == Some(tool_id)
         {
@@ -4466,9 +4466,9 @@ impl ToolList {
         let layout_name = "Game Tool Params";
         let mut old_tool_index = 0;
         let previous_geometry_selection =
-            if !self.editor_mode && server_ctx.editor_view_mode != EditorViewMode::D2 {
+            if !self.editor_mode && server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                 project
-                    .get_map(server_ctx)
+                    .get_map(&server_ctx.shared)
                     .map(Self::geometry_selection_snapshot)
             } else {
                 None
@@ -4476,7 +4476,7 @@ impl ToolList {
 
         if self.prefab_mode && self.palette_mode {
             self.palette_mode = false;
-            server_ctx.palette_tool_active = false;
+            server_ctx.shared.palette_tool_active = false;
             ctx.ui
                 .set_widget_state(Self::PALETTE_BUTTON_NAME.to_string(), TheWidgetState::None);
         }
@@ -4522,11 +4522,11 @@ impl ToolList {
                 {
                     self.previous_non_game_tool = Some(old_tool_index);
                 }
-                server_ctx.hover = (None, None, None);
-                server_ctx.hover_cursor = None;
-                server_ctx.hover_cursor_3d = None;
-                if let Some(map) = project.get_map_mut(server_ctx) {
-                    if let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                server_ctx.shared.hover = (None, None, None);
+                server_ctx.shared.hover_cursor = None;
+                server_ctx.shared.hover_cursor_3d = None;
+                if let Some(map) = project.get_map_mut(&server_ctx.shared) {
+                    if let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                         && let Some(profile_id) = surface.profile
                         && let Some(profile_map) = map.profiles.get_mut(&profile_id)
                     {
@@ -4575,37 +4575,37 @@ impl ToolList {
             if switched_tool {
                 let tool_id = self.game_tools[self.curr_game_tool].id().uuid;
                 let display = self.game_tools[self.curr_game_tool].editor_display();
-                self.begin_tool_edit(tool_id, server_ctx.pc, display, ctx, &server_ctx.actions);
+                self.begin_tool_edit(tool_id, server_ctx.shared.pc, display, ctx, &server_ctx.actions);
             }
 
-            let preserve_surface_detail_host = server_ctx.curr_map_tool_type
+            let preserve_surface_detail_host = server_ctx.shared.curr_map_tool_type
                 == MapToolType::Linedef
                 && previous_geometry_selection
                     .as_ref()
                     .is_some_and(|snapshot| !snapshot.faces.is_empty());
             let switched_to_game_tool = self.current_game_tool_is("tool.game");
             if switched_tool
-                && server_ctx.editor_view_mode != EditorViewMode::D2
+                && server_ctx.shared.editor_view_mode != EditorViewMode::D2
                 && !switched_to_game_tool
             {
                 if preserve_surface_detail_host {
-                    server_ctx.geometry_edit_mode = GeometryEditMode::Detail;
+                    server_ctx.shared.geometry_edit_mode = GeometryEditMode::Detail;
                 } else {
-                    server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
-                    server_ctx.editing_surface = None;
-                    server_ctx.editing_surface_hit_pos = None;
-                    server_ctx.active_detail_surface = None;
+                    server_ctx.shared.geometry_edit_mode = GeometryEditMode::Geometry;
+                    server_ctx.shared.editing_surface = None;
+                    server_ctx.shared.editing_surface_hit_pos = None;
+                    server_ctx.shared.active_detail_surface = None;
                 }
                 server_ctx.reference.write().set_overlay_dirty();
             }
             if switched_tool
-                && server_ctx.editor_view_mode != EditorViewMode::D2
+                && server_ctx.shared.editor_view_mode != EditorViewMode::D2
                 && !preserve_surface_detail_host
                 && let Some(snapshot) = previous_geometry_selection.as_ref()
-                && let Some(map) = project.get_map_mut(server_ctx)
+                && let Some(map) = project.get_map_mut(&server_ctx.shared)
                 && Self::apply_geometry_tool_selection_carryover(
                     map,
-                    server_ctx.curr_map_tool_type,
+                    server_ctx.shared.curr_map_tool_type,
                     snapshot,
                 )
             {
@@ -4715,9 +4715,9 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) {
-        let available = server.editor_view_mode.is_3d();
+        let available = server.shared.editor_view_mode.is_3d();
         if self.props_3d_available != available {
             self.props_3d_available = available;
             if available {
@@ -4784,12 +4784,12 @@ impl ToolList {
     pub fn update_geometry_overlay_3d(
         &mut self,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if self.native_world_input {
             return;
         }
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
             return;
         }
         let mut bridge = server_ctx.reference.write();
@@ -4807,7 +4807,7 @@ impl ToolList {
             client.camera_d3.as_ref(),
             scene_handler,
         );
-        if server_ctx.curr_map_tool_type == MapToolType::Terrain {
+        if server_ctx.shared.curr_map_tool_type == MapToolType::Terrain {
             bridge.set_overlay_dirty();
         }
     }
@@ -4815,12 +4815,12 @@ impl ToolList {
     pub fn update_tool_preview_overlay_3d(
         &mut self,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) {
         if self.native_world_input {
             return;
         }
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
             return;
         }
         let mut bridge = server_ctx.reference.write();
@@ -4843,7 +4843,7 @@ impl ToolList {
     pub fn hitpoint_to_editing_coord(
         &mut self,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         hp: Vec3<f32>,
     ) -> Option<Vec2<f32>> {
         let mut rc = None;
@@ -4944,9 +4944,9 @@ impl ToolList {
         rc
     }*/
 
-    fn ground_plane_hover(server_ctx: &ServerContext) -> Option<Vec3<f32>> {
-        let ray_origin = server_ctx.hover_ray_origin_3d?;
-        let ray_dir = server_ctx.hover_ray_dir_3d?;
+    fn ground_plane_hover(server_ctx: &CreatorContext) -> Option<Vec3<f32>> {
+        let ray_origin = server_ctx.shared.hover_ray_origin_3d?;
+        let ray_dir = server_ctx.shared.hover_ray_dir_3d?;
         if ray_dir.y.abs() <= 1e-6 {
             return None;
         }
@@ -4960,17 +4960,17 @@ impl ToolList {
         render_view: &dyn TheRenderViewTrait,
         coord: Vec2<i32>,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<(GeoId, Vec3<f32>)> {
         // The native viewport has already queried its acknowledged, private
         // scene before this controller dispatch. Never repick on the adapter VM.
         if self.native_world_input {
-            return server_ctx.geo_hit.map(|geo| (geo, server_ctx.geo_hit_pos));
+            return server_ctx.shared.geo_hit.map(|geo| (geo, server_ctx.shared.geo_hit_pos));
         }
         if !self.should_refresh_3d_hover_pick() {
             return server_ctx
-                .geo_hit
-                .map(|geo_id| (geo_id, server_ctx.geo_hit_pos));
+                .shared.geo_hit
+                .map(|geo_id| (geo_id, server_ctx.shared.geo_hit_pos));
         }
 
         let dim = *render_view.dim();
@@ -4982,23 +4982,23 @@ impl ToolList {
 
         let mut rusterix = server_ctx.reference.write();
 
-        server_ctx.hover_cursor_3d = None;
-        server_ctx.hover_ray_origin_3d = None;
-        server_ctx.hover_ray_dir_3d = None;
-        server_ctx.hover_surface = None;
-        server_ctx.hover_surface_hit_pos = None;
-        server_ctx.hover_surface_normal = None;
+        server_ctx.shared.hover_cursor_3d = None;
+        server_ctx.shared.hover_ray_origin_3d = None;
+        server_ctx.shared.hover_ray_dir_3d = None;
+        server_ctx.shared.hover_surface = None;
+        server_ctx.shared.hover_surface_hit_pos = None;
+        server_ctx.shared.hover_surface_normal = None;
         if let Some((ray_origin, ray_dir)) = rusterix.scene_handler.vm.ray_from_uv_with_size(
             dim.width as u32,
             dim.height as u32,
             screen_uv,
         ) {
-            server_ctx.hover_ray_origin_3d = Some(ray_origin);
-            server_ctx.hover_ray_dir_3d = Some(ray_dir);
+            server_ctx.shared.hover_ray_origin_3d = Some(ray_origin);
+            server_ctx.shared.hover_ray_dir_3d = Some(ray_dir);
         }
 
         if matches!(
-            server_ctx.curr_map_tool_type,
+            server_ctx.shared.curr_map_tool_type,
             MapToolType::Selection
                 | MapToolType::Vertex
                 | MapToolType::Linedef
@@ -5027,9 +5027,9 @@ impl ToolList {
             false,
             false,
         ) {
-            server_ctx.hover_cursor_3d = Some(raw.1);
-            server_ctx.hover_surface_normal = Some(raw.3);
-            if let Some(map) = project.get_map(server_ctx) {
+            server_ctx.shared.hover_cursor_3d = Some(raw.1);
+            server_ctx.shared.hover_surface_normal = Some(raw.3);
+            if let Some(map) = project.get_map(&server_ctx.shared) {
                 let mut best_surface: Option<(Surface, f32)> = None;
                 for surface in map.surfaces.values() {
                     let n = surface.plane.normal;
@@ -5048,20 +5048,20 @@ impl ToolList {
                         best_surface = Some((surface.clone(), dist));
                     }
                 }
-                server_ctx.hover_surface = best_surface.map(|(surface, _)| surface);
-                server_ctx.hover_surface_hit_pos = Some(raw.1);
+                server_ctx.shared.hover_surface = best_surface.map(|(surface, _)| surface);
+                server_ctx.shared.hover_surface_hit_pos = Some(raw.1);
             }
-            if server_ctx.curr_map_tool_type == MapToolType::IsoPaint {
+            if server_ctx.shared.curr_map_tool_type == MapToolType::IsoPaint {
                 return Some((raw.0, raw.1));
             }
-            if server_ctx.curr_map_tool_type == MapToolType::Sector
-                && server_ctx.geometry_edit_mode != GeometryEditMode::Detail
+            if server_ctx.shared.curr_map_tool_type == MapToolType::Sector
+                && server_ctx.shared.geometry_edit_mode != GeometryEditMode::Detail
             {
                 return Some((raw.0, raw.1));
             }
-            if (server_ctx.block_tool_active
+            if (server_ctx.shared.block_tool_active
                 || matches!(
-                    server_ctx.curr_map_tool_type,
+                    server_ctx.shared.curr_map_tool_type,
                     MapToolType::Selection
                         | MapToolType::Vertex
                         | MapToolType::Linedef
@@ -5073,7 +5073,7 @@ impl ToolList {
             }
         }
 
-        if server_ctx.curr_map_tool_type != MapToolType::Sector {
+        if server_ctx.shared.curr_map_tool_type != MapToolType::Sector {
             rusterix.scene_handler.vm.set_active_vm(2);
         }
 
@@ -5092,7 +5092,7 @@ impl ToolList {
         }
 
         if let Some(ground_hit) = Self::ground_plane_hover(server_ctx) {
-            server_ctx.hover_cursor_3d = Some(ground_hit);
+            server_ctx.shared.hover_cursor_3d = Some(ground_hit);
         }
 
         None

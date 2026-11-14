@@ -657,7 +657,7 @@ mod tests {
         ui: TheUI,
         ctx: TheContext,
         project: Project,
-        server: ServerContext,
+        server: CreatorContext,
         character: GraphId,
         events: std::sync::mpsc::Receiver<TheEvent>,
     }
@@ -693,8 +693,8 @@ mod tests {
                     .is::<NativeNodesView>()
             );
             ui.prepare_paint_layout(&mut ctx);
-            let mut server = ServerContext::default();
-            server.pc = ProjectContext::WorldCode;
+            let mut server = CreatorContext::default();
+            server.shared.pc = ProjectContext::WorldCode;
             let before = serde_json::to_value(&project).unwrap();
             dock.activate(&mut ui, &mut ctx, &project, &mut server);
             let mut f = Self {
@@ -737,7 +737,7 @@ mod tests {
             panic!("native node dock events must settle");
         }
         fn show(&mut self, context: ProjectContext) {
-            self.server.pc = context;
+            self.server.shared.pc = context;
             self.dock
                 .activate(&mut self.ui, &mut self.ctx, &self.project, &mut self.server);
         }

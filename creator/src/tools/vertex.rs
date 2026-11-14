@@ -87,14 +87,14 @@ impl Tool for VertexTool {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match tool_event {
             Activate => {
-                server_ctx.curr_map_tool_type = MapToolType::Vertex;
+                server_ctx.shared.curr_map_tool_type = MapToolType::Vertex;
 
-                if let Some(map) = project.get_map_mut(server_ctx) {
-                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                if let Some(map) = project.get_map_mut(&server_ctx.shared) {
+                    if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                         map.geometry_selection_mode = 2;
                         map.selected_geometry_objects.clear();
                         map.selected_geometry_vertices.clear();
@@ -114,8 +114,8 @@ impl Tool for VertexTool {
                 return true;
             }
             DeActivate => {
-                server_ctx.curr_map_tool_type = MapToolType::General;
-                server_ctx.hover_cursor = None;
+                server_ctx.shared.curr_map_tool_type = MapToolType::General;
+                server_ctx.shared.hover_cursor = None;
                 return true;
             }
             _ => {}
@@ -129,11 +129,11 @@ impl Tool for VertexTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
-        let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
-            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
-        if server_ctx.editor_view_mode != EditorViewMode::D2 {
+        let detail_mode_3d = server_ctx.shared.editor_view_mode != EditorViewMode::D2
+            && server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail;
+        if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
             map.geometry_selection_mode = 2;
             if !detail_mode_3d {
                 if self
@@ -191,30 +191,30 @@ impl Tool for VertexTool {
             best_surface.map(|(surface, _)| surface)
         }
 
-        fn creation_host_surface(map: &Map, server_ctx: &ServerContext) -> Option<Surface> {
+        fn creation_host_surface(map: &Map, server_ctx: &CreatorContext) -> Option<Surface> {
             let hit_pos = server_ctx
-                .hover_surface_hit_pos
-                .or(server_ctx.editing_surface_hit_pos)
-                .unwrap_or(server_ctx.geo_hit_pos);
+                .shared.hover_surface_hit_pos
+                .or(server_ctx.shared.editing_surface_hit_pos)
+                .unwrap_or(server_ctx.shared.geo_hit_pos);
             if let Some(surface) = detail_surface_at_point(map, hit_pos) {
                 return Some(surface);
             }
             if let Some(surface) = server_ctx
-                .hover_surface
+                .shared.hover_surface
                 .as_ref()
-                .or(server_ctx.editing_surface.as_ref())
+                .or(server_ctx.shared.editing_surface.as_ref())
             {
                 return Some(surface.clone());
             }
-            let sector_id = match server_ctx.geo_hit {
+            let sector_id = match server_ctx.shared.geo_hit {
                 Some(GeoId::Sector(id)) => Some(id),
                 _ => server_ctx
-                    .hover_surface
+                    .shared.hover_surface
                     .as_ref()
                     .map(|surface| surface.sector_id)
                     .or_else(|| {
                         server_ctx
-                            .editing_surface
+                            .shared.editing_surface
                             .as_ref()
                             .map(|surface| surface.sector_id)
                     }),
@@ -227,10 +227,10 @@ impl Tool for VertexTool {
             surface.is_valid().then_some(surface)
         }
 
-        fn creation_host_sector_id(map: &Map, server_ctx: &ServerContext) -> Option<u32> {
+        fn creation_host_sector_id(map: &Map, server_ctx: &CreatorContext) -> Option<u32> {
             creation_host_surface(map, server_ctx)
                 .map(|surface| surface.sector_id)
-                .or(match server_ctx.geo_hit {
+                .or(match server_ctx.shared.geo_hit {
                     Some(GeoId::Sector(id)) => Some(id),
                     _ => None,
                 })
@@ -271,44 +271,44 @@ impl Tool for VertexTool {
                 if detail_mode_3d
                     && let Some(surface) = detail_surface_at_point(
                         map,
-                        server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos),
+                        server_ctx.shared.hover_cursor_3d.unwrap_or(server_ctx.shared.geo_hit_pos),
                     )
-                    && server_ctx.active_detail_surface.as_ref().map(|s| s.id) != Some(surface.id)
+                    && server_ctx.shared.active_detail_surface.as_ref().map(|s| s.id) != Some(surface.id)
                 {
                     if let Some(old_profile_id) = server_ctx
-                        .active_detail_surface
+                        .shared.active_detail_surface
                         .as_ref()
                         .and_then(|active| active.profile)
                         && let Some(old_profile_map) = map.profiles.get_mut(&old_profile_id)
                     {
                         old_profile_map.selected_vertices.clear();
                     }
-                    server_ctx.active_detail_surface = Some(surface);
+                    server_ctx.shared.active_detail_surface = Some(surface);
                     map.curr_grid_pos = None;
                     map.curr_grid_pos_3d = None;
                     map.clear_temp();
                 }
 
                 if detail_mode_3d {
-                    server_ctx.hover.0 = match server_ctx.geo_hit {
+                    server_ctx.shared.hover.0 = match server_ctx.shared.geo_hit {
                         Some(GeoId::Vertex(id)) => Some(id),
                         _ => None,
                     };
                 }
 
                 self.click_selected = false;
-                if server_ctx.hover.0.is_some() {
+                if server_ctx.shared.hover.0.is_some() {
                     let mut changed = false;
 
                     map.selected_entity_item = None;
 
                     if detail_mode_3d
-                        && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                        && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                         && let Some(profile_id) = surface.profile
                         && let Some(profile_map) = map.profiles.get_mut(&profile_id)
                     {
                         if ui.shift {
-                            if let Some(v) = server_ctx.hover.0 {
+                            if let Some(v) = server_ctx.shared.hover.0 {
                                 if !profile_map.selected_vertices.contains(&v) {
                                     profile_map.selected_vertices.push(v);
                                     changed = true;
@@ -316,14 +316,14 @@ impl Tool for VertexTool {
                             }
                             self.click_selected = true;
                         } else if ui.alt {
-                            if let Some(v) = server_ctx.hover.0 {
+                            if let Some(v) = server_ctx.shared.hover.0 {
                                 profile_map
                                     .selected_vertices
                                     .retain(|&selected| selected != v);
                                 changed = true;
                             }
                         } else {
-                            if let Some(v) = server_ctx.hover.0 {
+                            if let Some(v) = server_ctx.shared.hover.0 {
                                 profile_map.selected_vertices = vec![v];
                                 changed = true;
                             } else {
@@ -335,7 +335,7 @@ impl Tool for VertexTool {
                     } else {
                         if ui.shift {
                             // Add
-                            if let Some(v) = server_ctx.hover.0 {
+                            if let Some(v) = server_ctx.shared.hover.0 {
                                 if !map.selected_vertices.contains(&v) {
                                     map.selected_vertices.push(v);
                                     changed = true;
@@ -344,13 +344,13 @@ impl Tool for VertexTool {
                             self.click_selected = true;
                         } else if ui.alt {
                             // Subtract
-                            if let Some(v) = server_ctx.hover.0 {
+                            if let Some(v) = server_ctx.shared.hover.0 {
                                 map.selected_vertices.retain(|&selected| selected != v);
                                 changed = true;
                             }
                         } else {
                             // Replace
-                            if let Some(v) = server_ctx.hover.0 {
+                            if let Some(v) = server_ctx.shared.hover.0 {
                                 map.selected_vertices = vec![v];
                                 changed = true;
                             } else {
@@ -362,7 +362,7 @@ impl Tool for VertexTool {
                     }
 
                     if changed {
-                        server_ctx.curr_action_id =
+                        server_ctx.shared.curr_action_id =
                             Some(Uuid::from_str(EDIT_VERTEX_ACTION_ID).unwrap());
 
                         ctx.ui.send(TheEvent::Custom(
@@ -376,10 +376,10 @@ impl Tool for VertexTool {
                         if let Some(render_view) =
                             crate::utils::map_editor_render_view(ui, server_ctx)
                         {
-                            if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                            if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                                 let prev = map.clone();
                                 let dim = *render_view.dim();
-                                let grid_pos = server_ctx.local_to_map_grid(
+                                let grid_pos = server_ctx.shared.local_to_map_grid(
                                     Vec2::new(dim.width as f32, dim.height as f32),
                                     Vec2::new(coord.x as f32, coord.y as f32),
                                     map,
@@ -389,7 +389,7 @@ impl Tool for VertexTool {
                                 let id = map.add_vertex_at(grid_pos.x, grid_pos.y);
                                 map.selected_vertices = vec![id];
 
-                                server_ctx.curr_action_id =
+                                server_ctx.shared.curr_action_id =
                                     Some(Uuid::from_str(EDIT_VERTEX_ACTION_ID).unwrap());
 
                                 ctx.ui.send(TheEvent::Custom(
@@ -398,15 +398,15 @@ impl Tool for VertexTool {
                                 ));
 
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                    server_ctx.pc,
+                                    server_ctx.shared.pc,
                                     Box::new(prev),
                                     Box::new(map.clone()),
                                 ));
-                            } else if let Some(pt) = server_ctx.hover_cursor_3d {
+                            } else if let Some(pt) = server_ctx.shared.hover_cursor_3d {
                                 let prev = map.clone();
-                                let snapped = server_ctx.snap_world_point_for_edit(map, pt);
+                                let snapped = server_ctx.shared.snap_world_point_for_edit(map, pt);
                                 if detail_mode_3d
-                                    && let Some(surface) = server_ctx.active_detail_surface.clone()
+                                    && let Some(surface) = server_ctx.shared.active_detail_surface.clone()
                                 {
                                     let mut profile_to_add = None;
                                     let profile_id = if let Some(surface_mut) =
@@ -425,7 +425,7 @@ impl Tool for VertexTool {
                                     if let Some(profile) = profile_to_add {
                                         map.profiles.insert(profile.id, profile.clone());
                                         if let Some(active) =
-                                            server_ctx.active_detail_surface.as_mut()
+                                            server_ctx.shared.active_detail_surface.as_mut()
                                             && active.id == surface.id
                                         {
                                             active.profile = Some(profile.id);
@@ -447,9 +447,9 @@ impl Tool for VertexTool {
                                     {
                                         let host_surface = creation_host_surface(map, server_ctx);
                                         let host_hit_pos = server_ctx
-                                            .hover_surface_hit_pos
-                                            .or(server_ctx.editing_surface_hit_pos)
-                                            .unwrap_or(server_ctx.geo_hit_pos);
+                                            .shared.hover_surface_hit_pos
+                                            .or(server_ctx.shared.editing_surface_hit_pos)
+                                            .unwrap_or(server_ctx.shared.geo_hit_pos);
                                         let host_outward =
                                             host_surface.as_ref().and_then(|surface| {
                                                 let normal =
@@ -459,7 +459,7 @@ impl Tool for VertexTool {
                                                     normal,
                                                     surface.plane.origin,
                                                     server_ctx
-                                                        .hover_ray_dir_3d
+                                                        .shared.hover_ray_dir_3d
                                                         .and_then(|dir| dir.try_normalized()),
                                                 ))
                                             });
@@ -529,7 +529,7 @@ impl Tool for VertexTool {
                                     map.selected_vertices = vec![id];
                                 }
 
-                                server_ctx.curr_action_id =
+                                server_ctx.shared.curr_action_id =
                                     Some(Uuid::from_str(EDIT_VERTEX_ACTION_ID).unwrap());
 
                                 ctx.ui.send(TheEvent::Custom(
@@ -538,7 +538,7 @@ impl Tool for VertexTool {
                                 ));
 
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                    server_ctx.pc,
+                                    server_ctx.shared.pc,
                                     Box::new(prev),
                                     Box::new(map.clone()),
                                 ));
@@ -553,7 +553,7 @@ impl Tool for VertexTool {
                 // For 3D dragging, use the actual vertex position if one is selected
                 if detail_mode_3d
                     && self.click_selected
-                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                     && let Some(profile_id) = surface.profile
                     && let Some(profile_map) = map.profiles.get(&profile_id)
                     && !profile_map.selected_vertices.is_empty()
@@ -562,7 +562,7 @@ impl Tool for VertexTool {
                     if let Some(vertex) = profile_map.find_vertex(vertex_id) {
                         self.click_pos_3d = surface.uv_to_world(Vec2::new(vertex.x, -vertex.y));
                     } else {
-                        self.click_pos_3d = server_ctx.geo_hit_pos;
+                        self.click_pos_3d = server_ctx.shared.geo_hit_pos;
                     }
 
                     if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
@@ -598,11 +598,11 @@ impl Tool for VertexTool {
                         // Convert vertex storage to world 3D coords
                         self.click_pos_3d = vertex.as_vec3_world();
                     } else {
-                        self.click_pos_3d = server_ctx.geo_hit_pos;
+                        self.click_pos_3d = server_ctx.shared.geo_hit_pos;
                     }
 
                     // Compute initial ray intersection on the drag plane at click time
-                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                    if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                         if let Some(render_view) =
                             crate::utils::map_editor_render_view(ui, server_ctx)
                         {
@@ -623,7 +623,7 @@ impl Tool for VertexTool {
                                 )
                             };
 
-                            let plane = server_ctx.gizmo_mode;
+                            let plane = server_ctx.shared.gizmo_mode;
                             let plane_normal = match plane {
                                 GizmoMode::XZ => Vec3::new(0.0, 1.0, 0.0),
                                 GizmoMode::XY => Vec3::new(0.0, 0.0, 1.0),
@@ -640,11 +640,11 @@ impl Tool for VertexTool {
                         }
                     }
                 } else {
-                    self.click_pos_3d = server_ctx.geo_hit_pos;
+                    self.click_pos_3d = server_ctx.shared.geo_hit_pos;
                 }
 
                 if detail_mode_3d
-                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                     && let Some(profile_id) = surface.profile
                     && let Some(profile_map) = map.profiles.get(&profile_id)
                 {
@@ -665,14 +665,14 @@ impl Tool for VertexTool {
                     {
                         let dim = *render_view.dim();
 
-                        if server_ctx.editor_view_mode == EditorViewMode::D2 {
-                            let click_pos = server_ctx.local_to_map_grid(
+                        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
+                            let click_pos = server_ctx.shared.local_to_map_grid(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 self.click_pos,
                                 map,
                                 map.subdivisions,
                             );
-                            let drag_pos = server_ctx.local_to_map_grid(
+                            let drag_pos = server_ctx.shared.local_to_map_grid(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 Vec2::new(coord.x as f32, coord.y as f32),
                                 map,
@@ -696,13 +696,13 @@ impl Tool for VertexTool {
                                     map.update_vertex(*vertex_id, snapped_pos);
                                 }
                             }
-                            server_ctx.hover_cursor = Some(drag_pos);
+                            server_ctx.shared.hover_cursor = Some(drag_pos);
 
                             if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
                                 self.drag_changed = true;
                             }
                         } else if detail_mode_3d
-                            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                            && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                             && let Some(profile_id) = surface.profile
                         {
                             let drag_distance = self
@@ -801,7 +801,7 @@ impl Tool for VertexTool {
                             };
 
                             let start_pos = self.click_pos_3d;
-                            let plane = server_ctx.gizmo_mode;
+                            let plane = server_ctx.shared.gizmo_mode;
 
                             // Get current mouse ray and intersect with drag plane
                             if let Some(render_view) =
@@ -927,34 +927,34 @@ impl Tool for VertexTool {
                     // Otherwise we treat it as rectangle selection
                     let dim = *render_view.dim();
 
-                    let click_pos = server_ctx.local_to_map_grid(
+                    let click_pos = server_ctx.shared.local_to_map_grid(
                         Vec2::new(dim.width as f32, dim.height as f32),
                         self.click_pos,
                         map,
                         map.subdivisions,
                     );
-                    let drag_pos = server_ctx.local_to_map_grid(
+                    let drag_pos = server_ctx.shared.local_to_map_grid(
                         Vec2::new(dim.width as f32, dim.height as f32),
                         Vec2::new(coord.x as f32, coord.y as f32),
                         map,
                         map.subdivisions,
                     );
 
-                    let selection = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    let selection = if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                         let top_left =
                             Vec2::new(click_pos.x.min(drag_pos.x), click_pos.y.min(drag_pos.y));
                         let bottom_right =
                             Vec2::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
 
                         let mut selection = if map.camera == rusterix::MapCamera::TwoDIso {
-                            server_ctx.geometry_in_screen_rectangle(
+                            server_ctx.shared.geometry_in_screen_rectangle(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 self.click_pos,
                                 Vec2::new(coord.x as f32, coord.y as f32),
                                 map,
                             )
                         } else {
-                            server_ctx.geometry_in_rectangle(top_left, bottom_right, map)
+                            server_ctx.shared.geometry_in_rectangle(top_left, bottom_right, map)
                         };
                         selection.1 = vec![];
                         selection.2 = vec![];
@@ -995,7 +995,7 @@ impl Tool for VertexTool {
                         selection
                     };
 
-                    let preview_rectangle = if server_ctx.editor_view_mode == EditorViewMode::D2
+                    let preview_rectangle = if server_ctx.shared.editor_view_mode == EditorViewMode::D2
                         && map.camera != rusterix::MapCamera::TwoDIso
                     {
                         (click_pos, drag_pos)
@@ -1023,7 +1023,7 @@ impl Tool for VertexTool {
                 if self.click_selected {
                     if self.drag_changed {
                         undo_atom = Some(ProjectUndoAtom::MapEdit(
-                            server_ctx.pc,
+                            server_ctx.shared.pc,
                             Box::new(self.rectangle_undo_map.clone()),
                             Box::new(map.clone()),
                         ));
@@ -1051,19 +1051,19 @@ impl Tool for VertexTool {
                     return None;
                 }
 
-                if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                     if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
                     {
                         let dim = *render_view.dim();
-                        let h = server_ctx.geometry_at_for_tool(
+                        let h = server_ctx.shared.geometry_at_for_tool(
                             Vec2::new(dim.width as f32, dim.height as f32),
                             Vec2::new(coord.x as f32, coord.y as f32),
                             map,
                             MapToolType::Vertex,
                         );
-                        server_ctx.hover.0 = h.0;
+                        server_ctx.shared.hover.0 = h.0;
 
-                        let cp = server_ctx.local_to_map_grid(
+                        let cp = server_ctx.shared.local_to_map_grid(
                             Vec2::new(dim.width as f32, dim.height as f32),
                             Vec2::new(coord.x as f32, coord.y as f32),
                             map,
@@ -1075,30 +1075,30 @@ impl Tool for VertexTool {
                             TheValue::Float2(cp),
                         ));
 
-                        server_ctx.hover_cursor = Some(cp);
+                        server_ctx.shared.hover_cursor = Some(cp);
                     }
                 } else {
-                    if let Some(geo_id) = server_ctx.geo_hit {
+                    if let Some(geo_id) = server_ctx.shared.geo_hit {
                         match geo_id {
                             GeoId::Vertex(id) => {
-                                server_ctx.hover = (Some(id), None, None);
+                                server_ctx.shared.hover = (Some(id), None, None);
                             }
                             _ => {
-                                server_ctx.hover = (None, None, None);
+                                server_ctx.shared.hover = (None, None, None);
                             }
                         }
                     } else {
-                        server_ctx.hover = (None, None, None);
+                        server_ctx.shared.hover = (None, None, None);
                     }
 
-                    if let Some(cp) = server_ctx.hover_cursor {
+                    if let Some(cp) = server_ctx.shared.hover_cursor {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Cursor Pos Changed"),
                             TheValue::Float2(cp),
                         ));
                     }
                 }
-                if let Some(v) = server_ctx.hover.0 {
+                if let Some(v) = server_ctx.shared.hover.0 {
                     if let Some(vertex) = map.find_vertex(v) {
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -1116,7 +1116,7 @@ impl Tool for VertexTool {
             MapDelete => {
                 let prev = map.clone();
                 if detail_mode_3d
-                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                     && let Some(profile_id) = surface.profile
                     && let Some(profile_map) = map.profiles.get_mut(&profile_id)
                     && !profile_map.selected_vertices.is_empty()
@@ -1126,7 +1126,7 @@ impl Tool for VertexTool {
                     profile_map.selected_vertices.clear();
 
                     undo_atom = Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(prev),
                         Box::new(map.clone()),
                     ));
@@ -1143,7 +1143,7 @@ impl Tool for VertexTool {
                     map.selected_vertices.clear();
 
                     undo_atom = Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(prev),
                         Box::new(map.clone()),
                     ));
@@ -1155,7 +1155,7 @@ impl Tool for VertexTool {
             }
             MapEscape => {
                 if detail_mode_3d
-                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                     && let Some(profile_id) = surface.profile
                     && let Some(profile_map) = map.profiles.get_mut(&profile_id)
                     && !profile_map.selected_vertices.is_empty()
@@ -1200,10 +1200,10 @@ impl Tool for VertexTool {
     fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
         Some(&mut self.hud)
     }
-    fn hud_selected_id(&self, map: &Map, server_ctx: &ServerContext) -> Option<u32> {
-        let id = if server_ctx.editor_view_mode != EditorViewMode::D2
-            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
-            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+    fn hud_selected_id(&self, map: &Map, server_ctx: &CreatorContext) -> Option<u32> {
+        let id = if server_ctx.shared.editor_view_mode != EditorViewMode::D2
+            && server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail
+            && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
             && let Some(profile_id) = surface.profile
             && let Some(profile_map) = map.profiles.get(&profile_id)
             && !profile_map.selected_vertices.is_empty()
@@ -1219,9 +1219,9 @@ impl Tool for VertexTool {
     fn overlay_screen_rectangle(
         &self,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> Option<(Vec2<f32>, Vec2<f32>)> {
-        if server.editor_view_mode != EditorViewMode::D2 {
+        if server.shared.editor_view_mode != EditorViewMode::D2 {
             map.curr_rectangle
         } else {
             None
@@ -1232,7 +1232,7 @@ impl Tool for VertexTool {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         assets: &Assets,
     ) {
         if let Some(rect) = self.overlay_screen_rectangle(map, server_ctx) {

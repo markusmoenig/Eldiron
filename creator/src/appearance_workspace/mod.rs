@@ -170,7 +170,7 @@ impl AppearanceWorkspace {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         if let TheEvent::Custom(id, _) = event {
             if id.name == "Open Procedural Geometry"
@@ -203,10 +203,10 @@ impl AppearanceWorkspace {
                 };
                 if let Some(owner) = owner.filter(|o| o.name(project).is_some()) {
                     self.return_context = Some(
-                        if project.regions.iter().any(|r| r.id == server.curr_region) {
-                            ProjectContext::Region(server.curr_region)
+                        if project.regions.iter().any(|r| r.id == server.shared.curr_region) {
+                            ProjectContext::Region(server.shared.curr_region)
                         } else {
-                            server.pc
+                            server.shared.pc
                         },
                     );
                     self.owner = Some(owner);

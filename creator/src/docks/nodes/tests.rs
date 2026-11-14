@@ -119,10 +119,10 @@ fn creator_dock_edits_undo_and_owner_switching() {
     ui.get_render_view(VIEW)
         .unwrap()
         .set_dim(TheDim::new(0, 0, 1200, 650), &mut ctx);
-    let mut server = ServerContext::default();
+    let mut server = CreatorContext::default();
     let first = Uuid::new_v4();
     let second = Uuid::new_v4();
-    server.pc = ProjectContext::CharacterCode(first);
+    server.shared.pc = ProjectContext::CharacterCode(first);
     let mut project = Project::new();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     add(&mut dock, "event");
@@ -163,12 +163,12 @@ fn creator_dock_edits_undo_and_owner_switching() {
     assert!(dock.doc.nodes.is_empty());
     dock.redo(&mut ui, &mut ctx, &mut project, &mut server);
     assert_eq!(dock.doc, first_doc);
-    server.pc = ProjectContext::CharacterCode(second);
+    server.shared.pc = ProjectContext::CharacterCode(second);
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     assert!(dock.doc.nodes.is_empty());
     add(&mut dock, "say");
     dock.store(&mut project, true, &server.reference);
-    server.pc = ProjectContext::CharacterCode(first);
+    server.shared.pc = ProjectContext::CharacterCode(first);
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     // Activating lays the branch out, so only the graph itself is compared.
     assert_eq!(
@@ -199,8 +199,8 @@ fn equipment_accepts_project_item_drops_with_zoom_history_and_saved_setup() {
     shirt.data = "[attributes]\nruleset_id='linen_shirt'\nslot='torso'\ncategory='cloth'\n".into();
     let item_id = shirt.id;
     project.items.insert(item_id, shirt);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::CharacterData(character_id);
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::CharacterData(character_id);
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     dock.editor.viewport.pan = [75., 40.];
     dock.editor.viewport.zoom_at([0., 0.], 0.75);
@@ -254,7 +254,7 @@ fn equipment_accepts_project_item_drops_with_zoom_history_and_saved_setup() {
             .collect::<Vec<_>>()
     };
     assert_eq!(names(&project), vec![item_id.to_string()]);
-    assert_eq!(server.pc, ProjectContext::CharacterData(character_id));
+    assert_eq!(server.shared.pc, ProjectContext::CharacterData(character_id));
     struct Labels(Vec<String>);
     impl GraphPainter for Labels {
         fn round_rect(&mut self, _: GraphRect, _: f32, _: GraphColor) {}
@@ -427,8 +427,8 @@ fn catalog_drop_uses_viewport_and_global_dock_history() {
     ui.get_render_view(VIEW)
         .unwrap()
         .set_dim(TheDim::new(0, 0, 1200, 650), &mut ctx);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::CharacterCode(Uuid::new_v4());
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::CharacterCode(Uuid::new_v4());
     let mut project = Project::new();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     dock.editor.viewport.pan = [75., 40.];
@@ -492,11 +492,11 @@ fn node_list_and_dock_layout_snapshot() {
         .limiter_mut()
         .set_max_width(300);
     ui.canvas.set_right(sidebar);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::CharacterCode(Uuid::new_v4());
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::CharacterCode(Uuid::new_v4());
     let project = Project::new();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
-    sync_node_list(&mut ui, &mut ctx, server.pc);
+    sync_node_list(&mut ui, &mut ctx, server.shared.pc);
     add(&mut dock, "event");
     add(&mut dock, "filter");
     add(&mut dock, "say");
@@ -596,8 +596,8 @@ fn touchpad_pan_corrects_both_widget_inverted_axes() {
     let mut ui = TheUI::new();
     let mut ctx = TheContext::new(700, 200, 1.);
     ui.canvas = dock.setup(&mut ctx);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::CharacterCode(Uuid::new_v4());
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::CharacterCode(Uuid::new_v4());
     let mut project = Project::new();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     dock.handle_event(
@@ -646,8 +646,8 @@ fn dispatched_events_reach_selected_owner_without_source_debugging() {
     let mut server = rusterix::server::Server::new();
     server.state = rusterix::ServerState::Running;
     server.event_observations.push_back(event);
-    let mut context = ServerContext::default();
-    context.pc = ProjectContext::RegionCharacterInstance(region_id, instance);
+    let mut context = CreatorContext::default();
+    context.shared.pc = ProjectContext::RegionCharacterInstance(region_id, instance);
     let mut dock = NodesDock::new();
     add(&mut dock, "event");
     let authored = dock.doc.clone();
@@ -686,12 +686,12 @@ fn dispatched_events_reach_selected_owner_without_source_debugging() {
         .unwrap();
     }
 
-    context.pc = ProjectContext::RegionCharacterInstance(region_id, Uuid::new_v4());
+    context.shared.pc = ProjectContext::RegionCharacterInstance(region_id, Uuid::new_v4());
     dock.update_live(&server, &project, &context);
     assert!(dock.live.latest.is_empty());
     assert!(!live::matches_owner(
         server.event_observations.front().unwrap(),
-        context.pc,
+        context.shared.pc,
         &project,
         region_id
     ));
@@ -801,8 +801,8 @@ fn clearing_the_graph_records_an_undo_step() {
     ui.init(&mut ctx);
     ui.canvas = dock.setup(&mut ctx);
     let owner = Uuid::new_v4();
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::CharacterCode(owner);
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::CharacterCode(owner);
     let mut project = Project::new();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     add(&mut dock, "event");
@@ -1153,8 +1153,8 @@ fn folding_shrinks_the_shown_branch() {
     ui.get_render_view(VIEW)
         .unwrap()
         .set_dim(TheDim::new(0, 0, 1200, 650), &mut ctx);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::CharacterCode(Uuid::new_v4());
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::CharacterCode(Uuid::new_v4());
     let mut project = Project::new();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
 
@@ -1224,13 +1224,13 @@ fn folding_shrinks_the_shown_branch() {
 }
 
 /// A dock with a live owner, ready for branch operations.
-fn live_dock() -> (NodesDock, TheUI, TheContext, Project, ServerContext) {
+fn live_dock() -> (NodesDock, TheUI, TheContext, Project, CreatorContext) {
     let mut dock = NodesDock::new();
     let mut ctx = TheContext::new(1200, 650, 1.);
     let mut ui = TheUI::new();
     ui.canvas = dock.setup(&mut ctx);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::CharacterCode(Uuid::new_v4());
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::CharacterCode(Uuid::new_v4());
     let project = Project::new();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     (dock, ui, ctx, project, server)
@@ -2053,14 +2053,14 @@ fn rules_branches_edit_compile_undo_and_restore_without_behavior_storage() {
     ui.get_render_view(VIEW)
         .unwrap()
         .set_dim(TheDim::new(0, 0, 1200, 650), &mut ctx);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::GameRules;
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::GameRules;
     let mut project = Project::new();
     let original = project.rules.current.compile().unwrap();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     assert!(dock.is_rules());
-    assert!(node_available(server.pc, "rules_definition"));
-    assert!(!node_available(server.pc, "use_action"));
+    assert!(node_available(server.shared.pc, "rules_definition"));
+    assert!(!node_available(server.shared.pc, "use_action"));
     assert_eq!(
         dock.branch_order.len(),
         project.rules.current.branches.len()
@@ -2155,8 +2155,8 @@ fn invalid_rules_drafts_survive_reopening_and_remain_recoverable() {
     let mut ctx = TheContext::new(1200, 650, 1.);
     let mut ui = TheUI::new();
     ui.canvas = dock.setup(&mut ctx);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::GameRules;
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::GameRules;
     let mut project = Project::new();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     let root = dock
@@ -2191,8 +2191,8 @@ fn rules_can_start_empty_add_a_definition_and_remove_the_last_branch() {
     let mut ctx = TheContext::new(1200, 650, 1.);
     let mut ui = TheUI::new();
     ui.canvas = dock.setup(&mut ctx);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::GameRules;
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::GameRules;
     let mut project = Project::new();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     dock.handle_event(
@@ -2232,8 +2232,8 @@ fn rules_dock_filter_and_layout_keep_definition_branches_separate() {
         .limiter_mut()
         .set_max_width(220);
     ui.canvas.set_right(catalog);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::GameRules;
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::GameRules;
     let mut project = Project::new();
     let before = project.rules.current.compile().unwrap();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
@@ -2307,8 +2307,8 @@ fn rules_key_deletion_and_wire_changes_are_undoable() {
     let mut ctx = TheContext::new(1200, 650, 1.);
     let mut ui = TheUI::new();
     ui.canvas = dock.setup(&mut ctx);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::GameRules;
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::GameRules;
     let mut project = Project::new();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     let root = dock
@@ -2365,8 +2365,8 @@ fn particle_rules_branches_preview_edit_save_undo_and_restore() {
     ui.get_render_view(VIEW)
         .unwrap()
         .set_dim(TheDim::new(0, 0, 1200, 700), &mut ctx);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::GameRules;
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::GameRules;
     let mut project = Project::new();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     let root = dock
@@ -2380,7 +2380,7 @@ fn particle_rules_branches_preview_edit_save_undo_and_restore() {
         .unwrap();
     dock.set_branch(Some(root));
     assert_eq!(dock.doc.nodes.len(), 9);
-    assert!(node_available(server.pc, "particle_color"));
+    assert!(node_available(server.shared.pc, "particle_color"));
     dock.update_particle_preview();
     assert!(GraphAssets::image(&dock.tiles, "rules_particle_preview").is_some());
     dock.finish(&mut project, &server.reference); // Persist the initial automatic layout first.
@@ -2462,8 +2462,8 @@ fn control_touchpad_and_wheel_zoom_nodes_around_pointer() {
     let mut ui = TheUI::new();
     let mut ctx = TheContext::new(700, 400, 1.);
     ui.canvas = dock.setup(&mut ctx);
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::CharacterCode(Uuid::new_v4());
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::CharacterCode(Uuid::new_v4());
     let mut project = Project::new();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     ui.modifier_changed(false, true, false, false, &mut ctx);
@@ -2505,7 +2505,7 @@ fn authoring_nodes_and_preview_snapshots_do_not_require_raster_or_world_renderer
     add(&mut dock, "event");
     dock.store(&mut project, true, &reference);
     assert!(project.node_graphs.contains_key("behavior/world"));
-    dock.refresh_live(&project, &ServerContext::default());
+    dock.refresh_live(&project, &CreatorContext::default());
     assert!(dock.resources.is_none());
     let bytes = shared::project_io::encode_project(&project).unwrap();
     let restored = shared::project_io::decode_project(&bytes).unwrap();

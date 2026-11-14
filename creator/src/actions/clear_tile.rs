@@ -36,7 +36,7 @@ impl Action for ClearTile {
         None
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &CreatorContext) -> bool {
         if map.selected_sectors.is_empty()
             && map.selected_geometry_faces.is_empty()
             && map.selected_geometry_objects.is_empty()
@@ -55,7 +55,7 @@ impl Action for ClearTile {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let mut changed = false;
         let prev = map.clone();
@@ -86,7 +86,7 @@ impl Action for ClearTile {
             server_ctx.reference.write().set_dirty();
             server_ctx.reference.write().set_overlay_dirty();
             Some(ProjectUndoAtom::MapEdit(
-                server_ctx.pc,
+                server_ctx.shared.pc,
                 Box::new(prev),
                 Box::new(map.clone()),
             ))
@@ -105,7 +105,7 @@ impl Action for ClearTile {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

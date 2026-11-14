@@ -131,14 +131,14 @@ impl Editor {
         let region = self
             .documents
             .project
-            .get_region_ctx_mut(&self.server_ctx)
+            .get_region_ctx_mut(&self.server_ctx.shared)
             .unwrap();
         let old = (
-            self.server_ctx.editor_view_mode,
+            self.server_ctx.shared.editor_view_mode,
             region.map.camera,
             region.editing_position_3d,
         );
-        self.server_ctx.editor_view_mode = mode;
+        self.server_ctx.shared.editor_view_mode = mode;
         region.map.camera = camera;
         region.editing_position_3d = center;
         old

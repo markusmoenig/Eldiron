@@ -2512,25 +2512,25 @@ pub fn upgrade_all_bundled_prefabs(project: &mut Project) -> bool {
 
 fn prefab_surface_hit_and_normal(
     _map: &Map,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Option<(Vec3<f32>, Option<Vec3<f32>>)> {
     let hit = server_ctx
-        .hover_surface_hit_pos
-        .or(server_ctx.hover_cursor_3d)
-        .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
+        .shared.hover_surface_hit_pos
+        .or(server_ctx.shared.hover_cursor_3d)
+        .or_else(|| server_ctx.shared.geo_hit.map(|_| server_ctx.shared.geo_hit_pos))
         .or_else(|| block_grid_plane_hit(server_ctx))?;
-    let normal = server_ctx.hover_surface_normal;
+    let normal = server_ctx.shared.hover_surface_normal;
     Some((hit, normal))
 }
 
 pub fn prefab_surface_placement_valid(
     asset: &rusterix::BlockPropAsset,
     map: &Map,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> bool {
-    let has_hit = server_ctx.hover_surface_hit_pos.is_some()
-        || server_ctx.hover_cursor_3d.is_some()
-        || server_ctx.geo_hit.is_some()
+    let has_hit = server_ctx.shared.hover_surface_hit_pos.is_some()
+        || server_ctx.shared.hover_cursor_3d.is_some()
+        || server_ctx.shared.geo_hit.is_some()
         || block_grid_plane_hit(server_ctx).is_some();
     match asset.placement.mode {
         rusterix::BlockPropPlacementMode::Ground => has_hit,
@@ -2549,7 +2549,7 @@ pub fn prefab_surface_placement_valid(
 pub fn surface_prefab_preview_instance(
     asset: &rusterix::BlockPropAsset,
     map: &Map,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Option<rusterix::BlockPropInstance> {
     if !prefab_surface_placement_valid(asset, map, server_ctx) {
         return None;
@@ -2600,7 +2600,7 @@ pub fn surface_prefab_preview_instance(
             (up.cross(forward).try_normalized()?, up, forward)
         };
     let angle =
-        server_ctx.block_rotation_quarters.rem_euclid(4) as f32 * std::f32::consts::FRAC_PI_2;
+        server_ctx.shared.block_rotation_quarters.rem_euclid(4) as f32 * std::f32::consts::FRAC_PI_2;
     let (sin, cos) = angle.sin_cos();
     let rotated_right = right * cos + up * sin;
     let rotated_up = up * cos - right * sin;
@@ -2654,11 +2654,11 @@ pub fn editable_prefab_from_block_asset(asset: &BlockAsset) -> rusterix::BlockPr
     prefab
 }
 
-pub fn block_sizing_from_context(server_ctx: &ServerContext) -> BlockSizing {
+pub fn block_sizing_from_context(server_ctx: &CreatorContext) -> BlockSizing {
     BlockSizing {
-        height_cells: server_ctx.block_height_cells.max(0.01),
-        span_extra_cells: server_ctx.block_span_extra_cells.max(0.0),
-        depth_extra_cells: server_ctx.block_depth_extra_cells.max(0.0),
+        height_cells: server_ctx.shared.block_height_cells.max(0.01),
+        span_extra_cells: server_ctx.shared.block_span_extra_cells.max(0.0),
+        depth_extra_cells: server_ctx.shared.block_depth_extra_cells.max(0.0),
     }
 }
 
@@ -2903,23 +2903,23 @@ pub fn block_tool_horizontal_grid_step(
     asset_id: Option<Uuid>,
     prefab_assets: &IndexMap<Uuid, rusterix::BlockPropAsset>,
     map: &Map,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> f32 {
     if let Some(asset_id) = asset_id
         && block_asset(asset_id).is_none()
-        && (prefab_assets.contains_key(&asset_id) || server_ctx.block_recipe_template.is_some())
+        && (prefab_assets.contains_key(&asset_id) || server_ctx.shared.block_recipe_template.is_some())
     {
         return shared::context::ServerContext::edit_grid_step(map.subdivisions).max(0.01);
     }
 
-    server_ctx.block_grid_cell_size.max(0.05)
+    server_ctx.shared.block_grid_cell_size.max(0.05)
 }
 
-pub fn block_grid_plane_hit(server_ctx: &ServerContext) -> Option<Vec3<f32>> {
-    let cell_size = server_ctx.block_grid_cell_size.max(0.05);
-    let grid_y = server_ctx.block_grid_level as f32 * cell_size;
-    let ray_origin = server_ctx.hover_ray_origin_3d?;
-    let ray_dir = server_ctx.hover_ray_dir_3d?;
+pub fn block_grid_plane_hit(server_ctx: &CreatorContext) -> Option<Vec3<f32>> {
+    let cell_size = server_ctx.shared.block_grid_cell_size.max(0.05);
+    let grid_y = server_ctx.shared.block_grid_level as f32 * cell_size;
+    let ray_origin = server_ctx.shared.hover_ray_origin_3d?;
+    let ray_dir = server_ctx.shared.hover_ray_dir_3d?;
     if ray_dir.y.abs() <= 1e-6 {
         return None;
     }
@@ -2927,14 +2927,14 @@ pub fn block_grid_plane_hit(server_ctx: &ServerContext) -> Option<Vec3<f32>> {
     (t >= 0.0).then_some(ray_origin + ray_dir * t)
 }
 
-pub fn block_surface_base_y(server_ctx: &ServerContext, fallback_y: f32) -> Option<f32> {
-    let normal = server_ctx.hover_surface_normal?;
+pub fn block_surface_base_y(server_ctx: &CreatorContext, fallback_y: f32) -> Option<f32> {
+    let normal = server_ctx.shared.hover_surface_normal?;
     if normal.y.abs() <= 0.55 {
         return None;
     }
     let hit = server_ctx
-        .hover_surface_hit_pos
-        .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))?;
+        .shared.hover_surface_hit_pos
+        .or_else(|| server_ctx.shared.geo_hit.map(|_| server_ctx.shared.geo_hit_pos))?;
     if !hit.y.is_finite() || hit.y + 0.001 < fallback_y {
         return None;
     }
@@ -3242,8 +3242,8 @@ mod tests {
     fn prefab_placement_uses_the_shared_grid_without_rescaling_blocks() {
         let mut map = Map::default();
         map.subdivisions = 8.0;
-        let mut server_ctx = ServerContext::new();
-        server_ctx.block_grid_cell_size = 1.0;
+        let mut server_ctx = CreatorContext::new();
+        server_ctx.shared.block_grid_cell_size = 1.0;
 
         let mut prefab = rusterix::BlockPropAsset::new("Candle");
         prefab.placement.snap_to_grid = false;
@@ -3273,8 +3273,8 @@ mod tests {
             .expect("Ceramic Plate decoration");
         let mut map = Map::default();
         map.subdivisions = 8.0;
-        let mut server_ctx = ServerContext::new();
-        server_ctx.hover_cursor_3d = Some(Vec3::new(1.03, 0.0, 2.06));
+        let mut server_ctx = CreatorContext::new();
+        server_ctx.shared.hover_cursor_3d = Some(Vec3::new(1.03, 0.0, 2.06));
 
         assert!(prefab_surface_placement_valid(asset, &map, &server_ctx));
         let preview = surface_prefab_preview_instance(asset, &map, &server_ctx)

@@ -103,10 +103,10 @@ impl Capture {
         let map = self
             .editor
             .documents.project
-            .get_map_mut(&self.editor.server_ctx)
+            .get_map_mut(&self.editor.server_ctx.shared)
             .unwrap();
         map.grid_size = zoom;
-        self.editor.server_ctx.center_map_at_grid_pos(
+        self.editor.server_ctx.shared.center_map_at_grid_pos(
             Vec2::new(dim.width as f32, dim.height as f32),
             position,
             map,
@@ -139,8 +139,8 @@ fn documentation_screenshots() {
     let tile = Uuid::parse_str("a334a1b7-7ee4-4028-9d84-84a91fe1ee1a").unwrap();
     assert!(capture.editor.documents.project.tiles.contains_key(&tile));
     {
-        capture.editor.server_ctx.curr_tile_id = Some(tile);
-        capture.editor.server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(tile));
+        capture.editor.server_ctx.shared.curr_tile_id = Some(tile);
+        capture.editor.server_ctx.shared.curr_tile_source = Some(rusterix::TileSource::SingleTile(tile));
         capture.ctx.ui.send(TheEvent::Custom(
             TheId::named("Tile Picked"),
             TheValue::Id(tile),
@@ -300,7 +300,7 @@ fn capture_3d(capture: &mut Capture, root: &std::path::Path) {
     capture.context(ProjectContext::Region(region));
     capture.tool("tool.geometry");
     // These are ordinary editor preview controls, not changes to the project.
-    capture.editor.server_ctx.show_editor_grid = false;
+    capture.editor.server_ctx.shared.show_editor_grid = false;
     {
         let mut runtime = capture.editor.server_ctx.reference.write();
         runtime.editor_preview_lighting_enabled = true;

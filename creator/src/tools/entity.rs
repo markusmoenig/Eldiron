@@ -92,11 +92,11 @@ impl Tool for EntityTool {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         _project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match tool_event {
             ToolEvent::Activate => {
-                server_ctx.curr_map_tool_type = MapToolType::General;
+                server_ctx.shared.curr_map_tool_type = MapToolType::General;
 
                 true
             }
@@ -111,7 +111,7 @@ impl Tool for EntityTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         match map_event {
             MapKey(c) => {
@@ -135,7 +135,7 @@ impl Tool for EntityTool {
                     };
                     entity.orientation = to;
                     server_ctx
-                        .rotated_entities
+                        .shared.rotated_entities
                         .entry(selected_id)
                         .and_modify(|entry| entry.1 = to)
                         .or_insert((from, to));
@@ -148,13 +148,13 @@ impl Tool for EntityTool {
                     return None;
                 }
 
-                if (server_ctx.game_mode || server_ctx.game_input_mode)
+                if (server_ctx.shared.game_mode || server_ctx.shared.game_input_mode)
                     && self.handle_game_click(coord, map, &server_ctx.reference)
                 {
                     return None;
                 }
 
-                if server_ctx.get_map_context() == MapContext::Region
+                if server_ctx.shared.get_map_context() == MapContext::Region
                     && let Some(hit) = self.pick_hit_for_coord(ui, server_ctx, map, coord)
                 {
                     let placement = self.placement_sample_at_coord(
@@ -185,7 +185,7 @@ impl Tool for EntityTool {
                         DragTarget::Entity(id) => {
                             if let Some(entity) = map.entities.iter().find(|e| e.creator_id == id) {
                                 server_ctx
-                                    .moved_entities
+                                    .shared.moved_entities
                                     .entry(id)
                                     .or_insert((entity.position, entity.position));
                             }
@@ -193,7 +193,7 @@ impl Tool for EntityTool {
                         DragTarget::Item(id) => {
                             if let Some(item) = map.items.iter().find(|i| i.creator_id == id) {
                                 server_ctx
-                                    .moved_items
+                                    .shared.moved_items
                                     .entry(id)
                                     .or_insert((item.position, item.position));
                             }
@@ -204,7 +204,7 @@ impl Tool for EntityTool {
                                 .find(|placement| placement.occupant == occupant)
                                 .cloned();
                             server_ctx
-                                .moved_item_surface_placements
+                                .shared.moved_item_surface_placements
                                 .entry(id)
                                 .or_insert((placement.clone(), placement));
                         }
@@ -223,7 +223,7 @@ impl Tool for EntityTool {
                 }
             }
             MapUp(coord) => {
-                if (server_ctx.game_mode || server_ctx.game_input_mode)
+                if (server_ctx.shared.game_mode || server_ctx.shared.game_input_mode)
                     && self.handle_game_up(coord, map, &server_ctx.reference)
                 {
                     return None;
@@ -242,7 +242,7 @@ impl Tool for EntityTool {
                                     },
                                 );
                                 let floor_height = snapped.and_then(|pos| {
-                                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                    if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                                         Self::placement_floor_height(
                                             map,
                                             pos,
@@ -265,7 +265,7 @@ impl Tool for EntityTool {
                                         entity.position.y = height;
                                     }
                                     server_ctx
-                                        .moved_entities
+                                        .shared.moved_entities
                                         .entry(id)
                                         .and_modify(|entry| entry.1 = entity.position)
                                         .or_insert((entity.position, entity.position));
@@ -289,7 +289,7 @@ impl Tool for EntityTool {
                                     .map(|surface| surface.world_position.y)
                                     .or_else(|| {
                                         snapped.and_then(|pos| {
-                                            if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                            if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                                                 Self::placement_floor_height(
                                                     map,
                                                     pos,
@@ -313,7 +313,7 @@ impl Tool for EntityTool {
                                         item.position.y = height;
                                     }
                                     server_ctx
-                                        .moved_items
+                                        .shared.moved_items
                                         .entry(id)
                                         .and_modify(|entry| entry.1 = item.position)
                                         .or_insert((item.position, item.position));
@@ -323,14 +323,14 @@ impl Tool for EntityTool {
                                     id,
                                     state.last_support_surface, &server_ctx.reference) {
                                     if let Some(start) =
-                                        server_ctx.moved_items.get(&id).map(|(from, _)| *from)
+                                        server_ctx.shared.moved_items.get(&id).map(|(from, _)| *from)
                                     {
                                         if let Some(item) =
                                             map.items.iter_mut().find(|item| item.creator_id == id)
                                         {
                                             item.position = start;
                                         }
-                                        if let Some((_, to)) = server_ctx.moved_items.get_mut(&id) {
+                                        if let Some((_, to)) = server_ctx.shared.moved_items.get_mut(&id) {
                                             *to = start;
                                         }
                                     }
@@ -349,7 +349,7 @@ impl Tool for EntityTool {
                                     .find(|placement| placement.occupant == occupant)
                                     .cloned();
                                 if let Some((_, to)) =
-                                    server_ctx.moved_item_surface_placements.get_mut(&id)
+                                    server_ctx.shared.moved_item_surface_placements.get_mut(&id)
                                 {
                                     *to = placement;
                                 }
@@ -407,7 +407,7 @@ impl Tool for EntityTool {
                         match state.target {
                             DragTarget::Entity(id) => {
                                 let floor_height =
-                                    if moved && server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                    if moved && server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                                         Self::placement_floor_height(
                                             map,
                                             drag_pos,
@@ -431,7 +431,7 @@ impl Tool for EntityTool {
                                     }
 
                                     server_ctx
-                                        .moved_entities
+                                        .shared.moved_entities
                                         .entry(id)
                                         .and_modify(|entry| entry.1 = entity.position)
                                         .or_insert((entity.position, entity.position));
@@ -439,7 +439,7 @@ impl Tool for EntityTool {
                             }
                             DragTarget::Item(id) => {
                                 let floor_height =
-                                    if moved && server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                    if moved && server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                                         state
                                             .last_support_surface
                                             .map(|surface| surface.world_position.y)
@@ -468,7 +468,7 @@ impl Tool for EntityTool {
                                     }
 
                                     server_ctx
-                                        .moved_items
+                                        .shared.moved_items
                                         .entry(id)
                                         .and_modify(|entry| entry.1 = item.position)
                                         .or_insert((item.position, item.position));
@@ -481,7 +481,7 @@ impl Tool for EntityTool {
                 }
             }
             MapHover(coord) => {
-                if server_ctx.get_map_context() == MapContext::Region {
+                if server_ctx.shared.get_map_context() == MapContext::Region {
                     if let Some(hit) = self.pick_hit_for_coord(ui, server_ctx, map, coord) {
                         ctx.ui
                             .send(TheEvent::SetStatusText(TheId::empty(), hit.status_text()));
@@ -493,14 +493,14 @@ impl Tool for EntityTool {
 
                 if let Some(render_view) = ui.get_render_view("PolyView") {
                     let dim = *render_view.dim();
-                    server_ctx.hover = (None, None, None);
-                    let cp = server_ctx.local_to_map_cell(
+                    server_ctx.shared.hover = (None, None, None);
+                    let cp = server_ctx.shared.local_to_map_cell(
                         Vec2::new(dim.width as f32, dim.height as f32),
                         Vec2::new(coord.x as f32, coord.y as f32),
                         map,
                         map.subdivisions,
                     );
-                    server_ctx.hover_cursor = Some(cp);
+                    server_ctx.shared.hover_cursor = Some(cp);
                 }
             }
             _ => {}
@@ -515,7 +515,7 @@ impl Tool for EntityTool {
     fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
         Some(&mut self.hud)
     }
-    fn hud_selected_id(&self, map: &Map, _server_ctx: &ServerContext) -> Option<u32> {
+    fn hud_selected_id(&self, map: &Map, _server_ctx: &CreatorContext) -> Option<u32> {
         let id = if !map.selected_linedefs.is_empty() {
             Some(map.selected_linedefs[0])
         } else {
@@ -528,7 +528,7 @@ impl Tool for EntityTool {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         assets: &Assets,
     ) {
         let id = self.hud_selected_id(map, server_ctx);
@@ -541,7 +541,7 @@ impl Tool for EntityTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         #[allow(clippy::single_match)]
         match event {
@@ -566,22 +566,22 @@ impl EntityTool {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         character_id: Uuid,
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(region_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id) {
+            if let Some(region_node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_regions_id) {
                 region_node.remove_widget_by_uuid(&character_id);
             }
         }
 
-        if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+        if let Some(region) = project.get_region_ctx_mut(&server_ctx.shared) {
             region.characters.shift_remove(&character_id);
             region.map.entities.retain(|e| e.creator_id != character_id);
             region.map.selected_entity_item = None;
         }
 
-        if let Some(region) = project.get_region(&server_ctx.curr_region)
+        if let Some(region) = project.get_region(&server_ctx.shared.curr_region)
             && let Some(tree_layout) = ui.get_tree_layout("Project Tree")
             && let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id)
         {
@@ -600,22 +600,22 @@ impl EntityTool {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         item_id: Uuid,
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(region_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id) {
+            if let Some(region_node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_regions_id) {
                 region_node.remove_widget_by_uuid(&item_id);
             }
         }
 
-        if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+        if let Some(region) = project.get_region_ctx_mut(&server_ctx.shared) {
             region.items.shift_remove(&item_id);
             region.map.items.retain(|i| i.creator_id != item_id);
             region.map.selected_entity_item = None;
         }
 
-        if let Some(region) = project.get_region(&server_ctx.curr_region)
+        if let Some(region) = project.get_region(&server_ctx.shared.curr_region)
             && let Some(tree_layout) = ui.get_tree_layout("Project Tree")
             && let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id)
         {
@@ -634,7 +634,7 @@ impl EntityTool {
     fn map_pos_unsnapped(
         &self,
         ui: &mut TheUI,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         map: &Map,
         coord: Vec2<i32>,
     ) -> Option<Vec2<f32>> {
@@ -645,12 +645,12 @@ impl EntityTool {
     fn placement_sample_at_coord(
         &self,
         ui: &mut TheUI,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         map: &Map,
         coord: Vec2<i32>,
         clearance: f32,
     ) -> Option<PlacementSample> {
-        if server_ctx.editor_view_mode != EditorViewMode::D2
+        if server_ctx.shared.editor_view_mode != EditorViewMode::D2
             && let Some(render_view) = ui.get_render_view("PolyView")
         {
             let dim = *render_view.dim();
@@ -751,8 +751,8 @@ impl EntityTool {
                     }
                 }
                 if let Some((ray_origin, ray_dir)) = server_ctx
-                    .hover_ray_origin_3d
-                    .zip(server_ctx.hover_ray_dir_3d)
+                    .shared.hover_ray_origin_3d
+                    .zip(server_ctx.shared.hover_ray_dir_3d)
                     && let Some((floor_hit, reference_y)) = map
                         .geometry_floor_hit_from_ray_for_placement(
                             ray_origin, ray_dir, hit, clearance,
@@ -772,7 +772,7 @@ impl EntityTool {
                     support_surface: None,
                 });
             }
-            if let Some(hit) = server_ctx.hover_cursor_3d {
+            if let Some(hit) = server_ctx.shared.hover_cursor_3d {
                 return Some(PlacementSample {
                     pos: Vec2::new(hit.x, hit.z),
                     reference_y: Some(hit.y),
@@ -1128,7 +1128,7 @@ impl EntityTool {
     fn pick_rendered_hit_for_coord(
         &self,
         ui: &mut TheUI,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         map: &Map,
         coord: Vec2<i32>,
     ) -> Option<Hit> {
@@ -1168,7 +1168,7 @@ impl EntityTool {
                 });
             }
         }
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
             return None;
         }
 
@@ -1233,7 +1233,7 @@ impl EntityTool {
     fn pick_hit_for_coord(
         &self,
         ui: &mut TheUI,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         map: &Map,
         coord: Vec2<i32>,
     ) -> Option<Hit> {
@@ -1241,7 +1241,7 @@ impl EntityTool {
             return Some(hit);
         }
         let pos = self.map_pos_unsnapped(ui, server_ctx, map, coord)?;
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
             return self.pick_hit_2d(map, pos);
         }
         self.pick_hit(map, pos, 1.44)
@@ -1252,10 +1252,10 @@ impl EntityTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let Some(selected) = project
-            .get_map_mut(server_ctx)
+            .get_map_mut(&server_ctx.shared)
             .and_then(|map| map.selected_entity_item)
         else {
             return false;
@@ -1264,7 +1264,7 @@ impl EntityTool {
         let mut character_to_remove: Option<(usize, Character)> = None;
         let mut item_to_remove: Option<(usize, shared::prelude::Item)> = None;
 
-        if let Some(region) = project.get_region_ctx(server_ctx) {
+        if let Some(region) = project.get_region_ctx(&server_ctx.shared) {
             if let Some(index) = region.characters.get_index_of(&selected)
                 && let Some(character) = region.characters.get(&selected).cloned()
             {
@@ -1281,7 +1281,7 @@ impl EntityTool {
         if let Some((index, character)) = character_to_remove {
             let atom = ProjectUndoAtom::RemoveRegionCharacterInstance(
                 index,
-                server_ctx.curr_region,
+                server_ctx.shared.curr_region,
                 character.clone(),
             );
             Self::remove_selected_character_instance(project, ui, ctx, server_ctx, character.id);
@@ -1292,7 +1292,7 @@ impl EntityTool {
         if let Some((index, item)) = item_to_remove {
             let atom = ProjectUndoAtom::RemoveRegionItemInstance(
                 index,
-                server_ctx.curr_region,
+                server_ctx.shared.curr_region,
                 item.clone(),
             );
             Self::remove_selected_item_instance(project, ui, ctx, server_ctx, item.id);
@@ -1303,9 +1303,9 @@ impl EntityTool {
         false
     }
 
-    fn select_in_tree(&self, ui: &mut TheUI, server_ctx: &ServerContext, id: Uuid) {
+    fn select_in_tree(&self, ui: &mut TheUI, server_ctx: &CreatorContext, id: Uuid) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.curr_region) {
+            if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.curr_region) {
                 node.node_state_changed(node.id.clone(), true);
             }
             tree_layout.new_item_selected(TheId::named_with_id("Region Content List Item", id));
@@ -1367,7 +1367,7 @@ pub(crate) fn select_placed_content(
     ui: &mut TheUI,
     ctx: &mut TheContext,
     map: &mut Map,
-    server_ctx: &mut ServerContext,
+    server_ctx: &mut CreatorContext,
     coord: Vec2<i32>,
     input: Option<&super::ToolViewInput>,
 ) -> bool {
@@ -1376,7 +1376,7 @@ pub(crate) fn select_placed_content(
     let hit = tool
         .pick_rendered_hit_for_coord(ui, server_ctx, map, coord)
         .or_else(|| {
-            (server_ctx.editor_view_mode == EditorViewMode::D2
+            (server_ctx.shared.editor_view_mode == EditorViewMode::D2
                 && map.camera != rusterix::MapCamera::TwoDIso)
                 .then(|| {
                     tool.map_pos_unsnapped(ui, server_ctx, map, coord)

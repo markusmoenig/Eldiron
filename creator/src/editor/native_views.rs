@@ -130,7 +130,7 @@ impl Editor {
     /// empty instead of opting into a viewport-sized CPU bitmap every tick.
     pub(crate) fn native_empty_viewport(&self) -> bool {
         self.native_viewport.enabled
-            && !self.server_ctx.game_mode
+            && !self.server_ctx.shared.game_mode
             && !self.native_display_owns_viewport()
             && self.native_world_map_id().is_none()
     }
@@ -156,9 +156,9 @@ impl Editor {
             || self.geometry_editor.wants_realtime()
             || (tick
                 && self.native_world_owns_viewport()
-                && (self.server_ctx.editor_view_mode == EditorViewMode::D2
-                    || (self.server_ctx.pc.is_prefab()
-                        && self.server_ctx.curr_map_tool_type == MapToolType::Effects)))
+                && (self.server_ctx.shared.editor_view_mode == EditorViewMode::D2
+                    || (self.server_ctx.shared.pc.is_prefab()
+                        && self.server_ctx.shared.curr_map_tool_type == MapToolType::Effects)))
     }
 
     pub(crate) fn enable_native_views(&mut self) {
@@ -206,7 +206,7 @@ impl Editor {
             ui,
             ctx,
             images.registry,
-            self.server_ctx.animation_counter,
+            self.server_ctx.shared.animation_counter,
         );
         self.prepare_native_bake(ctx, images.registry);
         let display = self.prepare_native_display_viewport(ui, ctx, images)?;
@@ -299,22 +299,22 @@ impl Editor {
     pub(crate) fn controllers_for_test(&self) -> &CreatorContext { &self.server_ctx }
     pub(crate) fn native_pixel_dock_for_test(&mut self, ui: &mut TheUI, ctx: &mut TheContext, open: bool) {
         if open {
-            self.server_ctx.game_mode = false;
-            self.server_ctx.game_input_mode = false;
-            self.server_ctx.text_game_mode = false;
+            self.server_ctx.shared.game_mode = false;
+            self.server_ctx.shared.game_input_mode = false;
+            self.server_ctx.shared.text_game_mode = false;
             let region = self.documents.project.regions.first().unwrap().id;
-            self.server_ctx.pc = ProjectContext::Region(region);
-            self.server_ctx.curr_region = region;
-            self.server_ctx.editing_surface = None;
-            self.server_ctx.profile_view = None;
-            assert!(self.documents.project.get_map(&self.server_ctx).is_some());
+            self.server_ctx.shared.pc = ProjectContext::Region(region);
+            self.server_ctx.shared.curr_region = region;
+            self.server_ctx.shared.editing_surface = None;
+            self.server_ctx.shared.profile_view = None;
+            assert!(self.documents.project.get_map(&self.server_ctx.shared).is_some());
             self.server_ctx.docks.write().set_editor_dock("Tiles".into(), ui, ctx, &self.documents.project, &mut self.server_ctx);
         } else {
             self.server_ctx.docks.write().minimize(ui, ctx, &self.documents.project, &mut self.server_ctx);
         }
     }
     pub(crate) fn native_camera_mode_for_test(&mut self, mode: EditorViewMode) -> EditorViewMode {
-        std::mem::replace(&mut self.server_ctx.editor_view_mode, mode)
+        std::mem::replace(&mut self.server_ctx.shared.editor_view_mode, mode)
     }
     pub(crate) fn project_for_native_test(&self) -> &Project {
         &self.documents.project
@@ -325,12 +325,12 @@ impl Editor {
         ctx: &mut TheContext,
     ) -> TheId {
         let region = &self.documents.project.regions[0];
-        self.server_ctx.pc = ProjectContext::Region(region.id);
-        self.server_ctx.curr_region = region.id;
-        self.server_ctx.editor_view_mode = EditorViewMode::Orbit;
-        self.server_ctx.game_mode = false;
-        self.server_ctx.game_input_mode = false;
-        self.server_ctx.text_game_mode = false;
+        self.server_ctx.shared.pc = ProjectContext::Region(region.id);
+        self.server_ctx.shared.curr_region = region.id;
+        self.server_ctx.shared.editor_view_mode = EditorViewMode::Orbit;
+        self.server_ctx.shared.game_mode = false;
+        self.server_ctx.shared.game_input_mode = false;
+        self.server_ctx.shared.text_game_mode = false;
         self.synchronize_native_document();
         let (id, display) = {
             let actions = self.server_ctx.actions.read();
@@ -339,21 +339,21 @@ impl Editor {
                 .unwrap();
             (action.id().uuid, action.editor_display())
         };
-        self.server_ctx.curr_action_id = Some(id);
+        self.server_ctx.shared.curr_action_id = Some(id);
         ui.dialog = None;
         self.server_ctx.tools.write()
-            .begin_action_edit(id, self.server_ctx.pc, display, ctx, &self.server_ctx.actions);
+            .begin_action_edit(id, self.server_ctx.shared.pc, display, ctx, &self.server_ctx.actions);
         crate::utils::map_editor_render_view(ui, &self.server_ctx)
             .unwrap()
             .id()
             .clone()
     }
     pub(crate) fn native_profile_grid_for_test(&self) -> f32 {
-        self.documents.project.get_map(&self.server_ctx).unwrap().subdivisions
+        self.documents.project.get_map(&self.server_ctx.shared).unwrap().subdivisions
     }
     pub(crate) fn native_profile_geometry_count_for_test(&self) -> usize {
         self.documents.project
-            .get_map(&self.server_ctx)
+            .get_map(&self.server_ctx.shared)
             .unwrap()
             .geometry_objects
             .len()
@@ -435,8 +435,8 @@ impl Editor {
         asset.parts.push(mount);
         asset.parts.push(nozzle);
         let id = asset.id;
-        self.server_ctx.curr_block_asset_id = Some(id);
-        self.server_ctx.curr_block_asset_name = Some(asset.name.clone());
+        self.server_ctx.shared.curr_block_asset_id = Some(id);
+        self.server_ctx.shared.curr_block_asset_name = Some(asset.name.clone());
         self.documents.project.block_props.insert(id, asset);
         crate::block_props::sync_existing_prefab_presentations(&self.documents.project, &self.server_ctx.jobs, &self.server_ctx.reference);
         let mut docks = self.server_ctx.docks.write();
@@ -505,9 +505,9 @@ impl Editor {
         let mut icons = false;
         let mut redraw = false;
         assert!(self.open_project_as_session(project, None, ui, ctx, &mut icons, &mut redraw));
-        self.server_ctx.game_mode = false;
-        self.server_ctx.game_input_mode = false;
-        self.server_ctx.text_game_mode = false;
+        self.server_ctx.shared.game_mode = false;
+        self.server_ctx.shared.game_input_mode = false;
+        self.server_ctx.shared.text_game_mode = false;
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Set Tool"),
             TheValue::Text("tool.geometry".into()),
@@ -518,7 +518,7 @@ impl Editor {
         self.text_game.contains_output(text)
     }
     pub(crate) fn native_document_instance_for_test(&self) -> Uuid {
-        self.server_ctx.document_instance
+        self.server_ctx.shared.document_instance
     }
     pub(crate) fn native_play_stats_for_test(&self) -> Option<(u64, Uuid, usize)> {
         let session = self.play_session.as_ref()?;
@@ -641,7 +641,7 @@ impl Editor {
     }
     pub(crate) fn native_world_vertices_for_test(&self) -> usize {
         self.documents.project
-            .get_map(&self.server_ctx)
+            .get_map(&self.server_ctx.shared)
             .unwrap()
             .vertices
             .len()

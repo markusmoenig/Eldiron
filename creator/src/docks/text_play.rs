@@ -19,11 +19,11 @@ impl Dock for TextPlayDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         TextGameState::request_activation(
             TextGameState::DOCK_INPUT_ID,
-            server_ctx.document_instance,
+            server_ctx.shared.document_instance,
             ui,
             ctx,
         );

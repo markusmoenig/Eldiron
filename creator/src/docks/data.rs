@@ -520,10 +520,10 @@ impl Dock for DataDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
-        if let Some(id) = server_ctx.pc.id() {
-            if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
+        if let Some(id) = server_ctx.shared.pc.id() {
+            if let Some(instance_id) = server_ctx.shared.pc.get_region_character_instance_id() {
                 if let Some(region) = project.get_region(&id)
                     && let Some(character) = region.characters.get(&instance_id)
                 {
@@ -534,14 +534,14 @@ impl Dock for DataDock {
                     );
                     self.switch_to_entity(EntityKey::CharacterInstance(id, instance_id), ctx);
                 }
-            } else if let Some(instance_id) = server_ctx.pc.get_region_item_instance_id() {
+            } else if let Some(instance_id) = server_ctx.shared.pc.get_region_item_instance_id() {
                 if let Some(region) = project.get_region(&id)
                     && let Some(item) = region.items.get(&instance_id)
                 {
                     ui.set_widget_value("DockDataEditor", ctx, TheValue::Text(item.data.clone()));
                     self.switch_to_entity(EntityKey::ItemInstance(id, instance_id), ctx);
                 }
-            } else if server_ctx.pc.is_region() {
+            } else if server_ctx.shared.pc.is_region() {
                 if let Some(region) = project.get_region(&id) {
                     ui.set_widget_value(
                         "DockDataEditor",
@@ -551,9 +551,9 @@ impl Dock for DataDock {
                     // Switch to this entity's undo stack
                     self.switch_to_entity(EntityKey::RegionSettings(id), ctx);
                 }
-            } else if server_ctx.pc.is_character() {
+            } else if server_ctx.shared.pc.is_character() {
                 if let Some(character) = project.characters.get(&id) {
-                    match server_ctx.pc {
+                    match server_ctx.shared.pc {
                         ProjectContext::CharacterPreviewRigging(_) => {
                             ui.set_widget_value(
                                 "DockDataEditor",
@@ -572,13 +572,13 @@ impl Dock for DataDock {
                         }
                     }
                 }
-            } else if server_ctx.pc.is_item() {
+            } else if server_ctx.shared.pc.is_item() {
                 if let Some(item) = project.items.get(&id) {
                     ui.set_widget_value("DockDataEditor", ctx, TheValue::Text(item.data.clone()));
                     // Switch to this entity's undo stack
                     self.switch_to_entity(EntityKey::Item(id), ctx);
                 }
-            } else if let ProjectContext::ScreenSettings(screen_id) = server_ctx.pc {
+            } else if let ProjectContext::ScreenSettings(screen_id) = server_ctx.shared.pc {
                 if let Some(screen) = project.screens.get(&screen_id) {
                     ui.set_widget_value(
                         "DockDataEditor",
@@ -587,7 +587,7 @@ impl Dock for DataDock {
                     );
                     self.switch_to_entity(EntityKey::ScreenSettings(screen_id), ctx);
                 }
-            } else if let ProjectContext::ScreenWidget(screen_id, widget_id) = server_ctx.pc {
+            } else if let ProjectContext::ScreenWidget(screen_id, widget_id) = server_ctx.shared.pc {
                 if let Some(screen) = project.screens.get(&screen_id) {
                     for sector in &screen.map.sectors {
                         if sector.creator_id == widget_id {
@@ -603,7 +603,7 @@ impl Dock for DataDock {
                     }
                 }
             }
-        } else if server_ctx.pc.is_project_settings() {
+        } else if server_ctx.shared.pc.is_project_settings() {
             ui.set_widget_value(
                 "DockDataEditor",
                 ctx,
@@ -611,28 +611,28 @@ impl Dock for DataDock {
             );
             // Switch to this entity's undo stack
             self.switch_to_entity(EntityKey::ProjectSettings, ctx);
-        } else if server_ctx.pc.is_game_locales() {
+        } else if server_ctx.shared.pc.is_game_locales() {
             ui.set_widget_value(
                 "DockDataEditor",
                 ctx,
                 TheValue::Text(project.locales.clone()),
             );
             self.switch_to_entity(EntityKey::GameLocales, ctx);
-        } else if server_ctx.pc.is_game_audio_fx() {
+        } else if server_ctx.shared.pc.is_game_audio_fx() {
             ui.set_widget_value(
                 "DockDataEditor",
                 ctx,
                 TheValue::Text(project.audio_fx.clone()),
             );
             self.switch_to_entity(EntityKey::GameAudioFx, ctx);
-        } else if server_ctx.pc.is_game_authoring() {
+        } else if server_ctx.shared.pc.is_game_authoring() {
             ui.set_widget_value(
                 "DockDataEditor",
                 ctx,
                 TheValue::Text(project.authoring.clone()),
             );
             self.switch_to_entity(EntityKey::GameAuthoring, ctx);
-        } else if server_ctx.pc.is_game_shortcuts() {
+        } else if server_ctx.shared.pc.is_game_shortcuts() {
             ui.set_widget_value(
                 "DockDataEditor",
                 ctx,
@@ -641,7 +641,7 @@ impl Dock for DataDock {
             self.switch_to_entity(EntityKey::GameShortcuts, ctx);
         }
 
-        self.sync_settings_navigation(ui, ctx, server_ctx.pc.is_project_settings());
+        self.sync_settings_navigation(ui, ctx, server_ctx.shared.pc.is_project_settings());
         self.sync_material_resolution(ui, ctx, project);
         self.validate_project_documents(project, &server_ctx.reference);
 
@@ -657,7 +657,7 @@ impl Dock for DataDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let mut redraw = false;
 
@@ -669,7 +669,7 @@ impl Dock for DataDock {
                         | SPRITE_RESOLUTION_ID
                         | ENTITY_PIXEL_SIZE_ID
                         | TILE_BACKGROUND_ID
-                ) && server_ctx.pc.is_project_settings()
+                ) && server_ctx.shared.pc.is_project_settings()
                 {
                     let pixels = match value {
                         TheValue::IntRange(v, _) | TheValue::Int(v) => (*v).clamp(
@@ -747,8 +747,8 @@ impl Dock for DataDock {
                         }
                     }
 
-                    if let Some(id) = server_ctx.pc.id() {
-                        if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id()
+                    if let Some(id) = server_ctx.shared.pc.id() {
+                        if let Some(instance_id) = server_ctx.shared.pc.get_region_character_instance_id()
                         {
                             if let Some(code) = value.to_string()
                                 && let Some(region) = project.get_region_mut(&id)
@@ -758,7 +758,7 @@ impl Dock for DataDock {
                                 redraw = true;
                             }
                         } else if let Some(instance_id) =
-                            server_ctx.pc.get_region_item_instance_id()
+                            server_ctx.shared.pc.get_region_item_instance_id()
                         {
                             if let Some(code) = value.to_string()
                                 && let Some(region) = project.get_region_mut(&id)
@@ -767,7 +767,7 @@ impl Dock for DataDock {
                                 item.data = code;
                                 redraw = true;
                             }
-                        } else if server_ctx.pc.is_region() {
+                        } else if server_ctx.shared.pc.is_region() {
                             if let Some(code) = value.to_string() {
                                 if let Some(region) = project.get_region_mut(&id) {
                                     region.config = code;
@@ -791,10 +791,10 @@ impl Dock for DataDock {
                                     ));
                                 }
                             }
-                        } else if server_ctx.pc.is_character() {
+                        } else if server_ctx.shared.pc.is_character() {
                             if let Some(code) = value.to_string() {
                                 if let Some(character) = project.characters.get_mut(&id) {
-                                    match server_ctx.pc {
+                                    match server_ctx.shared.pc {
                                         ProjectContext::CharacterPreviewRigging(_) => {
                                             character.preview_rigging = code;
                                             ctx.ui.send(TheEvent::Custom(
@@ -807,14 +807,14 @@ impl Dock for DataDock {
                                     redraw = true;
                                 }
                             }
-                        } else if server_ctx.pc.is_item() {
+                        } else if server_ctx.shared.pc.is_item() {
                             if let Some(code) = value.to_string() {
                                 if let Some(item) = project.items.get_mut(&id) {
                                     item.data = code;
                                     redraw = true;
                                 }
                             }
-                        } else if let ProjectContext::ScreenSettings(screen_id) = server_ctx.pc {
+                        } else if let ProjectContext::ScreenSettings(screen_id) = server_ctx.shared.pc {
                             if let Some(code) = value.to_string()
                                 && let Some(screen) = project.screens.get_mut(&screen_id)
                             {
@@ -822,7 +822,7 @@ impl Dock for DataDock {
                                 redraw = true;
                             }
                         } else if let ProjectContext::ScreenWidget(screen_id, widget_id) =
-                            server_ctx.pc
+                            server_ctx.shared.pc
                         {
                             if let Some(code) = value.to_string() {
                                 if let Some(screen) = project.screens.get_mut(&screen_id) {
@@ -836,7 +836,7 @@ impl Dock for DataDock {
                                 }
                             }
                         }
-                    } else if server_ctx.pc.is_project_settings() {
+                    } else if server_ctx.shared.pc.is_project_settings() {
                         if let Some(code) = value.to_string() {
                             project.config = code;
                             let mut rusterix = server_ctx.reference.write();
@@ -846,12 +846,12 @@ impl Dock for DataDock {
                                 .sync_base_render_settings(&project.config);
                             redraw = true;
                         }
-                    } else if server_ctx.pc.is_game_locales() {
+                    } else if server_ctx.shared.pc.is_game_locales() {
                         if let Some(code) = value.to_string() {
                             project.locales = code;
                             redraw = true;
                         }
-                    } else if server_ctx.pc.is_game_audio_fx() {
+                    } else if server_ctx.shared.pc.is_game_audio_fx() {
                         if let Some(code) = value.to_string() {
                             project.audio_fx = code;
                             redraw = true;
@@ -859,12 +859,12 @@ impl Dock for DataDock {
                             rusterix.assets.audio_fx_src = project.audio_fx.clone();
                             rusterix.load_audio_assets();
                         }
-                    } else if server_ctx.pc.is_game_authoring() {
+                    } else if server_ctx.shared.pc.is_game_authoring() {
                         if let Some(code) = value.to_string() {
                             project.authoring = code;
                             redraw = true;
                         }
-                    } else if server_ctx.pc.is_game_shortcuts() {
+                    } else if server_ctx.shared.pc.is_game_shortcuts() {
                         if let Some(code) = value.to_string() {
                             project.shortcuts = code;
                             redraw = true;
@@ -893,7 +893,7 @@ impl Dock for DataDock {
         &self,
         size: Vec2<i32>,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         sources: &mut crate::minimap::native::Sources,
     ) -> Option<
         std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
@@ -908,7 +908,7 @@ impl Dock for DataDock {
         buffer: &mut TheRGBABuffer,
         project: &Project,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> bool {
         let Some(source) = Self::rig_preview_texture(project, server_ctx) else { return false; };
         buffer.fill(BLACK);
@@ -972,7 +972,7 @@ impl Dock for DataDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if let Some(entity_key) = self.current_entity {
             if let Some(undo) = self.entity_undos.get_mut(&entity_key) {
@@ -993,7 +993,7 @@ impl Dock for DataDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if let Some(entity_key) = self.current_entity {
             if let Some(undo) = self.entity_undos.get_mut(&entity_key) {
@@ -1038,9 +1038,9 @@ impl DataDock {
     /// minimap viewport. Both presenters consume this same resolved rig/frame.
     fn rig_preview_texture(
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> Option<Option<rusterix::Texture>> {
-        let ProjectContext::CharacterPreviewRigging(character_id) = server_ctx.pc else {
+        let ProjectContext::CharacterPreviewRigging(character_id) = server_ctx.shared.pc else {
             return None;
         };
         let Some(character) = project.characters.get(&character_id) else {
@@ -1070,7 +1070,7 @@ impl DataDock {
             return Some(None);
         };
 
-        let frame_index = Self::preview_frame_index(avatar, &preview, server_ctx.animation_counter);
+        let frame_index = Self::preview_frame_index(avatar, &preview, server_ctx.shared.animation_counter);
         let mut assets = rusterix::Assets::new();
         assets.palette = project.palette.clone();
         assets.tiles = project.tiles.clone();
@@ -1952,14 +1952,14 @@ impl DataDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
-        if let Some(id) = server_ctx.pc.id() {
+        if let Some(id) = server_ctx.shared.pc.id() {
             if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
 
-                if server_ctx.pc.is_region() {
+                if server_ctx.shared.pc.is_region() {
                     if let Some(region) = project.get_region_mut(&id) {
                         region.config = text;
                         if let Ok(changed) =
@@ -1980,9 +1980,9 @@ impl DataDock {
                             }
                         }
                     }
-                } else if server_ctx.pc.is_character() {
+                } else if server_ctx.shared.pc.is_character() {
                     if let Some(character) = project.characters.get_mut(&id) {
-                        match server_ctx.pc {
+                        match server_ctx.shared.pc {
                             ProjectContext::CharacterPreviewRigging(_) => {
                                 character.preview_rigging = text;
                                 ctx.ui.send(TheEvent::Custom(
@@ -1993,15 +1993,15 @@ impl DataDock {
                             _ => character.data = text,
                         }
                     }
-                } else if server_ctx.pc.is_item() {
+                } else if server_ctx.shared.pc.is_item() {
                     if let Some(item) = project.items.get_mut(&id) {
                         item.data = text;
                     }
-                } else if let ProjectContext::ScreenSettings(screen_id) = server_ctx.pc {
+                } else if let ProjectContext::ScreenSettings(screen_id) = server_ctx.shared.pc {
                     if let Some(screen) = project.screens.get_mut(&screen_id) {
                         screen.settings = text;
                     }
-                } else if let ProjectContext::ScreenWidget(screen_id, widget_id) = server_ctx.pc {
+                } else if let ProjectContext::ScreenWidget(screen_id, widget_id) = server_ctx.shared.pc {
                     if let Some(screen) = project.screens.get_mut(&screen_id) {
                         for sector in &mut screen.map.sectors {
                             if sector.creator_id == widget_id {
@@ -2012,7 +2012,7 @@ impl DataDock {
                     }
                 }
             }
-        } else if server_ctx.pc.is_project_settings() {
+        } else if server_ctx.shared.pc.is_project_settings() {
             if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
@@ -2024,25 +2024,25 @@ impl DataDock {
                     .sync_base_render_settings(&project.config);
             }
             self.sync_material_resolution(ui, ctx, project);
-        } else if server_ctx.pc.is_game_locales() {
+        } else if server_ctx.shared.pc.is_game_locales() {
             if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
                 project.locales = text;
             }
-        } else if server_ctx.pc.is_game_audio_fx() {
+        } else if server_ctx.shared.pc.is_game_audio_fx() {
             if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
                 project.audio_fx = text;
             }
-        } else if server_ctx.pc.is_game_authoring() {
+        } else if server_ctx.shared.pc.is_game_authoring() {
             if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
                 project.authoring = text;
             }
-        } else if server_ctx.pc.is_game_shortcuts() {
+        } else if server_ctx.shared.pc.is_game_shortcuts() {
             if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
@@ -2078,8 +2078,8 @@ mod material_resolution_tests {
         let mut project = Project::default();
         project.config = "# Preserve this\n[game]\ntarget_fps = 60\n".into();
         let original = project.config.clone();
-        let mut server = ServerContext::default();
-        server.pc = ProjectContext::ProjectSettings;
+        let mut server = CreatorContext::default();
+        server.shared.pc = ProjectContext::ProjectSettings;
         dock.activate(&mut ui, &mut ctx, &project, &mut server);
         assert_eq!(resolution_value(&mut ui), TheValue::IntRange(16, 0..=64));
         assert!(dock.handle_event(
@@ -2149,8 +2149,8 @@ mod material_resolution_tests {
         let mut project = Project::default();
         project.config = "# Preserve\n[materials]\npixels_per_tile = 16\n".into();
         let original = project.config.clone();
-        let mut server = ServerContext::default();
-        server.pc = ProjectContext::ProjectSettings;
+        let mut server = CreatorContext::default();
+        server.shared.pc = ProjectContext::ProjectSettings;
         dock.activate(&mut ui, &mut ctx, &project, &mut server);
         for (control, key, value) in [
             (SPRITE_RESOLUTION_ID, "sprite_pixels_2d", 32),

@@ -63,9 +63,9 @@ impl Action for EdgeBevel {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
             && map.geometry_selection_mode == 3
             && map.selected_geometry_vertices.len() >= 2
     }
@@ -80,7 +80,7 @@ impl Action for EdgeBevel {
         map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let width = self
             .nodeui
@@ -109,7 +109,7 @@ impl Action for EdgeBevel {
             TheValue::Empty,
         ));
         Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
+            server_ctx.shared.pc,
             Box::new(previous),
             Box::new(map.clone()),
         ))
@@ -125,7 +125,7 @@ impl Action for EdgeBevel {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

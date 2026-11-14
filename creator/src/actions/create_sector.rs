@@ -148,7 +148,7 @@ impl Action for CreateSector {
         None
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &CreatorContext) -> bool {
         map.selected_vertices.len() >= 3 || map.selected_linedefs.len() >= 3
     }
 
@@ -157,7 +157,7 @@ impl Action for CreateSector {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let mut changed = false;
 
@@ -226,7 +226,7 @@ impl Action for CreateSector {
 
         if changed {
             Some(ProjectUndoAtom::MapEdit(
-                server_ctx.pc,
+                server_ctx.shared.pc,
                 Box::new(prev),
                 Box::new(map.clone()),
             ))
@@ -245,7 +245,7 @@ impl Action for CreateSector {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

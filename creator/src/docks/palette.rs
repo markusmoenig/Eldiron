@@ -569,11 +569,11 @@ impl PaletteDock {
         &self,
         project: &mut Project,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let source = PixelSource::PaletteIndex(project.palette.current_index);
-        if let Some(map) = project.get_map(server_ctx) {
-            server_ctx.curr_map_tool_type = crate::actions::current_selection_tool_type(map);
+        if let Some(map) = project.get_map(&server_ctx.shared) {
+            server_ctx.shared.curr_map_tool_type = crate::actions::current_selection_tool_type(map);
         }
 
         let mut undo_atom: Option<ProjectUndoAtom> = None;
@@ -581,17 +581,17 @@ impl PaletteDock {
         let mut applied_to_action_slot = false;
         let mut applied_to_prefab = false;
 
-        let before = project.get_map(server_ctx).cloned();
+        let before = project.get_map(&server_ctx.shared).cloned();
         let geometry_source = crate::utils::SurfaceApplySource::Direct(source.clone());
         if crate::block_props::apply_surface_source_to_selected_prefab_instances(
             project,
             server_ctx,
             &geometry_source,
-            server_ctx.selected_hud_icon_index,
+            server_ctx.shared.selected_hud_icon_index,
         ) {
-            if let (Some(before), Some(after)) = (before, project.get_map(server_ctx).cloned()) {
+            if let (Some(before), Some(after)) = (before, project.get_map(&server_ctx.shared).cloned()) {
                 undo_atom = Some(ProjectUndoAtom::MapEdit(
-                    server_ctx.pc,
+                    server_ctx.shared.pc,
                     Box::new(before),
                     Box::new(after),
                 ));
@@ -601,9 +601,9 @@ impl PaletteDock {
         }
 
         if !applied_to_prefab
-            && server_ctx.get_map_context() == MapContext::Region
-            && let Some(map) = project.get_map(server_ctx)
-            && let Some(action_id) = server_ctx.curr_action_id
+            && server_ctx.shared.get_map_context() == MapContext::Region
+            && let Some(map) = project.get_map(&server_ctx.shared)
+            && let Some(action_id) = server_ctx.shared.curr_action_id
         {
             applied_to_action_slot = server_ctx.actions.write()
                 .get_action_by_id_mut(action_id)
@@ -611,7 +611,7 @@ impl PaletteDock {
                     action
                         .hud_material_slots(map, server_ctx)
                         .is_some_and(|slots| {
-                            let selected_index = server_ctx.selected_hud_icon_index;
+                            let selected_index = server_ctx.shared.selected_hud_icon_index;
                             let slot_index =
                                 if selected_index >= 0 && (selected_index as usize) < slots.len() {
                                     selected_index
@@ -639,16 +639,16 @@ impl PaletteDock {
 
         if !applied_to_action_slot
             && !applied_to_prefab
-            && let Some(map) = project.get_map_mut(server_ctx)
+            && let Some(map) = project.get_map_mut(&server_ctx.shared)
         {
             let prev = map.clone();
             if crate::actions::apply_named_geometry_hud_material_to_selection(
                 map,
-                server_ctx.selected_hud_icon_index,
+                server_ctx.shared.selected_hud_icon_index,
                 Some(source.clone()),
             ) {
                 undo_atom = Some(ProjectUndoAtom::MapEdit(
-                    server_ctx.pc,
+                    server_ctx.shared.pc,
                     Box::new(prev),
                     Box::new(map.clone()),
                 ));
@@ -679,7 +679,7 @@ impl PaletteDock {
                 }
                 for sector_id in map.selected_sectors.clone() {
                     let mut source_key = "source";
-                    if server_ctx.pc.is_screen() && server_ctx.selected_hud_icon_index == 1 {
+                    if server_ctx.shared.pc.is_screen() && server_ctx.shared.selected_hud_icon_index == 1 {
                         source_key = "ceiling_source";
                     }
                     changed |= crate::utils::apply_surface_source_to_sector(
@@ -693,7 +693,7 @@ impl PaletteDock {
                 if changed {
                     map.update_surfaces();
                     undo_atom = Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(prev),
                         Box::new(map.clone()),
                     ));
@@ -718,25 +718,25 @@ impl PaletteDock {
         &self,
         project: &mut Project,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
-        if let Some(map) = project.get_map(server_ctx) {
-            server_ctx.curr_map_tool_type = crate::actions::current_selection_tool_type(map);
+        if let Some(map) = project.get_map(&server_ctx.shared) {
+            server_ctx.shared.curr_map_tool_type = crate::actions::current_selection_tool_type(map);
         }
 
         let mut cleared_action_slot = false;
         let mut undo_atom: Option<ProjectUndoAtom> = None;
         let mut needs_scene_redraw = false;
 
-        let before = project.get_map(server_ctx).cloned();
+        let before = project.get_map(&server_ctx.shared).cloned();
         if crate::block_props::clear_material_slot_on_selected_prefab_instances(
             project,
             server_ctx,
-            server_ctx.selected_hud_icon_index,
+            server_ctx.shared.selected_hud_icon_index,
         ) {
-            if let (Some(before), Some(after)) = (before, project.get_map(server_ctx).cloned()) {
+            if let (Some(before), Some(after)) = (before, project.get_map(&server_ctx.shared).cloned()) {
                 undo_atom = Some(ProjectUndoAtom::MapEdit(
-                    server_ctx.pc,
+                    server_ctx.shared.pc,
                     Box::new(before),
                     Box::new(after),
                 ));
@@ -745,15 +745,15 @@ impl PaletteDock {
             }
         }
 
-        if !cleared_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
+        if !cleared_action_slot && let Some(map) = project.get_map_mut(&server_ctx.shared) {
             let prev = map.clone();
             if crate::actions::apply_named_geometry_hud_material_to_selection(
                 map,
-                server_ctx.selected_hud_icon_index,
+                server_ctx.shared.selected_hud_icon_index,
                 None,
             ) {
                 undo_atom = Some(ProjectUndoAtom::MapEdit(
-                    server_ctx.pc,
+                    server_ctx.shared.pc,
                     Box::new(prev),
                     Box::new(map.clone()),
                 ));
@@ -763,10 +763,10 @@ impl PaletteDock {
         }
 
         let cleared_action_material_slot = if !cleared_action_slot
-            && server_ctx.get_map_context() == MapContext::Region
+            && server_ctx.shared.get_map_context() == MapContext::Region
         {
-            if let Some(map) = project.get_map(server_ctx)
-                && let Some(action_id) = server_ctx.curr_action_id
+            if let Some(map) = project.get_map(&server_ctx.shared)
+                && let Some(action_id) = server_ctx.shared.curr_action_id
             {
                 server_ctx.actions.write()
                     .get_action_by_id_mut(action_id)
@@ -774,7 +774,7 @@ impl PaletteDock {
                         action
                             .hud_material_slots(map, server_ctx)
                             .is_some_and(|slots| {
-                                let selected_index = server_ctx.selected_hud_icon_index;
+                                let selected_index = server_ctx.shared.selected_hud_icon_index;
                                 let slot_index = if selected_index >= 0
                                     && (selected_index as usize) < slots.len()
                                 {
@@ -802,7 +802,7 @@ impl PaletteDock {
             cleared_action_slot = true;
         }
 
-        if !cleared_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
+        if !cleared_action_slot && let Some(map) = project.get_map_mut(&server_ctx.shared) {
             let mut changed = false;
             let prev = map.clone();
             let selected_geometry_faces = map.selected_geometry_faces.clone();
@@ -820,7 +820,7 @@ impl PaletteDock {
             }
             for sector_id in map.selected_sectors.clone() {
                 let mut source_key = "source";
-                if server_ctx.pc.is_screen() && server_ctx.selected_hud_icon_index == 1 {
+                if server_ctx.shared.pc.is_screen() && server_ctx.shared.selected_hud_icon_index == 1 {
                     source_key = "ceiling_source";
                 }
                 changed |= crate::utils::clear_surface_source_on_sector(map, sector_id, source_key);
@@ -829,7 +829,7 @@ impl PaletteDock {
             if changed {
                 map.update_surfaces();
                 undo_atom = Some(ProjectUndoAtom::MapEdit(
-                    server_ctx.pc,
+                    server_ctx.shared.pc,
                     Box::new(prev),
                     Box::new(map.clone()),
                 ));
@@ -938,7 +938,7 @@ impl Dock for PaletteDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) {
         self.sync_widgets(ui, ctx, project);
     }
@@ -953,7 +953,7 @@ impl Dock for PaletteDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         // Showing the palette must preserve its saved slots. Transparent colors
         // already display as empty; only explicit edits change authored data.

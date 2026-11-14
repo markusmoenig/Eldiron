@@ -12,7 +12,6 @@ pub use jobs::CreatorJobs;
 pub use reference::CreatorReference;
 
 use crate::{configeditor::ConfigEditor, editcamera::EditCamera, sidebar::SidebarMode};
-use std::ops::{Deref, DerefMut};
 
 pub struct CreatorContext {
     pub shared: shared::context::ServerContext,
@@ -53,7 +52,7 @@ impl CreatorContext {
     /// Checks if the PolyView has focus.
     pub fn polyview_has_focus(&self, ctx: &theframework::prelude::TheContext) -> bool {
         if let Some(focus) = &ctx.ui.focus {
-            if focus.name == "PolyView" || (self.pc.is_prefab() && focus.name == "PrefabView") {
+            if focus.name == "PolyView" || (self.shared.pc.is_prefab() && focus.name == "PrefabView") {
                 return true;
             }
         }
@@ -66,18 +65,5 @@ impl CreatorContext {
             // document, whose persisted map IDs may match the outgoing project.
             self.bake.write().reset();
         }
-    }
-}
-// Source compatibility for existing controller field access. The persisted
-// project schema and shared CPU context remain unchanged.
-impl Deref for CreatorContext {
-    type Target = shared::context::ServerContext;
-    fn deref(&self) -> &Self::Target {
-        &self.shared
-    }
-}
-impl DerefMut for CreatorContext {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.shared
     }
 }

@@ -41,7 +41,7 @@ impl Editor {
         let map = self
             .documents
             .project
-            .get_map_mut(&self.server_ctx)
+            .get_map_mut(&self.server_ctx.shared)
             .unwrap();
         let pose = (map.grid_size, map.offset);
         map.grid_size = 43.5;
@@ -65,7 +65,7 @@ impl Editor {
         let map = self
             .documents
             .project
-            .get_map_mut(&self.server_ctx)
+            .get_map_mut(&self.server_ctx.shared)
             .unwrap();
         map.grid_size = original.1;
         map.offset = original.2;
@@ -91,7 +91,7 @@ impl Editor {
     }
     pub(crate) fn native_visibility_reference_for_test(&self, pixels: &mut [u8], size: (u32, u32)) {
         let bridge = self.server_ctx.reference.read();
-        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
+        let map = self.documents.project.get_map(&self.server_ctx.shared).unwrap();
         assert_eq!(map.camera, MapCamera::TwoD);
         let gpu = self.native_viewport.world.gpu.as_ref().unwrap();
         let settings = &gpu.scenes.scene(gpu.view).unwrap().settings;

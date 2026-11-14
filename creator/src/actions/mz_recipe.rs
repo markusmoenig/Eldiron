@@ -25,11 +25,11 @@ fn selected_binding(map: &Map) -> Option<(Uuid, Binding)> {
 /// This mutates source/cache data only. The action wrapper owns UI and undo.
 pub(crate) fn apply_recipe(
     project: &mut Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     choice: &(Uuid, String, String),
 ) -> Result<(), String> {
     let mut map = project
-        .get_map(server_ctx)
+        .get_map(&server_ctx.shared)
         .ok_or("Open a 3D region or Prefab")?
         .clone();
     let selected = selected_binding(&map);
@@ -61,7 +61,7 @@ pub(crate) fn apply_recipe(
     map.geometry_objects.push(output.clone());
     map.clear_selection();
     map.selected_geometry_objects = vec![output_id];
-    if let ProjectContext::Prefab(asset_id) = server_ctx.pc {
+    if let ProjectContext::Prefab(asset_id) = server_ctx.shared.pc {
         let asset = project
             .block_props
             .get_mut(&asset_id)
@@ -93,7 +93,7 @@ pub(crate) fn apply_recipe(
         project.prefab_editor_map = Some(map);
         crate::block_props::sync_prefab_editor(project, asset_id)?;
     } else {
-        *project.get_map_mut(server_ctx).ok_or("Map was removed")? = map;
+        *project.get_map_mut(&server_ctx.shared).ok_or("Map was removed")? = map;
     }
     Ok(())
 }
@@ -124,16 +124,16 @@ impl Action for ApplyMZRecipe {
     fn role(&self) -> ActionRole {
         ActionRole::Editor
     }
-    fn is_applicable(&self, map: &Map, _: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        (server_ctx.pc.is_region() || server_ctx.pc.is_prefab())
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+    fn is_applicable(&self, map: &Map, _: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        (server_ctx.shared.pc.is_region() || server_ctx.shared.pc.is_prefab())
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
             && (!map.selected_geometry_objects.is_empty()
                 || !map.selected_geometry_faces.is_empty())
     }
-    fn load_params_project(&mut self, project: &Project, server_ctx: &mut ServerContext) {
+    fn load_params_project(&mut self, project: &Project, server_ctx: &mut CreatorContext) {
         self.choices = geometry_recipe::choices(project);
         let selected = project
-            .get_map(server_ctx)
+            .get_map(&server_ctx.shared)
             .and_then(selected_binding)
             .and_then(|(_, b)| self.choices.iter().position(|c| c.0 == b.asset))
             .unwrap_or(0);
@@ -149,7 +149,7 @@ impl Action for ApplyMZRecipe {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let index = self.nodeui.get_i32_value("recipe").unwrap_or(0).max(0) as usize;
         let Some(choice) = self.choices.get(index) else {
@@ -190,7 +190,7 @@ impl Action for ApplyMZRecipe {
         _: &mut Project,
         _: &mut TheUI,
         _: &mut TheContext,
-        _: &mut ServerContext,
+        _: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -211,7 +211,7 @@ impl Action for EditMZRecipe {
     fn role(&self) -> ActionRole {
         ActionRole::Editor
     }
-    fn is_applicable(&self, map: &Map, _: &mut TheContext, _: &ServerContext) -> bool {
+    fn is_applicable(&self, map: &Map, _: &mut TheContext, _: &CreatorContext) -> bool {
         selected_binding(map).is_some()
     }
     fn apply(
@@ -219,7 +219,7 @@ impl Action for EditMZRecipe {
         map: &mut Map,
         _: &mut TheUI,
         ctx: &mut TheContext,
-        _: &mut ServerContext,
+        _: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         if let Some((_, binding)) = selected_binding(map) {
             ctx.ui.send(TheEvent::Custom(
@@ -238,7 +238,7 @@ impl Action for EditMZRecipe {
         _: &mut Project,
         _: &mut TheUI,
         _: &mut TheContext,
-        _: &mut ServerContext,
+        _: &mut CreatorContext,
     ) -> bool {
         false
     }
@@ -251,9 +251,9 @@ mod tests {
     fn one_recipe_path_works_on_map_and_prefab_and_preserves_selected_input() {
         let mut p = Project::default();
         let id = p.regions[0].id;
-        let mut ctx = ServerContext::default();
-        ctx.pc = ProjectContext::Region(id);
-        ctx.curr_region = id;
+        let mut ctx = CreatorContext::default();
+        ctx.shared.pc = ProjectContext::Region(id);
+        ctx.shared.curr_region = id;
         let frame =
             rusterix::GeometryObject::box_("Frame", Vec3::new(0., 1., 0.), Vec3::new(6., 2., 4.));
         let map = &mut p.regions[0].map;
@@ -275,7 +275,7 @@ mod tests {
         let original_part = asset.parts[0].clone();
         p.block_props.insert(asset_id, asset);
         crate::block_props::begin_prefab_editor(&mut p, asset_id).unwrap();
-        ctx.pc = ProjectContext::Prefab(asset_id);
+        ctx.shared.pc = ProjectContext::Prefab(asset_id);
         p.prefab_editor_map
             .as_mut()
             .unwrap()
@@ -293,7 +293,7 @@ mod tests {
             reopened.block_props[&asset_id].parts[1].geometry_source,
             rusterix::BlockPropGeometrySource::MZ { .. }
         ));
-        ctx.pc = ProjectContext::Region(id);
+        ctx.shared.pc = ProjectContext::Region(id);
         let instance = rusterix::BlockPropInstance::new(asset_id);
         p.regions[0].map.selected_block_prop_instances = vec![instance.id];
         p.regions[0].map.block_prop_instances.push(instance);

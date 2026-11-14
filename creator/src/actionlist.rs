@@ -551,7 +551,7 @@ mod tests {
             let rx = ui.add_state_listener("camera shortcut".into());
             ui.init(&mut ctx);
             let mut map = Map::default();
-            let mut server = ServerContext::default();
+            let mut server = CreatorContext::default();
             action.apply(&mut map, &mut ui, &mut ctx, &mut server);
             ui.process_events(&mut ctx);
             assert!(rx.try_iter().any(|e|matches!(e,TheEvent::IndexChanged(id,i) if id.name=="Editor View Switch" && i==index as usize)),"{id}");

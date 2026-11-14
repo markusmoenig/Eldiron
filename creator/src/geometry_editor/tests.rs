@@ -62,7 +62,7 @@ fn worn_geometry_exposes_part_selection_and_offset_controls_and_saves_with_undo(
     );
     let mut ui = TheUI::new();
     let mut ctx = TheContext::new(800, 600, 1.);
-    let mut server = ServerContext::default();
+    let mut server = CreatorContext::default();
     let atom =
         ProjectUndoAtom::ProceduralAppearanceEdit(id, Some(before.clone()), Some(after.clone()));
     atom.undo(&mut project, &mut ui, &mut ctx, &mut server);
@@ -97,7 +97,7 @@ fn geometry_edits_save_in_project_and_undo_without_changing_world_tiles() {
         ProjectUndoAtom::ProceduralAppearanceEdit(id, Some(before.clone()), Some(after.clone()));
     let mut ui = TheUI::new();
     let mut ctx = TheContext::new(800, 600, 1.);
-    let mut server = ServerContext::default();
+    let mut server = CreatorContext::default();
     atom.undo(&mut project, &mut ui, &mut ctx, &mut server);
     assert_eq!(project.procedural_appearances[&id], before);
     atom.redo(&mut project, &mut ui, &mut ctx, &mut server);
@@ -763,7 +763,7 @@ fn group_details_preserve_parent_controls_and_undo_the_whole_recipe() {
     let atom =
         ProjectUndoAtom::ProceduralAppearanceEdit(id, Some(before.clone()), Some(after.clone()));
     let mut ui = TheUI::new();
-    let mut server = ServerContext::default();
+    let mut server = CreatorContext::default();
     atom.undo(&mut p, &mut ui, &mut ctx, &mut server);
     assert_eq!(p.procedural_appearances[&id], before);
     atom.redo(&mut p, &mut ui, &mut ctx, &mut server);
@@ -799,7 +799,7 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert_eq!(host.scene.tool, 1);
     assert_eq!(host.group_path, ["body-op-0"]);
     host.handle_event(
@@ -808,7 +808,7 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert!(host.group_path.is_empty());
     assert!(
         host.document
@@ -829,7 +829,7 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert_eq!(host.group_path, ["body-op-0"]);
     assert_eq!(host.document.as_ref().unwrap().label, "Body details");
     assert_eq!(host.camera, 0);
@@ -842,7 +842,7 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert!(host.group_path.is_empty());
     assert!(
         host.document

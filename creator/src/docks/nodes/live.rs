@@ -65,7 +65,7 @@ pub(super) fn matches_owner(
     }
 }
 impl NodesDock {
-    pub(super) fn refresh_live(&mut self, project: &Project, server_ctx: &ServerContext) -> bool {
+    pub(super) fn refresh_live(&mut self, project: &Project, server_ctx: &CreatorContext) -> bool {
         if let Some(runtime) = server_ctx.reference.existing() {
             self.update_live(&runtime.server, project, server_ctx)
         } else {
@@ -87,11 +87,11 @@ impl NodesDock {
         &mut self,
         server: &rusterix::server::Server,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> bool {
         let active = server.state != rusterix::ServerState::Off;
         let time = project
-            .get_region(&server_ctx.curr_region)
+            .get_region(&server_ctx.shared.curr_region)
             .and_then(|region| server.get_time(&region.map.id))
             .filter(|_| active)
             .unwrap_or(project.time);
@@ -122,8 +122,8 @@ impl NodesDock {
         let mut combat_status = HashMap::new();
         let mut visible_actors = std::collections::HashSet::new();
         for state in server.node_highlights.iter().filter(|state| {
-            Self::owner(server_ctx.pc).as_deref() == Some(state.graph.as_str())
-                && matches_owner(&state.event, server_ctx.pc, project, server_ctx.curr_region)
+            Self::owner(server_ctx.shared.pc).as_deref() == Some(state.graph.as_str())
+                && matches_owner(&state.event, server_ctx.shared.pc, project, server_ctx.shared.curr_region)
         }) {
             visible_actors.insert(state.actor.incarnation);
             let seen = self
@@ -158,7 +158,7 @@ impl NodesDock {
             .node_traces
             .iter()
             .filter(|trace| {
-                matches_owner(&trace.event, server_ctx.pc, project, server_ctx.curr_region)
+                matches_owner(&trace.event, server_ctx.shared.pc, project, server_ctx.shared.curr_region)
             })
             .cloned()
             .collect();
@@ -171,13 +171,13 @@ impl NodesDock {
                 continue;
             };
             if self.live.latest.get(&node.id).is_some_and(|e| {
-                e.name != name || !matches_owner(e, server_ctx.pc, project, server_ctx.curr_region)
+                e.name != name || !matches_owner(e, server_ctx.shared.pc, project, server_ctx.shared.curr_region)
             }) {
                 self.live.latest.remove(&node.id);
                 changed = true;
             }
             if let Some(event) = server.event_observations.iter().rev().find(|e| {
-                e.name == name && matches_owner(e, server_ctx.pc, project, server_ctx.curr_region)
+                e.name == name && matches_owner(e, server_ctx.shared.pc, project, server_ctx.shared.curr_region)
             }) {
                 if self.live.latest.get(&node.id) != Some(event) {
                     self.live.latest.insert(node.id, event.clone());

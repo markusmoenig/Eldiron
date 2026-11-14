@@ -44,12 +44,12 @@ impl TerrainTool {
 
     fn pointer(
         ui: &mut TheUI,
-        ctx: &ServerContext,
+        ctx: &CreatorContext,
         map: &Map,
         coord: Vec2<i32>,
     ) -> Option<Vec2<f32>> {
         let surface = TerrainSurface::cached(map);
-        if ctx.editor_view_mode == EditorViewMode::D2 {
+        if ctx.shared.editor_view_mode == EditorViewMode::D2 {
             let dim = *crate::utils::map_editor_render_view(ui, ctx)?.dim();
             let pixel = coord.map(|v| v as f32);
             let size = Vec2::new(dim.width as f32, dim.height as f32);
@@ -72,8 +72,8 @@ impl TerrainTool {
                 (pixel - size * 0.5 - Vec2::new(map.offset.x, -map.offset.y)) / map.grid_size,
             );
         }
-        let origin = ctx.hover_ray_origin_3d?;
-        let forward = ctx.hover_ray_dir_3d?;
+        let origin = ctx.shared.hover_ray_origin_3d?;
+        let forward = ctx.shared.hover_ray_dir_3d?;
         if forward.y >= -0.0001 {
             return None;
         }
@@ -91,21 +91,21 @@ impl TerrainTool {
         &mut self,
         p: Option<Vec2<f32>>,
         map: &Map,
-        ctx: &mut ServerContext,
+        ctx: &mut CreatorContext,
         ui_ctx: &mut TheContext,
     ) {
         self.hover = p;
-        ctx.hover_cursor = p;
+        ctx.shared.hover_cursor = p;
         let surface = TerrainSurface::cached(map);
-        ctx.hover_cursor_3d = p.map(|p| {
+        ctx.shared.hover_cursor_3d = p.map(|p| {
             Vec3::new(
                 p.x,
                 surface.as_ref().and_then(|t| t.height_at(p)).unwrap_or(0.),
                 p.y,
             )
         });
-        ctx.terrain_brush_radius = self.radius;
-        if ctx.editor_view_mode != EditorViewMode::D2 {
+        ctx.shared.terrain_brush_radius = self.radius;
+        if ctx.shared.editor_view_mode != EditorViewMode::D2 {
             ui_ctx.ui.send(TheEvent::Custom(
                 TheId::named("Update Geometry Overlay 3D"),
                 TheValue::Empty,
@@ -131,22 +131,22 @@ impl TerrainTool {
         }
     }
 
-    fn overlay_source(&self, server: &ServerContext) -> super::terrain_overlay::Source {
+    fn overlay_source(&self, server: &CreatorContext) -> super::terrain_overlay::Source {
         super::terrain_overlay::Source {
             mode: self.mode,
             radius: self.radius.to_bits(),
             strength: self.strength.to_bits(),
-            view: server.editor_view_mode,
+            view: server.shared.editor_view_mode,
         }
     }
     fn prepare_brush_outline(
         &self,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
         size: (usize, usize),
     ) -> crate::editor_overlay::EditorOverlay {
         let mut commands = crate::editor_overlay::EditorOverlay::new(size);
-        if server.editor_view_mode == EditorViewMode::D2
+        if server.shared.editor_view_mode == EditorViewMode::D2
             && let Some(center) = self.hover
         {
             let size = Vec2::new(size.0 as f32, size.1 as f32);
@@ -168,17 +168,17 @@ impl TerrainTool {
         }
         commands
     }
-    fn ensure_ground(map: &mut Map, server: &ServerContext) {
+    fn ensure_ground(map: &mut Map, server: &CreatorContext) {
         if map.properties.contains("default_terrain_tile") {
             return;
         }
         let r = server.reference.read();
         let ground = server
-            .curr_tile_source
+            .shared.curr_tile_source
             .map(|s| match s {
                 rusterix::TileSource::SingleTile(id) => id,
             })
-            .or(server.curr_tile_id)
+            .or(server.shared.curr_tile_id)
             .filter(|id| {
                 r.assets
                     .tiles
@@ -218,7 +218,7 @@ impl TerrainTool {
         }
     }
 
-    fn dab(&mut self, map: &mut Map, center: Vec2<f32>, amount: f32, server: &ServerContext) {
+    fn dab(&mut self, map: &mut Map, center: Vec2<f32>, amount: f32, server: &CreatorContext) {
         let Some(stroke) = &mut self.stroke else {
             return;
         };
@@ -337,15 +337,15 @@ impl Tool for TerrainTool {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         match event {
             ToolEvent::Activate => {
-                server.curr_map_tool_type = MapToolType::Terrain;
-                server.terrain_brush_radius = self.radius;
-                server.hover_cursor = None;
-                server.hover_cursor_3d = None;
-                if let Some(map) = project.get_map_mut(server) {
+                server.shared.curr_map_tool_type = MapToolType::Terrain;
+                server.shared.terrain_brush_radius = self.radius;
+                server.shared.hover_cursor = None;
+                server.shared.hover_cursor_3d = None;
+                if let Some(map) = project.get_map_mut(&server.shared) {
                     map.clear_selection();
                     map.curr_rectangle = None;
                 }
@@ -354,16 +354,16 @@ impl Tool for TerrainTool {
                 true
             }
             ToolEvent::DeActivate => {
-                if let Some(map) = project.get_map_mut(server) {
-                    if let Some(atom) = self.finish(map, server.pc, &server.jobs, &server.reference) {
+                if let Some(map) = project.get_map_mut(&server.shared) {
+                    if let Some(atom) = self.finish(map, server.shared.pc, &server.jobs, &server.reference) {
                         server.history.write().add_undo(atom, ctx);
                     }
                 }
                 self.hover = None;
                 self.panel_down = false;
-                server.hover_cursor = None;
-                server.hover_cursor_3d = None;
-                server.curr_map_tool_type = MapToolType::General;
+                server.shared.hover_cursor = None;
+                server.shared.hover_cursor_3d = None;
+                server.shared.curr_map_tool_type = MapToolType::General;
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Geometry Overlay 3D"),
                     TheValue::Empty,
@@ -380,7 +380,7 @@ impl Tool for TerrainTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         match event {
             MapEvent::MapClicked(at) => {
@@ -444,7 +444,7 @@ impl Tool for TerrainTool {
             }
             MapEvent::MapUp(_) => {
                 self.panel_down = false;
-                return self.finish(map, server.pc, &server.jobs, &server.reference);
+                return self.finish(map, server.shared.pc, &server.jobs, &server.reference);
             }
             MapEvent::MapEscape => {
                 self.cancel(map, &server.jobs, &server.reference);
@@ -472,7 +472,7 @@ impl Tool for TerrainTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         if self.stroke.as_ref().is_some_and(|s| s.before.id != map.id) {
             self.stroke = None;
@@ -512,7 +512,7 @@ impl Tool for TerrainTool {
         frame: &ToolOverlayFrame,
         target: ToolOverlayTarget,
         _map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         frame.terrain_current(
             &self.native_panel,
@@ -526,7 +526,7 @@ impl Tool for TerrainTool {
         frame: &ToolOverlayFrame,
         target: ToolOverlayTarget,
         _map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         frame.terrain_current(
             &self.native_panel,
@@ -539,7 +539,7 @@ impl Tool for TerrainTool {
         &mut self,
         action: super::terrain_overlay::Action,
         map: &Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
         ctx: &mut TheContext,
     ) -> bool {
         use super::terrain_overlay::Action;
@@ -571,7 +571,7 @@ impl Tool for TerrainTool {
         receipts: &[theframework::paint::FrameReceipt],
         target: ToolOverlayTarget,
         _map: &Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         let source = self.overlay_source(server);
         let accepted = frame.presented_terrain(&mut self.native_panel, &source, receipts, target);
@@ -585,10 +585,10 @@ impl Tool for TerrainTool {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         ctx: &mut TheContext,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
         _assets: &Assets,
     ) {
-        if server.editor_view_mode == EditorViewMode::D2 {
+        if server.shared.editor_view_mode == EditorViewMode::D2 {
             if let Some(center) = self.hover {
                 let size = Vec2::new(buffer.dim().width as f32, buffer.dim().height as f32);
                 let points = Self::outline(map, center, self.radius);
@@ -684,10 +684,10 @@ mod tests {
             &std::fs::read(root.join("mz-iso2d-woodland/MZWoodland.eldiron")).unwrap(),
         )
         .unwrap();
-        let mut server = ServerContext::default();
-        server.curr_region = project.regions[0].id;
-        server.pc = ProjectContext::Region(server.curr_region);
-        server.editor_view_mode = EditorViewMode::D2;
+        let mut server = CreatorContext::default();
+        server.shared.curr_region = project.regions[0].id;
+        server.shared.pc = ProjectContext::Region(server.shared.curr_region);
+        server.shared.editor_view_mode = EditorViewMode::D2;
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(1000, 700, 1.);
         let mut view = TheRenderView::new(TheId::named("PolyView"));
@@ -708,7 +708,7 @@ mod tests {
         );
         let center = Vec2::new(6.5, 13.5);
         let size = Vec2::new(1000., 700.);
-        server.center_map_at_grid_pos(size, center, &mut project.regions[0].map);
+        server.shared.center_map_at_grid_pos(size, center, &mut project.regions[0].map);
         let original = project.regions[0].map.clone();
         let height = |map: &Map| {
             TerrainSurface::from_map(map)
@@ -831,13 +831,13 @@ mod tests {
         );
 
         // 3D picking follows the same sculpted surface without hitting props.
-        server.editor_view_mode = EditorViewMode::Iso;
-        server.hover_ray_origin_3d = Some(Vec3::new(center.x, 10., center.y));
-        server.hover_ray_dir_3d = Some(Vec3::new(0., -1., 0.));
+        server.shared.editor_view_mode = EditorViewMode::Iso;
+        server.shared.hover_ray_origin_3d = Some(Vec3::new(center.x, 10., center.y));
+        server.shared.hover_ray_dir_3d = Some(Vec3::new(0., -1., 0.));
         let picked =
             TerrainTool::pointer(&mut ui, &server, &project.regions[0].map, Vec2::zero()).unwrap();
         assert!((picked - center).magnitude() < 0.0001);
-        server.editor_view_mode = EditorViewMode::D2;
+        server.shared.editor_view_mode = EditorViewMode::D2;
         let at = click(&project.regions[0].map, center);
         tool.map_event(
             MapEvent::MapHover(at),
@@ -879,8 +879,8 @@ mod tests {
             0.2,
             SculptMode::Raise
         ));
-        server.curr_tile_source = None;
-        server.curr_tile_id = None;
+        server.shared.curr_tile_source = None;
+        server.shared.curr_tile_id = None;
         TerrainTool::ensure_ground(&mut empty, &server);
         let r = server.reference.read();
         assert!(

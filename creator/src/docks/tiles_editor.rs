@@ -266,7 +266,7 @@ impl Dock for TilesEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.editing_context_changed(ui, ctx, project, server_ctx);
     }
@@ -284,7 +284,7 @@ impl Dock for TilesEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let mut redraw = false;
 
@@ -302,7 +302,7 @@ impl Dock for TilesEditorDock {
                     && id.name == "Tile Picked"
                 {
                     if shared::isometric::tile_recipe(project, *tile_id).is_some() {
-                        server_ctx.editing_ctx = PixelEditingContext::None;
+                        server_ctx.shared.editing_ctx = PixelEditingContext::None;
                         ctx.ui.set_disabled("Tile Editor Dock RGBA Layout View");
                     } else if let Some(tile) = project.tiles.get(tile_id) {
                         self.set_tile(tile, ui, ctx, server_ctx, false);
@@ -320,10 +320,10 @@ impl Dock for TilesEditorDock {
                             {
                                 // Update the frame icon
                                 if let Some(widget) = tile_node.widgets[2].as_tree_icons() {
-                                    if server_ctx.curr_tile_frame_index < tile.textures.len() {
+                                    if server_ctx.shared.curr_tile_frame_index < tile.textures.len() {
                                         widget.set_icon(
-                                            server_ctx.curr_tile_frame_index,
-                                            tile.textures[server_ctx.curr_tile_frame_index]
+                                            server_ctx.shared.curr_tile_frame_index,
+                                            tile.textures[server_ctx.shared.curr_tile_frame_index]
                                                 .to_rgba(),
                                         );
                                     }
@@ -337,15 +337,15 @@ impl Dock for TilesEditorDock {
                     && id.name == "Item Icon Frames Changed"
                     && let Some(item) = project.items.get(item_id).cloned()
                 {
-                    let frame_index = match server_ctx.editing_ctx {
+                    let frame_index = match server_ctx.shared.editing_ctx {
                         PixelEditingContext::ItemIcon(id, _, index) if id == *item_id => index,
                         _ => 0,
                     };
                     let on = matches!(
-                        server_ctx.editing_ctx,
+                        server_ctx.shared.editing_ctx,
                         PixelEditingContext::ItemIcon(id, true, _) if id == *item_id
                     );
-                    server_ctx.editing_ctx = PixelEditingContext::ItemIcon(
+                    server_ctx.shared.editing_ctx = PixelEditingContext::ItemIcon(
                         *item_id,
                         on,
                         frame_index.min(item.icon_frames_for_state(on).len().saturating_sub(1)),
@@ -366,7 +366,7 @@ impl Dock for TilesEditorDock {
                 // The Size of the Tile has been edited
                 if id.name == "Tile Size Edit" {
                     if let Some(size) = value.to_i32() {
-                        match server_ctx.editing_ctx {
+                        match server_ctx.shared.editing_ctx {
                             PixelEditingContext::ItemIcon(item_id, on, _) if size > 0 => {
                                 if let Some(item) = project.items.get(&item_id) {
                                     let before = item.icon_frames_for_state(on).clone();
@@ -424,7 +424,7 @@ impl Dock for TilesEditorDock {
                 // The frame count of the Tile has been edited
                 if id.name == "Tile Frame Edit" {
                     if let Some(frames) = value.to_i32() {
-                        match server_ctx.editing_ctx {
+                        match server_ctx.shared.editing_ctx {
                             PixelEditingContext::ItemIcon(item_id, on, _) => {
                                 let frame_count = frames.max(1) as usize;
                                 if let Some(item) = project.items.get(&item_id)
@@ -482,7 +482,7 @@ impl Dock for TilesEditorDock {
                 // The palette opacity has been edited
                 if id.name == "Palette Opacity Edit" {
                     if let Some(opacity) = value.to_f32() {
-                        server_ctx.palette_opacity = opacity;
+                        server_ctx.shared.palette_opacity = opacity;
                     }
                 }
             }
@@ -498,7 +498,7 @@ impl Dock for TilesEditorDock {
             TheEvent::StateChanged(id, state) => {
                 if id.name == "Item Icon Load Default"
                     && *state == TheWidgetState::Clicked
-                    && let PixelEditingContext::ItemIcon(item_id, on, _) = server_ctx.editing_ctx
+                    && let PixelEditingContext::ItemIcon(item_id, on, _) = server_ctx.shared.editing_ctx
                 {
                     if let Some(item) = project.items.get(&item_id).cloned() {
                         let after = resolved_item_default_icon_frames_for_state(&item, project, on, &server_ctx.reference);
@@ -514,7 +514,7 @@ impl Dock for TilesEditorDock {
                             if let Some(item) = project.items.get_mut(&item_id) {
                                 *item.icon_frames_for_state_mut(on) = after;
                             }
-                            server_ctx.editing_ctx = PixelEditingContext::ItemIcon(item_id, on, 0);
+                            server_ctx.shared.editing_ctx = PixelEditingContext::ItemIcon(item_id, on, 0);
                             self.add_undo(atom, ctx);
                             if default_is_empty {
                                 self.set_editing_texture(
@@ -542,7 +542,7 @@ impl Dock for TilesEditorDock {
                     }
                     redraw = true;
                 } else if *state == TheWidgetState::Selected && id.name.starts_with("Body: ") {
-                    server_ctx.avatar_anchor_slot = AvatarAnchorEditSlot::None;
+                    server_ctx.shared.avatar_anchor_slot = AvatarAnchorEditSlot::None;
                     let color = match id.name.as_str() {
                         "Body: Skin Light" => Some([255, 0, 255, 255]),
                         "Body: Skin Dark" => Some([200, 0, 200, 255]),
@@ -555,15 +555,15 @@ impl Dock for TilesEditorDock {
                         _ => None,
                     };
                     if let Some(c) = color {
-                        server_ctx.body_marker_color = Some(c);
+                        server_ctx.shared.body_marker_color = Some(c);
                         redraw = true;
                     }
                 } else if *state == TheWidgetState::Selected && id.name == "Anchor: Main" {
-                    server_ctx.avatar_anchor_slot = AvatarAnchorEditSlot::Main;
+                    server_ctx.shared.avatar_anchor_slot = AvatarAnchorEditSlot::Main;
                     self.sync_anchor_overlay(project, ui, ctx, server_ctx);
                     redraw = true;
                 } else if *state == TheWidgetState::Selected && id.name == "Anchor: Off" {
-                    server_ctx.avatar_anchor_slot = AvatarAnchorEditSlot::Off;
+                    server_ctx.shared.avatar_anchor_slot = AvatarAnchorEditSlot::Off;
                     self.sync_anchor_overlay(project, ui, ctx, server_ctx);
                     redraw = true;
                 }
@@ -606,8 +606,8 @@ impl Dock for TilesEditorDock {
                     }
                     redraw = true;
                 } else if id.name == "Tile Editor Dock RGBA Layout View"
-                    && matches!(server_ctx.editing_ctx, PixelEditingContext::AvatarFrame(..))
-                    && server_ctx.avatar_anchor_slot != AvatarAnchorEditSlot::None
+                    && matches!(server_ctx.shared.editing_ctx, PixelEditingContext::AvatarFrame(..))
+                    && server_ctx.shared.avatar_anchor_slot != AvatarAnchorEditSlot::None
                     && self.apply_avatar_anchor_at(*coord, project, ctx, server_ctx)
                 {
                     self.sync_anchor_overlay(project, ui, ctx, server_ctx);
@@ -620,8 +620,8 @@ impl Dock for TilesEditorDock {
             }
             #[cfg(not(target_arch = "wasm32"))]
             TheEvent::Copy => {
-                if server_ctx.editing_ctx != PixelEditingContext::None {
-                    if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx) {
+                if server_ctx.shared.editing_ctx != PixelEditingContext::None {
+                    if let Some(texture) = project.get_editing_texture(&server_ctx.shared.editing_ctx) {
                         let selection = if let Some(editor) =
                             ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
                         {
@@ -689,7 +689,7 @@ impl Dock for TilesEditorDock {
             }
             #[cfg(not(target_arch = "wasm32"))]
             TheEvent::Cut => {
-                if server_ctx.editing_ctx != PixelEditingContext::None {
+                if server_ctx.shared.editing_ctx != PixelEditingContext::None {
                     let selection =
                         if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout") {
                             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
@@ -707,7 +707,7 @@ impl Dock for TilesEditorDock {
 
                     // The reference host also preserves source on clipboard failure.
                     let mut copied = false;
-                    if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx) {
+                    if let Some(texture) = project.get_editing_texture(&server_ctx.shared.editing_ctx) {
                         if let Ok(mut clipboard) = arboard::Clipboard::new() {
                             let min_x = selection.iter().map(|(x, _)| *x).min().unwrap_or(0);
                             let max_x = selection.iter().map(|(x, _)| *x).max().unwrap_or(0);
@@ -755,7 +755,7 @@ impl Dock for TilesEditorDock {
             }
             #[cfg(not(target_arch = "wasm32"))]
             TheEvent::Paste(_, _) => {
-                if server_ctx.editing_ctx != PixelEditingContext::None {
+                if server_ctx.shared.editing_ctx != PixelEditingContext::None {
                     if let Ok(mut clipboard) = arboard::Clipboard::new() {
                         if let Ok(img) = clipboard.get_image() {
                             // Convert RGBA image data to a texture
@@ -768,7 +768,7 @@ impl Dock for TilesEditorDock {
                                 self.paste_preview_texture = Some(pasted);
                                 if self.paste_preview_pos.is_none() {
                                     if let Some(texture) =
-                                        project.get_editing_texture(&server_ctx.editing_ctx)
+                                        project.get_editing_texture(&server_ctx.shared.editing_ctx)
                                     {
                                         self.paste_preview_pos = Some(Vec2::new(
                                             texture.width as i32 / 2,
@@ -819,7 +819,7 @@ impl Dock for TilesEditorDock {
                         redraw = true;
                     }
                 } else if *key == TheKeyCode::Space && !ui.focus_widget_supports_text_input(ctx) {
-                    if server_ctx.editing_ctx != PixelEditingContext::None {
+                    if server_ctx.shared.editing_ctx != PixelEditingContext::None {
                         self.anim_preview = !self.anim_preview;
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Update Minimap"),
@@ -878,7 +878,7 @@ impl Dock for TilesEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) {
         self.clipboard_revision = self.clipboard_revision.wrapping_add(1);
         if let Some(key) = self.current_undo_key {
@@ -894,7 +894,7 @@ impl Dock for TilesEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) {
         self.clipboard_revision = self.clipboard_revision.wrapping_add(1);
         if let Some(key) = self.current_undo_key {
@@ -943,7 +943,7 @@ impl Dock for TilesEditorDock {
         &self,
         size: Vec2<i32>,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         sources: &mut crate::minimap::native::Sources,
     ) -> Option<
         std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
@@ -958,7 +958,7 @@ impl Dock for TilesEditorDock {
         buffer: &mut TheRGBABuffer,
         project: &Project,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> bool {
         buffer.fill(BLACK);
 
@@ -1016,15 +1016,15 @@ impl TilesEditorDock {
     fn preview_texture<'a>(
         &self,
         project: &'a Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> Option<&'a rusterix::Texture> {
-        let frame_count = server_ctx.editing_ctx.get_frame_count(project);
+        let frame_count = server_ctx.shared.editing_ctx.get_frame_count(project);
         let display_ctx = if self.anim_preview && frame_count > 0 {
             server_ctx
-                .editing_ctx
-                .with_frame(server_ctx.animation_counter % frame_count)
+                .shared.editing_ctx
+                .with_frame(server_ctx.shared.animation_counter % frame_count)
         } else {
-            server_ctx.editing_ctx
+            server_ctx.shared.editing_ctx
         };
         project.get_editing_texture(&display_ctx)
     }
@@ -1034,9 +1034,9 @@ impl TilesEditorDock {
         coord: Vec2<i32>,
         project: &mut Project,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> bool {
-        let editing_ctx = server_ctx.editing_ctx;
+        let editing_ctx = server_ctx.shared.editing_ctx;
         let Some(before) = project.get_editing_avatar_frame(&editing_ctx) else {
             return false;
         };
@@ -1045,7 +1045,7 @@ impl TilesEditorDock {
 
         let clicked = Some((coord.x as i16, coord.y as i16));
         if let Some(frame) = project.get_editing_avatar_frame_mut(&editing_ctx) {
-            match server_ctx.avatar_anchor_slot {
+            match server_ctx.shared.avatar_anchor_slot {
                 AvatarAnchorEditSlot::Main => {
                     if frame.weapon_main_anchor == clicked {
                         frame.weapon_main_anchor = None;
@@ -1105,13 +1105,13 @@ impl TilesEditorDock {
         project: &Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) {
         if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
             && let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view()
         {
             let points =
-                if let Some(frame) = project.get_editing_avatar_frame(&server_ctx.editing_ctx) {
+                if let Some(frame) = project.get_editing_avatar_frame(&server_ctx.shared.editing_ctx) {
                     let mut p = vec![];
                     if let Some((x, y)) = frame.weapon_main_anchor {
                         p.push((Vec2::new(x as i32, y as i32), [255, 80, 80, 255]));
@@ -1134,7 +1134,7 @@ impl TilesEditorDock {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         if self.paste_preview_texture.is_some() {
             return false;
@@ -1150,7 +1150,7 @@ impl TilesEditorDock {
             FxHashSet::default()
         };
 
-        let editing_ctx = server_ctx.editing_ctx;
+        let editing_ctx = server_ctx.shared.editing_ctx;
         let before = project.get_editing_texture(&editing_ctx).cloned();
         let Some(texture) = project.get_editing_texture_mut(&editing_ctx) else {
             return false;
@@ -1237,18 +1237,18 @@ impl TilesEditorDock {
         &mut self,
         tile: &rusterix::Tile,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.current_tile_id = Some(tile.id);
         self.current_undo_key = Some(tile.id);
 
         // Verify frame index is valid for the new tile
-        if server_ctx.curr_tile_frame_index >= tile.textures.len() {
-            server_ctx.curr_tile_frame_index = 0;
+        if server_ctx.shared.curr_tile_frame_index >= tile.textures.len() {
+            server_ctx.shared.curr_tile_frame_index = 0;
         }
 
-        server_ctx.editing_ctx =
-            PixelEditingContext::Tile(tile.id, server_ctx.curr_tile_frame_index);
+        server_ctx.shared.editing_ctx =
+            PixelEditingContext::Tile(tile.id, server_ctx.shared.curr_tile_frame_index);
 
         self.set_undo_state_to_ui(ctx);
     }
@@ -1260,15 +1260,15 @@ impl TilesEditorDock {
         project: &Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
-        match server_ctx.editing_ctx {
+        match server_ctx.shared.editing_ctx {
             PixelEditingContext::ItemIcon(item_id, on, _) => {
                 if let Some(item) = project.items.get(&item_id)
                     && index < item.icon_frames_for_state(on).len()
                 {
-                    server_ctx.curr_tile_frame_index = index;
-                    server_ctx.editing_ctx = PixelEditingContext::ItemIcon(item_id, on, index);
+                    server_ctx.shared.curr_tile_frame_index = index;
+                    server_ctx.shared.editing_ctx = PixelEditingContext::ItemIcon(item_id, on, index);
                     if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree")
                         && let Some(tile_node) = tree_layout.get_node_by_id_mut(&self.tile_node)
                         && let Some(widget) = tile_node.widgets[2].as_tree_icons()
@@ -1285,8 +1285,8 @@ impl TilesEditorDock {
                 if let Some(tile) = project.tiles.get(&tile_id)
                     && index < tile.textures.len()
                 {
-                    server_ctx.curr_tile_frame_index = index;
-                    server_ctx.editing_ctx = PixelEditingContext::Tile(tile_id, index);
+                    server_ctx.shared.curr_tile_frame_index = index;
+                    server_ctx.shared.editing_ctx = PixelEditingContext::Tile(tile_id, index);
 
                     if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree")
                         && let Some(tile_node) = tree_layout.get_node_by_id_mut(&self.tile_node)
@@ -1309,7 +1309,7 @@ impl TilesEditorDock {
         tile: &rusterix::Tile,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout") {
             let view_width = editor.dim().width - 16;
@@ -1317,7 +1317,7 @@ impl TilesEditorDock {
 
             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                 let frame_index = server_ctx
-                    .curr_tile_frame_index
+                    .shared.curr_tile_frame_index
                     .min(tile.textures.len().saturating_sub(1));
 
                 if frame_index < tile.textures.len() {
@@ -1407,7 +1407,7 @@ impl TilesEditorDock {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let Some(pasted) = self.paste_preview_texture.clone() else {
             return false;
@@ -1427,7 +1427,7 @@ impl TilesEditorDock {
             FxHashSet::default()
         };
 
-        let editing_ctx = server_ctx.editing_ctx;
+        let editing_ctx = server_ctx.shared.editing_ctx;
         let before = project.get_editing_texture(&editing_ctx).cloned();
         if let Some(texture) = project.get_editing_texture_mut(&editing_ctx) {
             let before = if let Some(before) = before {
@@ -1514,9 +1514,9 @@ impl TilesEditorDock {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
-        if server_ctx.editing_ctx == PixelEditingContext::None {
+        if server_ctx.shared.editing_ctx == PixelEditingContext::None {
             return false;
         }
 
@@ -1534,7 +1534,7 @@ impl TilesEditorDock {
             return false;
         }
 
-        let editing_ctx = server_ctx.editing_ctx;
+        let editing_ctx = server_ctx.shared.editing_ctx;
         let before = project.get_editing_texture(&editing_ctx).cloned();
         if let Some(texture) = project.get_editing_texture_mut(&editing_ctx) {
             let before = if let Some(before) = before {
@@ -1598,10 +1598,10 @@ impl TilesEditorDock {
         item: &Item,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let on = matches!(
-            server_ctx.editing_ctx,
+            server_ctx.shared.editing_ctx,
             PixelEditingContext::ItemIcon(id, true, _) if id == item.id
         );
         let frames = item.icon_frames_for_state(on);
@@ -1611,15 +1611,15 @@ impl TilesEditorDock {
 
         self.current_tile_id = None;
         self.current_undo_key = Some(item.id);
-        let requested = match server_ctx.editing_ctx {
+        let requested = match server_ctx.shared.editing_ctx {
             PixelEditingContext::ItemIcon(id, state, index) if id == item.id && state == on => {
                 index
             }
             _ => 0,
         };
         let frame_index = requested.min(frames.len() - 1);
-        server_ctx.curr_tile_frame_index = frame_index;
-        server_ctx.editing_ctx = PixelEditingContext::ItemIcon(item.id, on, frame_index);
+        server_ctx.shared.curr_tile_frame_index = frame_index;
+        server_ctx.shared.editing_ctx = PixelEditingContext::ItemIcon(item.id, on, frame_index);
 
         if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree")
             && let Some(tile_node) = tree_layout.get_node_by_id_mut(&self.tile_node)
@@ -1675,7 +1675,7 @@ impl TilesEditorDock {
         tile: &rusterix::Tile,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         update_only: bool,
     ) {
         ctx.ui.set_enabled("Tile Editor Dock RGBA Layout View");
@@ -1720,7 +1720,7 @@ impl TilesEditorDock {
             if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
                 // Use current frame index, ensure it's valid
                 let frame_index = server_ctx
-                    .curr_tile_frame_index
+                    .shared.curr_tile_frame_index
                     .min(tile.textures.len().saturating_sub(1));
 
                 if frame_index < tile.textures.len() {
@@ -1753,18 +1753,18 @@ impl TilesEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.pending_clipboard = None;
-        let tile = match server_ctx.editing_ctx {
+        let tile = match server_ctx.shared.editing_ctx {
             PixelEditingContext::Tile(id, _) => Some(id),
-            PixelEditingContext::None => server_ctx.curr_tile_id,
+            PixelEditingContext::None => server_ctx.shared.curr_tile_id,
             _ => None,
         };
         if let Some(id) = tile
             && shared::isometric::tile_recipe(project, id).is_some()
         {
-            server_ctx.editing_ctx = PixelEditingContext::None;
+            server_ctx.shared.editing_ctx = PixelEditingContext::None;
             ctx.ui.set_disabled("Tile Editor Dock RGBA Layout View");
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Open Procedural Tile"),
@@ -1776,9 +1776,9 @@ impl TilesEditorDock {
         if self.paste_preview_texture.is_some() {
             self.clear_paste_preview(ui, ctx);
         }
-        match server_ctx.editing_ctx {
+        match server_ctx.shared.editing_ctx {
             PixelEditingContext::Tile(tile_id, _) => {
-                server_ctx.avatar_anchor_slot = AvatarAnchorEditSlot::None;
+                server_ctx.shared.avatar_anchor_slot = AvatarAnchorEditSlot::None;
                 if let Some(tile) = project.tiles.get(&tile_id) {
                     self.set_tile(tile, ui, ctx, server_ctx, false);
                     if let Some(stack) = ui.get_stack_layout("Pixel Editor Stack Layout") {
@@ -1787,7 +1787,7 @@ impl TilesEditorDock {
                 }
             }
             PixelEditingContext::ItemIcon(item_id, _, _) => {
-                server_ctx.avatar_anchor_slot = AvatarAnchorEditSlot::None;
+                server_ctx.shared.avatar_anchor_slot = AvatarAnchorEditSlot::None;
                 if let Some(item) = project.items.get(&item_id) {
                     self.set_item_icon(item, ui, ctx, server_ctx);
                     if let Some(stack) = ui.get_stack_layout("Pixel Editor Stack Layout") {
@@ -1797,15 +1797,15 @@ impl TilesEditorDock {
             }
             PixelEditingContext::AvatarFrame(..) => {
                 self.set_item_icon_default_enabled(ui, ctx, false);
-                self.set_undo_key_from_context(&server_ctx.editing_ctx);
+                self.set_undo_key_from_context(&server_ctx.shared.editing_ctx);
                 self.refresh_from_editing_context(project, ui, ctx, server_ctx);
                 if let Some(stack) = ui.get_stack_layout("Pixel Editor Stack Layout") {
                     stack.set_index(1);
                 }
             }
             PixelEditingContext::None => {
-                server_ctx.avatar_anchor_slot = AvatarAnchorEditSlot::None;
-                if let Some(tile_id) = server_ctx.curr_tile_id {
+                server_ctx.shared.avatar_anchor_slot = AvatarAnchorEditSlot::None;
+                if let Some(tile_id) = server_ctx.shared.curr_tile_id {
                     if let Some(tile) = project.tiles.get(&tile_id) {
                         self.set_tile(tile, ui, ctx, server_ctx, false);
                     }
@@ -1831,9 +1831,9 @@ impl TilesEditorDock {
         project: &Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
-        if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx) {
+        if let Some(texture) = project.get_editing_texture(&server_ctx.shared.editing_ctx) {
             self.set_editing_texture(texture, ui, ctx);
         }
         self.sync_anchor_overlay(project, ui, ctx, server_ctx);

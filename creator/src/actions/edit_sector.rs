@@ -92,7 +92,7 @@ impl Action for EditSector {
         None
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &CreatorContext) -> bool {
         map.selected_sectors.len() == 1
     }
 
@@ -129,7 +129,7 @@ impl Action for EditSector {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         if let Err(error) = terrain_material::validate(&self.nodeui, &server_ctx.reference) {
             _ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
@@ -155,7 +155,7 @@ impl Action for EditSector {
         if let Some(sector_id) = map.selected_sectors.first()
             && let Some(sector) = map.find_sector_mut(*sector_id)
         {
-            if server_ctx.pc.is_region() {
+            if server_ctx.shared.pc.is_region() {
                 changed |= shape_terrain::apply(&self.nodeui, &mut sector.properties, Kind::Sector);
                 changed |=
                     terrain_material::apply(&self.nodeui, &mut sector.properties, Kind::Sector, &server_ctx.reference);
@@ -197,7 +197,7 @@ impl Action for EditSector {
         }
 
         if changed {
-            if server_ctx.pc.is_region()
+            if server_ctx.shared.pc.is_region()
                 && (self
                     .nodeui
                     .get_bool_value("terrainEnabled")
@@ -208,7 +208,7 @@ impl Action for EditSector {
             }
             map.changed = map.changed.wrapping_add(1);
             Some(ProjectUndoAtom::MapEdit(
-                server_ctx.pc,
+                server_ctx.shared.pc,
                 Box::new(prev),
                 Box::new(map.clone()),
             ))
@@ -222,10 +222,10 @@ impl Action for EditSector {
         project: &mut Project,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         // If the updated sector is a screen widget, refresh the screen list to show potential new names.
-        if let ProjectContext::ScreenWidget(id, widget_id) = server_ctx.pc
+        if let ProjectContext::ScreenWidget(id, widget_id) = server_ctx.shared.pc
             && let Some(tree_layout) = ui.get_tree_layout("Project Tree")
             && let Some(node) = tree_layout.get_node_by_id_mut(&id)
         {
@@ -243,23 +243,23 @@ impl Action for EditSector {
     fn hud_material_slots(
         &self,
         _map: &Map,
-        _server: &ServerContext,
+        _server: &CreatorContext,
     ) -> Option<Vec<super::ActionMaterialSlot>> {
         _server
-            .pc
+            .shared.pc
             .is_region()
             .then(|| terrain_material::slots(&self.nodeui, Kind::Sector, &_server.reference))
     }
     fn set_hud_material_source(
         &mut self,
         _map: &Map,
-        _server: &ServerContext,
+        _server: &CreatorContext,
         slot: i32,
         source: rusterix::PixelSource,
     ) -> bool {
         terrain_material::set_slot(&mut self.nodeui, slot, Some(source), Kind::Sector)
     }
-    fn clear_hud_material_slot(&mut self, _map: &Map, _server: &ServerContext, slot: i32) -> bool {
+    fn clear_hud_material_slot(&mut self, _map: &Map, _server: &CreatorContext, slot: i32) -> bool {
         terrain_material::set_slot(&mut self.nodeui, slot, None, Kind::Sector)
     }
     fn preserves_hud_material_slots(&self) -> bool {
@@ -276,7 +276,7 @@ impl Action for EditSector {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -319,7 +319,7 @@ mod tests {
                 &mut map,
                 &mut TheUI::new(),
                 &mut TheContext::new(400, 300, 1.),
-                &mut ServerContext::default(),
+                &mut CreatorContext::default(),
             )
             .unwrap();
         assert_eq!(

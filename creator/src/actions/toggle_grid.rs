@@ -42,7 +42,7 @@ impl Action for ToggleGrid {
         &self,
         _map: &Map,
         _ctx: &mut TheContext,
-        _server_ctx: &ServerContext,
+        _server_ctx: &CreatorContext,
     ) -> bool {
         true
     }
@@ -52,9 +52,9 @@ impl Action for ToggleGrid {
         _map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
-        server_ctx.show_editor_grid = !server_ctx.show_editor_grid;
+        server_ctx.shared.show_editor_grid = !server_ctx.shared.show_editor_grid;
         server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Geometry Overlay 3D"),
@@ -74,7 +74,7 @@ impl Action for ToggleGrid {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

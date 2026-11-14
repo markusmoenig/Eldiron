@@ -115,7 +115,7 @@ impl Tool for SectorTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match tool_event {
             Activate => {
@@ -128,10 +128,10 @@ impl Tool for SectorTool {
                     ctx.ui.relayout = true;
                 }
 
-                server_ctx.curr_map_tool_type = MapToolType::Sector;
+                server_ctx.shared.curr_map_tool_type = MapToolType::Sector;
 
-                if let Some(map) = project.get_map_mut(server_ctx) {
-                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                if let Some(map) = project.get_map_mut(&server_ctx.shared) {
+                    if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                         map.geometry_selection_mode = 1;
                         map.selected_geometry_objects.clear();
                         map.selected_geometry_vertices.clear();
@@ -151,7 +151,7 @@ impl Tool for SectorTool {
                 return true;
             }
             _ => {
-                server_ctx.curr_map_tool_type = MapToolType::General;
+                server_ctx.shared.curr_map_tool_type = MapToolType::General;
             }
         };
         false
@@ -163,11 +163,11 @@ impl Tool for SectorTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
-        let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
-            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
-        if server_ctx.editor_view_mode != EditorViewMode::D2 {
+        let detail_mode_3d = server_ctx.shared.editor_view_mode != EditorViewMode::D2
+            && server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail;
+        if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
             map.geometry_selection_mode = 1;
             if !detail_mode_3d {
                 if self
@@ -183,11 +183,11 @@ impl Tool for SectorTool {
         }
 
         let mut undo_atom: Option<ProjectUndoAtom> = None;
-        fn hovered_detail_surface(server_ctx: &ServerContext) -> Option<Surface> {
+        fn hovered_detail_surface(server_ctx: &CreatorContext) -> Option<Surface> {
             server_ctx
-                .hover_surface
+                .shared.hover_surface
                 .clone()
-                .or(server_ctx.editing_surface.clone())
+                .or(server_ctx.shared.editing_surface.clone())
         }
         fn detail_surface_at_point(map: &Map, point: Vec3<f32>) -> Option<Surface> {
             let mut best_surface: Option<(Surface, f32)> = None;
@@ -340,62 +340,62 @@ impl Tool for SectorTool {
                 if detail_mode_3d {
                     if let Some(surface) = detail_surface_at_point(
                         map,
-                        server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos),
-                    ) && server_ctx.active_detail_surface.as_ref().map(|s| s.id)
+                        server_ctx.shared.hover_cursor_3d.unwrap_or(server_ctx.shared.geo_hit_pos),
+                    ) && server_ctx.shared.active_detail_surface.as_ref().map(|s| s.id)
                         != Some(surface.id)
                     {
                         if let Some(old_profile_id) = server_ctx
-                            .active_detail_surface
+                            .shared.active_detail_surface
                             .as_ref()
                             .and_then(|active| active.profile)
                             && let Some(old_profile_map) = map.profiles.get_mut(&old_profile_id)
                         {
                             old_profile_map.selected_sectors.clear();
                         }
-                        server_ctx.active_detail_surface = Some(surface);
-                        server_ctx.hover.2 = None;
+                        server_ctx.shared.active_detail_surface = Some(surface);
+                        server_ctx.shared.hover.2 = None;
                     }
 
                     if let Some(surface) = detail_surface_at_point(
                         map,
-                        server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos),
+                        server_ctx.shared.hover_cursor_3d.unwrap_or(server_ctx.shared.geo_hit_pos),
                     ) {
-                        if server_ctx.active_detail_surface.is_none() {
-                            server_ctx.active_detail_surface = Some(surface);
+                        if server_ctx.shared.active_detail_surface.is_none() {
+                            server_ctx.shared.active_detail_surface = Some(surface);
                         }
                     }
-                    if let Some(surface) = server_ctx.active_detail_surface.as_ref() {
-                        let hit_pos = server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
-                        server_ctx.hover.2 = detail_profile_sector_from_hit(
+                    if let Some(surface) = server_ctx.shared.active_detail_surface.as_ref() {
+                        let hit_pos = server_ctx.shared.hover_cursor_3d.unwrap_or(server_ctx.shared.geo_hit_pos);
+                        server_ctx.shared.hover.2 = detail_profile_sector_from_hit(
                             map,
                             surface,
                             hit_pos,
-                            server_ctx.geo_hit,
+                            server_ctx.shared.geo_hit,
                         );
                     }
-                } else if server_ctx.editor_view_mode != EditorViewMode::D2
+                } else if server_ctx.shared.editor_view_mode != EditorViewMode::D2
                     && !detail_mode_3d
-                    && server_ctx.hover.2.is_none()
+                    && server_ctx.shared.hover.2.is_none()
                 {
-                    let hit_pos = server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
-                    server_ctx.hover.2 = map
+                    let hit_pos = server_ctx.shared.hover_cursor_3d.unwrap_or(server_ctx.shared.geo_hit_pos);
+                    server_ctx.shared.hover.2 = map
                         .find_sector_at(Vec2::new(hit_pos.x, hit_pos.z))
                         .map(|s| s.id);
                 }
 
                 self.click_selected = false;
-                if server_ctx.hover.2.is_some() {
+                if server_ctx.shared.hover.2.is_some() {
                     map.selected_entity_item = None;
 
                     let mut handled_detail_selection = false;
                     if detail_mode_3d {
-                        if let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                        if let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                             && let Some(profile_id) = surface.profile
                             && let Some(profile_map) = map.profiles.get_mut(&profile_id)
                         {
                             handled_detail_selection = true;
                             if ui.shift {
-                                if let Some(s) = server_ctx.hover.2 {
+                                if let Some(s) = server_ctx.shared.hover.2 {
                                     if !profile_map.selected_sectors.contains(&s) {
                                         profile_map.selected_sectors.push(s);
                                         changed = true;
@@ -403,14 +403,14 @@ impl Tool for SectorTool {
                                     self.click_selected = true;
                                 }
                             } else if ui.alt {
-                                if let Some(v) = server_ctx.hover.2 {
+                                if let Some(v) = server_ctx.shared.hover.2 {
                                     profile_map
                                         .selected_sectors
                                         .retain(|&selected| selected != v);
                                     changed = true;
                                 }
                             } else {
-                                if let Some(v) = server_ctx.hover.2 {
+                                if let Some(v) = server_ctx.shared.hover.2 {
                                     profile_map.selected_sectors = vec![v];
                                     changed = true;
                                 } else {
@@ -425,7 +425,7 @@ impl Tool for SectorTool {
                     if !handled_detail_selection {
                         if ui.shift {
                             // Add
-                            if let Some(s) = server_ctx.hover.2 {
+                            if let Some(s) = server_ctx.shared.hover.2 {
                                 if !map.selected_sectors.contains(&s) {
                                     map.selected_sectors.push(s);
                                     changed = true;
@@ -434,13 +434,13 @@ impl Tool for SectorTool {
                             }
                         } else if ui.alt {
                             // Subtract
-                            if let Some(v) = server_ctx.hover.2 {
+                            if let Some(v) = server_ctx.shared.hover.2 {
                                 map.selected_sectors.retain(|&selected| selected != v);
                                 changed = true;
                             }
                         } else {
                             // Replace
-                            if let Some(v) = server_ctx.hover.2 {
+                            if let Some(v) = server_ctx.shared.hover.2 {
                                 map.selected_sectors = vec![v];
                                 changed = true;
                             } else {
@@ -452,7 +452,7 @@ impl Tool for SectorTool {
                     }
 
                     if changed {
-                        server_ctx.curr_action_id =
+                        server_ctx.shared.curr_action_id =
                             Some(Uuid::from_str(EDIT_SECTOR_ACTION_ID).unwrap());
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Map Selection Changed"),
@@ -468,7 +468,7 @@ impl Tool for SectorTool {
                 let mut detail_selection_prepared = false;
                 if detail_mode_3d
                     && self.click_selected
-                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                     && let Some(profile_id) = surface.profile
                     && let Some(profile_map) = map.profiles.get(&profile_id)
                     && !profile_map.selected_sectors.is_empty()
@@ -494,7 +494,7 @@ impl Tool for SectorTool {
                     if count > 0 {
                         self.click_pos_3d = sum_pos / count as f32;
                     } else {
-                        self.click_pos_3d = server_ctx.geo_hit_pos;
+                        self.click_pos_3d = server_ctx.shared.geo_hit_pos;
                     }
 
                     if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
@@ -554,11 +554,11 @@ impl Tool for SectorTool {
                     if count > 0 {
                         self.click_pos_3d = sum_pos / count as f32;
                     } else {
-                        self.click_pos_3d = server_ctx.geo_hit_pos;
+                        self.click_pos_3d = server_ctx.shared.geo_hit_pos;
                     }
 
                     // Compute initial ray intersection on the drag plane at click time
-                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                    if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                         if let Some(render_view) =
                             crate::utils::map_editor_render_view(ui, server_ctx)
                         {
@@ -579,7 +579,7 @@ impl Tool for SectorTool {
                                 )
                             };
 
-                            let plane = server_ctx.gizmo_mode;
+                            let plane = server_ctx.shared.gizmo_mode;
                             let plane_normal = match plane {
                                 GizmoMode::XZ => Vec3::new(0.0, 1.0, 0.0),
                                 GizmoMode::XY => Vec3::new(0.0, 0.0, 1.0),
@@ -596,11 +596,11 @@ impl Tool for SectorTool {
                         }
                     }
                 } else if !detail_selection_prepared {
-                    self.click_pos_3d = server_ctx.geo_hit_pos;
+                    self.click_pos_3d = server_ctx.shared.geo_hit_pos;
                 }
 
                 if detail_mode_3d
-                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                     && let Some(profile_id) = surface.profile
                     && let Some(profile_map) = map.profiles.get(&profile_id)
                 {
@@ -623,15 +623,15 @@ impl Tool for SectorTool {
                     {
                         let dim = *render_view.dim();
 
-                        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                             // 2D dragging
-                            let click_pos = server_ctx.local_to_map_grid(
+                            let click_pos = server_ctx.shared.local_to_map_grid(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 self.click_pos,
                                 map,
                                 map.subdivisions,
                             );
-                            let drag_pos = server_ctx.local_to_map_grid(
+                            let drag_pos = server_ctx.shared.local_to_map_grid(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 Vec2::new(coord.x as f32, coord.y as f32),
                                 map,
@@ -751,13 +751,13 @@ impl Tool for SectorTool {
                                     map.update_vertex(*vertex_id, new_pos);
                                 }
                             }
-                            server_ctx.hover_cursor = Some(drag_pos);
+                            server_ctx.shared.hover_cursor = Some(drag_pos);
 
                             if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
                                 self.drag_changed = true;
                             }
                         } else if detail_mode_3d
-                            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                            && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                             && let Some(profile_id) = surface.profile
                         {
                             let drag_distance = self
@@ -872,7 +872,7 @@ impl Tool for SectorTool {
                             };
 
                             let start_pos = self.click_pos_3d;
-                            let plane = server_ctx.gizmo_mode;
+                            let plane = server_ctx.shared.gizmo_mode;
 
                             let screen_uv = [
                                 coord.x as f32 / dim.width as f32,
@@ -1096,34 +1096,34 @@ impl Tool for SectorTool {
                     }
 
                     let dim = *render_view.dim();
-                    let click_pos = server_ctx.local_to_map_grid(
+                    let click_pos = server_ctx.shared.local_to_map_grid(
                         Vec2::new(dim.width as f32, dim.height as f32),
                         self.click_pos,
                         map,
                         map.subdivisions,
                     );
-                    let drag_pos = server_ctx.local_to_map_grid(
+                    let drag_pos = server_ctx.shared.local_to_map_grid(
                         Vec2::new(dim.width as f32, dim.height as f32),
                         Vec2::new(coord.x as f32, coord.y as f32),
                         map,
                         map.subdivisions,
                     );
 
-                    let selection = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    let selection = if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                         let top_left =
                             Vec2::new(click_pos.x.min(drag_pos.x), click_pos.y.min(drag_pos.y));
                         let bottom_right =
                             Vec2::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
 
                         let mut selection = if map.camera == rusterix::MapCamera::TwoDIso {
-                            server_ctx.geometry_in_screen_rectangle(
+                            server_ctx.shared.geometry_in_screen_rectangle(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 self.click_pos,
                                 Vec2::new(coord.x as f32, coord.y as f32),
                                 map,
                             )
                         } else {
-                            server_ctx.geometry_in_rectangle(top_left, bottom_right, map)
+                            server_ctx.shared.geometry_in_rectangle(top_left, bottom_right, map)
                         };
 
                         selection.0 = vec![];
@@ -1171,7 +1171,7 @@ impl Tool for SectorTool {
                         selection
                     };
 
-                    let preview_rectangle = if server_ctx.editor_view_mode == EditorViewMode::D2
+                    let preview_rectangle = if server_ctx.shared.editor_view_mode == EditorViewMode::D2
                         && map.camera != rusterix::MapCamera::TwoDIso
                     {
                         (click_pos, drag_pos)
@@ -1199,7 +1199,7 @@ impl Tool for SectorTool {
                 if self.click_selected {
                     if self.drag_changed {
                         undo_atom = Some(ProjectUndoAtom::MapEdit(
-                            server_ctx.pc,
+                            server_ctx.shared.pc,
                             Box::new(self.rectangle_undo_map.clone()),
                             Box::new(map.clone()),
                         ));
@@ -1222,17 +1222,17 @@ impl Tool for SectorTool {
                 }
 
                 if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx) {
-                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                         let dim = *render_view.dim();
-                        let h = server_ctx.geometry_at_for_tool(
+                        let h = server_ctx.shared.geometry_at_for_tool(
                             Vec2::new(dim.width as f32, dim.height as f32),
                             Vec2::new(coord.x as f32, coord.y as f32),
                             map,
                             MapToolType::Sector,
                         );
-                        server_ctx.hover.2 = h.2;
+                        server_ctx.shared.hover.2 = h.2;
 
-                        let cp = server_ctx.local_to_map_grid(
+                        let cp = server_ctx.shared.local_to_map_grid(
                             Vec2::new(dim.width as f32, dim.height as f32),
                             Vec2::new(coord.x as f32, coord.y as f32),
                             map,
@@ -1242,11 +1242,11 @@ impl Tool for SectorTool {
                             TheId::named("Cursor Pos Changed"),
                             TheValue::Float2(cp),
                         ));
-                        server_ctx.hover_cursor = Some(cp);
+                        server_ctx.shared.hover_cursor = Some(cp);
                     } else {
                         if detail_mode_3d {
                             let selected_count = server_ctx
-                                .active_detail_surface
+                                .shared.active_detail_surface
                                 .as_ref()
                                 .and_then(|surface| surface.profile)
                                 .and_then(|profile_id| map.profiles.get(&profile_id))
@@ -1255,26 +1255,26 @@ impl Tool for SectorTool {
                             if selected_count == 0
                                 && let Some(surface) = hovered_detail_surface(server_ctx)
                             {
-                                server_ctx.active_detail_surface = Some(surface);
+                                server_ctx.shared.active_detail_surface = Some(surface);
                             }
                         }
 
-                        let hit_pos = server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
+                        let hit_pos = server_ctx.shared.hover_cursor_3d.unwrap_or(server_ctx.shared.geo_hit_pos);
 
                         let hovered_sector = if detail_mode_3d {
                             server_ctx
-                                .active_detail_surface
+                                .shared.active_detail_surface
                                 .as_ref()
                                 .and_then(|surface| {
                                     detail_profile_sector_from_hit(
                                         map,
                                         surface,
                                         hit_pos,
-                                        server_ctx.geo_hit,
+                                        server_ctx.shared.geo_hit,
                                     )
                                 })
                         } else {
-                            match server_ctx.geo_hit {
+                            match server_ctx.shared.geo_hit {
                                 Some(GeoId::Sector(id)) => Some(id),
                                 _ => map
                                     .find_sector_at(Vec2::new(hit_pos.x, hit_pos.z))
@@ -1282,7 +1282,7 @@ impl Tool for SectorTool {
                             }
                         };
 
-                        server_ctx.hover = (None, None, hovered_sector);
+                        server_ctx.shared.hover = (None, None, hovered_sector);
 
                         if hit_pos != Vec3::zero() {
                             let cp = Vec2::new(hit_pos.x, hit_pos.z);
@@ -1290,13 +1290,13 @@ impl Tool for SectorTool {
                                 TheId::named("Cursor Pos Changed"),
                                 TheValue::Float2(cp),
                             ));
-                            server_ctx.hover_cursor = Some(cp);
+                            server_ctx.shared.hover_cursor = Some(cp);
                         }
                     }
 
-                    if let Some(s) = server_ctx.hover.2 {
+                    if let Some(s) = server_ctx.shared.hover.2 {
                         if detail_mode_3d
-                            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                            && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                             && let Some(profile_id) = surface.profile
                             && let Some(profile_map) = map.profiles.get(&profile_id)
                             && let Some(sector) = profile_map.find_sector(s)
@@ -1309,7 +1309,7 @@ impl Tool for SectorTool {
                                     format_sector_linedefs_and_bbox(
                                         profile_map,
                                         sector,
-                                        server_ctx.editor_view_mode != EditorViewMode::D2
+                                        server_ctx.shared.editor_view_mode != EditorViewMode::D2
                                     )
                                 ),
                             ));
@@ -1322,7 +1322,7 @@ impl Tool for SectorTool {
                                     format_sector_linedefs_and_bbox(
                                         map,
                                         sector,
-                                        server_ctx.editor_view_mode != EditorViewMode::D2
+                                        server_ctx.shared.editor_view_mode != EditorViewMode::D2
                                     )
                                 ),
                             ));
@@ -1335,7 +1335,7 @@ impl Tool for SectorTool {
             }
             MapDelete => {
                 if detail_mode_3d
-                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                     && let Some(profile_id) = surface.profile
                 {
                     let prev = map.clone();
@@ -1348,7 +1348,7 @@ impl Tool for SectorTool {
                         profile_map.selected_sectors.clear();
 
                         undo_atom = Some(ProjectUndoAtom::MapEdit(
-                            server_ctx.pc,
+                            server_ctx.shared.pc,
                             Box::new(prev),
                             Box::new(map.clone()),
                         ));
@@ -1367,7 +1367,7 @@ impl Tool for SectorTool {
                     map.selected_sectors.clear();
 
                     undo_atom = Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(prev),
                         Box::new(map.clone()),
                     ));
@@ -1379,13 +1379,13 @@ impl Tool for SectorTool {
                 }
             }
             MapEscape => {
-                if let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                if let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                     && let Some(profile_id) = surface.profile
                     && let Some(profile_map) = map.profiles.get_mut(&profile_id)
                 {
                     profile_map.selected_sectors.clear();
                 }
-                server_ctx.active_detail_surface = None;
+                server_ctx.shared.active_detail_surface = None;
                 if !map.selected_sectors.is_empty() {
                     map.selected_sectors.clear();
                     ctx.ui.send(TheEvent::Custom(
@@ -1419,11 +1419,11 @@ impl Tool for SectorTool {
     fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
         Some(&mut self.hud)
     }
-    fn hud_selected_id(&self, map: &Map, server_ctx: &ServerContext) -> Option<u32> {
-        let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
-            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
+    fn hud_selected_id(&self, map: &Map, server_ctx: &CreatorContext) -> Option<u32> {
+        let detail_mode_3d = server_ctx.shared.editor_view_mode != EditorViewMode::D2
+            && server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail;
         let id = if detail_mode_3d
-            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+            && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
             && let Some(profile_id) = surface.profile
             && let Some(profile_map) = map.profiles.get(&profile_id)
             && !profile_map.selected_sectors.is_empty()
@@ -1439,9 +1439,9 @@ impl Tool for SectorTool {
     fn overlay_screen_rectangle(
         &self,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> Option<(Vec2<f32>, Vec2<f32>)> {
-        if server.editor_view_mode != EditorViewMode::D2 {
+        if server.shared.editor_view_mode != EditorViewMode::D2 {
             map.curr_rectangle
         } else {
             None
@@ -1452,7 +1452,7 @@ impl Tool for SectorTool {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         assets: &Assets,
     ) {
         if let Some(rect) = self.overlay_screen_rectangle(map, server_ctx) {
@@ -1469,7 +1469,7 @@ impl Tool for SectorTool {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let redraw = false;
         #[allow(clippy::single_match)]
@@ -1480,7 +1480,7 @@ impl Tool for SectorTool {
                     let source = crate::utils::get_surface_apply_source(project, server_ctx);
 
                     if let Some(source) = source {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
+                        if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                             let _prev = map.clone();
                             for sector_id in &map.selected_sectors.clone() {
                                 let source_key = if self.hud.selected_icon_index == 0 {
@@ -1493,7 +1493,7 @@ impl Tool for SectorTool {
                                 );
                             }
 
-                            if server_ctx.get_map_context() == MapContext::Region {
+                            if server_ctx.shared.get_map_context() == MapContext::Region {
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Render SceneManager Map"),
                                     TheValue::Empty,
@@ -1504,7 +1504,7 @@ impl Tool for SectorTool {
                         }
                     }
                 } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
+                    if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                         let _prev = map.clone();
                         for sector_id in map.selected_sectors.clone() {
                             if let Some(sector) = map.find_sector_mut(sector_id)
@@ -1532,7 +1532,7 @@ impl Tool for SectorTool {
                             );
                         }
 
-                        if server_ctx.get_map_context() == MapContext::Region {
+                        if server_ctx.shared.get_map_context() == MapContext::Region {
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Render SceneManager Map"),
                                 TheValue::Empty,

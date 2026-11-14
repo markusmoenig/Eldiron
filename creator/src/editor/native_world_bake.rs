@@ -144,10 +144,10 @@ impl Editor {
                 crate::editcamera::EditCamera::new(),
             ),
             bake: std::mem::take(&mut *self.server_ctx.bake.write()),
-            context: self.server_ctx.pc,
-            mode: self.server_ctx.editor_view_mode,
+            context: self.server_ctx.shared.pc,
+            mode: self.server_ctx.shared.editor_view_mode,
             history: self.server_ctx.history.read().clone(),
-            clipboard: self.server_ctx.clipboard.clone(),
+            clipboard: self.server_ctx.shared.clipboard.clone(),
             animation: self.server_ctx.reference.read().client.animation_frame,
             authored: Vec::new(),
             floor: Uuid::nil(),
@@ -165,7 +165,7 @@ impl Editor {
         let region = self
             .documents
             .project
-            .get_region_mut(&self.server_ctx.curr_region)
+            .get_region_mut(&self.server_ctx.shared.curr_region)
             .unwrap();
         let id = region.id;
         region.map = Map::new();
@@ -188,7 +188,7 @@ impl Editor {
         region.editing_position_3d = Vec3::zero();
         region.editing_position_iso_3d = Some(Vec3::zero());
         region.editing_iso_scale = Some(3.);
-        self.server_ctx.editor_view_mode = EditorViewMode::Iso;
+        self.server_ctx.shared.editor_view_mode = EditorViewMode::Iso;
         self.server_ctx.camera.iso_camera.scale = 3.;
         crate::undo::project_helper::set_project_context(
             ctx,
@@ -197,7 +197,7 @@ impl Editor {
             &mut self.server_ctx,
             ProjectContext::Region(id),
         );
-        self.server_ctx.editor_view_mode = EditorViewMode::Iso;
+        self.server_ctx.shared.editor_view_mode = EditorViewMode::Iso;
         let camera = self
             .native_world_camera()
             .unwrap()
@@ -259,10 +259,10 @@ impl Editor {
             serde_json::to_vec(&self.documents.project).unwrap(),
         )
         .unwrap();
-        self.server_ctx.hover = (None, None, None);
-        self.server_ctx.geo_hit = None;
-        self.server_ctx.hover_cursor = None;
-        self.server_ctx.hover_cursor_3d = None;
+        self.server_ctx.shared.hover = (None, None, None);
+        self.server_ctx.shared.geo_hit = None;
+        self.server_ctx.shared.hover_cursor = None;
+        self.server_ctx.shared.hover_cursor_3d = None;
         self.invalidate_native_world_viewport(ui);
         fixture
     }
@@ -291,7 +291,7 @@ impl Editor {
         if phase == 4 {
             self.documents
                 .project
-                .get_region_mut(&self.server_ctx.curr_region)
+                .get_region_mut(&self.server_ctx.shared.curr_region)
                 .unwrap()
                 .editing_position_3d += Vec3::new(0.25, 0., -0.125);
         }
@@ -486,8 +486,8 @@ impl Editor {
         ctx: &mut TheContext,
     ) -> Fixture {
         let id = self.documents.project.regions[0].id;
-        self.server_ctx.curr_region = id;
-        self.server_ctx.pc = ProjectContext::Region(id);
+        self.server_ctx.shared.curr_region = id;
+        self.server_ctx.shared.pc = ProjectContext::Region(id);
         let fixture = self.begin_native_bake_for_test(ui, ctx);
         let height = ui.get_render_view("PolyView").unwrap().dim().height;
         assert!(height > 0);
@@ -525,7 +525,7 @@ impl Editor {
         let region = self
             .documents
             .project
-            .get_region_mut(&self.server_ctx.curr_region)
+            .get_region_mut(&self.server_ctx.shared.curr_region)
             .unwrap();
         let asset = region.map.orthographic_bake.as_mut().unwrap();
         let span = asset.tile_size as f32 / asset.pixels_per_world_unit;
@@ -746,10 +746,10 @@ impl Editor {
         self.server_ctx.camera = fixture.camera;
         *self.server_ctx.bake.write() = fixture.bake;
         *self.server_ctx.history.write() = fixture.history;
-        self.server_ctx.clipboard = fixture.clipboard;
-        self.server_ctx.editor_view_mode = fixture.mode;
-        self.server_ctx.hover = (None, None, None);
-        self.server_ctx.geo_hit = None;
+        self.server_ctx.shared.clipboard = fixture.clipboard;
+        self.server_ctx.shared.editor_view_mode = fixture.mode;
+        self.server_ctx.shared.hover = (None, None, None);
+        self.server_ctx.shared.geo_hit = None;
         crate::undo::project_helper::set_project_context(
             ctx,
             ui,
@@ -757,7 +757,7 @@ impl Editor {
             &mut self.server_ctx,
             fixture.context,
         );
-        self.server_ctx.editor_view_mode = fixture.mode;
+        self.server_ctx.shared.editor_view_mode = fixture.mode;
         self.server_ctx.history.read().set_undo_state_to_ui(ctx);
         self.invalidate_native_world_viewport(ui);
     }

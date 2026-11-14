@@ -1400,7 +1400,7 @@ impl GeometryEditor {
         project: &Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         let panel_revision = (self.selected, project.procedural_appearances.revision());
         if self.panel_revision != Some(panel_revision) {
@@ -1419,7 +1419,7 @@ impl GeometryEditor {
             }
         }
         let iso = project
-            .get_map(server)
+            .get_map(&server.shared)
             .is_some_and(|m| m.camera == rusterix::MapCamera::TwoDIso);
         if iso != self.iso_mode {
             self.iso_mode = iso;

@@ -9,11 +9,11 @@ pub(super) struct Description {
     clip: Option<[u32; 4]>,
 }
 impl Description {
-    pub(super) fn current(map: &Map, server: &ServerContext) -> Option<Self> {
-        if server.editor_view_mode != EditorViewMode::D2 || map.camera == MapCamera::TwoDIso {
+    pub(super) fn current(map: &Map, server: &CreatorContext) -> Option<Self> {
+        if server.shared.editor_view_mode != EditorViewMode::D2 || map.camera == MapCamera::TwoDIso {
             return None;
         }
-        let clip = match server.get_map_context() {
+        let clip = match server.shared.get_map_context() {
             MapContext::Screen => {
                 let grid = server.config.grid_size.max(1) as f32;
                 let width = server.config.viewport.x as f32 / grid;
@@ -22,7 +22,7 @@ impl Description {
             }
             MapContext::Character | MapContext::Item => Some([-5., -5., 10., 10.]),
             MapContext::Region
-                if scope::uses_region(server) && server.editing_surface.is_some() =>
+                if scope::uses_region(server) && server.shared.editing_surface.is_some() =>
             {
                 None
             }
@@ -146,9 +146,9 @@ mod tests {
     use super::*;
     #[test]
     fn custom_map_keys_track_uncommitted_geometry_and_context_clip() {
-        let mut server = ServerContext::default();
-        server.editor_view_mode = EditorViewMode::D2;
-        server.pc = ProjectContext::Screen(Uuid::new_v4());
+        let mut server = CreatorContext::default();
+        server.shared.editor_view_mode = EditorViewMode::D2;
+        server.shared.pc = ProjectContext::Screen(Uuid::new_v4());
         let mut map = Map::new();
         map.add_vertex_at(1., 2.);
         let initial = Description::current(&map, &server).unwrap();
@@ -172,17 +172,17 @@ mod tests {
             screen_clip.width,
             server.config.viewport.x as f32 / server.config.grid_size.max(1) as f32
         );
-        server.pc = ProjectContext::Character(Uuid::new_v4());
+        server.shared.pc = ProjectContext::Character(Uuid::new_v4());
         assert!(
             Description::current(&map, &server).is_none(),
             "character selection currently maps to the region preview, not its dormant custom map"
         );
-        server.editor_view_mode = EditorViewMode::Orbit;
+        server.shared.editor_view_mode = EditorViewMode::Orbit;
         assert!(Description::current(&map, &server).is_none());
-        server.editor_view_mode = EditorViewMode::D2;
-        server.pc = ProjectContext::Region(Uuid::new_v4());
+        server.shared.editor_view_mode = EditorViewMode::D2;
+        server.shared.pc = ProjectContext::Region(Uuid::new_v4());
         assert!(Description::current(&map, &server).is_none());
-        server.pc = ProjectContext::Screen(Uuid::new_v4());
+        server.shared.pc = ProjectContext::Screen(Uuid::new_v4());
         map.camera = MapCamera::ThreeDIso;
         assert!(
             Description::current(&map, &server).is_some(),
@@ -194,8 +194,8 @@ mod tests {
             "isometric maps use the dedicated producer"
         );
         map.camera = MapCamera::TwoD;
-        server.pc = ProjectContext::Region(Uuid::new_v4());
-        server.editing_surface = Some(rusterix::Surface::new(0));
+        server.shared.pc = ProjectContext::Region(Uuid::new_v4());
+        server.shared.editing_surface = Some(rusterix::Surface::new(0));
         assert!(
             Description::current(&map, &server)
                 .unwrap()
@@ -238,19 +238,19 @@ impl Editor {
             project: self.documents.project.clone(),
             assets: self.server_ctx.reference.read().assets.clone(),
             history: self.server_ctx.history.read().clone(),
-            context: self.server_ctx.pc,
-            mode: self.server_ctx.editor_view_mode,
-            character: self.server_ctx.curr_character,
-            item: self.server_ctx.curr_item,
+            context: self.server_ctx.shared.pc,
+            mode: self.server_ctx.shared.editor_view_mode,
+            character: self.server_ctx.shared.curr_character,
+            item: self.server_ctx.shared.curr_item,
             viewport: self.server_ctx.config.viewport,
             grid: self.server_ctx.config.grid_size,
             authored: Vec::new(),
-            clipboard: self.server_ctx.clipboard.clone(),
+            clipboard: self.server_ctx.shared.clipboard.clone(),
             animation: self.server_ctx.reference.read().client.animation_frame,
             editor_canvas: self.server_ctx.reference.read().client.use_editor_canvas,
-            editing: self.server_ctx.editing_surface.clone(),
-            active: self.server_ctx.active_detail_surface.clone(),
-            detail_mode: self.server_ctx.geometry_edit_mode,
+            editing: self.server_ctx.shared.editing_surface.clone(),
+            active: self.server_ctx.shared.active_detail_surface.clone(),
+            detail_mode: self.server_ctx.shared.geometry_edit_mode,
             parent: None,
         };
         let mut pixels = Vec::new();
@@ -309,7 +309,7 @@ impl Editor {
                 let region = self
                     .documents
                     .project
-                    .get_region_ctx_mut(&self.server_ctx)
+                    .get_region_ctx_mut(&self.server_ctx.shared)
                     .unwrap();
                 let host = crate::project_templates::rectangle(&mut region.map, 3., 3., 3., 2.);
                 let mut surface = rusterix::Surface::new(host);
@@ -324,15 +324,15 @@ impl Editor {
                 surface.profile = Some(map.id);
                 region.map.profiles.insert(map.id, map);
                 region.map.surfaces.insert(surface.id, surface.clone());
-                self.server_ctx.editing_surface = Some(surface);
-                self.server_ctx.active_detail_surface = None;
-                self.server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
+                self.server_ctx.shared.editing_surface = Some(surface);
+                self.server_ctx.shared.active_detail_surface = None;
+                self.server_ctx.shared.geometry_edit_mode = GeometryEditMode::Geometry;
                 fixture.parent = Some((region.map.id, serde_json::to_vec(&region.map).unwrap()));
                 ProjectContext::Region(region.id)
             }
             _ => unreachable!("custom fixture kind"),
         };
-        self.server_ctx.editor_view_mode = EditorViewMode::D2;
+        self.server_ctx.shared.editor_view_mode = EditorViewMode::D2;
         self.server_ctx.config.viewport = Vec2::new(320, 240);
         self.server_ctx.config.grid_size = 32;
         crate::undo::project_helper::set_project_context(
@@ -362,7 +362,7 @@ impl Editor {
             let parent = &self
                 .documents
                 .project
-                .get_region_ctx(&self.server_ctx)
+                .get_region_ctx(&self.server_ctx.shared)
                 .unwrap()
                 .map;
             assert_eq!(parent.id, *id);
@@ -432,12 +432,12 @@ impl Editor {
         reference
             .client
             .builder_d2
-            .set_map_tool_type(self.server_ctx.curr_map_tool_type);
+            .set_map_tool_type(self.server_ctx.shared.curr_map_tool_type);
         reference
             .client
             .builder_d2
-            .set_map_hover_info(self.server_ctx.hover, self.server_ctx.hover_cursor);
-        reference.client.builder_d2.draw_grid = self.server_ctx.show_editor_grid;
+            .set_map_hover_info(self.server_ctx.shared.hover, self.server_ctx.shared.hover_cursor);
+        reference.client.builder_d2.draw_grid = self.server_ctx.shared.show_editor_grid;
         reference
             .client
             .builder_d2
@@ -451,7 +451,7 @@ impl Editor {
             map,
             &self.build_values,
             if scope::uses_region(&self.server_ctx) {
-                &self.server_ctx.editing_surface
+                &self.server_ctx.shared.editing_surface
             } else {
                 &None
             },
@@ -477,7 +477,7 @@ impl Editor {
             bridge.client.use_editor_canvas = !bridge.client.use_editor_canvas;
         }
         if phase == 3 {
-            let surface = self.server_ctx.editing_surface.as_mut().unwrap();
+            let surface = self.server_ctx.shared.editing_surface.as_mut().unwrap();
             let shift = surface.edit_uv.right * 0.25;
             surface.world_vertices[0] += shift;
         }
@@ -494,18 +494,18 @@ impl Editor {
         self.server_ctx.reference.write().client.animation_frame = fixture.animation;
         self.server_ctx.reference.write().client.use_editor_canvas = fixture.editor_canvas;
         *self.server_ctx.history.write() = fixture.history;
-        self.server_ctx.clipboard = fixture.clipboard;
-        self.server_ctx.hover = (None, None, None);
-        self.server_ctx.hover_cursor = None;
-        self.server_ctx.geo_hit = None;
-        self.server_ctx.curr_character = fixture.character;
-        self.server_ctx.curr_item = fixture.item;
-        self.server_ctx.editing_surface = fixture.editing;
-        self.server_ctx.active_detail_surface = fixture.active;
-        self.server_ctx.geometry_edit_mode = fixture.detail_mode;
+        self.server_ctx.shared.clipboard = fixture.clipboard;
+        self.server_ctx.shared.hover = (None, None, None);
+        self.server_ctx.shared.hover_cursor = None;
+        self.server_ctx.shared.geo_hit = None;
+        self.server_ctx.shared.curr_character = fixture.character;
+        self.server_ctx.shared.curr_item = fixture.item;
+        self.server_ctx.shared.editing_surface = fixture.editing;
+        self.server_ctx.shared.active_detail_surface = fixture.active;
+        self.server_ctx.shared.geometry_edit_mode = fixture.detail_mode;
         self.server_ctx.config.viewport = fixture.viewport;
         self.server_ctx.config.grid_size = fixture.grid;
-        self.server_ctx.editor_view_mode = fixture.mode;
+        self.server_ctx.shared.editor_view_mode = fixture.mode;
         crate::undo::project_helper::set_project_context(
             ctx,
             ui,
@@ -513,7 +513,7 @@ impl Editor {
             &mut self.server_ctx,
             fixture.context,
         );
-        self.server_ctx.editor_view_mode = fixture.mode;
+        self.server_ctx.shared.editor_view_mode = fixture.mode;
         self.server_ctx.history.read().set_undo_state_to_ui(ctx);
         self.invalidate_native_world_viewport(ui);
     }

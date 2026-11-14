@@ -516,7 +516,7 @@ fn apply_surface_relief(
     nodeui: &TheNodeUI,
     map: &mut Map,
     ctx: &mut TheContext,
-    server_ctx: &mut ServerContext,
+    server_ctx: &mut CreatorContext,
     kind: SurfaceReliefKind,
 ) -> Option<ProjectUndoAtom> {
     let (width, height) = selected_dimensions(nodeui, map);
@@ -533,7 +533,7 @@ fn apply_surface_relief(
         TheValue::Empty,
     ));
     Some(ProjectUndoAtom::MapEdit(
-        server_ctx.pc,
+        server_ctx.shared.pc,
         Box::new(prev),
         Box::new(map.clone()),
     ))
@@ -545,9 +545,9 @@ fn load_default_dimensions(nodeui: &mut TheNodeUI, map: &Map) {
     nodeui.set_f32_value("actionCreateRidgeHeight", (step * 0.08).max(0.01));
 }
 
-fn surface_relief_is_applicable(map: &Map, server_ctx: &ServerContext) -> bool {
-    server_ctx.get_map_context() == MapContext::Region
-        && server_ctx.editor_view_mode != EditorViewMode::D2
+fn surface_relief_is_applicable(map: &Map, server_ctx: &CreatorContext) -> bool {
+    server_ctx.shared.get_map_context() == MapContext::Region
+        && server_ctx.shared.editor_view_mode != EditorViewMode::D2
         && (!map.selected_geometry_surface_segments.is_empty()
             || !map.selected_geometry_surface_points.is_empty())
 }
@@ -575,7 +575,7 @@ impl Action for CreateRidge {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
         surface_relief_is_applicable(map, server_ctx)
     }
 
@@ -588,7 +588,7 @@ impl Action for CreateRidge {
         map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         apply_surface_relief(&self.nodeui, map, ctx, server_ctx, SurfaceReliefKind::Ridge)
     }
@@ -603,7 +603,7 @@ impl Action for CreateRidge {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -632,7 +632,7 @@ impl Action for CreateGroove {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
         surface_relief_is_applicable(map, server_ctx)
     }
 
@@ -645,7 +645,7 @@ impl Action for CreateGroove {
         map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         apply_surface_relief(
             &self.nodeui,
@@ -666,7 +666,7 @@ impl Action for CreateGroove {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

@@ -9,13 +9,13 @@ pub(super) struct Stamp {
     target: Option<[u32; 2]>,
 }
 impl Stamp {
-    fn target(server: &ServerContext) -> Option<Vec2<f32>> {
-        if server.editor_view_mode == EditorViewMode::D2 {
-            server.hover_cursor
+    fn target(server: &CreatorContext) -> Option<Vec2<f32>> {
+        if server.shared.editor_view_mode == EditorViewMode::D2 {
+            server.shared.hover_cursor
         } else {
             server
-                .hover_cursor_3d
-                .or_else(|| server.geo_hit.map(|_| server.geo_hit_pos))
+                .shared.hover_cursor_3d
+                .or_else(|| server.shared.geo_hit.map(|_| server.shared.geo_hit_pos))
                 .map(|point| Vec2::new(point.x, point.z))
         }
     }
@@ -23,8 +23,8 @@ impl Stamp {
     pub(super) fn has_target(&self) -> bool {
         self.target.is_some()
     }
-    pub(super) fn current(server: &ServerContext) -> Option<Self> {
-        let clipboard = server.paste_clipboard.as_ref()?;
+    pub(super) fn current(server: &CreatorContext) -> Option<Self> {
+        let clipboard = server.shared.paste_clipboard.as_ref()?;
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         serde_json::to_vec(clipboard)
             .expect("serializable clipboard")
@@ -102,9 +102,9 @@ impl Editor {
             .unwrap_or(&bridge.assets);
         let key = Key {
             document: self.documents.active_id().expect("paste document"),
-            mode: self.server_ctx.editor_view_mode,
+            mode: self.server_ctx.shared.editor_view_mode,
             custom: custom::Description::current(authored, &self.server_ctx).is_some(),
-            context: self.server_ctx.pc,
+            context: self.server_ctx.shared.pc,
             runtime: self
                 .play_session
                 .as_ref()
@@ -124,7 +124,7 @@ impl Editor {
                 .target
                 .map(|point| Vec2::new(f32::from_bits(point[0]), f32::from_bits(point[1])))
             {
-                map.paste_at_position(self.server_ctx.paste_clipboard.as_ref().unwrap(), point);
+                map.paste_at_position(self.server_ctx.shared.paste_clipboard.as_ref().unwrap(), point);
             }
             let mut ignored = FxHashSet::default();
             ignored.extend(
@@ -220,15 +220,15 @@ impl Editor {
             .map(|camera| CameraStamp::new(camera.as_ref(), binding.size));
         let old_target = Stamp::target(&self.server_ctx);
         if binding.mode == EditorViewMode::D2 {
-            self.server_ctx.hover_cursor = Some(self.server_ctx.local_to_map_grid(
+            self.server_ctx.shared.hover_cursor = Some(self.server_ctx.shared.local_to_map_grid(
                 Vec2::new(binding.size.0 as f32, binding.size.1 as f32),
                 Vec2::new(at.x as f32, at.y as f32),
                 map,
                 map.subdivisions,
             ));
-            self.server_ctx.hover_cursor_3d = None;
-            self.server_ctx.hover_ray_origin_3d = None;
-            self.server_ctx.hover_ray_dir_3d = None;
+            self.server_ctx.shared.hover_cursor_3d = None;
+            self.server_ctx.shared.hover_ray_origin_3d = None;
+            self.server_ctx.shared.hover_ray_dir_3d = None;
         } else {
             let world = &mut self.native_viewport.world;
             let Some(frame) = world.presented.as_ref().filter(|frame| {
@@ -260,16 +260,16 @@ impl Editor {
             let Some(position) = surface_target(&pick) else {
                 return true;
             };
-            self.server_ctx.hover_cursor = None;
-            self.server_ctx.hover_cursor_3d = Some(position);
-            self.server_ctx.hover_ray_origin_3d = pick.ray.map(|(origin, _)| origin);
-            self.server_ctx.hover_ray_dir_3d = pick.ray.map(|(_, direction)| direction);
+            self.server_ctx.shared.hover_cursor = None;
+            self.server_ctx.shared.hover_cursor_3d = Some(position);
+            self.server_ctx.shared.hover_ray_origin_3d = pick.ray.map(|(origin, _)| origin);
+            self.server_ctx.shared.hover_ray_dir_3d = pick.ray.map(|(_, direction)| direction);
         }
-        self.server_ctx.hover = (None, None, None);
-        self.server_ctx.geo_hit = None;
-        self.server_ctx.hover_surface = None;
-        self.server_ctx.hover_surface_hit_pos = None;
-        self.server_ctx.hover_surface_normal = None;
+        self.server_ctx.shared.hover = (None, None, None);
+        self.server_ctx.shared.geo_hit = None;
+        self.server_ctx.shared.hover_surface = None;
+        self.server_ctx.shared.hover_surface_hit_pos = None;
+        self.server_ctx.shared.hover_surface_normal = None;
         let moved = old_target != Stamp::target(&self.server_ctx);
         ctx.ui.redraw_all |= moved;
         if !matches!(input, MapEvent::MapClicked(_)) {

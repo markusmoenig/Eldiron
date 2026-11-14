@@ -5,10 +5,10 @@ fn set_dirty_and_status(ctx: &mut TheContext, status: String, reference: &Creato
     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
 }
 
-fn editor_preview_render_applicable(server_ctx: &ServerContext) -> bool {
-    server_ctx.get_map_context() == MapContext::Region
-        && !server_ctx.pc.is_prefab()
-        && server_ctx.editor_view_mode != EditorViewMode::D2
+fn editor_preview_render_applicable(server_ctx: &CreatorContext) -> bool {
+    server_ctx.shared.get_map_context() == MapContext::Region
+        && !server_ctx.shared.pc.is_prefab()
+        && server_ctx.shared.editor_view_mode != EditorViewMode::D2
 }
 
 pub struct ToggleEditorPreviewPost {
@@ -44,7 +44,7 @@ impl Action for ToggleEditorPreviewPost {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
         editor_preview_render_applicable(server_ctx)
     }
 
@@ -53,7 +53,7 @@ impl Action for ToggleEditorPreviewPost {
         _map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let enabled = {
             let mut rusterix = _server_ctx.reference.write();
@@ -80,7 +80,7 @@ impl Action for ToggleEditorPreviewPost {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -119,7 +119,7 @@ impl Action for ToggleEditorPreviewLighting {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
         editor_preview_render_applicable(server_ctx)
     }
 
@@ -128,7 +128,7 @@ impl Action for ToggleEditorPreviewLighting {
         _map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let enabled = {
             let mut rusterix = _server_ctx.reference.write();
@@ -155,7 +155,7 @@ impl Action for ToggleEditorPreviewLighting {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -167,11 +167,11 @@ mod tests {
 
     #[test]
     fn preview_post_and_lighting_are_region_only() {
-        let mut server_ctx = ServerContext::default();
-        server_ctx.editor_view_mode = EditorViewMode::Orbit;
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.editor_view_mode = EditorViewMode::Orbit;
         assert!(editor_preview_render_applicable(&server_ctx));
 
-        server_ctx.pc = ProjectContext::Prefab(Uuid::new_v4());
+        server_ctx.shared.pc = ProjectContext::Prefab(Uuid::new_v4());
         assert!(!editor_preview_render_applicable(&server_ctx));
     }
 }

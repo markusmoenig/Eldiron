@@ -676,10 +676,10 @@ mod tests {
             .0;
         let mut region = shared::region::Region::new();
         region.map.camera = rusterix::MapCamera::TwoDIso;
-        let mut server = ServerContext::default();
-        server.curr_region = region.id;
-        server.pc = ProjectContext::Region(region.id);
-        server.curr_map_tool_type = MapToolType::IsoPaint;
+        let mut server = CreatorContext::default();
+        server.shared.curr_region = region.id;
+        server.shared.pc = ProjectContext::Region(region.id);
+        server.shared.curr_map_tool_type = MapToolType::IsoPaint;
         p.regions = vec![region];
         let (mut ui, mut ctx) = super::super::tests::workspace_ui(1500, 950);
         let map_canvas = crate::mapeditor::MapEditor::new().init_ui(&mut ui, &mut ctx, &mut p);
@@ -803,10 +803,10 @@ mod tests {
         let start = std::time::Instant::now();
         install(&mut p).unwrap();
         eprintln!("Paint library install: {:?}", start.elapsed());
-        let mut server = ServerContext::default();
-        server.curr_region = p.regions[0].id;
-        server.pc = ProjectContext::Region(server.curr_region);
-        server.curr_map_tool_type = MapToolType::IsoPaint;
+        let mut server = CreatorContext::default();
+        server.shared.curr_region = p.regions[0].id;
+        server.shared.pc = ProjectContext::Region(server.shared.curr_region);
+        server.shared.curr_map_tool_type = MapToolType::IsoPaint;
         let asset = |p: &Project, name: &str| {
             p.tiles
                 .iter()
@@ -910,7 +910,7 @@ mod tests {
             &mut p,
             &mut server,
         );
-        server.curr_tile_id = Some(flower);
+        server.shared.curr_tile_id = Some(flower);
         let mut pixels = vec![0; 1660 * 960 * 4];
         ui.draw(&mut pixels, &mut ctx);
         dock.handle_event(

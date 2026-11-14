@@ -4,17 +4,17 @@ pub const MODE: &str = "Paint Picker Mode";
 const EDIT: &str = "Paint Picker Edit";
 pub(crate) fn layer<'a>(
     project: &'a mut Project,
-    server: &ServerContext,
+    server: &CreatorContext,
 ) -> Option<&'a mut IsoPaintLayer> {
-    if let ProjectContext::Prefab(id) = server.pc {
+    if let ProjectContext::Prefab(id) = server.shared.pc {
         Some(project.block_prop_paint.entry(id).or_default())
     } else {
         project
-            .get_region_mut(&server.curr_region)
+            .get_region_mut(&server.shared.curr_region)
             .map(|r| &mut r.iso_paint)
     }
 }
-pub fn pick(id: Uuid, project: &mut Project, server: &ServerContext) -> bool {
+pub fn pick(id: Uuid, project: &mut Project, server: &CreatorContext) -> bool {
     let Some(tile) = project
         .tiles
         .get(&id)
@@ -60,7 +60,7 @@ pub fn toolbar(
     _ui: &mut TheUI,
     ctx: &mut TheContext,
     project: &mut Project,
-    server: &ServerContext,
+    server: &CreatorContext,
 ) {
     if let Some(paint) = layer(project, server) {
         paint.apply_source_settings();
@@ -72,7 +72,7 @@ fn publish(
     ui: &mut TheUI,
     ctx: &mut TheContext,
     project: &mut Project,
-    server: &ServerContext,
+    server: &CreatorContext,
     spec: shared::paint_source::Spec,
 ) -> Result<(), String> {
     let id = layer(project, server)
@@ -103,9 +103,9 @@ pub fn activate(
     ui: &mut TheUI,
     ctx: &mut TheContext,
     project: &mut Project,
-    server: &mut ServerContext,
+    server: &mut CreatorContext,
 ) {
-    server.curr_action_id = None;
+    server.shared.curr_action_id = None;
     if let Err(error) = crate::procedural_material::paint_assets::install(project) {
         ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
     }
@@ -125,13 +125,13 @@ pub fn activate(
         if current.is_none() {
             pick(id, project, server);
         }
-        server.curr_tile_id = Some(id);
-        server.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
+        server.shared.curr_tile_id = Some(id);
+        server.shared.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
     }
     // The isolated Prefab editor owns its lower tile picker. Switching
     // the application dock here would minimize that editor and re-enter the
     // ToolList lock held by tool activation.
-    if !server.pc.is_prefab() {
+    if !server.shared.pc.is_prefab() {
         server.docks.write().set_dock(
             "Tiles".into(),
             ui,
@@ -173,9 +173,9 @@ pub fn event(
     ui: &mut TheUI,
     ctx: &mut TheContext,
     project: &mut Project,
-    server: &mut ServerContext,
+    server: &mut CreatorContext,
 ) -> bool {
-    if server.curr_map_tool_type != MapToolType::IsoPaint {
+    if server.shared.curr_map_tool_type != MapToolType::IsoPaint {
         return false;
     }
     let source = layer(project, server).and_then(|p| p.active_source);
@@ -373,7 +373,7 @@ fn legacy_event(
     ui: &mut TheUI,
     ctx: &mut TheContext,
     project: &mut Project,
-    server: &mut ServerContext,
+    server: &mut CreatorContext,
 ) -> bool {
     match event {
         TheEvent::Custom(id, _)
@@ -393,7 +393,7 @@ fn legacy_event(
         TheEvent::StateChanged(id, TheWidgetState::Clicked)
             if id.name == "Paint Picker Fill" || id.name == "Paint Picker Clear" =>
         {
-            let context = server.pc;
+            let context = server.shared.pc;
             let Some(paint) = layer(project, server) else {
                 return false;
             };
@@ -414,7 +414,7 @@ fn legacy_event(
                 } else {
                     ProjectUndoAtom::RegionPaintEdit(
                         context,
-                        server.curr_region,
+                        server.shared.curr_region,
                         Box::new(before),
                         Box::new(paint.clone()),
                     )

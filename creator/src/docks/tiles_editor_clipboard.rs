@@ -117,7 +117,7 @@ impl TilesEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> Option<bool> {
         if let TheEvent::ImageClipboardResult(request, result) = event {
             if self
@@ -128,7 +128,7 @@ impl TilesEditorDock {
                 return Some(false);
             }
             let pending = self.pending_clipboard.take().unwrap();
-            if pending.context != server.editing_ctx
+            if pending.context != server.shared.editing_ctx
                 || pending.revision != self.clipboard_revision
                 || focused(ui, ctx) != Some(pending.focus)
                 || selection(ui) != pending.selection
@@ -200,7 +200,7 @@ impl TilesEditorDock {
             self.pending_clipboard = None;
             return Some(false);
         };
-        let Some(source) = project.get_editing_texture(&server.editing_ctx) else {
+        let Some(source) = project.get_editing_texture(&server.shared.editing_ctx) else {
             return Some(false);
         };
         if source.width == 0
@@ -248,7 +248,7 @@ impl TilesEditorDock {
         self.pending_clipboard = Some(Pending {
             request,
             intent,
-            context: server.editing_ctx,
+            context: server.shared.editing_ctx,
             source: source.clone(),
             selection,
             focus,
@@ -269,8 +269,8 @@ impl TilesEditorDock {
     ) {
         use theframework::platform::UiSession;
         let mut project = source.clone();
-        let mut server = ServerContext::new();
-        server.editing_ctx = editing;
+        let mut server = CreatorContext::new();
+        server.shared.editing_ctx = editing;
         let original = project.get_editing_texture(&editing).unwrap().clone();
         let mut dock = Self::new();
         let mut session = UiSession::new((640, 420), 1.25);
@@ -298,7 +298,7 @@ impl TilesEditorDock {
             dock: &mut TilesEditorDock,
             session: &mut UiSession,
             project: &mut Project,
-            server: &mut ServerContext,
+            server: &mut CreatorContext,
             event: TheEvent,
         ) -> ImageClipboardRequest {
             assert_eq!(
@@ -317,7 +317,7 @@ impl TilesEditorDock {
             dock: &mut TilesEditorDock,
             session: &mut UiSession,
             project: &mut Project,
-            server: &mut ServerContext,
+            server: &mut CreatorContext,
             request: u64,
             result: ImageClipboardResult,
         ) {

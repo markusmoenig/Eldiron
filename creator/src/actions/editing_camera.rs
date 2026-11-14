@@ -36,11 +36,11 @@ impl Action for EditingCamera {
         Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '2'))
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        (server_ctx.editor_view_mode != EditorViewMode::D2
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        (server_ctx.shared.editor_view_mode != EditorViewMode::D2
             || map.camera == rusterix::MapCamera::TwoDIso
-            || server_ctx.editing_surface.is_some())
-            && server_ctx.get_map_context() == MapContext::Region
+            || server_ctx.shared.editing_surface.is_some())
+            && server_ctx.shared.get_map_context() == MapContext::Region
     }
 
     fn apply(
@@ -48,9 +48,9 @@ impl Action for EditingCamera {
         _map: &mut Map,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
-        server_ctx.editing_surface = None;
+        server_ctx.shared.editing_surface = None;
         ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(0));
         ctx.ui.send(TheEvent::IndexChanged(
             TheId::named("Editor View Switch"),
@@ -70,7 +70,7 @@ impl Action for EditingCamera {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

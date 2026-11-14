@@ -127,7 +127,7 @@ impl NodesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         if !self.is_rules() {
             return false;

@@ -581,10 +581,10 @@ impl BlocksDock {
         });
     }
 
-    fn request_visible_meshes(&mut self, ui: &mut TheUI, server: &ServerContext) {
+    fn request_visible_meshes(&mut self, ui: &mut TheUI, server: &CreatorContext) {
         let mut wanted = vec![];
-        if server.block_recipe_pending
-            && let Some(id) = server.curr_block_asset_id
+        if server.shared.block_recipe_pending
+            && let Some(id) = server.shared.curr_block_asset_id
         {
             wanted.push(id);
         }
@@ -599,8 +599,8 @@ impl BlocksDock {
             .copied()
             .collect::<std::collections::HashSet<_>>();
         let selected = server
-            .block_recipe_pending
-            .then_some(server.curr_block_asset_id)
+            .shared.block_recipe_pending
+            .then_some(server.shared.curr_block_asset_id)
             .flatten();
         if next != self.mesh_requested || selected != self.mesh_requested_selection {
             self.mesh_requested_selection = selected;
@@ -613,7 +613,7 @@ impl BlocksDock {
 
     fn install_mesh_textures(
         project: &mut Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         textures: &IndexMap<Uuid, rusterix::Tile>,
     ) {
         let mut added = false;
@@ -722,8 +722,8 @@ impl BlocksDock {
         items
     }
 
-    fn ensure_selection(&mut self, project: &Project, server_ctx: &mut ServerContext) {
-        let selected = server_ctx.curr_block_asset_id.unwrap_or(self.selected);
+    fn ensure_selection(&mut self, project: &Project, server_ctx: &mut CreatorContext) {
+        let selected = server_ctx.shared.curr_block_asset_id.unwrap_or(self.selected);
         if block_asset(selected).is_some()
             || bundled_prefab(selected).is_some()
             || project.block_props.contains_key(&selected)
@@ -733,8 +733,8 @@ impl BlocksDock {
         } else {
             self.selected = default_block_asset_id();
         }
-        server_ctx.curr_block_asset_id = Some(self.selected);
-        server_ctx.curr_block_asset_name = block_asset(self.selected)
+        server_ctx.shared.curr_block_asset_id = Some(self.selected);
+        server_ctx.shared.curr_block_asset_name = block_asset(self.selected)
             .map(|asset| asset.name.to_string())
             .or_else(|| bundled_prefab(self.selected).map(|asset| asset.name.clone()))
             .or_else(|| {
@@ -756,7 +756,7 @@ impl BlocksDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.sync_project_assets(project);
         self.ensure_selection(project, server_ctx);
@@ -792,7 +792,7 @@ impl BlocksDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let asset_id = self.selected;
         if !project.block_props.contains_key(&asset_id) {
@@ -806,8 +806,8 @@ impl BlocksDock {
                     .retain(|(cached_id, _), _| *cached_id != asset_id);
                 self.selected = default_block_asset_id();
                 self.active_tab = BlockCatalogTab::Blocks;
-                server_ctx.curr_block_asset_id = Some(self.selected);
-                server_ctx.curr_block_asset_name =
+                server_ctx.shared.curr_block_asset_id = Some(self.selected);
+                server_ctx.shared.curr_block_asset_name =
                     block_asset(self.selected).map(|asset| asset.name.to_string());
 
                 server_ctx.reference.write()
@@ -876,7 +876,7 @@ impl BlocksDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let source = project
             .block_props
@@ -903,8 +903,8 @@ impl BlocksDock {
         }
         self.selected = duplicate_id;
         self.active_tab = BlockCatalogTab::User;
-        server_ctx.curr_block_asset_id = Some(duplicate_id);
-        server_ctx.curr_block_asset_name = Some(duplicate_name.clone());
+        server_ctx.shared.curr_block_asset_id = Some(duplicate_id);
+        server_ctx.shared.curr_block_asset_name = Some(duplicate_name.clone());
 
         server_ctx.reference.write()
             .set_block_props(project.block_props.clone());
@@ -941,7 +941,7 @@ mod tests {
     #[test]
     fn mesh_browser_routes_real_wheel_input_while_previews_are_stalled() {
         let mut project = Project::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let mut dock = BlocksDock::new();
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(440, 240, 1.);
@@ -1016,17 +1016,17 @@ mod tests {
             &mut project,
             &mut server,
         );
-        assert_eq!(server.curr_block_asset_id, Some(selected));
-        assert!(server.block_recipe_pending);
+        assert_eq!(server.shared.curr_block_asset_id, Some(selected));
+        assert!(server.shared.block_recipe_pending);
         assert!(
-            server.block_recipe_template.is_none(),
+            server.shared.block_recipe_template.is_none(),
             "selection must not evaluate on the UI thread"
         );
         crate::tools::props_recipe::prepare(&mut project, &mut server).unwrap();
-        assert!(server.block_recipe_template.is_none());
+        assert!(server.shared.block_recipe_template.is_none());
         dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server);
         assert_eq!(jobs.try_recv().unwrap()[0], selected);
-        server.block_recipe_pending = false;
+        server.shared.block_recipe_pending = false;
         let id = ids[scrolled.start];
         send.send(MeshPreviewResult::Preview(
             id,
@@ -1220,9 +1220,9 @@ mod tests {
             .map
             .block_prop_instances
             .extend([table, torch]);
-        let mut server = ServerContext::default();
-        server.curr_region = project.regions[0].id;
-        server.pc = ProjectContext::Region(server.curr_region);
+        let mut server = CreatorContext::default();
+        server.shared.curr_region = project.regions[0].id;
+        server.shared.pc = ProjectContext::Region(server.shared.curr_region);
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(1440, 960, 1.);
         ui.set_theme(Box::new(TheBrownTheme::new()), &mut ctx);
@@ -1246,13 +1246,13 @@ mod tests {
             .unwrap();
         // The 2D and 2D Iso cameras cannot activate 3D Props.
         assert!(!tools.set_tool(props, &mut ui, &mut ctx, &mut project, &mut server));
-        assert!(!server.block_tool_active);
-        server.editor_view_mode = EditorViewMode::Orbit;
+        assert!(!server.shared.block_tool_active);
+        server.shared.editor_view_mode = EditorViewMode::Orbit;
         assert!(tools.set_tool(props, &mut ui, &mut ctx, &mut project, &mut server));
         dock.activate(&mut ui, &mut ctx, &project, &mut server);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        server.curr_block_asset_id = Some(id);
-        server.block_recipe_pending = true;
+        server.shared.curr_block_asset_id = Some(id);
+        server.shared.block_recipe_pending = true;
         while !dock.mesh_templates.contains_key(&id) && std::time::Instant::now() < deadline {
             dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server);
             std::thread::sleep(std::time::Duration::from_millis(1));
@@ -1282,8 +1282,8 @@ mod tests {
             &mut project,
             &mut server,
         );
-        assert_eq!(server.curr_block_asset_id, Some(id));
-        assert!(server.pc.is_region());
+        assert_eq!(server.shared.curr_block_asset_id, Some(id));
+        assert!(server.shared.pc.is_region());
         let mut pixels = vec![0; 1440 * 960 * 4];
         ui.draw(&mut pixels, &mut ctx);
         let mut assets = rusterix::Assets::default();
@@ -1301,7 +1301,7 @@ mod tests {
         ui.update(&mut ctx);
         for _ in events.try_iter() {}
         // The whole overlay gesture, including a release outside it, is consumed.
-        server.hover_cursor_3d = Some(Vec3::new(3., 0., 4.));
+        server.shared.hover_cursor_3d = Some(Vec3::new(3., 0., 4.));
         let count = project.regions[0].map.geometry_objects.len();
         let at = Vec2::new(70, 144);
         assert!(
@@ -1349,7 +1349,7 @@ mod tests {
         for event in rotation {
             tools.handle_event(&event, &mut ui, &mut ctx, &mut project, &mut server);
         }
-        assert_eq!(server.block_rotation_quarters, 1);
+        assert_eq!(server.shared.block_rotation_quarters, 1);
         assert_eq!(project.regions[0].map.geometry_objects.len(), count);
         // Map click places linked geometry without opening an editor or adding a Prefab.
         let prefabs = project.block_props.len();
@@ -1528,7 +1528,7 @@ impl Dock for BlocksDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.sync_project_assets(project);
         self.ensure_selection(project, server_ctx);
@@ -1544,8 +1544,8 @@ impl Dock for BlocksDock {
             BlockCatalogTab::User
         };
         if self.active_tab == BlockCatalogTab::Meshes {
-            server_ctx.block_recipe_template = self.mesh_templates.get(&self.selected).cloned();
-            server_ctx.block_recipe_pending = server_ctx.block_recipe_template.is_none();
+            server_ctx.shared.block_recipe_template = self.mesh_templates.get(&self.selected).cloned();
+            server_ctx.shared.block_recipe_pending = server_ctx.shared.block_recipe_template.is_none();
         }
         self.sync_widgets(ui, ctx, project, server_ctx);
     }
@@ -1570,7 +1570,7 @@ impl Dock for BlocksDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         self.sync_mesh_previews(project);
         let mut results = vec![];
@@ -1597,14 +1597,14 @@ impl Dock for BlocksDock {
             match result {
                 MeshPreviewResult::Catalog(entries) => {
                     self.mesh_assets = entries;
-                    if server.curr_block_asset_id.is_some_and(|id| {
+                    if server.shared.curr_block_asset_id.is_some_and(|id| {
                         project.procedural_appearances.contains_key(&id)
                             && !self.mesh_assets.iter().any(|a| a.0 == id)
                     }) {
                         self.selected = default_block_asset_id();
-                        server.curr_block_asset_id = Some(self.selected);
-                        server.block_recipe_pending = false;
-                        server.block_recipe_template = None;
+                        server.shared.curr_block_asset_id = Some(self.selected);
+                        server.shared.block_recipe_pending = false;
+                        server.shared.block_recipe_template = None;
                     }
                     self.ensure_selection(project, server);
                     let items = self.icon_items(BlockCatalogTab::Meshes);
@@ -1625,9 +1625,9 @@ impl Dock for BlocksDock {
                     {
                         board.set_item_icon(index, Some(icon.clone()));
                     }
-                    if server.curr_block_asset_id == Some(id) && server.block_recipe_pending {
-                        server.block_recipe_pending = false;
-                        server.block_recipe_template = Some(object.clone());
+                    if server.shared.curr_block_asset_id == Some(id) && server.shared.block_recipe_pending {
+                        server.shared.block_recipe_pending = false;
+                        server.shared.block_recipe_template = Some(object.clone());
                         Self::install_mesh_textures(project, server, &textures);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Props Selection Changed"),
@@ -1640,11 +1640,11 @@ impl Dock for BlocksDock {
                 }
                 MeshPreviewResult::Rejected(id) => {
                     self.mesh_assets.retain(|a| a.0 != id);
-                    if server.curr_block_asset_id == Some(id) {
-                        server.block_recipe_pending = false;
-                        server.block_recipe_template = None;
+                    if server.shared.curr_block_asset_id == Some(id) {
+                        server.shared.block_recipe_pending = false;
+                        server.shared.block_recipe_template = None;
                         self.selected = default_block_asset_id();
-                        server.curr_block_asset_id = Some(self.selected);
+                        server.shared.curr_block_asset_id = Some(self.selected);
                         self.ensure_selection(project, server);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Props Selection Changed"),
@@ -1677,7 +1677,7 @@ impl Dock for BlocksDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match event {
             TheEvent::IndexChanged(id, index)
@@ -1724,15 +1724,15 @@ impl Dock for BlocksDock {
                         .sync_block_props(project.block_props.clone());
                 }
                 self.selected = asset_id;
-                server_ctx.curr_block_asset_id = Some(asset_id);
+                server_ctx.shared.curr_block_asset_id = Some(asset_id);
                 if let Some(asset) = block_asset(asset_id) {
-                    server_ctx.block_height_cells = block_asset_default_sizing(asset).height_cells;
+                    server_ctx.shared.block_height_cells = block_asset_default_sizing(asset).height_cells;
                 } else if let Some(asset) = project.block_props.get(&asset_id)
                     && prefab_uses_auto_sizing(asset)
                 {
-                    server_ctx.block_height_cells = asset.placement.footprint[1].max(1) as f32;
+                    server_ctx.shared.block_height_cells = asset.placement.footprint[1].max(1) as f32;
                 }
-                server_ctx.curr_block_asset_name = block_asset(asset_id)
+                server_ctx.shared.curr_block_asset_name = block_asset(asset_id)
                     .map(|asset| asset.name.to_string())
                     .or_else(|| bundled_prefab(asset_id).map(|asset| asset.name.clone()))
                     .or_else(|| {
@@ -1742,19 +1742,19 @@ impl Dock for BlocksDock {
                             .map(|asset| asset.name.clone())
                     });
                 if let Some((_, label, _)) = self.mesh_assets.iter().find(|a| a.0 == asset_id) {
-                    server_ctx.curr_block_asset_name = Some(label.clone());
+                    server_ctx.shared.curr_block_asset_name = Some(label.clone());
                 }
-                server_ctx.block_recipe_pending =
+                server_ctx.shared.block_recipe_pending =
                     tab == BlockCatalogTab::Meshes && !self.mesh_templates.contains_key(&asset_id);
-                server_ctx.block_recipe_template = self.mesh_templates.get(&asset_id).cloned();
+                server_ctx.shared.block_recipe_template = self.mesh_templates.get(&asset_id).cloned();
                 if let Some(textures) = self.mesh_textures.get(&asset_id) {
                     Self::install_mesh_textures(project, server_ctx, textures);
                 }
-                if !server_ctx.block_recipe_pending && server_ctx.block_recipe_template.is_none() {
+                if !server_ctx.shared.block_recipe_pending && server_ctx.shared.block_recipe_template.is_none() {
                     if let Err(error) = crate::tools::props_recipe::prepare(project, server_ctx) {
-                        server_ctx.block_recipe_template = None;
+                        server_ctx.shared.block_recipe_template = None;
                         ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
-                    } else if server_ctx.block_recipe_template.is_some() {
+                    } else if server_ctx.shared.block_recipe_template.is_some() {
                         crate::utils::editor_scene_refresh_material_textures(project, server_ctx);
                     }
                 }
@@ -1779,21 +1779,21 @@ impl Dock for BlocksDock {
                 true
             }
             TheEvent::IndexChanged(id, index) if id.name == BLOCKS_DOCK_OPERATION => {
-                server_ctx.block_operation =
+                server_ctx.shared.block_operation =
                     (*index as i32).clamp(BLOCK_OPERATION_PLACE, BLOCK_OPERATION_ERASE);
                 self.sync_widgets(ui, ctx, project, server_ctx);
                 Self::update_overlay(ctx);
                 true
             }
             TheEvent::IndexChanged(id, index) if id.name == BLOCKS_DOCK_STROKE => {
-                server_ctx.block_stroke_mode =
+                server_ctx.shared.block_stroke_mode =
                     (*index as i32).clamp(BLOCK_STROKE_LINE, BLOCK_STROKE_RECT);
                 self.sync_widgets(ui, ctx, project, server_ctx);
                 Self::update_overlay(ctx);
                 true
             }
             TheEvent::IndexChanged(id, index) if id.name == BLOCKS_DOCK_DAMAGE => {
-                server_ctx.block_damage_enabled = *index == 1;
+                server_ctx.shared.block_damage_enabled = *index == 1;
                 self.sync_widgets(ui, ctx, project, server_ctx);
                 Self::update_overlay(ctx);
                 true

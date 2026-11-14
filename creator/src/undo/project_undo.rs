@@ -73,7 +73,7 @@ impl ProjectUndo {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if self.index >= 0 {
             self.stack[self.index as usize].undo(project, ui, ctx, server_ctx);
@@ -86,7 +86,7 @@ impl ProjectUndo {
         region: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if self.index < self.stack.len() as isize - 1 {
             self.index += 1;

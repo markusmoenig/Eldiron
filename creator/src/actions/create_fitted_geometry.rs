@@ -981,9 +981,9 @@ impl Action for CreateFittedGeometry {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
             && fitted_input_is_available(map)
     }
 
@@ -999,7 +999,7 @@ impl Action for CreateFittedGeometry {
         map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let previous = map.clone();
         let options = FittedOptions {
@@ -1057,7 +1057,7 @@ impl Action for CreateFittedGeometry {
             TheValue::Empty,
         ));
         Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
+            server_ctx.shared.pc,
             Box::new(previous),
             Box::new(map.clone()),
         ))
@@ -1073,7 +1073,7 @@ impl Action for CreateFittedGeometry {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

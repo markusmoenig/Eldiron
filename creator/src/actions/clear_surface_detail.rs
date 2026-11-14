@@ -107,10 +107,10 @@ impl Action for ClearSurfaceDetail {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
-            && surface_detail_targets_have_detail(map, server_ctx.curr_map_tool_type)
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
+            && surface_detail_targets_have_detail(map, server_ctx.shared.curr_map_tool_type)
     }
 
     fn apply(
@@ -118,10 +118,10 @@ impl Action for ClearSurfaceDetail {
         map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let prev = map.clone();
-        if !clear_selected_surface_detail(map, server_ctx.curr_map_tool_type) {
+        if !clear_selected_surface_detail(map, server_ctx.shared.curr_map_tool_type) {
             return None;
         }
 
@@ -140,7 +140,7 @@ impl Action for ClearSurfaceDetail {
         ));
         ctx.ui.redraw_all = true;
         Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
+            server_ctx.shared.pc,
             Box::new(prev),
             Box::new(map.clone()),
         ))
@@ -156,7 +156,7 @@ impl Action for ClearSurfaceDetail {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

@@ -265,7 +265,7 @@ impl WorldGpu {
         &mut self,
         frame: &NativeWorldFrame,
         at: Vec2<i32>,
-        server: &ServerContext,
+        server: &CreatorContext,
         rectangle: Option<(Vec2<f32>, Vec2<f32>, scenevm::GeoId)>,
         capture_surface: bool,
     ) -> Option<(EditorPick, crate::tools::ToolViewInput)> {
@@ -276,13 +276,13 @@ impl WorldGpu {
                 at.y as f32 / frame.binding.size.1 as f32,
             ],
             matches!(
-                server.curr_map_tool_type,
+                server.shared.curr_map_tool_type,
                 MapToolType::Vertex
                     | MapToolType::Linedef
                     | MapToolType::Sector
                     | MapToolType::Effects
             ),
-            server.curr_map_tool_type != MapToolType::Sector,
+            server.shared.curr_map_tool_type != MapToolType::Sector,
         )?;
         let rectangle = match rectangle {
             Some((top, bottom, kind)) => Some((
@@ -293,7 +293,7 @@ impl WorldGpu {
             )),
             None => None,
         };
-        let paint = if server.curr_map_tool_type == MapToolType::IsoPaint {
+        let paint = if server.shared.curr_map_tool_type == MapToolType::IsoPaint {
             let uv = [
                 at.x as f32 / frame.binding.size.0 as f32,
                 at.y as f32 / frame.binding.size.1 as f32,
@@ -577,40 +577,40 @@ impl NativeWorld {
 }
 fn slots(
     map: &Map,
-    server: &ServerContext,
+    server: &CreatorContext,
 ) -> Option<Vec<(String, Option<rusterix::PixelSource>)>> {
     crate::actions::named_geometry_hud_material_slots_for_selection(map)
         .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map, &server.reference))
         .or_else(|| {
             let actions = server.actions.read();
             actions
-                .get_action_by_id(server.curr_action_id?)?
+                .get_action_by_id(server.shared.curr_action_id?)?
                 .hud_material_slots(map, server)
         })
         .map(|slots| slots.into_iter().map(|s| (s.label, s.source)).collect())
 }
 /// Project the acknowledged scene query into the existing authoring controller
 /// state. A miss clears previous hits while retaining its valid ground ray.
-fn apply_pick(pick: EditorPick, map: &Map, server: &mut ServerContext) {
-    server.hover_cursor_3d = None;
-    server.hover_ray_origin_3d = pick.ray.map(|ray| ray.0);
-    server.hover_ray_dir_3d = pick.ray.map(|ray| ray.1);
-    server.hover_surface = None;
-    server.hover_surface_hit_pos = None;
-    server.hover_surface_normal = None;
-    server.geo_hit = None;
-    server.geo_hit_pos = Vec3::zero();
+fn apply_pick(pick: EditorPick, map: &Map, server: &mut CreatorContext) {
+    server.shared.hover_cursor_3d = None;
+    server.shared.hover_ray_origin_3d = pick.ray.map(|ray| ray.0);
+    server.shared.hover_ray_dir_3d = pick.ray.map(|ray| ray.1);
+    server.shared.hover_surface = None;
+    server.shared.hover_surface_hit_pos = None;
+    server.shared.hover_surface_normal = None;
+    server.shared.geo_hit = None;
+    server.shared.geo_hit_pos = Vec3::zero();
     if let Some((geo, at, _)) = pick.gizmo {
-        server.geo_hit = Some(geo);
-        server.geo_hit_pos = at;
+        server.shared.geo_hit = Some(geo);
+        server.shared.geo_hit_pos = at;
         return;
     }
     let mut base_preferred = false;
     if let Some((geo, at, _, normal)) = pick.base {
-        server.hover_cursor_3d = Some(at);
-        server.hover_surface_normal = Some(normal);
-        server.hover_surface_hit_pos = Some(at);
-        server.hover_surface = map
+        server.shared.hover_cursor_3d = Some(at);
+        server.shared.hover_surface_normal = Some(normal);
+        server.shared.hover_surface_hit_pos = Some(at);
+        server.shared.hover_surface = map
             .surfaces
             .values()
             .filter_map(|surface| {
@@ -625,16 +625,16 @@ fn apply_pick(pick: EditorPick, map: &Map, server: &mut ServerContext) {
             .min_by(|a, b| a.1.total_cmp(&b.1))
             .map(|(surface, _)| surface.clone());
         base_preferred = matches!(
-            server.curr_map_tool_type,
+            server.shared.curr_map_tool_type,
             MapToolType::IsoPaint
                 | MapToolType::Rect
                 | MapToolType::Terrain
                 | MapToolType::CollisionProbe
-        ) || (server.curr_map_tool_type == MapToolType::Sector
-            && server.geometry_edit_mode != GeometryEditMode::Detail)
-            || ((server.block_tool_active
+        ) || (server.shared.curr_map_tool_type == MapToolType::Sector
+            && server.shared.geometry_edit_mode != GeometryEditMode::Detail)
+            || ((server.shared.block_tool_active
                 || matches!(
-                    server.curr_map_tool_type,
+                    server.shared.curr_map_tool_type,
                     MapToolType::Selection
                         | MapToolType::Vertex
                         | MapToolType::Linedef
@@ -642,19 +642,19 @@ fn apply_pick(pick: EditorPick, map: &Map, server: &mut ServerContext) {
                 ))
                 && matches!(geo, scenevm::GeoId::GeometryObject(_)));
     }
-    let hit = if base_preferred || server.curr_map_tool_type == MapToolType::Sector {
+    let hit = if base_preferred || server.shared.curr_map_tool_type == MapToolType::Sector {
         pick.base.map(|(geo, at, depth, _)| (geo, at, depth))
     } else {
         pick.guide
     };
     if let Some((geo, at, _)) = hit {
-        server.geo_hit = Some(geo);
-        server.geo_hit_pos = at;
+        server.shared.geo_hit = Some(geo);
+        server.shared.geo_hit_pos = at;
     } else if let Some((origin, direction)) = pick.ray {
         if direction.y.abs() > 1e-6 {
             let distance = -origin.y / direction.y;
             if distance >= 0. {
-                server.hover_cursor_3d = Some(origin + direction * distance);
+                server.shared.hover_cursor_3d = Some(origin + direction * distance);
             }
         }
     }
@@ -707,7 +707,7 @@ impl Editor {
     fn bind_native_world(&mut self, next: Option<Binding>, ui: &mut TheUI, ctx: &mut TheContext) {
         // Paint's surface cache and selection plane belong to the down-camera.
         // Navigation cannot reinterpret them using a newly presented camera.
-        let paint_camera_changed = self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint
+        let paint_camera_changed = self.server_ctx.shared.curr_map_tool_type == MapToolType::IsoPaint
             && self
                 .native_viewport
                 .world
@@ -758,7 +758,7 @@ impl Editor {
                 &mut self.server_ctx,
             );
         }
-        if self.server_ctx.pc != owner.context
+        if self.server_ctx.shared.pc != owner.context
             || scope::map(&self.documents.project, &self.server_ctx)
                 .is_none_or(|map| map.id != owner.map)
         {
@@ -771,16 +771,16 @@ impl Editor {
         tools.get_current_tool().set_view_input(gesture.query);
         // Cancel through the gesture's original projection. Camera switches
         // may already have updated the current view before this barrier runs.
-        let mode = self.server_ctx.editor_view_mode;
+        let mode = self.server_ctx.shared.editor_view_mode;
         let navigation = scope::map(&self.documents.project, &self.server_ctx)
             .map(|map| (map.camera, map.offset, map.grid_size, map.subdivisions));
-        self.server_ctx.editor_view_mode = owner.mode;
+        self.server_ctx.shared.editor_view_mode = owner.mode;
         if let Some(map) = scope::map_mut(&mut self.documents.project, &self.server_ctx) {
             map.camera = owner.camera;
         }
         tools.cancel_native_world_gesture(ui, ctx, &mut self.documents.project, &mut self.server_ctx);
         tools.get_current_tool().set_view_input(None);
-        self.server_ctx.editor_view_mode = mode;
+        self.server_ctx.shared.editor_view_mode = mode;
         let mut projection_changed = false;
         if let (Some((camera, offset, grid, subdivisions)), Some(map)) =
             (navigation, scope::map_mut(&mut self.documents.project, &self.server_ctx))
@@ -802,19 +802,19 @@ impl Editor {
     pub(crate) fn native_world_owns_viewport(&self) -> bool {
         if !self.native_viewport.enabled
             || self.native_display_owns_viewport()
-            || self.server_ctx.game_mode
-            || self.server_ctx.text_game_mode
-            || self.server_ctx.world_mode
-            || self.server_ctx.profile_view.is_some()
+            || self.server_ctx.shared.game_mode
+            || self.server_ctx.shared.text_game_mode
+            || self.server_ctx.shared.world_mode
+            || self.server_ctx.shared.profile_view.is_some()
         {
             return false;
         }
         let Some(map) = scope::map(&self.documents.project, &self.server_ctx) else {
             return false;
         };
-        if !(scope::uses_region(&self.server_ctx) || self.server_ctx.pc.is_prefab() || self.server_ctx.pc.is_screen()
+        if !(scope::uses_region(&self.server_ctx) || self.server_ctx.shared.pc.is_prefab() || self.server_ctx.shared.pc.is_screen()
             || custom::Description::current(map, &self.server_ctx).is_some()) { return false; }
-        if self.server_ctx.editor_view_mode != EditorViewMode::D2
+        if self.server_ctx.shared.editor_view_mode != EditorViewMode::D2
             && map.orthographic_bake.as_ref().is_some_and(|asset| !bake::supported(asset)) {
             // Individual oversized source tiles still need subdivision. Valid
             // ordinary tiles page independently of the whole asset's extent.
@@ -841,7 +841,7 @@ impl Editor {
         {
             return false;
         }
-        if !self.server_ctx.pc.is_prefab()
+        if !self.server_ctx.shared.pc.is_prefab()
             && matches!(
                 tools.current_game_tool_command_id(),
                 Some("tool.effects" | "tool.tile_picker")
@@ -904,10 +904,10 @@ impl Editor {
             custom: custom::Description::current(map, &self.server_ctx),
             view,
             tool,
-            context: self.server_ctx.pc,
+            context: self.server_ctx.shared.pc,
             size: (dim.width as usize, dim.height as usize),
             map: map.id,
-            mode: self.server_ctx.editor_view_mode,
+            mode: self.server_ctx.shared.editor_view_mode,
             camera: map.camera,
             geometry_config: self.native_world_geometry_config(),
             guide_properties: self.build_values.clone(),
@@ -923,9 +923,9 @@ impl Editor {
         if !self.native_world_owns_viewport() {
             return;
         }
-        let d2 = self.server_ctx.editor_view_mode == EditorViewMode::D2;
-        let fx = self.server_ctx.pc.is_prefab()
-            && self.server_ctx.curr_map_tool_type == MapToolType::Effects;
+        let d2 = self.server_ctx.shared.editor_view_mode == EditorViewMode::D2;
+        let fx = self.server_ctx.shared.pc.is_prefab()
+            && self.server_ctx.shared.curr_map_tool_type == MapToolType::Effects;
         let running = self.runtime_state() == rusterix::ServerState::Running;
         if (d2 || fx || running)
             && let Some(gpu) = &mut self.native_viewport.world.gpu
@@ -937,13 +937,13 @@ impl Editor {
     /// receives an immutable camera snapshot and never advances navigation.
     pub(crate) fn advance_native_world_camera(&mut self, ctx: &mut TheContext) -> bool {
         if !self.native_world_owns_viewport()
-            || self.server_ctx.game_input_mode
-            || self.server_ctx.editor_view_mode == EditorViewMode::D2
-            || self.server_ctx.pc.is_prefab()
+            || self.server_ctx.shared.game_input_mode
+            || self.server_ctx.shared.editor_view_mode == EditorViewMode::D2
+            || self.server_ctx.shared.pc.is_prefab()
         {
             return false;
         }
-        let Some(region) = self.documents.project.get_region_ctx_mut(&mut self.server_ctx) else {
+        let Some(region) = self.documents.project.get_region_ctx_mut(&self.server_ctx.shared) else {
             return false;
         };
         let camera = &mut self.server_ctx.camera;
@@ -958,9 +958,9 @@ impl Editor {
         if !self.native_world_owns_viewport() {
             return;
         }
-        if let ProjectContext::Prefab(id) = self.server_ctx.pc {
+        if let ProjectContext::Prefab(id) = self.server_ctx.shared.pc {
             if let Some(paint) = self.documents.project.block_prop_paint.get_mut(&id) {
-                if self.server_ctx.editor_view_mode == EditorViewMode::D2
+                if self.server_ctx.shared.editor_view_mode == EditorViewMode::D2
                     && let Some(map) = self.documents.project.prefab_editor_map.as_ref()
                     && map.camera == MapCamera::TwoDIso
                 {
@@ -975,10 +975,10 @@ impl Editor {
             }
             return;
         }
-        let Some(region) = self.documents.project.get_region_ctx_mut(&mut self.server_ctx) else {
+        let Some(region) = self.documents.project.get_region_ctx_mut(&self.server_ctx.shared) else {
             return;
         };
-        if self.server_ctx.editor_view_mode == EditorViewMode::D2
+        if self.server_ctx.shared.editor_view_mode == EditorViewMode::D2
             && region.map.camera == MapCamera::TwoDIso
         {
             shared::iso_paint_terrain::sync(
@@ -991,14 +991,14 @@ impl Editor {
         }
     }
     fn native_world_camera(&self) -> Option<Box<dyn D3Camera>> {
-        if self.server_ctx.pc.is_prefab() {
-            return (self.server_ctx.editor_view_mode != EditorViewMode::D2).then(|| {
+        if self.server_ctx.shared.pc.is_prefab() {
+            return (self.server_ctx.shared.editor_view_mode != EditorViewMode::D2).then(|| {
                 Box::new(self.server_ctx.camera.orbit_camera.clone()) as Box<dyn D3Camera>
             });
         }
-        let region = self.documents.project.get_region_ctx(&self.server_ctx)?;
+        let region = self.documents.project.get_region_ctx(&self.server_ctx.shared)?;
         self.server_ctx.camera
-            .camera_for_view(region, &self.server_ctx)
+            .camera_for_view(region, &self.server_ctx.shared)
     }
     pub(super) fn prepare_native_world_viewport(
         &mut self,
@@ -1157,9 +1157,9 @@ impl Editor {
             camera: camera_stamp.clone(),
             stamp: SourceStamp::new(map),
             size: binding.size,
-            tool: self.server_ctx.curr_map_tool_type,
-            hover: self.server_ctx.hover,
-            cursor: self.server_ctx.hover_cursor,
+            tool: self.server_ctx.shared.curr_map_tool_type,
+            hover: self.server_ctx.shared.hover,
+            cursor: self.server_ctx.shared.hover_cursor,
             vertices: map.selected_vertices.clone(),
             linedefs: map.selected_linedefs.clone(),
             sectors: map.selected_sectors.clone(),
@@ -1167,7 +1167,7 @@ impl Editor {
             rectangle: map.curr_rectangle,
             polygon: map.possible_polygon.clone(),
             line: (map.curr_grid_pos, map.curr_mouse_pos),
-            grid: self.server_ctx.show_editor_grid,
+            grid: self.server_ctx.shared.show_editor_grid,
             hour: bridge.client.server_time.to_f32().to_bits(),
             animation: bridge.client.animation_frame,
             canvas: bridge.client.editor_canvas_colors.filter(|_| {
@@ -1259,7 +1259,7 @@ impl Editor {
                         paste_ignored.as_deref(),
                     );
                     let (paint_owner, paint_context, mut paint) =
-                        if let ProjectContext::Prefab(id) = self.server_ctx.pc {
+                        if let ProjectContext::Prefab(id) = self.server_ctx.shared.pc {
                             (
                                 id,
                                 2,
@@ -1274,7 +1274,7 @@ impl Editor {
                             let region = self
                                 .documents
                                 .project
-                                .get_region_ctx(&self.server_ctx)
+                                .get_region_ctx(&self.server_ctx.shared)
                                 .ok_or("native 3D region removed")?;
                             let mut paint = region.iso_paint.clone();
                             crate::block_props::merge_prefab_paint_for_map(
@@ -1286,7 +1286,7 @@ impl Editor {
                             (region.id, 0, paint)
                         };
                     paint.selection_visible =
-                        self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint;
+                        self.server_ctx.shared.curr_map_tool_type == MapToolType::IsoPaint;
                     let has_paint = (paint.visible
                         && (!paint.surface_commit_strokes.is_empty()
                             || !paint.chunks.is_empty()
@@ -1338,7 +1338,7 @@ impl Editor {
                         .client
                         .editor_view_2d(map, (binding.size.0 as u32, binding.size.1 as u32));
                     if let rusterix::editor_view::EditorViewFrame::D2(frame) = &mut description {
-                        frame.draw_grid = self.server_ctx.show_editor_grid;
+                        frame.draw_grid = self.server_ctx.shared.show_editor_grid;
                         frame.canvas_colors = key.canvas;
                     }
                     scene.settings.backend_2d = if binding.custom.is_some() {
@@ -1347,10 +1347,10 @@ impl Editor {
                     gpu.guides.set_clip_rect(binding.custom.as_ref().and_then(|custom| custom.clip()));
                     gpu.guides.set_properties(&self.build_values);
                     gpu.guides
-                        .set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                        .set_map_tool_type(self.server_ctx.shared.curr_map_tool_type);
                     gpu.guides
-                        .set_map_hover_info(self.server_ctx.hover, self.server_ctx.hover_cursor);
-                    gpu.guides.draw_grid = self.server_ctx.show_editor_grid;
+                        .set_map_hover_info(self.server_ctx.shared.hover, self.server_ctx.shared.hover_cursor);
+                    gpu.guides.draw_grid = self.server_ctx.shared.show_editor_grid;
                     gpu.guides.show_entity_markers = true;
                     if binding.custom.is_some() {
                         gpu.guide_scene = gpu.guides.build(map, assets,
@@ -1362,7 +1362,7 @@ impl Editor {
                         &mut gpu.guide_scene,
                         Vec2::new(binding.size.0 as f32, binding.size.1 as f32),
                         if binding.custom.is_some() && scope::uses_region(&self.server_ctx) {
-                            &self.server_ctx.editing_surface
+                            &self.server_ctx.shared.editing_surface
                         } else { &None },
                         scene,
                         binding.custom.is_some(),
@@ -1501,10 +1501,10 @@ impl Editor {
         if isometric.is_some() {
             gpu.guides.set_properties(&self.build_values);
             gpu.guides
-                .set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                .set_map_tool_type(self.server_ctx.shared.curr_map_tool_type);
             gpu.guides
-                .set_map_hover_info(self.server_ctx.hover, self.server_ctx.hover_cursor);
-            gpu.guides.draw_grid = self.server_ctx.show_editor_grid;
+                .set_map_hover_info(self.server_ctx.shared.hover, self.server_ctx.shared.hover_cursor);
+            gpu.guides.draw_grid = self.server_ctx.shared.show_editor_grid;
             let size = Vec2::new(binding.size.0 as f32, binding.size.1 as f32);
             rusterix::isometric::editor::guide_segments(
                 map,
@@ -1757,7 +1757,7 @@ impl Editor {
         if !self.native_viewport.enabled {
             return false;
         }
-        if self.server_ctx.native_game_input {
+        if self.server_ctx.shared.native_game_input {
             if matches!(event, TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Escape))) {
                 self.cancel_native_world_gesture(ui,ctx);
                 ctx.ui.redraw_all=true;
@@ -2132,24 +2132,24 @@ impl Editor {
             // rather than reusing a hit from an earlier pointer location/view.
             let size = Vec2::new(binding.size.0 as f32, binding.size.1 as f32);
             let position = Vec2::new(at.x as f32, at.y as f32);
-            self.server_ctx.geo_hit = None;
-            self.server_ctx.hover_ray_origin_3d = None;
-            self.server_ctx.hover_ray_dir_3d = None;
+            self.server_ctx.shared.geo_hit = None;
+            self.server_ctx.shared.hover_ray_origin_3d = None;
+            self.server_ctx.shared.hover_ray_dir_3d = None;
             if matches!(
-                self.server_ctx.curr_map_tool_type,
+                self.server_ctx.shared.curr_map_tool_type,
                 MapToolType::Vertex | MapToolType::Linedef | MapToolType::Sector
             ) {
-                self.server_ctx.hover = self.server_ctx.geometry_at_for_tool(
+                self.server_ctx.shared.hover = self.server_ctx.shared.geometry_at_for_tool(
                     size,
                     position,
                     map,
-                    self.server_ctx.curr_map_tool_type,
+                    self.server_ctx.shared.curr_map_tool_type,
                 );
             }
-            self.server_ctx.hover_cursor =
+            self.server_ctx.shared.hover_cursor =
                 Some(
                     self.server_ctx
-                        .local_to_map_grid(size, position, map, map.subdivisions),
+                        .shared.local_to_map_grid(size, position, map, map.subdivisions),
                 );
             world.world_capture = Some(WorldGesture {
                 binding,
@@ -2227,10 +2227,10 @@ impl Editor {
                 .properties
                 .set("source", Value::Source(rusterix::PixelSource::TileId(id)));
         }
-        self.server_ctx.clipboard = clipboard;
-        self.server_ctx.hover_cursor = None;
-        self.server_ctx.hover_cursor_3d = None;
-        self.server_ctx.geo_hit = None;
+        self.server_ctx.shared.clipboard = clipboard;
+        self.server_ctx.shared.hover_cursor = None;
+        self.server_ctx.shared.hover_cursor_3d = None;
+        self.server_ctx.shared.geo_hit = None;
         let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
         let before = serde_json::to_vec(map).unwrap();
         let vertices = map.vertices.len();
@@ -2245,10 +2245,10 @@ impl Editor {
     pub(crate) fn native_reference_source_ready_for_test(&self) -> bool {
         // Match update_ui's deliberate deferral: sprite-isometric authoring
         // leaves hidden SceneVM chunks queued until a camera needs them.
-        let deferred = !self.server_ctx.game_mode
-            && self.server_ctx.editor_view_mode == EditorViewMode::D2
-            && self.server_ctx.editing_surface.is_none()
-            && self.documents.project.get_map(&self.server_ctx)
+        let deferred = !self.server_ctx.shared.game_mode
+            && self.server_ctx.shared.editor_view_mode == EditorViewMode::D2
+            && self.server_ctx.shared.editing_surface.is_none()
+            && self.documents.project.get_map(&self.server_ctx.shared)
                 .is_some_and(|map| map.camera == MapCamera::TwoDIso);
         deferred || !self.server_ctx.jobs.scene_initialized()
             || !self.server_ctx.jobs.scene().has_pending_geometry()
@@ -2288,10 +2288,10 @@ impl Editor {
             })
     }
     pub(crate) fn native_paste_mode_for_test(&self) -> EditorViewMode {
-        self.server_ctx.editor_view_mode
+        self.server_ctx.shared.editor_view_mode
     }
     pub(crate) fn native_paste_active_for_test(&self) -> bool {
-        self.server_ctx.paste_clipboard.is_some()
+        self.server_ctx.shared.paste_clipboard.is_some()
     }
     pub(crate) fn native_paste_ready_for_test(&self) -> bool {
         let world = &self.native_viewport.world;
@@ -2360,7 +2360,7 @@ impl Editor {
         let asset = self
             .documents.project
             .block_props
-            .get(&self.server_ctx.curr_block_asset_id?)?;
+            .get(&self.server_ctx.shared.curr_block_asset_id?)?;
         let effect = asset.particle_effects.first()?;
         let attachment = asset
             .find_part(effect.part_id)?
@@ -2449,12 +2449,12 @@ impl Editor {
         )
     }
     fn native_paint_layer_for_test(&self) -> &shared::iso_paint::IsoPaintLayer {
-        if let ProjectContext::Prefab(id) = self.server_ctx.pc {
+        if let ProjectContext::Prefab(id) = self.server_ctx.shared.pc {
             &self.documents.project.block_prop_paint[&id]
         } else {
             &self
                 .documents.project
-                .get_region(&self.server_ctx.curr_region)
+                .get_region(&self.server_ctx.shared.curr_region)
                 .unwrap()
                 .iso_paint
         }
@@ -2523,20 +2523,20 @@ impl Editor {
             ground: true,
             ..Default::default()
         });
-        self.server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(tile.id));
+        self.server_ctx.shared.curr_tile_source = Some(rusterix::TileSource::SingleTile(tile.id));
         self.documents.project.tiles.insert(tile.id, tile.clone());
         self.server_ctx.reference.write().assets.tiles.insert(tile.id, tile);
     }
     pub(crate) fn native_rect_state_for_test(&self) -> (bool, f32, usize) {
         let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
         (
-            self.server_ctx.rect_compose_mode,
+            self.server_ctx.shared.rect_compose_mode,
             map.properties.get_float_default("iso_brush_yaw", 0.),
             map.sectors.len(),
         )
     }
     pub(crate) fn native_terrain_radius_for_test(&self) -> f32 {
-        self.server_ctx.terrain_brush_radius
+        self.server_ctx.shared.terrain_brush_radius
     }
     pub(crate) fn native_terrain_points_for_test(&self) -> Option<rusterix::Value> {
         scope::map(&self.documents.project, &self.server_ctx)
@@ -2546,7 +2546,7 @@ impl Editor {
             .cloned()
     }
     pub(crate) fn native_world_has_ray_for_test(&self) -> bool {
-        self.server_ctx.hover_ray_origin_3d.is_some() && self.server_ctx.hover_ray_dir_3d.is_some()
+        self.server_ctx.shared.hover_ray_origin_3d.is_some() && self.server_ctx.shared.hover_ray_dir_3d.is_some()
     }
 
 

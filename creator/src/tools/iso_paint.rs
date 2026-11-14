@@ -136,10 +136,10 @@ impl IsoPaintTool {
         &self,
         commands: &mut crate::editor_overlay::EditorOverlay,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
         size: (usize, usize),
     ) {
-        if server.editor_view_mode != EditorViewMode::D2 || map.camera != MapCamera::TwoDIso {
+        if server.shared.editor_view_mode != EditorViewMode::D2 || map.camera != MapCamera::TwoDIso {
             return;
         }
         let projection =
@@ -282,10 +282,10 @@ impl IsoPaintTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         region: &mut Region,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let viewport = Self::paint_viewport_size(ui, server)?;
-        if !server.pc.is_prefab() && !self.overlay.is_active() {
+        if !server.shared.pc.is_prefab() && !self.overlay.is_active() {
             Self::sync_live_paint_settings(ui, &mut region.iso_paint);
         }
         self.terrain_radius = if Self::is_stamp_mode(&region.iso_paint) {
@@ -299,7 +299,7 @@ impl IsoPaintTool {
         };
         let point = coord.and_then(|p| Self::terrain_paint_point(&region.map, viewport, p));
         if let Some(coord) = coord {
-            server.iso_paint_hover_screen = Some(coord);
+            server.shared.iso_paint_hover_screen = Some(coord);
             self.terrain_hover = point.as_ref().and_then(|p| p.surface_uv).map(Vec2::from);
         }
         match event {
@@ -335,7 +335,7 @@ impl IsoPaintTool {
                             rusterix::chunkbuilder::terrain_surface::TerrainSurface::cached(
                                 &region.map,
                             );
-                        server.iso_paint_selection_rect = Some(
+                        server.shared.iso_paint_selection_rect = Some(
                             [min, Vec2::new(max.x, min.y), max, Vec2::new(min.x, max.y)].map(|q| {
                                 p.screen(
                                     q,
@@ -348,7 +348,7 @@ impl IsoPaintTool {
                         if matches!(event, MapUp(_)) {
                             if ((max.x - min.x) * (max.y - min.y) * 1024.) > 1_048_576. {
                                 self.reset_stroke();
-                                server.iso_paint_selection_rect = None;
+                                server.shared.iso_paint_selection_rect = None;
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
                                     "Select a smaller terrain area (up to 32 × 32 tiles).".into(),
@@ -397,7 +397,7 @@ impl IsoPaintTool {
                         )
                     });
                     self.reset_stroke();
-                    server.iso_paint_selection_rect = None;
+                    server.shared.iso_paint_selection_rect = None;
                     Self::request_paint_redraw(ctx);
                     return undo;
                 }
@@ -408,7 +408,7 @@ impl IsoPaintTool {
                 }
                 self.reset_stroke();
                 self.terrain_hover = None;
-                server.iso_paint_selection_rect = None;
+                server.shared.iso_paint_selection_rect = None;
             }
             _ => {}
         }
@@ -687,10 +687,10 @@ impl IsoPaintTool {
         }
     }
 
-    fn hit_status(server_ctx: &ServerContext) -> String {
-        if server_ctx.geo_hit.is_some() {
+    fn hit_status(server_ctx: &CreatorContext) -> String {
+        if server_ctx.shared.geo_hit.is_some() {
             fl!("status_iso_paint_hit")
-        } else if server_ctx.hover_cursor_3d.is_some() {
+        } else if server_ctx.shared.hover_cursor_3d.is_some() {
             fl!("status_iso_paint_ground")
         } else {
             fl!("status_iso_paint_active")
@@ -718,7 +718,7 @@ impl IsoPaintTool {
     fn paint_point(
         &self,
         coord: Vec2<i32>,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         viewport_size: Option<[i32; 2]>,
     ) -> IsoPaintPoint {
         // Read the dedicated paint coordinate emitted by the actual rasterized triangle. It is
@@ -761,29 +761,29 @@ impl IsoPaintTool {
         let owner = raster_surface
             .as_ref()
             .map(|surface| Self::owner_from_geo_id(surface.geo_id))
-            .or_else(|| server_ctx.geo_hit.map(Self::owner_from_geo_id));
+            .or_else(|| server_ctx.shared.geo_hit.map(Self::owner_from_geo_id));
         let world = if self.native_input && raster_surface.is_some() {
             raster_surface.map(|surface| Vec3::from(surface.world))
-        } else if server_ctx.geo_hit.is_some() {
-            Some(server_ctx.geo_hit_pos)
+        } else if server_ctx.shared.geo_hit.is_some() {
+            Some(server_ctx.shared.geo_hit_pos)
         } else {
-            server_ctx.hover_cursor_3d
+            server_ctx.shared.hover_cursor_3d
         };
         let surface_uv = raster_surface
             .map(|surface| Vec2::new(surface.uv[0], surface.uv[1]))
             .or_else(|| {
-                server_ctx.hover_surface.as_ref().and_then(|surface| {
+                server_ctx.shared.hover_surface.as_ref().and_then(|surface| {
                     server_ctx
-                        .hover_surface_hit_pos
+                        .shared.hover_surface_hit_pos
                         .map(|pos| surface.world_to_uv(pos))
                 })
             });
         let surface_normal = raster_surface
             .map(|surface| Vec3::new(surface.normal[0], surface.normal[1], surface.normal[2]))
-            .or(server_ctx.hover_surface_normal)
+            .or(server_ctx.shared.hover_surface_normal)
             .or_else(|| {
                 server_ctx
-                    .hover_surface
+                    .shared.hover_surface
                     .as_ref()
                     .map(|surface| surface.plane.normal)
             });
@@ -1264,8 +1264,8 @@ impl IsoPaintTool {
         (!selection.is_empty()).then_some(selection)
     }
 
-    fn paint_viewport_size(ui: &mut TheUI, server_ctx: &ServerContext) -> Option<[i32; 2]> {
-        let view_name = if server_ctx.pc.is_prefab() {
+    fn paint_viewport_size(ui: &mut TheUI, server_ctx: &CreatorContext) -> Option<[i32; 2]> {
+        let view_name = if server_ctx.shared.pc.is_prefab() {
             "PrefabView"
         } else {
             "PolyView"
@@ -1329,7 +1329,7 @@ impl Tool for IsoPaintTool {
         self.id.clone()
     }
 
-    fn sync_overlay_sources(&mut self, project: &Project, server: &ServerContext) {
+    fn sync_overlay_sources(&mut self, project: &Project, server: &CreatorContext) {
         self.overlay.sync(project, server);
     }
     fn overlay_paint(&mut self) -> Option<&mut super::paint_overlay::PaintOverlay> {
@@ -1348,9 +1348,9 @@ impl Tool for IsoPaintTool {
                 c.operation != "pick" && (c.operation == "select" || c.mode != "stamp")
             })
     }
-    fn clear_paint_overlay_hover(&mut self, server: &mut ServerContext) {
+    fn clear_paint_overlay_hover(&mut self, server: &mut CreatorContext) {
         self.terrain_hover = None;
-        server.iso_paint_hover_screen = None;
+        server.shared.iso_paint_hover_screen = None;
     }
     fn prepare_overlay(&mut self, input: ToolOverlayInputs<'_>) -> Option<ToolOverlayFrame> {
         let mut commands = crate::editor_overlay::EditorOverlay::new(input.target.size);
@@ -1358,8 +1358,8 @@ impl Tool for IsoPaintTool {
             super::paint_preview::prepare(
                 &mut commands,
                 controls,
-                input.hud.server.iso_paint_hover_screen,
-                input.hud.server.iso_paint_selection_rect,
+                input.hud.server.shared.iso_paint_hover_screen,
+                input.hud.server.shared.iso_paint_selection_rect,
             );
         }
         self.prepare_terrain_guides(
@@ -1384,7 +1384,7 @@ impl Tool for IsoPaintTool {
         frame: &ToolOverlayFrame,
         target: ToolOverlayTarget,
         _map: &Map,
-        _server: &ServerContext,
+        _server: &CreatorContext,
     ) -> bool {
         frame.paint_panel_current(&self.overlay, target, false)
     }
@@ -1393,7 +1393,7 @@ impl Tool for IsoPaintTool {
         frame: &ToolOverlayFrame,
         target: ToolOverlayTarget,
         _map: &Map,
-        _server: &ServerContext,
+        _server: &CreatorContext,
     ) -> bool {
         frame.paint_panel_current(&self.overlay, target, true)
     }
@@ -1404,7 +1404,7 @@ impl Tool for IsoPaintTool {
         receipts: &[theframework::paint::FrameReceipt],
         target: ToolOverlayTarget,
         _map: &Map,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) -> bool {
         let accepted = frame.presented_paint_panel(&mut self.overlay, target, receipts);
         if !accepted {
@@ -1424,7 +1424,7 @@ impl Tool for IsoPaintTool {
         Some('I')
     }
 
-    fn handle_event(&mut self,event:&TheEvent,ui:&mut TheUI,ctx:&mut TheContext,project:&mut Project,server:&mut ServerContext)->bool {
+    fn handle_event(&mut self,event:&TheEvent,ui:&mut TheUI,ctx:&mut TheContext,project:&mut Project,server:&mut CreatorContext)->bool {
         let changed=super::paint_picker::event(event,ui,ctx,project,server);
         if changed {self.overlay.sync(project,server);}
         changed
@@ -1436,30 +1436,30 @@ impl Tool for IsoPaintTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match tool_event {
             Activate => {
                 self.reset_stroke();
                 self.terrain_hover = None;
-                server_ctx.curr_map_tool_type = MapToolType::IsoPaint;
+                server_ctx.shared.curr_map_tool_type = MapToolType::IsoPaint;
                 // 3D Paint operates in every 3D camera.  Preserve the artist's current orbit
                 // or first-person view; entering from 2D defaults to the familiar iso view.
-                let terrain_iso = !server_ctx.pc.is_prefab()
+                let terrain_iso = !server_ctx.shared.pc.is_prefab()
                     && project
-                        .get_map(server_ctx)
+                        .get_map(&server_ctx.shared)
                         .is_some_and(|m| m.camera == MapCamera::TwoDIso)
-                    && server_ctx.editor_view_mode == EditorViewMode::D2;
-                if server_ctx.editor_view_mode == EditorViewMode::D2 && !terrain_iso {
-                    server_ctx.editor_view_mode = EditorViewMode::Iso;
+                    && server_ctx.shared.editor_view_mode == EditorViewMode::D2;
+                if server_ctx.shared.editor_view_mode == EditorViewMode::D2 && !terrain_iso {
+                    server_ctx.shared.editor_view_mode = EditorViewMode::Iso;
                 }
-                server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
-                server_ctx.hover_cursor = None;
-                server_ctx.iso_paint_hover_screen = None;
-                server_ctx.iso_paint_selection_rect = None;
+                server_ctx.shared.geometry_edit_mode = GeometryEditMode::Geometry;
+                server_ctx.shared.hover_cursor = None;
+                server_ctx.shared.iso_paint_hover_screen = None;
+                server_ctx.shared.iso_paint_selection_rect = None;
 
                 let neutral_material = Self::neutral_material_palette(project);
-                if let ProjectContext::Prefab(asset_id) = server_ctx.pc {
+                if let ProjectContext::Prefab(asset_id) = server_ctx.shared.pc {
                     if let Some(map) = project.prefab_editor_map.as_mut() {
                         for object in &mut map.geometry_objects {
                             object.ensure_face_paint_data();
@@ -1474,8 +1474,8 @@ impl Tool for IsoPaintTool {
                     {
                         paint.active_size = 8.0;
                     }
-                } else if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                    if server_ctx.editor_view_mode == EditorViewMode::Iso {
+                } else if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::Iso {
                         region.map.camera = MapCamera::ThreeDIso;
                     }
                     // Persist face identity and object-local paint coordinates before the first
@@ -1508,14 +1508,14 @@ impl Tool for IsoPaintTool {
             DeActivate => {
                 super::paint_picker::deactivate(ui, ctx);
                 self.reset_stroke();
-                server_ctx.curr_map_tool_type = MapToolType::General;
-                server_ctx.hover_cursor = None;
-                server_ctx.hover_cursor_3d = None;
-                server_ctx.iso_paint_hover_screen = None;
-                server_ctx.iso_paint_selection_rect = None;
+                server_ctx.shared.curr_map_tool_type = MapToolType::General;
+                server_ctx.shared.hover_cursor = None;
+                server_ctx.shared.hover_cursor_3d = None;
+                server_ctx.shared.iso_paint_hover_screen = None;
+                server_ctx.shared.iso_paint_selection_rect = None;
                 server_ctx.reference.write().set_overlay_dirty();
                 ctx.ui.redraw_all = true;
-                if !server_ctx.pc.is_prefab()
+                if !server_ctx.shared.pc.is_prefab()
                     && server_ctx.docks.read().dock == "Paint"
                     && let Some(prev) = self.previous_dock.take()
                 {
@@ -1533,10 +1533,10 @@ impl Tool for IsoPaintTool {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         ctx: &mut TheContext,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
         _assets: &rusterix::Assets,
     ) {
-        if server.editor_view_mode != EditorViewMode::D2 || map.camera != MapCamera::TwoDIso {
+        if server.shared.editor_view_mode != EditorViewMode::D2 || map.camera != MapCamera::TwoDIso {
             self.overlay.draw(buffer,ctx, crate::hud::colors(server));
             return;
         }
@@ -1590,7 +1590,7 @@ impl Tool for IsoPaintTool {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         _map: &mut Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         match map_event {
             MapClicked(_) => {
@@ -1618,7 +1618,7 @@ impl Tool for IsoPaintTool {
             }
             MapUp(_) => {
                 self.painting = false;
-                server_ctx.iso_paint_hover_screen = None;
+                server_ctx.shared.iso_paint_hover_screen = None;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     fl!("status_iso_paint_active"),
@@ -1626,7 +1626,7 @@ impl Tool for IsoPaintTool {
             }
             MapEscape => {
                 self.painting = false;
-                server_ctx.iso_paint_hover_screen = None;
+                server_ctx.shared.iso_paint_hover_screen = None;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     fl!("status_iso_paint_active"),
@@ -1644,22 +1644,22 @@ impl Tool for IsoPaintTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         region: &mut Region,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         if self.overlay.map_event(&map_event,ui,ctx,server_ctx) {
-            self.terrain_hover=None; server_ctx.iso_paint_hover_screen=None;
+            self.terrain_hover=None; server_ctx.shared.iso_paint_hover_screen=None;
             return None;
         }
         if region.map.camera == MapCamera::TwoDIso
-            && server_ctx.editor_view_mode == EditorViewMode::D2
+            && server_ctx.shared.editor_view_mode == EditorViewMode::D2
         {
             return self.terrain_map_event(map_event, ui, ctx, region, server_ctx);
         }
         match map_event {
             MapClicked(coord) => {
                 let viewport_size = Self::paint_viewport_size(ui, server_ctx);
-                server_ctx.iso_paint_hover_screen = Some(coord);
-                if !server_ctx.pc.is_prefab() && !self.overlay.is_active() {
+                server_ctx.shared.iso_paint_hover_screen = Some(coord);
+                if !server_ctx.shared.pc.is_prefab() && !self.overlay.is_active() {
                     Self::sync_live_paint_settings(ui, &mut region.iso_paint);
                 }
                 if region.iso_paint.active_operation == "pick" {
@@ -1701,7 +1701,7 @@ impl Tool for IsoPaintTool {
                         });
                     self.selection_drag_start = self.selection_projection.as_ref().map(|_| coord);
                     self.active_stroke = None;
-                    server_ctx.iso_paint_selection_rect = self
+                    server_ctx.shared.iso_paint_selection_rect = self
                         .snapped_selection_bounds(coord)
                         .and_then(|bounds| self.selection_projection.as_ref()?.outline(bounds));
                     Self::request_paint_redraw(ctx);
@@ -1775,12 +1775,12 @@ impl Tool for IsoPaintTool {
             }
             MapDragged(coord) => {
                 let viewport_size = Self::paint_viewport_size(ui, server_ctx);
-                server_ctx.iso_paint_hover_screen = Some(coord);
+                server_ctx.shared.iso_paint_hover_screen = Some(coord);
                 if self.painting
                     && region.iso_paint.active_operation == "select"
                     && self.selection_drag_start.is_some()
                 {
-                    server_ctx.iso_paint_selection_rect = self
+                    server_ctx.shared.iso_paint_selection_rect = self
                         .snapped_selection_bounds(coord)
                         .and_then(|bounds| self.selection_projection.as_ref()?.outline(bounds));
                     Self::request_paint_redraw(ctx);
@@ -1825,12 +1825,12 @@ impl Tool for IsoPaintTool {
                 }
             }
             MapHover(coord) => {
-                server_ctx.iso_paint_hover_screen = Some(coord);
+                server_ctx.shared.iso_paint_hover_screen = Some(coord);
                 Self::request_paint_redraw(ctx);
             }
             MapUp(coord) => {
                 let viewport_size = Self::paint_viewport_size(ui, server_ctx);
-                server_ctx.iso_paint_hover_screen = Some(coord);
+                server_ctx.shared.iso_paint_hover_screen = Some(coord);
                 if self.painting
                     && region.iso_paint.active_operation == "select"
                     && self.selection_drag_start.is_some()
@@ -1858,7 +1858,7 @@ impl Tool for IsoPaintTool {
                     } else {
                         None
                     };
-                    server_ctx.iso_paint_selection_rect = None;
+                    server_ctx.shared.iso_paint_selection_rect = None;
                     self.reset_stroke();
                     Self::request_paint_redraw(ctx);
                     ctx.ui.send(TheEvent::SetStatusText(
@@ -1921,8 +1921,8 @@ impl Tool for IsoPaintTool {
                 return undo_atom;
             }
             MapEscape => {
-                server_ctx.iso_paint_hover_screen = None;
-                server_ctx.iso_paint_selection_rect = None;
+                server_ctx.shared.iso_paint_hover_screen = None;
+                server_ctx.shared.iso_paint_selection_rect = None;
                 if let Some(old_paint) = self.stroke_before.take() {
                     region.iso_paint = old_paint;
                 }
@@ -1946,7 +1946,7 @@ impl Tool for IsoPaintTool {
         ctx: &mut TheContext,
         project: &mut Project,
         asset_id: Uuid,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         // Reuse the mature Region paint gesture implementation while storing
         // the resulting layer on the Prefab source instead of a region.
@@ -1994,10 +1994,10 @@ mod terrain_tests {
         )
         .unwrap();
         project.name = "MZ Organic Terrain Stamps / Steam Lords".into();
-        let mut server = ServerContext::default();
-        server.curr_region = project.regions[0].id;
-        server.pc = ProjectContext::Region(server.curr_region);
-        server.editor_view_mode = EditorViewMode::D2;
+        let mut server = CreatorContext::default();
+        server.shared.curr_region = project.regions[0].id;
+        server.shared.pc = ProjectContext::Region(server.shared.curr_region);
+        server.shared.editor_view_mode = EditorViewMode::D2;
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(1000, 700, 1.);
         let mut view = TheRenderView::new(TheId::named("PolyView"));
@@ -2011,11 +2011,11 @@ mod terrain_tests {
         let mut tool = IsoPaintTool::new();
         tool.tool_event(Activate, &mut ui, &mut ctx, &mut project, &mut server);
         assert_eq!(project.regions[0].map.camera, MapCamera::TwoDIso);
-        assert_eq!(server.editor_view_mode, EditorViewMode::D2);
+        assert_eq!(server.shared.editor_view_mode, EditorViewMode::D2);
         let center = Vec2::new(28.5, 16.5);
         let size = Vec2::new(1000., 700.);
         project.regions[0].map.grid_size = 46.;
-        server.center_map_at_grid_pos(size, center, &mut project.regions[0].map);
+        server.shared.center_map_at_grid_pos(size, center, &mut project.regions[0].map);
         let click = |map: &Map, at: Vec2<f32>| {
             let h = TerrainSurface::from_map(map)
                 .unwrap()
@@ -2100,7 +2100,7 @@ mod terrain_tests {
             .surface_uv
             .unwrap();
         project.regions[0].map.grid_size = 64.;
-        server.center_map_at_grid_pos(size, Vec2::<f32>::from(target), &mut project.regions[0].map);
+        server.shared.center_map_at_grid_pos(size, Vec2::<f32>::from(target), &mut project.regions[0].map);
         let at = click(&project.regions[0].map, Vec2::from(target));
         project.regions[0].iso_paint.active_brush = "flowers".into();
         project.regions[0].iso_paint.active_operation = "erase".into();
@@ -2152,7 +2152,7 @@ mod terrain_tests {
         let mut assets = rusterix::Assets::default();
         assets.set_tiles(project.tiles.clone());
         let mut cache = rusterix::isometric::GroundCache::default();
-        server.center_map_at_grid_pos(size, center, &mut project.regions[0].map);
+        server.shared.center_map_at_grid_pos(size, center, &mut project.regions[0].map);
         for (name, mode, amount) in [
             ("before", None, 0.),
             ("raised", Some(SculptMode::Raise), 0.8),
@@ -2244,10 +2244,10 @@ mod terrain_tests {
                 .unwrap(),
         )
         .unwrap();
-        let mut server = ServerContext::default();
-        server.curr_region = project.regions[0].id;
-        server.pc = ProjectContext::Region(server.curr_region);
-        server.editor_view_mode = EditorViewMode::D2;
+        let mut server = CreatorContext::default();
+        server.shared.curr_region = project.regions[0].id;
+        server.shared.pc = ProjectContext::Region(server.shared.curr_region);
+        server.shared.editor_view_mode = EditorViewMode::D2;
         let size = Vec2::new(1000., 700.);
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(1000, 700, 1.);
@@ -2261,10 +2261,10 @@ mod terrain_tests {
         );
         let mut tool = IsoPaintTool::new();
         tool.tool_event(Activate, &mut ui, &mut ctx, &mut project, &mut server);
-        assert_eq!(server.editor_view_mode, EditorViewMode::D2);
+        assert_eq!(server.shared.editor_view_mode, EditorViewMode::D2);
         assert_eq!(project.regions[0].map.camera, MapCamera::TwoDIso);
         let center = Vec2::new(28.5, 16.5);
-        server.center_map_at_grid_pos(size, center, &mut project.regions[0].map);
+        server.shared.center_map_at_grid_pos(size, center, &mut project.regions[0].map);
         let paint = &mut project.regions[0].iso_paint;
         paint.active_size = 8.;
         paint.active_operation = "draw".into();

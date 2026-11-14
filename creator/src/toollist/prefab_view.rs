@@ -8,15 +8,15 @@ impl ToolList {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         let TheEvent::IndexChanged(id, index) = event else {
             return false;
         };
-        if id.name != "Editor View Switch" || !server.pc.is_prefab() {
+        if id.name != "Editor View Switch" || !server.shared.pc.is_prefab() {
             return false;
         }
-        let previous = server.editor_view_mode;
+        let previous = server.shared.editor_view_mode;
         let next = EditorViewMode::from_toolbar_index(*index as i32);
         let Some(map) = project.prefab_editor_map.as_mut() else {
             return true;
@@ -37,9 +37,9 @@ impl ToolList {
             None
         };
         if previous == EditorViewMode::D2 {
-            server.store_edit_view_2d_for_map(map.id, map.offset, map.grid_size);
+            server.shared.store_edit_view_2d_for_map(map.id, map.offset, map.grid_size);
         }
-        server.editor_view_mode = next;
+        server.shared.editor_view_mode = next;
         // The established isolated Prefab renderer uses its orbit camera for
         // every 3D toolbar mode. Camera metadata still describes builder input.
         map.camera = if next == EditorViewMode::D2 {
@@ -52,19 +52,19 @@ impl ToolList {
             MapCamera::ThreeDIso
         };
         if next == EditorViewMode::D2 {
-            if let Some((offset, grid)) = server.load_edit_view_2d_for_map(map.id) {
+            if let Some((offset, grid)) = server.shared.load_edit_view_2d_for_map(map.id) {
                 map.offset = offset;
                 map.grid_size = grid;
             }
             if let Some(center) = center {
-                server.center_map_at_grid_pos(Vec2::zero(), center, map);
+                server.shared.center_map_at_grid_pos(Vec2::zero(), center, map);
             }
         }
         map.curr_rectangle = None;
         self.box_select_armed = false;
-        server.editor_fly_nav_active = false;
-        server.editor_fly_nav_space_down = false;
-        server.editing_surface = None;
+        server.shared.editor_fly_nav_active = false;
+        server.shared.editor_fly_nav_space_down = false;
+        server.shared.editing_surface = None;
         // A region's pending camera anchor is not a Prefab camera command.
         // Leave it with that region instead of applying or discarding it here.
         {

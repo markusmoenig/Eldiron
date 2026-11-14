@@ -24,7 +24,7 @@ fn viewport_inputs_do_not_reach_the_map_and_pause_holds_the_displayed_pose() {
         zoom: 1.,
         ..Default::default()
     };
-    let mut server = ServerContext::default();
+    let mut server = CreatorContext::default();
     AppearanceWorkspace::show(&mut ui, &mut ctx, true);
     assert!(host.handle_event(
         &TheEvent::IndexChanged(TheId::named("Definition Appearance Play"), 0),
@@ -135,7 +135,7 @@ fn setup_is_not_duplicated_in_the_preview_and_item_states_have_direct_entrances(
             "missing state entrance {name}"
         );
     }
-    let mut server = ServerContext::default();
+    let mut server = CreatorContext::default();
     let before = p.procedural_materials.clone();
     assert!(host.handle_event(
         &TheEvent::StateChanged(
@@ -477,7 +477,7 @@ fn appearance_roundtrip_preview_and_ui_snapshots() {
         Box::new(before.clone()),
         Box::new(p.clone()),
     );
-    let mut server = ServerContext::default();
+    let mut server = CreatorContext::default();
     atom.undo(&mut p, &mut ui, &mut ctx, &mut server);
     assert_eq!(p.palette.colors, before.palette.colors);
     atom.redo(&mut p, &mut ui, &mut ctx, &mut server);

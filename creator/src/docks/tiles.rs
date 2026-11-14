@@ -265,14 +265,14 @@ impl Dock for TilesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.iso_mode = project
-            .get_map(server_ctx)
+            .get_map(&server_ctx.shared)
             .is_some_and(|m| m.camera == rusterix::MapCamera::TwoDIso);
-        self.curr_tile = server_ctx.curr_tile_id;
-        self.curr_source = server_ctx.curr_tile_source;
-        if server_ctx.curr_tile_board_cell.is_none() {
+        self.curr_tile = server_ctx.shared.curr_tile_id;
+        self.curr_source = server_ctx.shared.curr_tile_source;
+        if server_ctx.shared.curr_tile_board_cell.is_none() {
             self.selected_empty_cell = None;
         }
         self.sync_tabs(ui, ctx, project);
@@ -287,10 +287,10 @@ impl Dock for TilesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         self.iso_mode = project
-            .get_map(server_ctx)
+            .get_map(&server_ctx.shared)
             .is_some_and(|m| m.camera == rusterix::MapCamera::TwoDIso);
         project.ensure_material_tiles();
         let mut redraw = false;
@@ -406,7 +406,7 @@ impl Dock for TilesDock {
                         self.apply_tile_mode = 1;
                         let mut undo_atom: Option<ProjectUndoAtom> = None;
                         let mut needs_scene_redraw = false;
-                        if let Some(map) = project.get_map_mut(server_ctx) {
+                        if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                             let prev = map.clone();
                             let mut changed = false;
                             for sector_id in map.selected_sectors.clone() {
@@ -450,7 +450,7 @@ impl Dock for TilesDock {
                             if changed {
                                 map.update_surfaces();
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                    server_ctx.pc,
+                                    server_ctx.shared.pc,
                                     Box::new(prev),
                                     Box::new(map.clone()),
                                 ));
@@ -477,7 +477,7 @@ impl Dock for TilesDock {
                         self.apply_tile_mode = 0;
                         let mut undo_atom: Option<ProjectUndoAtom> = None;
                         let mut needs_scene_redraw = false;
-                        if let Some(map) = project.get_map_mut(server_ctx) {
+                        if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                             let prev = map.clone();
                             let mut changed = false;
                             for sector_id in map.selected_sectors.clone() {
@@ -521,7 +521,7 @@ impl Dock for TilesDock {
                             if changed {
                                 map.update_surfaces();
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                    server_ctx.pc,
+                                    server_ctx.shared.pc,
                                     Box::new(prev),
                                     Box::new(map.clone()),
                                 ));
@@ -606,7 +606,7 @@ impl Dock for TilesDock {
                             old_icon.set_border_color(Some(WHITE));
                         }
                         self.blend_index = index;
-                        server_ctx.rect_blend_preset = VertexBlendPreset::from_index(index)
+                        server_ctx.shared.rect_blend_preset = VertexBlendPreset::from_index(index)
                             .unwrap_or(VertexBlendPreset::Solid);
                     }
                 } else if id.name == self.widget_name("Tiles Dock Copy ID") {
@@ -622,8 +622,8 @@ impl Dock for TilesDock {
                         TheValue::Empty,
                     ));
                 } else if id.name == self.widget_name("Tiles Dock Apply Tile") {
-                    if let Some(map) = project.get_map(server_ctx) {
-                        server_ctx.curr_map_tool_type =
+                    if let Some(map) = project.get_map(&server_ctx.shared) {
+                        server_ctx.shared.curr_map_tool_type =
                             crate::actions::current_selection_tool_type(map);
                     }
 
@@ -639,23 +639,23 @@ impl Dock for TilesDock {
                         let mut undo_atom: Option<ProjectUndoAtom> = None;
                         let mut needs_scene_redraw = false;
 
-                        if let Some(map) = project.get_map(server_ctx) {
-                            server_ctx.curr_map_tool_type =
+                        if let Some(map) = project.get_map(&server_ctx.shared) {
+                            server_ctx.shared.curr_map_tool_type =
                                 crate::actions::current_selection_tool_type(map);
                         }
 
-                        let before = project.get_map(server_ctx).cloned();
+                        let before = project.get_map(&server_ctx.shared).cloned();
                         if crate::block_props::apply_surface_source_to_selected_prefab_instances(
                             project,
                             server_ctx,
                             &selected_source,
-                            server_ctx.selected_hud_icon_index,
+                            server_ctx.shared.selected_hud_icon_index,
                         ) {
                             if let (Some(before), Some(after)) =
-                                (before, project.get_map(server_ctx).cloned())
+                                (before, project.get_map(&server_ctx.shared).cloned())
                             {
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                    server_ctx.pc,
+                                    server_ctx.shared.pc,
                                     Box::new(before),
                                     Box::new(after),
                                 ));
@@ -665,10 +665,10 @@ impl Dock for TilesDock {
                         }
 
                         let applied_to_action_slot = if !applied_to_action
-                            && server_ctx.get_map_context() == MapContext::Region
+                            && server_ctx.shared.get_map_context() == MapContext::Region
                         {
-                            if let Some(map) = project.get_map(server_ctx)
-                                && let Some(action_id) = server_ctx.curr_action_id
+                            if let Some(map) = project.get_map(&server_ctx.shared)
+                                && let Some(action_id) = server_ctx.shared.curr_action_id
                                 && let Some(source) = selected_material_source.clone()
                             {
                                 server_ctx.actions.write()
@@ -677,7 +677,7 @@ impl Dock for TilesDock {
                                         action.hud_material_slots(map, server_ctx).is_some_and(
                                             |slots| {
                                                 let selected_index =
-                                                    server_ctx.selected_hud_icon_index;
+                                                    server_ctx.shared.selected_hud_icon_index;
                                                 let slot_index = if selected_index >= 0
                                                     && (selected_index as usize) < slots.len()
                                                 {
@@ -708,16 +708,16 @@ impl Dock for TilesDock {
                             applied_to_action = true;
                         }
 
-                        if !applied_to_action && let Some(map) = project.get_map_mut(server_ctx) {
+                        if !applied_to_action && let Some(map) = project.get_map_mut(&server_ctx.shared) {
                             let prev = map.clone();
                             if crate::actions::apply_named_geometry_hud_surface_source_to_selection(
                                 map,
-                                server_ctx.selected_hud_icon_index,
+                                server_ctx.shared.selected_hud_icon_index,
                                 Some(&selected_source),
                                 Some(self.apply_tile_mode),
                             ) {
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                    server_ctx.pc,
+                                    server_ctx.shared.pc,
                                     Box::new(prev),
                                     Box::new(map.clone()),
                                 ));
@@ -727,7 +727,7 @@ impl Dock for TilesDock {
                         }
 
                         if !applied_to_action {
-                            if let Some(map) = project.get_map_mut(server_ctx) {
+                            if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                                 let mut changed = false;
                                 let prev = map.clone();
 
@@ -757,8 +757,8 @@ impl Dock for TilesDock {
 
                                 for sector_id in map.selected_sectors.clone() {
                                     let mut source_key = "source";
-                                    if server_ctx.pc.is_screen()
-                                        && server_ctx.selected_hud_icon_index == 1
+                                    if server_ctx.shared.pc.is_screen()
+                                        && server_ctx.shared.selected_hud_icon_index == 1
                                     {
                                         source_key = "ceiling_source";
                                     }
@@ -774,7 +774,7 @@ impl Dock for TilesDock {
                                 if changed {
                                     map.update_surfaces();
                                     undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                        server_ctx.pc,
+                                        server_ctx.shared.pc,
                                         Box::new(prev),
                                         Box::new(map.clone()),
                                     ));
@@ -798,8 +798,8 @@ impl Dock for TilesDock {
                         }
                     }
                 } else if id.name == self.widget_name("Tiles Dock Clear Tile") {
-                    if let Some(map) = project.get_map(server_ctx) {
-                        server_ctx.curr_map_tool_type =
+                    if let Some(map) = project.get_map(&server_ctx.shared) {
+                        server_ctx.shared.curr_map_tool_type =
                             crate::actions::current_selection_tool_type(map);
                     }
 
@@ -807,22 +807,22 @@ impl Dock for TilesDock {
                     let mut undo_atom: Option<ProjectUndoAtom> = None;
                     let mut needs_scene_redraw = false;
 
-                    if let Some(map) = project.get_map(server_ctx) {
-                        server_ctx.curr_map_tool_type =
+                    if let Some(map) = project.get_map(&server_ctx.shared) {
+                        server_ctx.shared.curr_map_tool_type =
                             crate::actions::current_selection_tool_type(map);
                     }
 
-                    let before = project.get_map(server_ctx).cloned();
+                    let before = project.get_map(&server_ctx.shared).cloned();
                     if crate::block_props::clear_material_slot_on_selected_prefab_instances(
                         project,
                         server_ctx,
-                        server_ctx.selected_hud_icon_index,
+                        server_ctx.shared.selected_hud_icon_index,
                     ) {
                         if let (Some(before), Some(after)) =
-                            (before, project.get_map(server_ctx).cloned())
+                            (before, project.get_map(&server_ctx.shared).cloned())
                         {
                             undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                server_ctx.pc,
+                                server_ctx.shared.pc,
                                 Box::new(before),
                                 Box::new(after),
                             ));
@@ -831,15 +831,15 @@ impl Dock for TilesDock {
                         }
                     }
 
-                    if !cleared_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
+                    if !cleared_action_slot && let Some(map) = project.get_map_mut(&server_ctx.shared) {
                         let prev = map.clone();
                         if crate::actions::apply_named_geometry_hud_material_to_selection(
                             map,
-                            server_ctx.selected_hud_icon_index,
+                            server_ctx.shared.selected_hud_icon_index,
                             None,
                         ) {
                             undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                server_ctx.pc,
+                                server_ctx.shared.pc,
                                 Box::new(prev),
                                 Box::new(map.clone()),
                             ));
@@ -849,17 +849,17 @@ impl Dock for TilesDock {
                     }
 
                     let cleared_action_material_slot = if !cleared_action_slot
-                        && server_ctx.get_map_context() == MapContext::Region
+                        && server_ctx.shared.get_map_context() == MapContext::Region
                     {
-                        if let Some(map) = project.get_map(server_ctx)
-                            && let Some(action_id) = server_ctx.curr_action_id
+                        if let Some(map) = project.get_map(&server_ctx.shared)
+                            && let Some(action_id) = server_ctx.shared.curr_action_id
                         {
                             server_ctx.actions.write()
                                 .get_action_by_id_mut(action_id)
                                 .is_some_and(|action| {
                                     action.hud_material_slots(map, server_ctx).is_some_and(
                                         |slots| {
-                                            let selected_index = server_ctx.selected_hud_icon_index;
+                                            let selected_index = server_ctx.shared.selected_hud_icon_index;
                                             let slot_index = if selected_index >= 0
                                                 && (selected_index as usize) < slots.len()
                                             {
@@ -891,7 +891,7 @@ impl Dock for TilesDock {
                     }
 
                     if !cleared_action_slot {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
+                        if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                             let mut changed = false;
                             let prev = map.clone();
 
@@ -913,8 +913,8 @@ impl Dock for TilesDock {
 
                             for sector_id in map.selected_sectors.clone() {
                                 let mut source = "source";
-                                if server_ctx.pc.is_screen()
-                                    && server_ctx.selected_hud_icon_index == 1
+                                if server_ctx.shared.pc.is_screen()
+                                    && server_ctx.shared.selected_hud_icon_index == 1
                                 {
                                     source = "ceiling_source";
                                 }
@@ -927,7 +927,7 @@ impl Dock for TilesDock {
                             if changed {
                                 map.update_surfaces();
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                    server_ctx.pc,
+                                    server_ctx.shared.pc,
                                     Box::new(prev),
                                     Box::new(map.clone()),
                                 ));
@@ -1147,8 +1147,8 @@ impl Dock for TilesDock {
                 } else if id.name == "Update Tilepicker" {
                     #[cfg(any(not(feature = "native-ui"), test))]
                     self.bitmap_previews.lock().unwrap().clear();
-                    self.curr_tile = server_ctx.curr_tile_id;
-                    self.curr_source = server_ctx.curr_tile_source;
+                    self.curr_tile = server_ctx.shared.curr_tile_id;
+                    self.curr_source = server_ctx.shared.curr_tile_source;
                     if self.curr_source.is_some() {
                         self.selected_empty_cell = None;
                     }
@@ -1157,8 +1157,8 @@ impl Dock for TilesDock {
                     self.render_views(ui, ctx, project);
                     redraw = true;
                 } else if id.name == "Reveal Tilepicker Source" {
-                    self.curr_tile = server_ctx.curr_tile_id;
-                    self.curr_source = server_ctx.curr_tile_source;
+                    self.curr_tile = server_ctx.shared.curr_tile_id;
+                    self.curr_source = server_ctx.shared.curr_tile_source;
                     if let Some(source) = self.curr_source {
                         self.reveal_source(project, ui, ctx, source);
                         self.sync_collection_menu(ui, project);
@@ -1205,7 +1205,7 @@ impl Dock for TilesDock {
         &self,
         size: Vec2<i32>,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         sources: &mut crate::minimap::native::Sources,
     ) -> Option<
         std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
@@ -1227,7 +1227,7 @@ impl Dock for TilesDock {
         buffer: &mut TheRGBABuffer,
         project: &Project,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> bool {
         let Some(source) = self.tile_hover_source else {
             return false;
@@ -1295,15 +1295,15 @@ impl TilesDock {
         (self.particle_preview_time * PREVIEW_FPS).floor() / PREVIEW_FPS
     }
 
-    fn activate_edit_tile_meta_action(server_ctx: &mut ServerContext) {
-        if server_ctx.curr_tile_id.is_none() {
+    fn activate_edit_tile_meta_action(server_ctx: &mut CreatorContext) {
+        if server_ctx.shared.curr_tile_id.is_none() {
             return;
         }
 
         if let Some(action) = server_ctx.actions.read()
             .get_action_by_command_id("tile.edit_metadata")
         {
-            server_ctx.curr_action_id = Some(action.id().uuid);
+            server_ctx.shared.curr_action_id = Some(action.id().uuid);
         }
     }
 
@@ -1497,15 +1497,15 @@ impl TilesDock {
         Vec2::new(1, 1)
     }
 
-    fn clear_selection(&mut self, server_ctx: &mut ServerContext) {
+    fn clear_selection(&mut self, server_ctx: &mut CreatorContext) {
         self.curr_source = None;
         self.curr_tile = None;
         self.tile_hover_source = None;
         self.tile_preview_mode = false;
         self.selected_empty_cell = None;
-        server_ctx.curr_tile_source = None;
-        server_ctx.curr_tile_board_cell = None;
-        server_ctx.curr_tile_id = None;
+        server_ctx.shared.curr_tile_source = None;
+        server_ctx.shared.curr_tile_board_cell = None;
+        server_ctx.shared.curr_tile_id = None;
     }
 
     fn scroll_cell_into_view(
@@ -1579,7 +1579,7 @@ impl TilesDock {
         source: TileSource,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let TileSource::SingleTile(tile_id) = source;
         if project.procedural_materials.contains_key(&tile_id) {
@@ -1645,7 +1645,7 @@ impl TilesDock {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let Some((tab, pos)) = self.selected_empty_cell else {
             return false;
@@ -2249,7 +2249,7 @@ impl TilesDock {
     fn preview_texture<'a>(
         &self,
         project: &'a Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         tile_id: Uuid,
     ) -> Option<&'a rusterix::Texture> {
         let tile = project.tiles.get(&tile_id)?;
@@ -2259,11 +2259,11 @@ impl TilesDock {
         let index = tile.frame_index(if tile.paint.is_some() {
             0
         } else {
-            server_ctx.animation_counter
+            server_ctx.shared.animation_counter
         });
         let regular = tile.textures.get(index)?;
         if project
-            .get_map(server_ctx)
+            .get_map(&server_ctx.shared)
             .is_some_and(|map| map.camera == MapCamera::TwoDIso)
             && !project.procedural_materials.contains_key(&tile_id)
         {
@@ -2284,7 +2284,7 @@ impl TilesDock {
         buffer: &mut TheRGBABuffer,
         project: &Project,
         ctx: &mut TheContext,
-        _serverctx: &ServerContext,
+        _serverctx: &CreatorContext,
         source: TileSource,
     ) {
         buffer.fill(BLACK);
@@ -2634,20 +2634,20 @@ impl TilesDock {
         source: TileSource,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let TileSource::SingleTile(tile_id) = source;
         self.selected_empty_cell = None;
         self.curr_source = Some(source);
         self.curr_tile = Some(tile_id);
-        server_ctx.curr_tile_source = Some(source);
-        server_ctx.curr_tile_board_cell = None;
-        server_ctx.curr_tile_id = Some(tile_id);
+        server_ctx.shared.curr_tile_source = Some(source);
+        server_ctx.shared.curr_tile_board_cell = None;
+        server_ctx.shared.curr_tile_id = Some(tile_id);
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Tile Picked"),
             TheValue::Id(tile_id),
         ));
-        if self.current_tab_kind(project) == TileTabKind::Materials && server_ctx.curr_map_tool_type != MapToolType::IsoPaint {
+        if self.current_tab_kind(project) == TileTabKind::Materials && server_ctx.shared.curr_map_tool_type != MapToolType::IsoPaint {
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Open Procedural Tile"),
                 TheValue::Id(tile_id),
@@ -2667,7 +2667,7 @@ impl TilesDock {
         project: &Project,
         tab: usize,
         pos: Vec2<i32>,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.clear_selection(server_ctx);
         self.selected_empty_cell = Some((tab, pos));
@@ -2675,7 +2675,7 @@ impl TilesDock {
             Some(TileTabKind::Collection(id)) => Some(id),
             _ => None,
         };
-        server_ctx.curr_tile_board_cell = Some((collection, pos));
+        server_ctx.shared.curr_tile_board_cell = Some((collection, pos));
     }
 
     fn status_text_for_source(&self, project: &Project, source: TileSource) -> String {
@@ -2821,7 +2821,7 @@ mod tests {
             .insert(Uuid::new_v4(), format!("material reference: {id}"));
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(400, 300, 1.);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         assert!(!filtered.delete_source(
             &mut p,
             TileSource::SingleTile(id),
@@ -2854,7 +2854,7 @@ mod tests {
         dock.filter = "grass".into();
         dock.ensure_tab_state(1);
         dock.tab_offset[0] = Vec2::new(0, 120);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(400, 300, 1.);
         let mut event =
@@ -2927,7 +2927,7 @@ mod tests {
         let mut ctx = TheContext::new(400, 300, 1.0);
         let mut ui = TheUI::new();
         ui.canvas = dock.setup(&mut ctx);
-        let mut server_ctx = ServerContext::new();
+        let mut server_ctx = CreatorContext::new();
         let before = serde_json::to_value(&project).unwrap();
         let cell_size = (TILE_CELL_BASE as f32 * dock.zoom) as i32;
         let click = TheEvent::RenderViewClicked(
@@ -2937,10 +2937,10 @@ mod tests {
         assert!(dock.handle_event(&click, &mut ui, &mut ctx, &mut project, &mut server_ctx));
         assert_eq!(dock.selected_empty_cell, Some((1, Vec2::new(4, 3))));
         assert_eq!(
-            server_ctx.curr_tile_board_cell,
+            server_ctx.shared.curr_tile_board_cell,
             Some((Some(collection_id), Vec2::new(4, 3)))
         );
-        assert_eq!(server_ctx.curr_tile_id, None);
+        assert_eq!(server_ctx.shared.curr_tile_id, None);
         assert_eq!(serde_json::to_value(&project).unwrap(), before);
 
         let mut buffer = TheRGBABuffer::new(TheDim::new(0, 0, 400, 300));
@@ -2954,14 +2954,14 @@ mod tests {
             &mut ctx,
             &mut server_ctx,
         );
-        let id = server_ctx.curr_tile_id.unwrap();
+        let id = server_ctx.shared.curr_tile_id.unwrap();
         assert_eq!(project.tiles.len(), 1);
         assert_eq!(
             project.tile_collections[&collection_id].tile_board_tiles[&id],
             Vec2::new(4, 3)
         );
         assert!(project.collection_contains_source(&collection_id, TileSource::SingleTile(id)));
-        assert_eq!(server_ctx.curr_tile_board_cell, None);
+        assert_eq!(server_ctx.shared.curr_tile_board_cell, None);
     }
 
     #[test]
@@ -2976,7 +2976,7 @@ mod tests {
             source: TileSource::SingleTile(id),
             rect: Vec4::new(0, 0, 60, 60),
         });
-        let mut server_ctx = ServerContext::new();
+        let mut server_ctx = CreatorContext::new();
         dock.select_empty_cell(&project, 0, Vec2::new(3, 3), &mut server_ctx);
         let mut ctx = TheContext::new(400, 300, 1.0);
         let mut ui = TheUI::new();
@@ -2984,9 +2984,9 @@ mod tests {
         let click =
             TheEvent::RenderViewClicked(TheId::named(&dock.view_name(0)), Vec2::new(10, 10));
         dock.handle_event(&click, &mut ui, &mut ctx, &mut project, &mut server_ctx);
-        assert_eq!(server_ctx.curr_tile_id, Some(id));
+        assert_eq!(server_ctx.shared.curr_tile_id, Some(id));
         assert_eq!(dock.selected_empty_cell, None);
-        assert_eq!(server_ctx.curr_tile_board_cell, None);
+        assert_eq!(server_ctx.shared.curr_tile_board_cell, None);
         assert_eq!(dock.tab_specs(&project).len(), 2);
     }
 

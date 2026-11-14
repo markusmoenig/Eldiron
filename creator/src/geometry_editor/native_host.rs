@@ -649,9 +649,9 @@ mod tests {
         editor.camera = 4;
         editor.iso_output = Some(output);
         ui.prepare_paint_layout(&mut ctx);
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         ui.prepare_paint_layout(&mut ctx);
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         assert!(editor.worker.is_none());
         assert!(editor.native.latest.is_none());
         assert_eq!(
@@ -672,7 +672,7 @@ mod tests {
         assert_eq!(gpu.transfers().readback_bytes, 0);
         let old_image = editor.native.displayed.as_ref().unwrap().image.unwrap();
         let transfers = gpu.transfers();
-        assert!(!editor.update(&project, &mut ui, &mut ctx, &ServerContext::default()));
+        assert!(!editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default()));
         assert_eq!(
             editor
                 .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
@@ -690,7 +690,7 @@ mod tests {
             .unwrap()
             .frames[2]
             .data = vec![241, 19, 33, 255];
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         let changed = editor
             .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
             .unwrap()
@@ -747,9 +747,9 @@ mod tests {
         editor.camera = 3;
         editor.selected_operation = Some("outline".into());
         ui.prepare_paint_layout(&mut ctx);
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         ui.prepare_paint_layout(&mut ctx);
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         assert!(editor.worker.is_none());
         assert!(editor.native.latest.is_none());
         assert!(
@@ -851,7 +851,7 @@ mod tests {
         ui.canvas.set_dim(TheDim::new(0, 0, 1400, 900), &mut ctx);
         ctx.width = 1400;
         ctx.height = 900;
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         let resized = editor
             .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
             .unwrap()
@@ -883,7 +883,7 @@ mod tests {
             &mut ctx,
          &creator_history);
         assert_ne!(serde_json::to_value(&project).unwrap(), original);
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         assert_eq!(
             editor
                 .native
@@ -903,7 +903,7 @@ mod tests {
         assert!(editor.presented_gpu_preview(dragged));
         editor.finish_drag(&mut project, &mut ctx, true, &creator_history);
         assert!(editor.contour_drag_frame.is_none());
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         let restored = editor
             .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
             .unwrap()
@@ -1010,9 +1010,9 @@ mod tests {
             &mut ctx,
          &creator_history);
         ui.prepare_paint_layout(&mut ctx);
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         ui.prepare_paint_layout(&mut ctx);
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         assert!(
             editor.worker.is_none(),
             "the converted path must never obtain a device via the reference facade or start a color-readback worker"
@@ -1050,7 +1050,7 @@ mod tests {
         let old_projection = editor.scene.projection.as_ref().unwrap().project(world);
         editor.yaw += 40.;
         editor.preview_key.clear();
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         let pending = editor
             .prepare_gpu_preview(&mut ui, &mut ctx, &mut images.registry)
             .unwrap()
@@ -1064,7 +1064,7 @@ mod tests {
         // A still newer unacknowledged frame cannot revive a superseded token.
         editor.yaw += 15.;
         editor.preview_key.clear();
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         let newest = editor
             .prepare_gpu_preview(&mut ui, &mut ctx, &mut images.registry)
             .unwrap()
@@ -1095,7 +1095,7 @@ mod tests {
         // A failed newer request keeps the actual staged paint and its receipt.
         editor.yaw += 9.;
         editor.preview_key.clear();
-        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         let retained = editor
             .prepare_gpu_preview(&mut ui, &mut ctx, &mut images.registry)
             .unwrap()

@@ -69,7 +69,7 @@ impl ScopedToolOverlayEvent {
         tool: &mut T,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> Option<TheEvent> {
         if self.target != target
             || !self.frame.matches(target, server)
@@ -96,7 +96,7 @@ impl ToolOverlayCommand {
         tool: &mut T,
         target: ToolOverlayTarget,
         map: &mut Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) -> Option<ToolOverlayEffects> {
@@ -193,7 +193,7 @@ impl ToolOverlayCommand {
     pub(crate) fn show_props_popup(
         &self,
         overlay: &props_overlay::PropsOverlay,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) -> bool {
@@ -223,7 +223,7 @@ impl ToolOverlayInputState {
         event: &MapEvent,
         focused: bool,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> ToolOverlayRoute {
         if matches!(event, MapEvent::MapEscape) {
             self.capture = None;

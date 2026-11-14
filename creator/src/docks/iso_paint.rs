@@ -2412,13 +2412,13 @@ impl IsoPaintDock {
     fn paint_layer<'a>(
         &self,
         project: &'a Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> Option<&'a IsoPaintLayer> {
         match self.target {
             IsoPaintTarget::Region => project
-                .get_region(&server_ctx.curr_region)
+                .get_region(&server_ctx.shared.curr_region)
                 .map(|region| &region.iso_paint),
-            IsoPaintTarget::Prefab => match server_ctx.pc {
+            IsoPaintTarget::Prefab => match server_ctx.shared.pc {
                 ProjectContext::Prefab(asset_id) => project.block_prop_paint.get(&asset_id),
                 _ => None,
             },
@@ -2428,13 +2428,13 @@ impl IsoPaintDock {
     fn paint_layer_mut<'a>(
         &self,
         project: &'a mut Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> Option<&'a mut IsoPaintLayer> {
         match self.target {
             IsoPaintTarget::Region => project
-                .get_region_mut(&server_ctx.curr_region)
+                .get_region_mut(&server_ctx.shared.curr_region)
                 .map(|region| &mut region.iso_paint),
-            IsoPaintTarget::Prefab => match server_ctx.pc {
+            IsoPaintTarget::Prefab => match server_ctx.shared.pc {
                 ProjectContext::Prefab(asset_id) => {
                     Some(project.block_prop_paint.entry(asset_id).or_default())
                 }
@@ -3603,7 +3603,7 @@ impl IsoPaintDock {
         ));
     }
 
-    fn sync_project_settings(&self, project: &mut Project, server_ctx: &ServerContext) {
+    fn sync_project_settings(&self, project: &mut Project, server_ctx: &CreatorContext) {
         let brush = self.selected_preset();
         let palette_indices = self.current_palette_indices();
         let palette_colors = self.current_palette_colors(project);
@@ -3883,7 +3883,7 @@ impl Dock for IsoPaintDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let paint = self
             .paint_layer(project, server_ctx)
@@ -3949,7 +3949,7 @@ impl Dock for IsoPaintDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match event {
             TheEvent::Custom(id, _) if id.name == "3D Paint Refresh" => {
@@ -3992,8 +3992,8 @@ impl Dock for IsoPaintDock {
                 if self.is_ui_event(&id.name, ISO_PAINT_CLEAR_ALL) =>
             {
                 let target_id = match self.target {
-                    IsoPaintTarget::Region => Some(server_ctx.curr_region),
-                    IsoPaintTarget::Prefab => match server_ctx.pc {
+                    IsoPaintTarget::Region => Some(server_ctx.shared.curr_region),
+                    IsoPaintTarget::Prefab => match server_ctx.shared.pc {
                         ProjectContext::Prefab(asset_id) => Some(asset_id),
                         _ => None,
                     },
@@ -4040,8 +4040,8 @@ impl Dock for IsoPaintDock {
                 if self.is_ui_event(&id.name, ISO_PAINT_FILL_SELECTION) =>
             {
                 let target_id = match self.target {
-                    IsoPaintTarget::Region => Some(server_ctx.curr_region),
-                    IsoPaintTarget::Prefab => match server_ctx.pc {
+                    IsoPaintTarget::Region => Some(server_ctx.shared.curr_region),
+                    IsoPaintTarget::Prefab => match server_ctx.shared.pc {
                         ProjectContext::Prefab(asset_id) => Some(asset_id),
                         _ => None,
                     },
@@ -4080,8 +4080,8 @@ impl Dock for IsoPaintDock {
                 if self.is_ui_event(&id.name, ISO_PAINT_CLEAR_SELECTION) =>
             {
                 let target_id = match self.target {
-                    IsoPaintTarget::Region => Some(server_ctx.curr_region),
-                    IsoPaintTarget::Prefab => match server_ctx.pc {
+                    IsoPaintTarget::Region => Some(server_ctx.shared.curr_region),
+                    IsoPaintTarget::Prefab => match server_ctx.shared.pc {
                         ProjectContext::Prefab(asset_id) => Some(asset_id),
                         _ => None,
                     },

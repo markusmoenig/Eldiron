@@ -19,15 +19,15 @@ impl Action for ComposeMaterials {
     fn role(&self) -> ActionRole {
         ActionRole::Editor
     }
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server: &ServerContext) -> bool {
-        server.pc.is_region() && map_composition::selection(map, server).is_some()
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server: &CreatorContext) -> bool {
+        server.shared.pc.is_region() && map_composition::selection(map, server).is_some()
     }
     fn apply(
         &self,
         map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         if let Some(binding) = map_composition::selection(map, server) {
             ctx.ui.send(TheEvent::Custom(
@@ -46,7 +46,7 @@ impl Action for ComposeMaterials {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) -> bool {
         false
     }
@@ -61,14 +61,14 @@ mod tests {
         let mut map = Map::default();
         map.sectors.push(rusterix::Sector::new(1, vec![]));
         map.selected_sectors = vec![1];
-        let mut server = ServerContext::default();
-        server.pc = ProjectContext::Region(Uuid::new_v4());
-        server.curr_map_tool_type = MapToolType::Sector;
-        server.selected_hud_icon_index = 0;
+        let mut server = CreatorContext::default();
+        server.shared.pc = ProjectContext::Region(Uuid::new_v4());
+        server.shared.curr_map_tool_type = MapToolType::Sector;
+        server.shared.selected_hud_icon_index = 0;
         let mut ctx = TheContext::new(64, 64, 1.);
         assert!(matches!(action.role(), ActionRole::Editor));
         assert!(action.is_applicable(&map, &mut ctx, &server));
-        assert!(server.curr_tile_board_cell.is_none());
+        assert!(server.shared.curr_tile_board_cell.is_none());
         map.sectors.push(rusterix::Sector::new(2, vec![]));
         map.selected_sectors.push(2);
         assert!(!action.is_applicable(&map, &mut ctx, &server));

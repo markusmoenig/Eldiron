@@ -61,7 +61,7 @@ impl Source {
         scope: HudScope,
         size: (usize, usize),
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
         layout: HitLayout,
     ) -> Self {
         Self {
@@ -71,18 +71,18 @@ impl Source {
             changed: map.changed,
             camera: map.camera,
             subdivisions: map.subdivisions.to_bits(),
-            gizmo: server.geometry_gizmo_op,
+            gizmo: server.shared.geometry_gizmo_op,
             icon: IconSelection {
-                requested: server.selected_hud_icon_index,
+                requested: server.shared.selected_hud_icon_index,
                 displayed: layout
                     .selected_server
-                    .unwrap_or(server.selected_hud_icon_index),
+                    .unwrap_or(server.shared.selected_hud_icon_index),
             },
-            context: server.pc,
-            view: server.editor_view_mode,
-            action: server.curr_action_id,
-            palette: server.palette_tool_active,
-            tool: server.curr_map_tool_type,
+            context: server.shared.pc,
+            view: server.shared.editor_view_mode,
+            action: server.shared.curr_action_id,
+            palette: server.shared.palette_tool_active,
+            tool: server.shared.curr_map_tool_type,
             vertices: map.selected_vertices.clone(),
             linedefs: map.selected_linedefs.clone(),
             sectors: map.selected_sectors.clone(),
@@ -96,19 +96,19 @@ impl Source {
             layout,
         }
     }
-    fn matches(&self, map: &Map, server: &ServerContext) -> bool {
+    fn matches(&self, map: &Map, server: &CreatorContext) -> bool {
         self.map == map.id
             && self.camera == map.camera
             && self.subdivisions == map.subdivisions.to_bits()
-            && self.gizmo == server.geometry_gizmo_op
-            && (server.selected_hud_icon_index == self.icon.requested
-                || server.selected_hud_icon_index == self.icon.displayed)
+            && self.gizmo == server.shared.geometry_gizmo_op
+            && (server.shared.selected_hud_icon_index == self.icon.requested
+                || server.shared.selected_hud_icon_index == self.icon.displayed)
             && self.changed == map.changed
-            && self.context == server.pc
-            && self.view == server.editor_view_mode
-            && self.action == server.curr_action_id
-            && self.palette == server.palette_tool_active
-            && self.tool == server.curr_map_tool_type
+            && self.context == server.shared.pc
+            && self.view == server.shared.editor_view_mode
+            && self.action == server.shared.curr_action_id
+            && self.palette == server.shared.palette_tool_active
+            && self.tool == server.shared.curr_map_tool_type
             && self.vertices == map.selected_vertices
             && self.linedefs == map.selected_linedefs
             && self.sectors == map.selected_sectors
@@ -204,7 +204,7 @@ impl Hud {
         scope: HudScope,
         size: (usize, usize),
         map: &Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         if frame.token.receipt_owner != self.receipt_owner
             || !painted.contains(&frame.token.receipt())
@@ -221,7 +221,7 @@ impl Hud {
         scope: HudScope,
         size: (usize, usize),
         map: &Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         if frame.commands.is_empty()
             || frame.token.owner != self.frame_owner
@@ -243,7 +243,7 @@ impl Hud {
         self.edit_mode_rects = frame.source.layout.edit_modes.clone();
         self.selected_icon_index = frame.source.layout.selected;
         if let Some(selected) = frame.source.layout.selected_server {
-            server.selected_hud_icon_index = selected;
+            server.shared.selected_hud_icon_index = selected;
         }
         self.last_presented = frame.token.serial;
         self.displayed_source = Some(frame.source.clone());
@@ -258,7 +258,7 @@ impl Hud {
         scope: HudScope,
         size: (usize, usize),
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.owns_frame(frame)
             && frame.token.serial > self.invalidated_after
@@ -283,7 +283,7 @@ impl Hud {
         scope: HudScope,
         size: (usize, usize),
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.displayed_source.as_ref().is_some_and(|source| {
             source.scope == scope && source.size == size && source.matches(map, server)
@@ -297,7 +297,7 @@ impl Hud {
         size: (usize, usize),
         point: Vec2<i32>,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> HudHit {
         if !self.frame_input_current(scope, size, map, server) {
             return HudHit::Unavailable;
@@ -340,7 +340,7 @@ impl Hud {
         (source.layout.header && source.camera == MapCamera::TwoD && point.y < 20)
             .then_some(HudAction::BlockHeader)
     }
-    pub(super) fn source_input_current(&self, map: &Map, server: &ServerContext) -> bool {
+    pub(super) fn source_input_current(&self, map: &Map, server: &CreatorContext) -> bool {
         self.displayed_source
             .as_ref()
             .is_some_and(|source| source.matches(map, server))
@@ -391,12 +391,12 @@ impl Hud {
         &mut self,
         action: HudAction,
         map: &mut Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> HudEffects {
         let mut effects = HudEffects::default();
         match action {
             HudAction::GeometryMode { resize } => {
-                server.geometry_gizmo_op = if resize {
+                server.shared.geometry_gizmo_op = if resize {
                     GeometryGizmoOp::Resize
                 } else {
                     GeometryGizmoOp::Move
@@ -405,14 +405,14 @@ impl Hud {
             }
             HudAction::SelectIcon { index, wall_row } => {
                 self.selected_icon_index = index;
-                server.selected_hud_icon_index = index;
+                server.shared.selected_hud_icon_index = index;
                 effects.redraw = true;
                 effects.events.push(TheEvent::Custom(
                     TheId::named("Update Minimap"),
                     TheValue::Empty,
                 ));
                 if wall_row {
-                    server.selected_wall_row = Some(index);
+                    server.shared.selected_wall_row = Some(index);
                     effects.events.push(TheEvent::Custom(
                         TheId::named("Map Selection Changed"),
                         TheValue::Empty,

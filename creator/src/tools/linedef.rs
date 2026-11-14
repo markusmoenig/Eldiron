@@ -85,10 +85,10 @@ fn ray_plane_hit(
 
 fn selected_geometry_surface_line_hit(
     map: &Map,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Option<(Uuid, usize, Vec3<f32>)> {
     let (object_id, face_index) = *map.selected_geometry_faces.first()?;
-    if !matches!(server_ctx.geo_hit, Some(GeoId::GeometryObject(hit_id)) if hit_id == object_id) {
+    if !matches!(server_ctx.shared.geo_hit, Some(GeoId::GeometryObject(hit_id)) if hit_id == object_id) {
         return None;
     }
     let object = map
@@ -99,11 +99,11 @@ fn selected_geometry_surface_line_hit(
     let normal = geometry_face_normal(object, face)?;
     let plane_origin = object.transform_point(*object.vertices.get(*face.indices.first()?)?);
     let hit = server_ctx
-        .hover_ray_origin_3d
-        .zip(server_ctx.hover_ray_dir_3d)
+        .shared.hover_ray_origin_3d
+        .zip(server_ctx.shared.hover_ray_dir_3d)
         .and_then(|(origin, dir)| ray_plane_hit(origin, dir, plane_origin, normal))
-        .unwrap_or(server_ctx.geo_hit_pos);
-    let snapped = server_ctx.snap_world_point_for_edit(map, hit);
+        .unwrap_or(server_ctx.shared.geo_hit_pos);
+    let snapped = server_ctx.shared.snap_world_point_for_edit(map, hit);
     let projected = snapped - normal * (snapped - plane_origin).dot(normal);
     Some((object_id, face_index, projected))
 }
@@ -126,7 +126,7 @@ fn distance_to_segment(point: Vec3<f32>, a: Vec3<f32>, b: Vec3<f32>) -> f32 {
 
 fn selected_geometry_surface_element_hit(
     map: &Map,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Option<(Uuid, usize, Vec3<f32>, SurfaceLineHit)> {
     let (object_id, face_index, point) = selected_geometry_surface_line_hit(map, server_ctx)?;
     let object = map
@@ -199,12 +199,12 @@ fn selected_geometry_surface_element_hit(
 
 fn geometry_surface_element_hit(
     map: &Map,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Option<(Uuid, usize, Vec3<f32>, SurfaceLineHit)> {
     let ray = server_ctx
-        .hover_ray_origin_3d
-        .zip(server_ctx.hover_ray_dir_3d);
-    let hover_object_id = match server_ctx.geo_hit {
+        .shared.hover_ray_origin_3d
+        .zip(server_ctx.shared.hover_ray_dir_3d);
+    let hover_object_id = match server_ctx.shared.geo_hit {
         Some(GeoId::GeometryObject(object_id)) => Some(object_id),
         _ => None,
     };
@@ -235,10 +235,10 @@ fn geometry_surface_element_hit(
             };
             let hit = ray
                 .and_then(|(origin, dir)| ray_plane_hit(origin, dir, plane_origin, normal))
-                .unwrap_or(server_ctx.geo_hit_pos);
-            let point = server_ctx.snap_world_point_for_edit(map, hit)
+                .unwrap_or(server_ctx.shared.geo_hit_pos);
+            let point = server_ctx.shared.snap_world_point_for_edit(map, hit)
                 - normal
-                    * (server_ctx.snap_world_point_for_edit(map, hit) - plane_origin).dot(normal);
+                    * (server_ctx.shared.snap_world_point_for_edit(map, hit) - plane_origin).dot(normal);
 
             for (point_index, surface_point) in face.surface_points.iter().enumerate() {
                 let world = object.transform_point(surface_point.position);
@@ -647,7 +647,7 @@ impl Tool for LinedefTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match tool_event {
             Activate => {
@@ -656,13 +656,13 @@ impl Tool for LinedefTool {
                     ctx.ui.relayout = true;
                 }
 
-                server_ctx.curr_map_tool_type = MapToolType::Linedef;
-                server_ctx.hover = (None, None, None);
-                server_ctx.hover_cursor = None;
-                server_ctx.hover_cursor_3d = None;
-                server_ctx.active_detail_surface = None;
+                server_ctx.shared.curr_map_tool_type = MapToolType::Linedef;
+                server_ctx.shared.hover = (None, None, None);
+                server_ctx.shared.hover_cursor = None;
+                server_ctx.shared.hover_cursor_3d = None;
+                server_ctx.shared.active_detail_surface = None;
 
-                if let Some(map) = project.get_map_mut(server_ctx) {
+                if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                     map.selected_vertices.clear();
                     map.selected_sectors.clear();
                     map.curr_grid_pos = None;
@@ -671,8 +671,8 @@ impl Tool for LinedefTool {
                     map.clear_temp();
                 }
                 self.surface_line_start = None;
-                if server_ctx.editor_view_mode != EditorViewMode::D2
-                    && let Some(map) = project.get_map_mut(server_ctx)
+                if server_ctx.shared.editor_view_mode != EditorViewMode::D2
+                    && let Some(map) = project.get_map_mut(&server_ctx.shared)
                 {
                     map.geometry_selection_mode = 3;
                     map.selected_geometry_objects.clear();
@@ -690,10 +690,10 @@ impl Tool for LinedefTool {
                 return true;
             }
             DeActivate => {
-                server_ctx.curr_map_tool_type = MapToolType::General;
-                server_ctx.hover_cursor = None;
-                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                    if let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                server_ctx.shared.curr_map_tool_type = MapToolType::General;
+                server_ctx.shared.hover_cursor = None;
+                if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
+                    if let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                         && let Some(profile_id) = surface.profile
                         && let Some(profile_map) = region.map.profiles.get_mut(&profile_id)
                     {
@@ -701,7 +701,7 @@ impl Tool for LinedefTool {
                     }
                     region.map.clear_temp();
                 }
-                server_ctx.active_detail_surface = None;
+                server_ctx.shared.active_detail_surface = None;
                 self.surface_line_start = None;
                 self.surface_line_drag = None;
                 return true;
@@ -718,11 +718,11 @@ impl Tool for LinedefTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
-        let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
-            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
-        if server_ctx.editor_view_mode != EditorViewMode::D2 {
+        let detail_mode_3d = server_ctx.shared.editor_view_mode != EditorViewMode::D2
+            && server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail;
+        if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
             map.geometry_selection_mode = 3;
             if !detail_mode_3d {
                 if self
@@ -751,7 +751,7 @@ impl Tool for LinedefTool {
                 MapDragged(_) => {
                     if self.surface_line_drag.is_none() {
                         if !rectangle_drag_in_progress
-                            && (matches!(server_ctx.geo_hit, Some(GeoId::GeometryObject(_)))
+                            && (matches!(server_ctx.shared.geo_hit, Some(GeoId::GeometryObject(_)))
                                 || !map.selected_geometry_objects.is_empty())
                         {
                             return self
@@ -809,7 +809,7 @@ impl Tool for LinedefTool {
                     if drag.changed {
                         server_ctx.reference.write().set_overlay_dirty();
                         return Some(ProjectUndoAtom::MapEdit(
-                            server_ctx.pc,
+                            server_ctx.shared.pc,
                             Box::new(drag.undo_map),
                             Box::new(map.clone()),
                         ));
@@ -828,7 +828,7 @@ impl Tool for LinedefTool {
                 MapDelete => {
                     self.surface_line_start = None;
                     map.curr_grid_pos_3d = None;
-                    server_ctx.hover_cursor_3d = None;
+                    server_ctx.shared.hover_cursor_3d = None;
                     if !map.selected_geometry_surface_points.is_empty()
                         || !map.selected_geometry_surface_segments.is_empty()
                     {
@@ -840,7 +840,7 @@ impl Tool for LinedefTool {
                                 TheValue::Empty,
                             ));
                             return Some(ProjectUndoAtom::MapEdit(
-                                server_ctx.pc,
+                                server_ctx.shared.pc,
                                 Box::new(old_map),
                                 Box::new(map.clone()),
                             ));
@@ -850,7 +850,7 @@ impl Tool for LinedefTool {
                 MapKey('l') | MapKey('L') => {
                     self.surface_line_start = None;
                     map.curr_grid_pos_3d = None;
-                    server_ctx.hover_cursor_3d = None;
+                    server_ctx.shared.hover_cursor_3d = None;
                     let has_surface_selection = !map.selected_geometry_surface_points.is_empty()
                         || !map.selected_geometry_surface_segments.is_empty();
                     if expand_selected_surface_components(map) || has_surface_selection {
@@ -871,7 +871,7 @@ impl Tool for LinedefTool {
                     self.surface_line_start = None;
                     self.surface_line_drag = None;
                     map.curr_grid_pos_3d = None;
-                    server_ctx.hover_cursor_3d = None;
+                    server_ctx.shared.hover_cursor_3d = None;
                     server_ctx.reference.write().set_overlay_dirty();
                     return None;
                 }
@@ -935,7 +935,7 @@ impl Tool for LinedefTool {
                     }
                     self.surface_line_start = None;
                     map.curr_grid_pos_3d = None;
-                    server_ctx.hover_cursor_3d = None;
+                    server_ctx.shared.hover_cursor_3d = None;
                     server_ctx.reference.write().set_overlay_dirty();
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Map Selection Changed"),
@@ -943,7 +943,7 @@ impl Tool for LinedefTool {
                     ));
                     if added {
                         return Some(ProjectUndoAtom::MapEdit(
-                            server_ctx.pc,
+                            server_ctx.shared.pc,
                             Box::new(old_map),
                             Box::new(map.clone()),
                         ));
@@ -1096,7 +1096,7 @@ impl Tool for LinedefTool {
                     map.curr_grid_pos_3d = Some(point);
                     server_ctx.reference.write().set_overlay_dirty();
                     return Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(old_map),
                         Box::new(map.clone()),
                     ));
@@ -1135,7 +1135,7 @@ impl Tool for LinedefTool {
                 ));
                 server_ctx.reference.write().set_overlay_dirty();
                 return Some(ProjectUndoAtom::MapEdit(
-                    server_ctx.pc,
+                    server_ctx.shared.pc,
                     Box::new(old_map),
                     Box::new(map.clone()),
                 ));
@@ -1148,10 +1148,10 @@ impl Tool for LinedefTool {
                     && object_id == start_object_id
                     && face_index == start_face_index
                 {
-                    server_ctx.hover_cursor_3d = Some(point);
+                    server_ctx.shared.hover_cursor_3d = Some(point);
                     server_ctx.reference.write().set_overlay_dirty();
                 } else {
-                    server_ctx.hover_cursor_3d = None;
+                    server_ctx.shared.hover_cursor_3d = None;
                 }
             }
             return self
@@ -1275,37 +1275,37 @@ impl Tool for LinedefTool {
             (point - (a + ab * t)).magnitude()
         }
 
-        fn hovered_detail_surface(server_ctx: &ServerContext) -> Option<Surface> {
+        fn hovered_detail_surface(server_ctx: &CreatorContext) -> Option<Surface> {
             server_ctx
-                .hover_surface
+                .shared.hover_surface
                 .clone()
-                .or(server_ctx.editing_surface.clone())
+                .or(server_ctx.shared.editing_surface.clone())
         }
 
-        fn creation_host_surface(map: &Map, server_ctx: &ServerContext) -> Option<Surface> {
+        fn creation_host_surface(map: &Map, server_ctx: &CreatorContext) -> Option<Surface> {
             let hit_pos = server_ctx
-                .hover_surface_hit_pos
-                .or(server_ctx.editing_surface_hit_pos)
-                .unwrap_or(server_ctx.geo_hit_pos);
+                .shared.hover_surface_hit_pos
+                .or(server_ctx.shared.editing_surface_hit_pos)
+                .unwrap_or(server_ctx.shared.geo_hit_pos);
             if let Some(surface) = detail_surface_at_point(map, hit_pos) {
                 return Some(surface);
             }
             if let Some(surface) = server_ctx
-                .hover_surface
+                .shared.hover_surface
                 .as_ref()
-                .or(server_ctx.editing_surface.as_ref())
+                .or(server_ctx.shared.editing_surface.as_ref())
             {
                 return Some(surface.clone());
             }
-            let sector_id = match server_ctx.geo_hit {
+            let sector_id = match server_ctx.shared.geo_hit {
                 Some(GeoId::Sector(id)) => Some(id),
                 _ => server_ctx
-                    .hover_surface
+                    .shared.hover_surface
                     .as_ref()
                     .map(|surface| surface.sector_id)
                     .or_else(|| {
                         server_ctx
-                            .editing_surface
+                            .shared.editing_surface
                             .as_ref()
                             .map(|surface| surface.sector_id)
                     }),
@@ -1318,10 +1318,10 @@ impl Tool for LinedefTool {
             surface.is_valid().then_some(surface)
         }
 
-        fn creation_host_sector_id(map: &Map, server_ctx: &ServerContext) -> Option<u32> {
+        fn creation_host_sector_id(map: &Map, server_ctx: &CreatorContext) -> Option<u32> {
             creation_host_surface(map, server_ctx)
                 .map(|surface| surface.sector_id)
-                .or(match server_ctx.geo_hit {
+                .or(match server_ctx.shared.geo_hit {
                     Some(GeoId::Sector(id)) => Some(id),
                     _ => None,
                 })
@@ -1437,7 +1437,7 @@ impl Tool for LinedefTool {
                 // If a vertex is under the cursor in D2, prioritize continuing line creation
                 // over linedef selection. This allows extending existing chains by clicking endpoints.
                 let mut over_vertex = false;
-                if let Some(grid) = &server_ctx.hover_cursor {
+                if let Some(grid) = &server_ctx.shared.hover_cursor {
                     if let Some(vertex_id) = map.find_vertex_at(grid.x, grid.y)
                         && !vertex_is_in_rect_sector(map, vertex_id)
                     {
@@ -1447,18 +1447,18 @@ impl Tool for LinedefTool {
 
                 self.click_selected = false;
                 let hovering_vertex_in_2d =
-                    server_ctx.editor_view_mode == EditorViewMode::D2 && over_vertex;
+                    server_ctx.shared.editor_view_mode == EditorViewMode::D2 && over_vertex;
                 let mut detail_surface_retargeted = false;
 
                 if detail_mode_3d
                     && let Some(surface) = detail_surface_at_point(
                         map,
-                        server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos),
+                        server_ctx.shared.hover_cursor_3d.unwrap_or(server_ctx.shared.geo_hit_pos),
                     )
-                    && server_ctx.active_detail_surface.as_ref().map(|s| s.id) != Some(surface.id)
+                    && server_ctx.shared.active_detail_surface.as_ref().map(|s| s.id) != Some(surface.id)
                 {
                     if let Some(old_profile_id) = server_ctx
-                        .active_detail_surface
+                        .shared.active_detail_surface
                         .as_ref()
                         .and_then(|active| active.profile)
                         && let Some(old_profile_map) = map.profiles.get_mut(&old_profile_id)
@@ -1466,8 +1466,8 @@ impl Tool for LinedefTool {
                         old_profile_map.selected_linedefs.clear();
                         old_profile_map.clear_temp();
                     }
-                    server_ctx.active_detail_surface = Some(surface);
-                    server_ctx.hover.1 = None;
+                    server_ctx.shared.active_detail_surface = Some(surface);
+                    server_ctx.shared.hover.1 = None;
                     map.curr_grid_pos = None;
                     map.curr_grid_pos_3d = None;
                     map.clear_temp();
@@ -1476,11 +1476,11 @@ impl Tool for LinedefTool {
 
                 let clicked_detail_linedef = if detail_mode_3d {
                     server_ctx
-                        .active_detail_surface
+                        .shared.active_detail_surface
                         .as_ref()
                         .and_then(|surface| {
                             let hit_pos =
-                                server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
+                                server_ctx.shared.hover_cursor_3d.unwrap_or(server_ctx.shared.geo_hit_pos);
                             surface.profile.and_then(|profile_id| {
                                 map.profiles.get(&profile_id).and_then(|profile_map| {
                                     profile_map
@@ -1515,8 +1515,8 @@ impl Tool for LinedefTool {
                     None
                 };
                 if detail_mode_3d {
-                    server_ctx.hover.1 =
-                        clicked_detail_linedef.or_else(|| match server_ctx.geo_hit {
+                    server_ctx.shared.hover.1 =
+                        clicked_detail_linedef.or_else(|| match server_ctx.shared.geo_hit {
                             Some(GeoId::Linedef(id)) => Some(id),
                             _ => None,
                         });
@@ -1524,7 +1524,7 @@ impl Tool for LinedefTool {
 
                 if map.curr_grid_pos.is_none()
                     && map.curr_grid_pos_3d.is_none()
-                    && server_ctx.hover.1.is_some()
+                    && server_ctx.shared.hover.1.is_some()
                     && !hovering_vertex_in_2d
                     && !detail_surface_retargeted
                 {
@@ -1533,13 +1533,13 @@ impl Tool for LinedefTool {
                     let mut handled_detail_selection = false;
 
                     if detail_mode_3d {
-                        if let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                        if let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                             && let Some(profile_id) = surface.profile
                             && let Some(profile_map) = map.profiles.get_mut(&profile_id)
                         {
                             handled_detail_selection = true;
                             if ui.shift {
-                                if let Some(l) = server_ctx.hover.1 {
+                                if let Some(l) = server_ctx.shared.hover.1 {
                                     if !profile_map.selected_linedefs.contains(&l) {
                                         profile_map.selected_linedefs.push(l);
                                         changed = true;
@@ -1547,14 +1547,14 @@ impl Tool for LinedefTool {
                                     self.click_selected = true;
                                 }
                             } else if ui.alt {
-                                if let Some(l) = server_ctx.hover.1 {
+                                if let Some(l) = server_ctx.shared.hover.1 {
                                     profile_map
                                         .selected_linedefs
                                         .retain(|&selected| selected != l);
                                     changed = true;
                                 }
                             } else {
-                                if let Some(v) = server_ctx.hover.1 {
+                                if let Some(v) = server_ctx.shared.hover.1 {
                                     profile_map.selected_linedefs = vec![v];
                                     changed = true;
                                 } else {
@@ -1569,7 +1569,7 @@ impl Tool for LinedefTool {
                     if !handled_detail_selection {
                         if ui.shift {
                             // Add
-                            if let Some(l) = server_ctx.hover.1 {
+                            if let Some(l) = server_ctx.shared.hover.1 {
                                 if !map.selected_linedefs.contains(&l) {
                                     map.selected_linedefs.push(l);
                                     changed = true;
@@ -1578,13 +1578,13 @@ impl Tool for LinedefTool {
                             }
                         } else if ui.alt {
                             // Subtract
-                            if let Some(l) = server_ctx.hover.1 {
+                            if let Some(l) = server_ctx.shared.hover.1 {
                                 map.selected_linedefs.retain(|&selected| selected != l);
                                 changed = true;
                             }
                         } else {
                             // Replace
-                            if let Some(v) = server_ctx.hover.1 {
+                            if let Some(v) = server_ctx.shared.hover.1 {
                                 map.selected_linedefs = vec![v];
                                 changed = true;
                             } else {
@@ -1596,18 +1596,18 @@ impl Tool for LinedefTool {
                     }
 
                     if changed {
-                        if server_ctx.editor_view_mode != EditorViewMode::D2 && !detail_mode_3d {
+                        if server_ctx.shared.editor_view_mode != EditorViewMode::D2 && !detail_mode_3d {
                             let hit_pos =
-                                server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
-                            server_ctx.editing_surface_hit_pos = Some(hit_pos);
-                            if let Some(linedef_id) = server_ctx.hover.1 {
-                                server_ctx.editing_surface =
+                                server_ctx.shared.hover_cursor_3d.unwrap_or(server_ctx.shared.geo_hit_pos);
+                            server_ctx.shared.editing_surface_hit_pos = Some(hit_pos);
+                            if let Some(linedef_id) = server_ctx.shared.hover.1 {
+                                server_ctx.shared.editing_surface =
                                     wall_surface_for_linedef_at_point(map, linedef_id, hit_pos);
                             } else {
-                                server_ctx.editing_surface = None;
+                                server_ctx.shared.editing_surface = None;
                             }
                         }
-                        server_ctx.curr_action_id =
+                        server_ctx.shared.curr_action_id =
                             Some(Uuid::from_str(EDIT_LINEDEF_ACTION_ID).unwrap());
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Map Selection Changed"),
@@ -1619,9 +1619,9 @@ impl Tool for LinedefTool {
                     let mut set_current_gid_pos = true;
                     if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
                     {
-                        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                             let dim = *render_view.dim();
-                            let grid_pos = server_ctx.local_to_map_grid(
+                            let grid_pos = server_ctx.shared.local_to_map_grid(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 Vec2::new(coord.x as f32, coord.y as f32),
                                 map,
@@ -1664,7 +1664,7 @@ impl Tool for LinedefTool {
                                     }
 
                                     undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                        server_ctx.pc,
+                                        server_ctx.shared.pc,
                                         Box::new(prev),
                                         Box::new(map.clone()),
                                     ));
@@ -1675,16 +1675,16 @@ impl Tool for LinedefTool {
                                 map.curr_grid_pos = Some(vek::Vec2::new(grid_pos.x, grid_pos.y));
                                 map.curr_grid_pos_3d = None;
                             }
-                        } else if let Some(hit_pos) = server_ctx.hover_cursor_3d {
+                        } else if let Some(hit_pos) = server_ctx.shared.hover_cursor_3d {
                             let detail_mode =
-                                server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
+                                server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail;
                             if detail_mode
-                                && server_ctx.active_detail_surface.is_none()
+                                && server_ctx.shared.active_detail_surface.is_none()
                                 && let Some(surface) = hovered_detail_surface(server_ctx)
                             {
-                                server_ctx.active_detail_surface = Some(surface);
+                                server_ctx.shared.active_detail_surface = Some(surface);
                             }
-                            let snapped_pos = server_ctx.snap_world_point_for_edit(map, hit_pos);
+                            let snapped_pos = server_ctx.shared.snap_world_point_for_edit(map, hit_pos);
 
                             if let Some(curr_grid_pos) = map.curr_grid_pos_3d {
                                 if curr_grid_pos != snapped_pos {
@@ -1694,7 +1694,7 @@ impl Tool for LinedefTool {
 
                                     if detail_mode
                                         && let Some(surface) =
-                                            server_ctx.active_detail_surface.clone()
+                                            server_ctx.shared.active_detail_surface.clone()
                                     {
                                         let mut profile_to_add = None;
                                         let profile_id = if let Some(surface_mut) =
@@ -1713,7 +1713,7 @@ impl Tool for LinedefTool {
                                         if let Some(profile) = profile_to_add {
                                             map.profiles.insert(profile.id, profile.clone());
                                             if let Some(active) =
-                                                server_ctx.active_detail_surface.as_mut()
+                                                server_ctx.shared.active_detail_surface.as_mut()
                                                 && active.id == surface.id
                                             {
                                                 active.profile = Some(profile.id);
@@ -1747,7 +1747,7 @@ impl Tool for LinedefTool {
                                                 if profile_map.close_polygon_manual().is_some() {
                                                     profile_map.clear_temp();
                                                     map.clear_temp();
-                                                    server_ctx.active_detail_surface = None;
+                                                    server_ctx.shared.active_detail_surface = None;
                                                     set_current_gid_pos = false;
                                                 }
                                             } else {
@@ -1757,7 +1757,7 @@ impl Tool for LinedefTool {
                                                 if ids.1.is_some() {
                                                     profile_map.clear_temp();
                                                     map.clear_temp();
-                                                    server_ctx.active_detail_surface = None;
+                                                    server_ctx.shared.active_detail_surface = None;
                                                     set_current_gid_pos = false;
                                                 }
                                             }
@@ -1771,15 +1771,15 @@ impl Tool for LinedefTool {
                                             creation_host_sector_id(map, server_ctx);
                                         let host_surface = creation_host_surface(map, server_ctx);
                                         let host_hit_pos = server_ctx
-                                            .hover_cursor_3d
-                                            .unwrap_or(server_ctx.geo_hit_pos);
+                                            .shared.hover_cursor_3d
+                                            .unwrap_or(server_ctx.shared.geo_hit_pos);
                                         let host_data = compute_world_linedef_host_data(
                                             curr_grid_pos,
                                             snapped_pos,
                                             host_hit_pos,
                                             host_surface.as_ref(),
                                             server_ctx
-                                                .hover_ray_dir_3d
+                                                .shared.hover_ray_dir_3d
                                                 .and_then(|dir| dir.try_normalized()),
                                         );
                                         let host_outward = host_data.map(|data| data.outward);
@@ -1958,7 +1958,7 @@ impl Tool for LinedefTool {
                                                 map.surfaces.insert(surface.id, surface);
 
                                                 map.clear_temp();
-                                                server_ctx.active_detail_surface = None;
+                                                server_ctx.shared.active_detail_surface = None;
                                                 set_current_gid_pos = false;
                                             }
                                         } else {
@@ -2021,14 +2021,14 @@ impl Tool for LinedefTool {
                                                 map.surfaces.insert(surface.id, surface);
 
                                                 map.clear_temp();
-                                                server_ctx.active_detail_surface = None;
+                                                server_ctx.shared.active_detail_surface = None;
                                                 set_current_gid_pos = false;
                                             }
                                         }
                                     }
 
                                     undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                        server_ctx.pc,
+                                        server_ctx.shared.pc,
                                         Box::new(prev),
                                         Box::new(map.clone()),
                                     ));
@@ -2050,7 +2050,7 @@ impl Tool for LinedefTool {
                 let mut detail_selection_prepared = false;
                 if detail_mode_3d
                     && self.click_selected
-                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                     && let Some(profile_id) = surface.profile
                     && let Some(profile_map) = map.profiles.get(&profile_id)
                     && !profile_map.selected_linedefs.is_empty()
@@ -2072,7 +2072,7 @@ impl Tool for LinedefTool {
                     if count > 0 {
                         self.click_pos_3d = sum_pos / count as f32;
                     } else {
-                        self.click_pos_3d = server_ctx.geo_hit_pos;
+                        self.click_pos_3d = server_ctx.shared.geo_hit_pos;
                     }
 
                     if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
@@ -2128,12 +2128,12 @@ impl Tool for LinedefTool {
                     if count > 0 {
                         self.click_pos_3d = sum_pos / count as f32;
                     } else {
-                        self.click_pos_3d = server_ctx.geo_hit_pos;
+                        self.click_pos_3d = server_ctx.shared.geo_hit_pos;
                     }
 
                     // Compute initial ray intersection on the drag plane at click time
                     // This ensures dragging is relative to this point, not the vertex average
-                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                    if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                         if let Some(render_view) =
                             crate::utils::map_editor_render_view(ui, server_ctx)
                         {
@@ -2154,7 +2154,7 @@ impl Tool for LinedefTool {
                                 )
                             };
 
-                            let plane = server_ctx.gizmo_mode;
+                            let plane = server_ctx.shared.gizmo_mode;
                             let plane_normal = match plane {
                                 GizmoMode::XZ => Vec3::new(0.0, 1.0, 0.0),
                                 GizmoMode::XY => Vec3::new(0.0, 0.0, 1.0),
@@ -2171,11 +2171,11 @@ impl Tool for LinedefTool {
                         }
                     }
                 } else {
-                    self.click_pos_3d = server_ctx.geo_hit_pos;
+                    self.click_pos_3d = server_ctx.shared.geo_hit_pos;
                 }
 
                 if detail_mode_3d
-                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                     && let Some(profile_id) = surface.profile
                     && let Some(profile_map) = map.profiles.get(&profile_id)
                 {
@@ -2197,15 +2197,15 @@ impl Tool for LinedefTool {
                     {
                         let dim = *render_view.dim();
 
-                        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                             // 2D dragging
-                            let click_pos = server_ctx.local_to_map_grid(
+                            let click_pos = server_ctx.shared.local_to_map_grid(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 self.click_pos,
                                 map,
                                 map.subdivisions,
                             );
-                            let drag_pos = server_ctx.local_to_map_grid(
+                            let drag_pos = server_ctx.shared.local_to_map_grid(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 Vec2::new(coord.x as f32, coord.y as f32),
                                 map,
@@ -2233,12 +2233,12 @@ impl Tool for LinedefTool {
                                     map.update_vertex(*vertex_id, new_pos);
                                 }
                             }
-                            server_ctx.hover_cursor = Some(drag_pos);
+                            server_ctx.shared.hover_cursor = Some(drag_pos);
                             if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
                                 self.drag_changed = true;
                             }
                         } else if detail_mode_3d
-                            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                            && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                             && let Some(profile_id) = surface.profile
                         {
                             let drag_distance = self
@@ -2374,7 +2374,7 @@ impl Tool for LinedefTool {
                             };
 
                             let start_pos = self.click_pos_3d;
-                            let plane = server_ctx.gizmo_mode;
+                            let plane = server_ctx.shared.gizmo_mode;
 
                             let screen_uv = [
                                 coord.x as f32 / dim.width as f32,
@@ -2497,20 +2497,20 @@ impl Tool for LinedefTool {
                             crate::utils::map_editor_render_view(ui, server_ctx)
                         {
                             let dim = *render_view.dim();
-                            let click_pos = server_ctx.local_to_map_grid(
+                            let click_pos = server_ctx.shared.local_to_map_grid(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 self.click_pos,
                                 map,
                                 map.subdivisions,
                             );
-                            let drag_pos = server_ctx.local_to_map_grid(
+                            let drag_pos = server_ctx.shared.local_to_map_grid(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 Vec2::new(coord.x as f32, coord.y as f32),
                                 map,
                                 map.subdivisions,
                             );
 
-                            let selection = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                            let selection = if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                                 let top_left = Vec2::new(
                                     click_pos.x.min(drag_pos.x),
                                     click_pos.y.min(drag_pos.y),
@@ -2521,14 +2521,14 @@ impl Tool for LinedefTool {
                                 );
 
                                 let mut selection = if map.camera == rusterix::MapCamera::TwoDIso {
-                                    server_ctx.geometry_in_screen_rectangle(
+                                    server_ctx.shared.geometry_in_screen_rectangle(
                                         Vec2::new(dim.width as f32, dim.height as f32),
                                         self.click_pos,
                                         Vec2::new(coord.x as f32, coord.y as f32),
                                         map,
                                     )
                                 } else {
-                                    server_ctx.geometry_in_rectangle(top_left, bottom_right, map)
+                                    server_ctx.shared.geometry_in_rectangle(top_left, bottom_right, map)
                                 };
 
                                 selection.0 = vec![];
@@ -2577,7 +2577,7 @@ impl Tool for LinedefTool {
                             };
 
                             let preview_rectangle =
-                                if server_ctx.editor_view_mode == EditorViewMode::D2
+                                if server_ctx.shared.editor_view_mode == EditorViewMode::D2
                                     && map.camera != rusterix::MapCamera::TwoDIso
                                 {
                                     (click_pos, drag_pos)
@@ -2608,7 +2608,7 @@ impl Tool for LinedefTool {
                 if self.click_selected {
                     if self.drag_changed {
                         if detail_mode_3d
-                            && let Some(surface) = server_ctx.active_detail_surface.clone()
+                            && let Some(surface) = server_ctx.shared.active_detail_surface.clone()
                             && let Some(profile_id) = surface.profile
                         {
                             let is_valid = map
@@ -2627,7 +2627,7 @@ impl Tool for LinedefTool {
                             }
                         }
                         undo_atom = Some(ProjectUndoAtom::MapEdit(
-                            server_ctx.pc,
+                            server_ctx.shared.pc,
                             Box::new(self.rectangle_undo_map.clone()),
                             Box::new(map.clone()),
                         ));
@@ -2652,18 +2652,18 @@ impl Tool for LinedefTool {
                 }
 
                 if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx) {
-                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                         let dim = *render_view.dim();
                         if !self.rectangle_mode {
                             //map.curr_mouse_pos = Some(Vec2::new(coord.x as f32, coord.y as f32));
-                            map.curr_mouse_pos = Some(server_ctx.local_to_map_grid(
+                            map.curr_mouse_pos = Some(server_ctx.shared.local_to_map_grid(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 Vec2::new(coord.x as f32, coord.y as f32),
                                 map,
                                 map.subdivisions,
                             ));
                         }
-                        let mut hover = server_ctx.geometry_at_for_tool(
+                        let mut hover = server_ctx.shared.geometry_at_for_tool(
                             Vec2::new(dim.width as f32, dim.height as f32),
                             Vec2::new(coord.x as f32, coord.y as f32),
                             map,
@@ -2673,8 +2673,8 @@ impl Tool for LinedefTool {
                         hover.0 = None;
                         hover.2 = None;
 
-                        server_ctx.hover = hover;
-                        let cp = server_ctx.local_to_map_grid(
+                        server_ctx.shared.hover = hover;
+                        let cp = server_ctx.shared.local_to_map_grid(
                             Vec2::new(dim.width as f32, dim.height as f32),
                             Vec2::new(coord.x as f32, coord.y as f32),
                             map,
@@ -2684,11 +2684,11 @@ impl Tool for LinedefTool {
                             TheId::named("Cursor Pos Changed"),
                             TheValue::Float2(cp),
                         ));
-                        server_ctx.hover_cursor = Some(cp);
+                        server_ctx.shared.hover_cursor = Some(cp);
                     } else {
                         if detail_mode_3d {
                             let selected_count = server_ctx
-                                .active_detail_surface
+                                .shared.active_detail_surface
                                 .as_ref()
                                 .and_then(|surface| surface.profile)
                                 .and_then(|profile_id| map.profiles.get(&profile_id))
@@ -2698,34 +2698,34 @@ impl Tool for LinedefTool {
                                 && selected_count == 0
                                 && let Some(surface) = hovered_detail_surface(server_ctx)
                             {
-                                server_ctx.active_detail_surface = Some(surface);
+                                server_ctx.shared.active_detail_surface = Some(surface);
                             }
                         }
 
-                        if let Some(geo_id) = server_ctx.geo_hit {
+                        if let Some(geo_id) = server_ctx.shared.geo_hit {
                             match geo_id {
                                 GeoId::Linedef(id) => {
-                                    server_ctx.hover = (None, Some(id), None);
-                                    server_ctx.editing_surface = server_ctx.hover_surface.clone();
-                                    server_ctx.editing_surface_hit_pos = Some(
+                                    server_ctx.shared.hover = (None, Some(id), None);
+                                    server_ctx.shared.editing_surface = server_ctx.shared.hover_surface.clone();
+                                    server_ctx.shared.editing_surface_hit_pos = Some(
                                         server_ctx
-                                            .hover_cursor_3d
-                                            .unwrap_or(server_ctx.geo_hit_pos),
+                                            .shared.hover_cursor_3d
+                                            .unwrap_or(server_ctx.shared.geo_hit_pos),
                                     );
                                 }
                                 _ => {
-                                    server_ctx.hover = (None, None, None);
-                                    server_ctx.editing_surface = None;
-                                    server_ctx.editing_surface_hit_pos = None;
+                                    server_ctx.shared.hover = (None, None, None);
+                                    server_ctx.shared.editing_surface = None;
+                                    server_ctx.shared.editing_surface_hit_pos = None;
                                 }
                             }
                         } else {
-                            server_ctx.hover = (None, None, None);
-                            server_ctx.editing_surface = None;
-                            server_ctx.editing_surface_hit_pos = None;
+                            server_ctx.shared.hover = (None, None, None);
+                            server_ctx.shared.editing_surface = None;
+                            server_ctx.shared.editing_surface_hit_pos = None;
                         }
 
-                        if let Some(cp) = server_ctx.hover_cursor {
+                        if let Some(cp) = server_ctx.shared.hover_cursor {
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Cursor Pos Changed"),
                                 TheValue::Float2(cp),
@@ -2733,14 +2733,14 @@ impl Tool for LinedefTool {
                         }
                     }
 
-                    if let Some(l) = server_ctx.hover.1 {
+                    if let Some(l) = server_ctx.shared.hover.1 {
                         if detail_mode_3d
-                            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                            && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                             && let Some(profile_id) = surface.profile
                             && let Some(profile_map) = map.profiles.get(&profile_id)
                             && let Some(linedef) = profile_map.find_linedef(l)
                         {
-                            let pos_text = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                            let pos_text = if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                                 let start = profile_map.get_vertex(linedef.start_vertex);
                                 let end = profile_map.get_vertex(linedef.end_vertex);
                                 if let (Some(start), Some(end)) = (start, end) {
@@ -2773,7 +2773,7 @@ impl Tool for LinedefTool {
                                 ),
                             ));
                         } else if let Some(linedef) = map.find_linedef(l) {
-                            let pos_text = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                            let pos_text = if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                                 let start = map.get_vertex(linedef.start_vertex);
                                 let end = map.get_vertex(linedef.end_vertex);
                                 if let (Some(start), Some(end)) = (start, end) {
@@ -2814,7 +2814,7 @@ impl Tool for LinedefTool {
             }
             MapDelete => {
                 if detail_mode_3d
-                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                     && let Some(profile_id) = surface.profile
                 {
                     let prev = map.clone();
@@ -2826,7 +2826,7 @@ impl Tool for LinedefTool {
                         profile_map.selected_linedefs.clear();
 
                         undo_atom = Some(ProjectUndoAtom::MapEdit(
-                            server_ctx.pc,
+                            server_ctx.shared.pc,
                             Box::new(prev),
                             Box::new(map.clone()),
                         ));
@@ -2844,7 +2844,7 @@ impl Tool for LinedefTool {
                     map.selected_linedefs.clear();
 
                     undo_atom = Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(prev),
                         Box::new(map.clone()),
                     ));
@@ -2856,14 +2856,14 @@ impl Tool for LinedefTool {
             }
             MapEscape => {
                 map.clear_temp();
-                if let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                if let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
                     && let Some(profile_id) = surface.profile
                     && let Some(profile_map) = map.profiles.get_mut(&profile_id)
                 {
                     profile_map.clear_temp();
                     profile_map.selected_linedefs.clear();
                 }
-                server_ctx.active_detail_surface = None;
+                server_ctx.shared.active_detail_surface = None;
                 if !map.selected_linedefs.is_empty() {
                     map.selected_linedefs.clear();
 
@@ -2898,11 +2898,11 @@ impl Tool for LinedefTool {
     fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
         Some(&mut self.hud)
     }
-    fn hud_selected_id(&self, map: &Map, server_ctx: &ServerContext) -> Option<u32> {
-        let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
-            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
+    fn hud_selected_id(&self, map: &Map, server_ctx: &CreatorContext) -> Option<u32> {
+        let detail_mode_3d = server_ctx.shared.editor_view_mode != EditorViewMode::D2
+            && server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail;
         let id = if detail_mode_3d
-            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+            && let Some(surface) = server_ctx.shared.active_detail_surface.as_ref()
             && let Some(profile_id) = surface.profile
             && let Some(profile_map) = map.profiles.get(&profile_id)
             && !profile_map.selected_linedefs.is_empty()
@@ -2918,9 +2918,9 @@ impl Tool for LinedefTool {
     fn overlay_screen_rectangle(
         &self,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> Option<(Vec2<f32>, Vec2<f32>)> {
-        if server.editor_view_mode != EditorViewMode::D2 {
+        if server.shared.editor_view_mode != EditorViewMode::D2 {
             map.curr_rectangle
         } else {
             None
@@ -2931,7 +2931,7 @@ impl Tool for LinedefTool {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         assets: &Assets,
     ) {
         if let Some(rect) = self.overlay_screen_rectangle(map, server_ctx) {
@@ -2948,7 +2948,7 @@ impl Tool for LinedefTool {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let redraw = false;
         #[allow(clippy::single_match)]
@@ -2964,7 +2964,7 @@ impl Tool for LinedefTool {
                         }
                     } */
                     if let Some(source) = source {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
+                        if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                             let _prev = map.clone();
                             for linedef_id in map.selected_linedefs.clone() {
                                 if let Some(linedef) = map.find_linedef_mut(linedef_id) {
@@ -2980,7 +2980,7 @@ impl Tool for LinedefTool {
                                 }
                             }
 
-                            if server_ctx.get_map_context() == MapContext::Region {
+                            if server_ctx.shared.get_map_context() == MapContext::Region {
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Render SceneManager Map"),
                                     TheValue::Empty,
@@ -2991,7 +2991,7 @@ impl Tool for LinedefTool {
                         }
                     }
                 } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
+                    if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                         let _prev = map.clone();
                         for linedef_id in map.selected_linedefs.clone() {
                             if let Some(linedef) = map.find_linedef_mut(linedef_id) {
@@ -3037,7 +3037,7 @@ impl Tool for LinedefTool {
                             TheValue::Empty,
                         ));
 
-                        if server_ctx.get_map_context() == MapContext::Region {
+                        if server_ctx.shared.get_map_context() == MapContext::Region {
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Render SceneManager Map"),
                                 TheValue::Empty,

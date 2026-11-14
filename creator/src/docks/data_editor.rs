@@ -97,7 +97,7 @@ impl Dock for DataEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.inner.activate(ui, ctx, project, server_ctx);
         self.sync_hidden_to_max_editor(ui, ctx);
@@ -144,7 +144,7 @@ impl Dock for DataEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let mut redraw = match event {
             TheEvent::ValueChanged(id, value) if id.name == "DockDataEditorMax" => {
@@ -186,7 +186,7 @@ impl Dock for DataEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.inner.undo(ui, ctx, project, server_ctx);
         self.sync_hidden_to_max_editor(ui, ctx);
@@ -198,7 +198,7 @@ impl Dock for DataEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.inner.redo(ui, ctx, project, server_ctx);
         self.sync_hidden_to_max_editor(ui, ctx);
@@ -210,7 +210,7 @@ impl Dock for DataEditorDock {
         &self,
         size: Vec2<i32>,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         sources: &mut crate::minimap::native::Sources,
     ) -> Option<
         std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
@@ -225,7 +225,7 @@ impl Dock for DataEditorDock {
         buffer: &mut TheRGBABuffer,
         project: &Project,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> bool {
         self.inner.draw_minimap(buffer, project, ctx, server_ctx)
     }
@@ -298,7 +298,7 @@ impl DataEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let Some(source) = Self::preview_source(ui, "DockDataEditorMax") else {
             return false;
@@ -314,7 +314,7 @@ impl DataEditorDock {
             .inner
             .handle_event(&forwarded, ui, ctx, project, server_ctx);
         if playing {
-            server_ctx.animation_counter = 0;
+            server_ctx.shared.animation_counter = 0;
         }
         self.sync_preview_play_button(ui, ctx);
         redraw
@@ -332,7 +332,7 @@ impl DataEditorDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) {
         #[cfg(feature = "native-ui")]
         {
@@ -423,7 +423,7 @@ impl theframework::theui::thewidget::therenderview::RenderViewPaintSource for Ri
 impl DataEditorDock {
     pub(crate) fn native_editor_preview_reference_case(
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> (
         std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
         TheRGBABuffer,

@@ -528,7 +528,7 @@ impl RulesEditor {
             &mut ui,
             &mut context,
             &mut project,
-            &mut ServerContext::new()
+            &mut CreatorContext::new()
         ));
         assert!(
             !ui.get_render_view("Rules Particle Preview")
@@ -543,7 +543,7 @@ impl RulesEditor {
             &mut ui,
             &mut context,
             &mut project,
-            &mut ServerContext::new()
+            &mut CreatorContext::new()
         ));
     }
     fn particle_preview_widget(
@@ -1246,7 +1246,7 @@ impl Dock for RulesEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) {
         if let Some(previous) = self.undo.pop() {
             self.redo.push(project.rules_document.clone());
@@ -1265,7 +1265,7 @@ impl Dock for RulesEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) {
         if let Some(next) = self.redo.pop() {
             self.undo.push(project.rules_document.clone());
@@ -1284,7 +1284,7 @@ impl Dock for RulesEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) {
         ui.set_widget_value("Rules Search", ctx, TheValue::Text(self.search.clone()));
         self.catalogue(ui, project);
@@ -1295,7 +1295,7 @@ impl Dock for RulesEditor {
         ui: &mut TheUI,
         _ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) -> bool {
         #[cfg(feature = "native-ui")]
         if self.native_preview {
@@ -1373,7 +1373,7 @@ impl Dock for RulesEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) -> bool {
         match event {
             TheEvent::ValueChanged(id, value)
@@ -2144,7 +2144,7 @@ mod tests {
             &mut ui,
             &mut ctx,
             &Project::new(),
-            &mut ServerContext::default(),
+            &mut CreatorContext::default(),
         );
         assert_eq!(
             ui.get_widget("Rules Search").unwrap().value().to_string(),
@@ -2159,7 +2159,7 @@ mod tests {
         let mut ui = TheUI::new();
         ui.canvas = dock.setup(&mut ctx);
         let mut project = Project::new();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         dock.selected = Some(vec!["races".into(), "Skeleton".into()]);
         dock.form(&mut ui, &project);
         ui.set_widget_value(
@@ -2218,7 +2218,7 @@ mod tests {
         let mut ui = TheUI::new();
         ui.canvas = dock.setup(&mut ctx);
         let mut project = Project::new();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         dock.selected = Some(vec!["races".into(), "Skeleton".into()]);
         assert!(dock.handle_event(
             &TheEvent::StateChanged(TheId::named("Rules New"), TheWidgetState::Clicked),
@@ -2259,7 +2259,7 @@ mod tests {
         let mut ui = TheUI::new();
         ui.canvas = dock.setup(&mut ctx);
         let mut project = Project::new();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let source: Table =
             "v = [{ matrix = [[1, 2], [3, 4]], metadata = { flags = [true, false] } }]"
                 .parse()
@@ -2340,7 +2340,7 @@ mod tests {
         let mut ui = TheUI::new();
         ui.canvas = dock.setup(&mut ctx);
         let mut project = Project::new();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         dock.selected = Some(vec!["recipes".into(), "wooden_arrows".into()]);
         dock.form(&mut ui, &project);
         let field = dock
@@ -2405,7 +2405,7 @@ mod tests {
         let mut ui = TheUI::new();
         ui.canvas = dock.setup(&mut ctx);
         let mut project = Project::new();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         dock.selected = Some(vec!["actions".into(), "blessing".into()]);
         dock.form(&mut ui, &project);
         let index = dock
@@ -2468,7 +2468,7 @@ mod tests {
         let mut ui = TheUI::new();
         ui.canvas = dock.setup(&mut ctx);
         let mut project = Project::new();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         dock.selected = Some(vec!["actions".into(), "basic_attack".into()]);
         dock.form(&mut ui, &project);
         let field = dock

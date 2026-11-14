@@ -430,8 +430,8 @@ impl Editor {
     }
     pub(crate) fn native_play_owns_viewport(&self) -> bool {
         self.native_viewport.enabled
-            && self.server_ctx.game_mode
-            && !self.server_ctx.text_game_mode
+            && self.server_ctx.shared.game_mode
+            && !self.server_ctx.shared.text_game_mode
             && self.play_session.as_ref().is_some_and(|play| {
                 self.documents.active_id() == Some(play.document)
             })

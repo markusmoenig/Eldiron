@@ -185,7 +185,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         // Older callers may still request the retired Paint dock by name.
         // Paint sources now live in the normal tile picker.
@@ -233,7 +233,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if let Some((_, dock)) = self.docks.get_index_mut(self.index) {
             dock.import(content.clone(), ui, ctx, project, server_ctx);
@@ -258,7 +258,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let mut redraw = false;
         if matches!(event, TheEvent::ImageClipboardResult(..)) {
@@ -307,7 +307,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         self.editor_docks
             .get_mut("Prefabs")
@@ -319,7 +319,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         self.editor_docks
             .get_mut("Prefabs")
@@ -361,7 +361,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let active = self
             .docks
@@ -406,10 +406,10 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if self.dock == "Prefabs"
-            && let Some(id) = server_ctx.curr_block_asset_id
+            && let Some(id) = server_ctx.shared.curr_block_asset_id
             && project.procedural_appearances.contains_key(&id)
         {
             ctx.ui.send(TheEvent::Custom(
@@ -420,7 +420,7 @@ impl DockManager {
         }
         self.remember_normal_split(ui);
         if self.dock == "Prefabs" {
-            let mut asset_id = server_ctx.curr_block_asset_id;
+            let mut asset_id = server_ctx.shared.curr_block_asset_id;
             if let Some(id) = asset_id
                 && !project.block_props.contains_key(&id)
                 && let Some(built_in) = crate::blocks::block_asset(id)
@@ -429,8 +429,8 @@ impl DockManager {
                 let editable_id = editable.id;
                 let editable_name = editable.name.clone();
                 project.block_props.insert(editable_id, editable);
-                server_ctx.curr_block_asset_id = Some(editable_id);
-                server_ctx.curr_block_asset_name = Some(editable_name.clone());
+                server_ctx.shared.curr_block_asset_id = Some(editable_id);
+                server_ctx.shared.curr_block_asset_name = Some(editable_name.clone());
                 asset_id = Some(editable_id);
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
@@ -461,9 +461,9 @@ impl DockManager {
                 return;
             }
             self.prefab_return_context = Some((
-                server_ctx.pc,
-                server_ctx.editor_view_mode,
-                server_ctx.curr_region,
+                server_ctx.shared.pc,
+                server_ctx.shared.editor_view_mode,
+                server_ctx.shared.curr_region,
             ));
             self.prefab_return_preview_post = Some({
                 let mut rusterix = server_ctx.reference.write();
@@ -471,9 +471,9 @@ impl DockManager {
                 rusterix.editor_preview_post_enabled = false;
                 enabled
             });
-            server_ctx.pc = ProjectContext::Prefab(asset_id);
-            server_ctx.editor_view_mode = EditorViewMode::Orbit;
-            server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
+            server_ctx.shared.pc = ProjectContext::Prefab(asset_id);
+            server_ctx.shared.editor_view_mode = EditorViewMode::Orbit;
+            server_ctx.shared.geometry_edit_mode = GeometryEditMode::Geometry;
 
             if let Some((center, distance)) =
                 crate::block_props::prefab_editor_camera_frame(project)
@@ -535,12 +535,12 @@ impl DockManager {
                 TheId::empty(),
                 fl!(
                     "status_prefab_editor_open",
-                    name = server_ctx.curr_block_asset_name.as_deref().unwrap_or("")
+                    name = server_ctx.shared.curr_block_asset_name.as_deref().unwrap_or("")
                 ),
             ));
         }
         let use_editor_canvas = if self.dock == "Data" {
-            matches!(server_ctx.pc, ProjectContext::CharacterPreviewRigging(_))
+            matches!(server_ctx.shared.pc, ProjectContext::CharacterPreviewRigging(_))
         } else {
             self.editor_index.is_some()
         };
@@ -597,7 +597,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let Some(editor_index) = self.editor_canvases.get(&dock).copied() else {
             eprintln!("Editor dock \"{dock}\" not found!");
@@ -642,7 +642,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         restore_game_tools: bool,
     ) {
         if self.state != DockManagerState::Minimized {
@@ -654,7 +654,7 @@ impl DockManager {
                 if restore_game_tools {
                     server_ctx.tools.write().set_game_tools(ui, ctx);
                     if self.dock == "Prefabs" {
-                        server_ctx.palette_tool_active = false;
+                        server_ctx.shared.palette_tool_active = false;
                     }
                 }
                 if let Some(stack) = ui.get_stack_layout("Editor Stack") {
@@ -693,7 +693,7 @@ impl DockManager {
                 camera.orbit_camera.center = center;
                 camera.orbit_camera.distance = distance;
             }
-            server_ctx.pc = if pc.is_prefab() {
+            server_ctx.shared.pc = if pc.is_prefab() {
                 // A Prefab context is editor-only and can never be a useful
                 // return target for the regular viewport. This also recovers a
                 // workspace left behind by an interrupted earlier close.
@@ -701,8 +701,8 @@ impl DockManager {
             } else {
                 pc
             };
-            server_ctx.editor_view_mode = view_mode;
-            server_ctx.curr_region = region_id;
+            server_ctx.shared.editor_view_mode = view_mode;
+            server_ctx.shared.curr_region = region_id;
 
             {
                 let mut rusterix = server_ctx.reference.write();
@@ -724,7 +724,7 @@ impl DockManager {
                 group.set_index(
                     view_mode.toolbar_index(
                         project
-                            .get_map(server_ctx)
+                            .get_map(&server_ctx.shared)
                             .map_or(rusterix::MapCamera::TwoD, |m| m.camera),
                     ),
                 );
@@ -751,7 +751,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.minimize_inner(ui, ctx, project, server_ctx, true);
     }
@@ -762,7 +762,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         self.minimize_inner(ui, ctx, project, server_ctx, false);
     }
@@ -788,7 +788,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if self.state == DockManagerState::Editor {
             if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
@@ -804,7 +804,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if self.state == DockManagerState::Editor {
             if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
@@ -890,7 +890,7 @@ impl DockManager {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         debug: &EldrinDebugModule,
     ) {
         if self.state == DockManagerState::Editor {
@@ -907,7 +907,7 @@ impl DockManager {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         is_running: bool,
     ) {
         let toollist = server_ctx.tools.read();
@@ -915,13 +915,13 @@ impl DockManager {
             .id()
             .name
             .clone();
-        let in_game_tool_mode = server_ctx.game_mode || current_tool_name == "Game Tool";
+        let in_game_tool_mode = server_ctx.shared.game_mode || current_tool_name == "Game Tool";
         let should_show = is_running
-            && server_ctx.text_game_mode
-            && !server_ctx.game_mode
+            && server_ctx.shared.text_game_mode
+            && !server_ctx.shared.game_mode
             && !toollist.editor_mode
             && current_tool_name != "Game Tool"
-            && server_ctx.get_map_context() == MapContext::Region;
+            && server_ctx.shared.get_map_context() == MapContext::Region;
         drop(toollist);
 
         if should_show {
@@ -999,7 +999,7 @@ mod native_graph_owner_tests {
             _: &mut TheUI,
             _: &mut TheContext,
             _: &mut Project,
-            _: &mut ServerContext,
+            _: &mut CreatorContext,
         ) -> bool {
             let addressed = match event {
                 TheEvent::GraphCommitted(id, commit) => id.name == "owner" && commit.binding == 99,
@@ -1083,7 +1083,7 @@ mod native_graph_owner_tests {
         let mut ui = TheUI::new();
         ui.init(&mut ctx);
         let mut project = Project::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         for event in events {
             assert!(manager.handle_event(&event, &mut ui, &mut ctx, &mut project, &mut server));
         }

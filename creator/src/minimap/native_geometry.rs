@@ -130,14 +130,14 @@ impl MinimapDiagramPainter for Commands {
         });
     }
 }
-fn region<'a>(project: &'a Project, server: &ServerContext) -> Option<&'a Region> {
-    if server.get_map_context() != MapContext::Region
-        || server.editor_view_mode == EditorViewMode::D2
+fn region<'a>(project: &'a Project, server: &CreatorContext) -> Option<&'a Region> {
+    if server.shared.get_map_context() != MapContext::Region
+        || server.shared.editor_view_mode == EditorViewMode::D2
         || palette_minimap_active(server)
     {
         return None;
     }
-    let region = project.get_region(&server.curr_region)?;
+    let region = project.get_region(&server.shared.curr_region)?;
     if region.map.camera == MapCamera::TwoDIso
         || region.map.geometry_objects.is_empty()
         || active_action_minimap_preview(&region.map, server).is_some()
@@ -149,7 +149,7 @@ fn region<'a>(project: &'a Project, server: &ServerContext) -> Option<&'a Region
 impl GeometryOverview {
     fn binding(
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> Option<(Binding, Vec4<f32>)> {
@@ -194,7 +194,7 @@ impl GeometryOverview {
         let mut hash = DefaultHasher::new();
         geometry.hash(&mut hash);
         hash_minimap_map_state(&region.map, &mut hash);
-        std::mem::discriminant(&server.editor_view_mode).hash(&mut hash);
+        std::mem::discriminant(&server.shared.editor_view_mode).hash(&mut hash);
         for v in [
             region.editing_position_3d.x,
             region.editing_position_3d.z,
@@ -209,15 +209,15 @@ impl GeometryOverview {
         }
         Some((
             Binding {
-                document: server.document_instance,
+                document: server.shared.document_instance,
                 region: region.id,
-                context: server.pc,
-                editing_surface: server.editing_surface.as_ref().map(|s| s.id),
-                editing_map: project.get_map(server).map(|map| map.id),
+                context: server.shared.pc,
+                editing_surface: server.shared.editing_surface.as_ref().map(|s| s.id),
+                editing_map: project.get_map(&server.shared).map(|map| map.id),
                 map: region.map.id,
                 revision: region.map.changed,
                 geometry,
-                mode: server.editor_view_mode,
+                mode: server.shared.editor_view_mode,
                 view: view.id().clone(),
                 rect: [dim.x, dim.y, dim.width, dim.height],
                 density: ctx.scale_factor.to_bits(),
@@ -229,7 +229,7 @@ impl GeometryOverview {
     pub(crate) fn publish(
         &mut self,
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> bool {
@@ -245,7 +245,7 @@ impl GeometryOverview {
         binding: Binding,
         bbox: Vec4<f32>,
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
     ) {
         if self
@@ -274,7 +274,7 @@ impl GeometryOverview {
         for (world, color) in [
             (Some(region.editing_position_3d), [255, 0, 0, 255]),
             (
-                (server.editor_view_mode == EditorViewMode::FirstP)
+                (server.shared.editor_view_mode == EditorViewMode::FirstP)
                     .then_some(region.editing_look_at_3d),
                 [255, 255, 0, 255],
             ),
@@ -314,7 +314,7 @@ impl GeometryOverview {
     pub(crate) fn prepare(
         &mut self,
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> Option<Token> {
@@ -359,7 +359,7 @@ impl GeometryOverview {
         &self,
         id: &TheId,
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> Result<Option<Vec4<f32>>, ()> {
@@ -438,7 +438,7 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
             .surfaces
             .insert(surface.id, surface.clone());
         project.prefab_editor_map = Some(isolated.clone());
-        let mut server = ServerContext::new();
+        let mut server = CreatorContext::new();
         {
             let mut manager = server.docks.write();
             manager.docks.insert(KEY.into(), Box::new(Plain));
@@ -446,15 +446,15 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
             manager.state = DockManagerState::Minimized;
             manager.dock = KEY.into();
         }
-        server.pc = ProjectContext::Region(region_id);
-        server.curr_region = region_id;
-        server.editor_view_mode = EditorViewMode::FirstP;
+        server.shared.pc = ProjectContext::Region(region_id);
+        server.shared.curr_region = region_id;
+        server.shared.editor_view_mode = EditorViewMode::FirstP;
         if context == 1 {
-            server.pc = ProjectContext::Prefab(Uuid::new_v4());
+            server.shared.pc = ProjectContext::Prefab(Uuid::new_v4());
         }
         if context == 2 {
-            server.geometry_edit_mode = GeometryEditMode::Detail;
-            server.active_detail_surface = Some(surface);
+            server.shared.geometry_edit_mode = GeometryEditMode::Detail;
+            server.shared.active_detail_surface = Some(surface);
         }
         let untouched = serde_json::to_value(&isolated).unwrap();
         for size in [Vec2::new(96, 96), Vec2::new(143, 83)] {
@@ -501,10 +501,10 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
                 overview.navigation_bbox(&view_id, &project, &server, &mut ui, &ctx),
                 Ok(Some(source.bbox))
             );
-            let mut other_document = ServerContext::new();
-            other_document.pc = server.pc;
-            other_document.curr_region = server.curr_region;
-            other_document.editor_view_mode = server.editor_view_mode;
+            let mut other_document = CreatorContext::new();
+            other_document.shared.pc = server.shared.pc;
+            other_document.shared.curr_region = server.shared.curr_region;
+            other_document.shared.editor_view_mode = server.shared.editor_view_mode;
             assert!(
                 overview
                     .navigation_bbox(&view_id, &project, &other_document, &mut ui, &ctx)
@@ -590,7 +590,7 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
                 let pos = project.regions[0].editing_position_3d;
                 assert!((Vec2::new(pos.x, pos.z) - expected).magnitude() < 0.0001);
                 assert_eq!(
-                    serde_json::to_value(project.get_map(&server).unwrap()).unwrap(),
+                    serde_json::to_value(project.get_map(&server.shared).unwrap()).unwrap(),
                     untouched
                 );
                 overview = std::mem::take(&mut sidebar.minimap_geometry);

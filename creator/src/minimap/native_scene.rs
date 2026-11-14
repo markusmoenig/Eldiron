@@ -141,14 +141,14 @@ impl Default for SceneOverview {
         }
     }
 }
-fn region<'a>(project: &'a Project, server: &ServerContext) -> Option<&'a Region> {
-    if server.get_map_context() != MapContext::Region || palette_minimap_active(server) {
+fn region<'a>(project: &'a Project, server: &CreatorContext) -> Option<&'a Region> {
+    if server.shared.get_map_context() != MapContext::Region || palette_minimap_active(server) {
         return None;
     }
-    let region = project.get_region(&server.curr_region)?;
+    let region = project.get_region(&server.shared.curr_region)?;
     if active_action_minimap_preview(&region.map, server).is_some()
         || (region.map.camera != MapCamera::TwoDIso
-            && server.editor_view_mode != EditorViewMode::D2
+            && server.shared.editor_view_mode != EditorViewMode::D2
             && !region.map.geometry_objects.is_empty())
     {
         return None;
@@ -157,14 +157,14 @@ fn region<'a>(project: &'a Project, server: &ServerContext) -> Option<&'a Region
 }
 pub(crate) fn overview_map<'a>(
     project: &'a Project,
-    server: &ServerContext,
+    server: &CreatorContext,
 ) -> Option<(&'a Map, Option<Uuid>)> {
-    if server.pc.is_screen()
-        && server.editor_view_mode == EditorViewMode::D2
-        && server.editing_surface.is_none()
+    if server.shared.pc.is_screen()
+        && server.shared.editor_view_mode == EditorViewMode::D2
+        && server.shared.editing_surface.is_none()
         && !palette_minimap_active(server)
     {
-        let map = project.get_map(server)?;
+        let map = project.get_map(&server.shared)?;
         if active_action_minimap_preview(map, server).is_none() {
             return Some((map, None));
         }
@@ -172,12 +172,12 @@ pub(crate) fn overview_map<'a>(
     }
     region(project, server).map(|region| (&region.map, Some(region.id)))
 }
-fn separate_source(project: &Project, server: &ServerContext, map: &Map) -> bool {
-    !server.pc.is_screen()
-        && (!matches!(server.pc, ProjectContext::Region(id) if id == server.curr_region)
-            || server.editing_surface.is_some()
+fn separate_source(project: &Project, server: &CreatorContext, map: &Map) -> bool {
+    !server.shared.pc.is_screen()
+        && (!matches!(server.shared.pc, ProjectContext::Region(id) if id == server.shared.curr_region)
+            || server.shared.editing_surface.is_some()
             || project
-                .get_map(server)
+                .get_map(&server.shared)
                 .is_none_or(|editing| editing.id != map.id))
 }
 fn source_map(map: &Map) -> (Map, u64) {
@@ -202,7 +202,7 @@ impl SceneOverview {
     pub(crate) fn advance_source(
         &mut self,
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         assets: &rusterix::Assets,
         asset_revision: u64,
     ) -> bool {
@@ -216,7 +216,7 @@ impl SceneOverview {
         };
         let (map, source) = source_map(map);
         let key = sources::SourceKey {
-            document: server.document_instance,
+            document: server.shared.document_instance,
             map: map.id,
             source,
             assets: asset_revision,
@@ -228,7 +228,7 @@ impl SceneOverview {
     }
     fn binding(
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> Option<(Binding, Map)> {
@@ -241,14 +241,14 @@ impl SceneOverview {
         let (map, source) = source_map(original);
         Some((
             Binding {
-                document: server.document_instance,
+                document: server.shared.document_instance,
                 region: region.unwrap_or_default(),
-                context: server.pc,
-                editing_surface: server.editing_surface.as_ref().map(|s| s.id),
-                editing_map: project.get_map(server).map(|map| map.id),
+                context: server.shared.pc,
+                editing_surface: server.shared.editing_surface.as_ref().map(|s| s.id),
+                editing_map: project.get_map(&server.shared).map(|map| map.id),
                 map: map.id,
                 source,
-                mode: server.editor_view_mode,
+                mode: server.shared.editor_view_mode,
                 view: view.id().clone(),
                 rect: [dim.x, dim.y, dim.width, dim.height],
                 density: ctx.scale_factor.to_bits(),
@@ -259,7 +259,7 @@ impl SceneOverview {
     pub(crate) fn publish(
         &mut self,
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> bool {
@@ -280,7 +280,7 @@ impl SceneOverview {
     pub(crate) fn prepare(
         &mut self,
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
         assets: &rusterix::Assets,
@@ -535,14 +535,14 @@ impl SceneOverview {
             overview_map(project, server).ok_or("minimap context changed")?;
         let region = region_id.and_then(|id| project.get_region(&id));
         let size = Vec2::new(binding.rect[2] as f32, binding.rect[3] as f32);
-        let center = if server.editor_view_mode == EditorViewMode::D2 || region.is_none() {
+        let center = if server.shared.editor_view_mode == EditorViewMode::D2 || region.is_none() {
             editor_view_center(original)
         } else {
             let region = region.unwrap();
             Vec2::new(region.editing_position_3d.x, region.editing_position_3d.z)
         };
         let look = region
-            .filter(|_| server.editor_view_mode == EditorViewMode::FirstP)
+            .filter(|_| server.shared.editor_view_mode == EditorViewMode::FirstP)
             .map(|region| Vec2::new(region.editing_look_at_3d.x, region.editing_look_at_3d.z));
         let marker_key = [
             center.x.to_bits(),
@@ -654,7 +654,7 @@ impl SceneOverview {
         id: &TheId,
         at: Vec2<i32>,
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> Result<Option<Vec2<f32>>, ()> {

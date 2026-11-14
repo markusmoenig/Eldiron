@@ -12158,3 +12158,81 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   ownership/adapter retirement, resource/performance gates and physical/cross-
   platform workflow acceptance remain unverified. No milestone/goal completion
   is claimed and the unrelated networking document remains untouched.
+
+
+## 2026-11-14 — Explicit Creator CPU borrows (active)
+
+- Previous consumer dependency batch committed714405b1; only the unrelated
+  networking concept untracked at preflight. All previous compilers finished.
+- Removing CreatorContext Deref/DerefMut now. Its shared field remains the sole
+  shared CPU-context owner; camera/history/config/controllers/tools/jobs/bake/
+  reference resources remain Creator-owned. Local ServerContext type alias still
+  denotes CreatorContext during this source conversion. Project/schema/paint
+  algorithms are unchanged. Compiler diagnostics will identify explicit shared
+  field/method access, followed by reviewed shared function-argument borrows.
+
+- First native library check without Deref reported2787expected source errors.
+  Applied2559compiler-identified shared fields/methods across130files, then
+  reviewed all184remaining arguments: every callee expects an immutable shared
+  ServerContext. All184now borrow shared explicitly, including former &mut self
+  arguments that never required mutable context. Native library PASS12.15s with
+  no bridge. No field/method/argument types were guessed from variable names.
+- Retired the Creator prelude ServerContext alias too; Creator signatures now
+  explicitly name CreatorContext. Five intentional CPU-only camera/pixel-tool
+  modules keep their direct shared::context::ServerContext imports, and fully
+  qualified CPU helper calls remain CPU-owned. Native full test build follows;
+  test-only callers may still require the same explicit context conversion.
+
+- First full native test build exposed622remaining conditional callers:
+  539fields/14methods/68immutable shared arguments plus one EditorTool trait
+  type import. Converted the compiler-identified553accesses and68borrows. Kept
+  EditorTool's existing CPU-only context contract explicitly qualified; it had
+  imported ServerContext through shared's prelude, not the retired Creator alias.
+  Production code and authored-data/paint algorithms are unchanged. New full
+  test build is collecting; the older assembled executable is not this batch's
+  evidence. Five explicit CPU module imports and this narrow trait stay CPU-only.
+
+- Full native test build PASS30.31s, executable4c1f14e07f5194cc. Focused action/
+  undo run started from that binary. Default/reference library also PASS10.59s.
+  Browser and staticlib exposed the same7field accesses in native_view_diagnostics,
+  a function compiled only for wasm/staticlib. Converted those7to shared; it does
+  not exist in the running native action-test binary. Updated the obsolete
+  prelude-alias comment. Final feature checks/test build will seal current source
+  before the actual assembled native integration run; no rendering algorithm or
+  serialized model changes have been introduced.
+
+- Focused authoring actions/undo PASS55/28.80s (one explicitly GPU-only test
+  skipped by the ordinary harness). Then that exact GPU import/undo test ran
+  explicitly and PASS1/0.61s on the sealed build. Source-hash manifest verified
+  before GPU execution; current executable4c1f14e07f5194cc. Sealed full test build
+  PASS29.54s; final wasm/staticlib libraries PASS11.49s/11.85s. Actual assembled
+  Creator test is running39227 and has passed persisted/painted bake and custom
+  view stages so far; no final result claimed. Rust source remains frozen.
+- Retirement ledger: CreatorContext Deref/DerefMut0remaining; Creator prelude
+  ServerContext alias0remaining.3119direct CPU field/method accesses and252
+  immutable shared-context arguments are explicit. Existing CPU-only pixel-tool/
+  camera imports and EditorTool's CPU context contract remain intentionally
+  narrow. No Creator ownership is leaked into the shared CPU crate.
+
+- Current sealed assembled native Creator regression PASS1/252.15s,
+  /private/tmp/eldiron-creator-context-assembly.log. Full persisted/painted bake,
+  custom scenes/profile/2D/3D/isometric source/picking, root command composition,
+  DPI and runtime workflow completed after the explicit-borrow conversion.
+  Elapsed debug duration is behavior evidence, not a release performance claim.
+- Physical blocker freshly rechecked with approved read-only IORegistry query:
+  IOConsoleLocked=Yes. Initial sandboxed archive query could not open its output;
+  read-only escalated plain-property query succeeded and printed only lock state.
+  No screen/security settings changed. Detached GPU evidence does not close
+  physical input/monitor/clipboard/IME gates. git diff --check clean; only this
+  Creator ownership batch is tracked, unrelated networking concept preserved.
+- Ownership subtask verified: no Creator Deref bridge or alias remains; shared
+  CPU borrows and the preserved narrow pixel-tool/camera APIs compile across
+  native/reference/browser/staticlib and pass focused plus actual GPU workflows.
+  Full M5/M7/M0–M9 gates still open; do not mark overall Goal complete.
+- Next coherent source-retirement slice: route canonical eldiron-creator through
+  the same native GPU host as the migration executable, retaining the latter as
+  a thin alias. Move TheApp/Pixels launch to an explicit reference-cpu executable/
+  feature; update default dependency guard and launcher docs. Preserve existing
+  Apple handle ABI and no-Winit staticlib build. Compile/CLI/smoke evidence and
+  physical-console limitations must be recorded separately; implementing the
+  canonical cutover does not itself certify full desktop parity.

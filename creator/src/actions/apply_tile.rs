@@ -47,12 +47,12 @@ impl Action for ApplyTile {
         Some(TheAccelerator::new(TheAcceleratorKey::ALT, 'a'))
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
         (!map.selected_sectors.is_empty()
             || !map.selected_geometry_faces.is_empty()
             || !map.selected_geometry_objects.is_empty())
             && server_ctx.docks.read().dock == "Tiles"
-            && (server_ctx.curr_tile_source.is_some() || server_ctx.curr_tile_id.is_some())
+            && (server_ctx.shared.curr_tile_source.is_some() || server_ctx.shared.curr_tile_id.is_some())
     }
 
     fn apply(
@@ -60,7 +60,7 @@ impl Action for ApplyTile {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let mut changed = false;
         let prev = map.clone();
@@ -80,8 +80,8 @@ impl Action for ApplyTile {
                 if let Some(sector) = map.find_sector_mut(*sector_id) {
                     let mut source = "source";
 
-                    if server_ctx.pc.is_screen() {
-                        if server_ctx.selected_hud_icon_index == 1 {
+                    if server_ctx.shared.pc.is_screen() {
+                        if server_ctx.shared.selected_hud_icon_index == 1 {
                             source = "ceiling_source";
                         }
                     }
@@ -96,7 +96,7 @@ impl Action for ApplyTile {
 
             let selected_geometry_faces = map.selected_geometry_faces.clone();
             let geometry_source = server_ctx
-                .curr_tile_id
+                .shared.curr_tile_id
                 .map(PixelSource::TileId)
                 .unwrap_or_else(|| source_value.clone());
             let geometry_source = crate::utils::SurfaceApplySource::Direct(geometry_source);
@@ -127,7 +127,7 @@ impl Action for ApplyTile {
             server_ctx.reference.write().set_dirty();
             server_ctx.reference.write().set_overlay_dirty();
             Some(ProjectUndoAtom::MapEdit(
-                server_ctx.pc,
+                server_ctx.shared.pc,
                 Box::new(prev),
                 Box::new(map.clone()),
             ))
@@ -146,7 +146,7 @@ impl Action for ApplyTile {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -172,9 +172,9 @@ mod tests {
         let action = ApplyTile::new();
         let mut ui = TheUI::default();
         let mut ctx = TheContext::new(64, 64, 1.0);
-        let mut server_ctx = ServerContext::default();
-        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
-        server_ctx.curr_tile_id = Some(Uuid::new_v4());
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.pc = ProjectContext::Region(Uuid::new_v4());
+        server_ctx.shared.curr_tile_id = Some(Uuid::new_v4());
 
         let Some(ProjectUndoAtom::MapEdit(_, old_map, new_map)) =
             action.apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
@@ -190,7 +190,7 @@ mod tests {
         );
         for (index, face) in new_map.geometry_objects[0].faces.iter().enumerate() {
             if index == 2 {
-                assert_eq!(face.tile, server_ctx.curr_tile_id.map(PixelSource::TileId));
+                assert_eq!(face.tile, server_ctx.shared.curr_tile_id.map(PixelSource::TileId));
             } else {
                 assert_eq!(face.tile, None);
             }

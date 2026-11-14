@@ -23,8 +23,8 @@ impl PrefabAction {
         }
     }
 
-    fn selected_project_prefab(server_ctx: &ServerContext) -> Option<Uuid> {
-        let id = server_ctx.curr_block_asset_id?;
+    fn selected_project_prefab(server_ctx: &CreatorContext) -> Option<Uuid> {
+        let id = server_ctx.shared.curr_block_asset_id?;
         server_ctx.reference.read()
             .assets
             .block_props
@@ -52,7 +52,7 @@ impl PrefabAction {
         before: Project,
         project: &Project,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) {
         {
             let mut rusterix = server_ctx.reference.write();
@@ -62,8 +62,8 @@ impl PrefabAction {
             .set_block_props(project.block_props.clone());
 
         let updated_incrementally = before
-            .get_map(server_ctx)
-            .zip(project.get_map(server_ctx))
+            .get_map(&server_ctx.shared)
+            .zip(project.get_map(&server_ctx.shared))
             .is_some_and(|(old_map, new_map)| {
                 crate::toollist::ToolList::try_incremental_map_edit(old_map, new_map, server_ctx)
             });
@@ -122,11 +122,11 @@ macro_rules! prefab_action_type {
                 &self,
                 map: &Map,
                 _ctx: &mut TheContext,
-                server_ctx: &ServerContext,
+                server_ctx: &CreatorContext,
             ) -> bool {
-                if server_ctx.editor_view_mode == EditorViewMode::D2
-                    || server_ctx.curr_map_tool_type != MapToolType::Selection
-                    || server_ctx.pc.is_prefab()
+                if server_ctx.shared.editor_view_mode == EditorViewMode::D2
+                    || server_ctx.shared.curr_map_tool_type != MapToolType::Selection
+                    || server_ctx.shared.pc.is_prefab()
                 {
                     return false;
                 }
@@ -148,7 +148,7 @@ macro_rules! prefab_action_type {
                 project: &mut Project,
                 _ui: &mut TheUI,
                 ctx: &mut TheContext,
-                server_ctx: &mut ServerContext,
+                server_ctx: &mut CreatorContext,
             ) {
                 let before = project.clone();
                 let result = match self.0.kind {
@@ -165,20 +165,20 @@ macro_rules! prefab_action_type {
                             mode,
                         )
                         .map(|created| {
-                            server_ctx.curr_block_asset_id = Some(created.asset_id);
-                            server_ctx.curr_block_asset_name = project
+                            server_ctx.shared.curr_block_asset_id = Some(created.asset_id);
+                            server_ctx.shared.curr_block_asset_name = project
                                 .block_props
                                 .get(&created.asset_id)
                                 .map(|asset| asset.name.clone());
                             fl!(
                                 "status_prefab_created",
-                                name = server_ctx.curr_block_asset_name.as_deref().unwrap_or(""),
+                                name = server_ctx.shared.curr_block_asset_name.as_deref().unwrap_or(""),
                                 count = created.source_object_count
                             )
                         })
                     }
                     PrefabActionKind::UpdateSource => {
-                        let Some(asset_id) = server_ctx.curr_block_asset_id else {
+                        let Some(asset_id) = server_ctx.shared.curr_block_asset_id else {
                             return;
                         };
                         crate::block_props::update_authored_block_prop(
@@ -187,7 +187,7 @@ macro_rules! prefab_action_type {
                         .map(|count| {
                             fl!(
                                 "status_prefab_source_updated",
-                                name = server_ctx.curr_block_asset_name.as_deref().unwrap_or(""),
+                                name = server_ctx.shared.curr_block_asset_name.as_deref().unwrap_or(""),
                                 count = count
                             )
                         })
@@ -195,15 +195,15 @@ macro_rules! prefab_action_type {
                     PrefabActionKind::MakeUnique => {
                         crate::block_props::make_selected_block_prop_unique(project, server_ctx)
                             .map(|unique| {
-                                server_ctx.curr_block_asset_id = Some(unique.unique_asset_id);
-                                server_ctx.curr_block_asset_name = project
+                                server_ctx.shared.curr_block_asset_id = Some(unique.unique_asset_id);
+                                server_ctx.shared.curr_block_asset_name = project
                                     .block_props
                                     .get(&unique.unique_asset_id)
                                     .map(|asset| asset.name.clone());
                                 fl!(
                                     "status_prefab_made_unique",
                                     name =
-                                        server_ctx.curr_block_asset_name.as_deref().unwrap_or("")
+                                        server_ctx.shared.curr_block_asset_name.as_deref().unwrap_or("")
                                 )
                             })
                     }
@@ -234,7 +234,7 @@ macro_rules! prefab_action_type {
                 _project: &mut Project,
                 _ui: &mut TheUI,
                 _ctx: &mut TheContext,
-                _server_ctx: &mut ServerContext,
+                _server_ctx: &mut CreatorContext,
             ) -> bool {
                 false
             }
@@ -291,9 +291,9 @@ impl Action for RotatePlacedPrefab {
     fn role(&self) -> ActionRole {
         ActionRole::Editor
     }
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server: &ServerContext) -> bool {
-        server.editor_view_mode != EditorViewMode::D2
-            && server.curr_map_tool_type == MapToolType::Selection
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server: &CreatorContext) -> bool {
+        server.shared.editor_view_mode != EditorViewMode::D2
+            && server.shared.curr_map_tool_type == MapToolType::Selection
             && !map.selected_block_prop_instances.is_empty()
     }
     fn apply_project(
@@ -301,10 +301,10 @@ impl Action for RotatePlacedPrefab {
         project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) {
         let before = project.clone();
-        let Some(map) = project.get_map_mut(server) else {
+        let Some(map) = project.get_map_mut(&server.shared) else {
             return;
         };
         let mut changed = false;
@@ -324,7 +324,7 @@ impl Action for RotatePlacedPrefab {
         _p: &mut Project,
         _u: &mut TheUI,
         _c: &mut TheContext,
-        _s: &mut ServerContext,
+        _s: &mut CreatorContext,
     ) -> bool {
         false
     }

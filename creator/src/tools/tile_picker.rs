@@ -33,7 +33,7 @@ impl Tool for TilePickerTool {
         _frame: &ToolOverlayFrame,
         _target: ToolOverlayTarget,
         _map: &Map,
-        _server: &ServerContext,
+        _server: &CreatorContext,
     ) -> bool {
         true
     }
@@ -42,7 +42,7 @@ impl Tool for TilePickerTool {
         _frame: &ToolOverlayFrame,
         _target: ToolOverlayTarget,
         _map: &Map,
-        _server: &ServerContext,
+        _server: &CreatorContext,
     ) -> bool {
         true
     }
@@ -53,7 +53,7 @@ impl Tool for TilePickerTool {
         _receipts: &[theframework::paint::FrameReceipt],
         _target: ToolOverlayTarget,
         _map: &Map,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) -> bool {
         true
     }

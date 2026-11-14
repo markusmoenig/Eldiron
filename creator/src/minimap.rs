@@ -16,21 +16,21 @@ pub(crate) mod native_scene;
 #[cfg(feature = "native-render")]
 pub(crate) mod native_palette;
 
-fn palette_minimap_active(server_ctx: &ServerContext) -> bool {
-    server_ctx.palette_tool_active && server_ctx.docks.read().dock == "Palette"
+fn palette_minimap_active(server_ctx: &CreatorContext) -> bool {
+    server_ctx.shared.palette_tool_active && server_ctx.docks.read().dock == "Palette"
 }
 
-fn minimap_context_key(server_ctx: &ServerContext) -> u64 {
+fn minimap_context_key(server_ctx: &CreatorContext) -> u64 {
     let mut hasher = DefaultHasher::default();
-    match server_ctx.get_map_context() {
+    match server_ctx.shared.get_map_context() {
         MapContext::Region => 0_u8.hash(&mut hasher),
         MapContext::Screen => 1_u8.hash(&mut hasher),
         MapContext::Character => 2_u8.hash(&mut hasher),
         MapContext::Item => 3_u8.hash(&mut hasher),
     }
-    server_ctx.curr_region.hash(&mut hasher);
-    server_ctx.curr_screen.hash(&mut hasher);
-    if let Some(surface) = &server_ctx.editing_surface {
+    server_ctx.shared.curr_region.hash(&mut hasher);
+    server_ctx.shared.curr_screen.hash(&mut hasher);
+    if let Some(surface) = &server_ctx.shared.editing_surface {
         surface.id.hash(&mut hasher);
     }
     hasher.finish()
@@ -404,9 +404,9 @@ fn geometry_minimap(map: &Map, render_dim: Vec2<f32>, bbox: Vec4<f32>, painter: 
 
 fn active_action_minimap_preview(
     map: &Map,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Option<(String, Vec<crate::actions::ActionMinimapSegment>)> {
-    let Some(action_id) = server_ctx.curr_action_id else {
+    let Some(action_id) = server_ctx.shared.curr_action_id else {
         return None;
     };
     let actionlist = server_ctx.actions.read();
@@ -522,7 +522,7 @@ fn draw_minimap_overlays(
     map: &Map,
     region_marker: Option<&Region>,
     buffer: &mut TheRGBABuffer,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     bbox: Vec4<f32>,
 ) {
     draw_camera_marker(map, region_marker, buffer, server_ctx, bbox);
@@ -532,10 +532,10 @@ pub fn draw_camera_marker(
     map: &Map,
     region: Option<&Region>,
     buffer: &mut TheRGBABuffer,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     bbox: Vec4<f32>,
 ) {
-    let camera_pos = if server_ctx.editor_view_mode == EditorViewMode::D2 || region.is_none() {
+    let camera_pos = if server_ctx.shared.editor_view_mode == EditorViewMode::D2 || region.is_none() {
         // In 2D (region/screen/profile), marker follows the current map view center.
         editor_view_center(map)
     } else if let Some(region) = region {
@@ -560,7 +560,7 @@ pub fn draw_camera_marker(
         &vek::Rgba::red().into_array(),
     );
 
-    if server_ctx.editor_view_mode == EditorViewMode::FirstP
+    if server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
         && let Some(region) = region
     {
         let look_at_pos = Vec2::new(region.editing_look_at_3d.x, region.editing_look_at_3d.z);
@@ -582,24 +582,24 @@ pub fn draw_camera_marker(
 pub fn draw_minimap_context_label(
     buffer: &mut TheRGBABuffer,
     ctx: &mut TheContext,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) {
     if palette_minimap_active(server_ctx) {
         return;
     }
 
-    let label = if let Some(action_id) = server_ctx.curr_action_id
+    let label = if let Some(action_id) = server_ctx.shared.curr_action_id
         && let Some(action) = server_ctx.actions.read().get_action_by_id(action_id)
         && action.uses_minimap_preview()
     {
         action.id().name.clone()
-    } else if server_ctx.get_map_context() == MapContext::Region {
+    } else if server_ctx.shared.get_map_context() == MapContext::Region {
         "Region".to_string()
-    } else if server_ctx.get_map_context() == MapContext::Screen {
+    } else if server_ctx.shared.get_map_context() == MapContext::Screen {
         "Screen".to_string()
-    } else if server_ctx.get_map_context() == MapContext::Character {
+    } else if server_ctx.shared.get_map_context() == MapContext::Character {
         "Character".to_string()
-    } else if server_ctx.get_map_context() == MapContext::Item {
+    } else if server_ctx.shared.get_map_context() == MapContext::Item {
         "Item".to_string()
     } else {
         "Map".to_string()
@@ -641,7 +641,7 @@ pub fn draw_minimap_context_label(
 pub fn draw_minimap(
     project: &Project,
     buffer: &mut TheRGBABuffer,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     hard: bool,
 ) {
     if palette_minimap_active(server_ctx) {
@@ -660,12 +660,12 @@ pub fn draw_minimap(
         return;
     }
 
-    let map = if server_ctx.get_map_context() == MapContext::Region {
+    let map = if server_ctx.shared.get_map_context() == MapContext::Region {
         project
-            .get_region(&server_ctx.curr_region)
+            .get_region(&server_ctx.shared.curr_region)
             .map(|region| &region.map)
     } else {
-        project.get_map(server_ctx)
+        project.get_map(&server_ctx.shared)
     };
 
     if let Some(map) = map
@@ -714,8 +714,8 @@ pub fn draw_minimap(
     if !hard {
         buffer.copy_into(0, 0, &server_ctx.reference.minimap().image);
         if let Some(map) = map {
-            let region_marker = if server_ctx.get_map_context() == MapContext::Region {
-                project.get_region(&server_ctx.curr_region)
+            let region_marker = if server_ctx.shared.get_map_context() == MapContext::Region {
+                project.get_region(&server_ctx.shared.curr_region)
             } else {
                 None
             };
@@ -771,11 +771,11 @@ pub fn draw_minimap(
         let scale_matrix = Mat3::new(scale_x, 0.0, 0.0, 0.0, scale_y, 0.0, 0.0, 0.0, 1.0);
         let transform = translation_matrix * scale_matrix;
 
-        let use_geometry_region = server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+        let use_geometry_region = server_ctx.shared.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
             && !map.geometry_objects.is_empty();
         let use_scenevm_region =
-            server_ctx.get_map_context() == MapContext::Region && !use_geometry_region;
+            server_ctx.shared.get_map_context() == MapContext::Region && !use_geometry_region;
 
         if map.camera == MapCamera::TwoDIso {
             draw_isometric_minimap(map, &rusterix.assets, buffer, bbox);
@@ -825,8 +825,8 @@ pub fn draw_minimap(
             cached.image.copy_into(0, 0, buffer);
             cached.key = cache_key;
         }
-        let region_marker = if server_ctx.get_map_context() == MapContext::Region {
-            project.get_region(&server_ctx.curr_region)
+        let region_marker = if server_ctx.shared.get_map_context() == MapContext::Region {
+            project.get_region(&server_ctx.shared.curr_region)
         } else {
             None
         };
@@ -924,7 +924,7 @@ mod tests {
             "diamonds must keep their 2:1 proportions"
         );
         let center = Vec2::new(6., 5.);
-        ServerContext::default().center_map_at_grid_pos(size, center, &mut map);
+        CreatorContext::default().shared.center_map_at_grid_pos(size, center, &mut map);
         assert!((editor_view_center(&map) - center).magnitude() < 0.0001);
         map.grid_size *= 0.5;
         map.offset *= 0.5;

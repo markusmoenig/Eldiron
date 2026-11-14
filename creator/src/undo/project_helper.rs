@@ -571,10 +571,10 @@ pub fn rebuild_avatar_tree_node(
     avatar_id: &Uuid,
     project: &Project,
     ui: &mut TheUI,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) {
     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-        if let Some(avatars_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id) {
+        if let Some(avatars_node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_avatars_id) {
             let index = avatars_node
                 .childs
                 .iter()
@@ -600,10 +600,10 @@ pub fn rebuild_animation_tree_node(
     anim_id: &Uuid,
     project: &Project,
     ui: &mut TheUI,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) {
     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-        if let Some(avatars_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id) {
+        if let Some(avatars_node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_avatars_id) {
             if let Some(avatar_node) = avatars_node
                 .childs
                 .iter_mut()
@@ -1144,12 +1144,12 @@ pub fn set_project_context(
     ctx: &mut TheContext,
     ui: &mut TheUI,
     project: &Project,
-    server_ctx: &mut ServerContext,
+    server_ctx: &mut CreatorContext,
     pc: ProjectContext,
 ) {
     // println!("set_project_context {:?}", pc);
     let mut old_project_id = None;
-    if let Some(old_id) = server_ctx.pc.id() {
+    if let Some(old_id) = server_ctx.shared.pc.id() {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(node) = tree_layout.get_node_by_id_mut(&old_id) {
                 if let Some(snapper) = node.widget.as_any().downcast_mut::<TheSnapperbar>() {
@@ -1160,7 +1160,7 @@ pub fn set_project_context(
         old_project_id = Some(old_id);
     }
 
-    server_ctx.pc = pc;
+    server_ctx.shared.pc = pc;
     let active_dock = server_ctx.docks.read().dock.clone();
     if active_dock == "Prefabs" {
         crate::docks::prefab_nodes::sync_node_list(ui, ctx);
@@ -1195,7 +1195,7 @@ pub fn set_project_context(
     match pc {
         ProjectContext::Region(id) => {
             if let Some(region) = project.get_region(&id) {
-                server_ctx.curr_region = id;
+                server_ctx.shared.curr_region = id;
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
@@ -1212,7 +1212,7 @@ pub fn set_project_context(
         }
         ProjectContext::RegionSettings(id) => {
             if let Some(region) = project.get_region(&id) {
-                server_ctx.curr_region = id;
+                server_ctx.shared.curr_region = id;
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
@@ -1224,7 +1224,7 @@ pub fn set_project_context(
         }
         ProjectContext::RegionCode(id) => {
             if let Some(region) = project.get_region(&id) {
-                server_ctx.curr_region = id;
+                server_ctx.shared.curr_region = id;
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
@@ -1236,7 +1236,7 @@ pub fn set_project_context(
         }
         ProjectContext::RegionArea(region_id, area) => {
             if let Some(region) = project.get_region(&region_id) {
-                server_ctx.curr_region = region_id;
+                server_ctx.shared.curr_region = region_id;
                 let name = region_areas(region)
                     .into_iter()
                     .find(|(id, _)| *id == area)
@@ -1253,7 +1253,7 @@ pub fn set_project_context(
         }
         ProjectContext::RegionCharacterInstance(id, instance) => {
             if let Some(region) = project.get_region(&id) {
-                server_ctx.curr_region = id;
+                server_ctx.shared.curr_region = id;
                 let name = region
                     .characters
                     .get(&instance)
@@ -1280,7 +1280,7 @@ pub fn set_project_context(
         }
         ProjectContext::RegionItemInstance(id, _) => {
             if let Some(region) = project.get_region(&id) {
-                server_ctx.curr_region = id;
+                server_ctx.shared.curr_region = id;
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
@@ -1395,7 +1395,7 @@ pub fn set_project_context(
         }
         ProjectContext::Screen(id) => {
             // Screens are always edited in 2D preview mode.
-            server_ctx.editor_view_mode = EditorViewMode::D2;
+            server_ctx.shared.editor_view_mode = EditorViewMode::D2;
             ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(0));
             if let Some(screen) = project.screens.get(&id) {
                 ui.set_widget_value(
@@ -1413,7 +1413,7 @@ pub fn set_project_context(
             );
         }
         ProjectContext::ScreenSettings(id) => {
-            server_ctx.editor_view_mode = EditorViewMode::D2;
+            server_ctx.shared.editor_view_mode = EditorViewMode::D2;
             ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(0));
             if let Some(screen) = project.screens.get(&id) {
                 ui.set_widget_value(
@@ -1427,7 +1427,7 @@ pub fn set_project_context(
         }
         ProjectContext::ScreenWidget(id, _widget_id) => {
             // Screens are always edited in 2D preview mode.
-            server_ctx.editor_view_mode = EditorViewMode::D2;
+            server_ctx.shared.editor_view_mode = EditorViewMode::D2;
             ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(0));
             if let Some(screen) = project.screens.get(&id) {
                 ui.set_widget_value(
@@ -1757,7 +1757,7 @@ mod palette_refresh_tests {
         let colors = serde_json::to_string(&project.palette.colors).unwrap();
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(100, 100, 1.);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         apply_palette(
             &mut ui, &mut ctx, &mut server.shared, &mut project, &server.reference,
         );

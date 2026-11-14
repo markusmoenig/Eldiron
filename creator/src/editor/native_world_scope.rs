@@ -4,27 +4,27 @@ use super::*;
 
 /// Match the legacy main canvas selection. Actor templates keep the selected
 /// region visible; dock visibility still follows the normal UI tree.
-pub(super) fn uses_region(server: &ServerContext) -> bool {
-    !server.pc.is_prefab() && server.get_map_context() == MapContext::Region
+pub(super) fn uses_region(server: &CreatorContext) -> bool {
+    !server.shared.pc.is_prefab() && server.shared.get_map_context() == MapContext::Region
 }
 
-pub(super) fn map<'a>(project: &'a Project, server: &ServerContext) -> Option<&'a Map> {
-    if server.editor_view_mode != EditorViewMode::D2 && uses_region(server) {
+pub(super) fn map<'a>(project: &'a Project, server: &CreatorContext) -> Option<&'a Map> {
+    if server.shared.editor_view_mode != EditorViewMode::D2 && uses_region(server) {
         project
-            .get_region(&server.curr_region)
+            .get_region(&server.shared.curr_region)
             .map(|region| &region.map)
     } else {
-        project.get_map(server)
+        project.get_map(&server.shared)
     }
 }
 
-pub(super) fn map_mut<'a>(project: &'a mut Project, server: &ServerContext) -> Option<&'a mut Map> {
-    if server.editor_view_mode != EditorViewMode::D2 && uses_region(server) {
+pub(super) fn map_mut<'a>(project: &'a mut Project, server: &CreatorContext) -> Option<&'a mut Map> {
+    if server.shared.editor_view_mode != EditorViewMode::D2 && uses_region(server) {
         project
-            .get_region_mut(&server.curr_region)
+            .get_region_mut(&server.shared.curr_region)
             .map(|region| &mut region.map)
     } else {
-        project.get_map_mut(server)
+        project.get_map_mut(&server.shared)
     }
 }
 
@@ -43,7 +43,7 @@ pub(super) struct DetailScope {
     editing: Option<u64>,
 }
 impl DetailScope {
-    pub(super) fn current(server: &ServerContext) -> Self {
+    pub(super) fn current(server: &CreatorContext) -> Self {
         use std::hash::{Hash, Hasher};
         let stamp = |surface: &rusterix::Surface| {
             let mut hash = std::collections::hash_map::DefaultHasher::new();
@@ -56,9 +56,9 @@ impl DetailScope {
             hash.finish()
         };
         Self {
-            mode: server.geometry_edit_mode,
-            active: server.active_detail_surface.as_ref().map(stamp),
-            editing: server.editing_surface.as_ref().map(stamp),
+            mode: server.shared.geometry_edit_mode,
+            active: server.shared.active_detail_surface.as_ref().map(stamp),
+            editing: server.shared.editing_surface.as_ref().map(stamp),
         }
     }
 }
@@ -82,85 +82,85 @@ mod tests {
         region.map.surfaces.insert(surface.id, surface.clone());
         let region_id = region.id;
         project.regions = vec![region];
-        let mut server = ServerContext::default();
-        server.curr_region = region_id;
-        server.pc = ProjectContext::Region(region_id);
-        server.active_detail_surface = Some(surface.clone());
-        server.geometry_edit_mode = GeometryEditMode::Detail;
+        let mut server = CreatorContext::default();
+        server.shared.curr_region = region_id;
+        server.shared.pc = ProjectContext::Region(region_id);
+        server.shared.active_detail_surface = Some(surface.clone());
+        server.shared.geometry_edit_mode = GeometryEditMode::Detail;
         for context in [
             ProjectContext::Region(region_id),
             ProjectContext::Character(Uuid::new_v4()),
             ProjectContext::Item(Uuid::new_v4()),
         ] {
-            server.pc = context;
+            server.shared.pc = context;
             for mode in [
                 EditorViewMode::Orbit,
                 EditorViewMode::Iso,
                 EditorViewMode::FirstP,
             ] {
-                server.editor_view_mode = mode;
-                assert_eq!(project.get_map(&server).unwrap().id, profile_id);
+                server.shared.editor_view_mode = mode;
+                assert_eq!(project.get_map(&server.shared).unwrap().id, profile_id);
                 assert_eq!(
                     map(&project, &server).unwrap().id,
                     parent_id,
                     "3D world geometry cannot be replaced by its selected flat profile"
                 );
                 map_mut(&mut project, &server).unwrap().offset = Vec2::new(7., 9.);
-                assert_eq!(project.get_map(&server).unwrap().offset, Vec2::zero());
+                assert_eq!(project.get_map(&server.shared).unwrap().offset, Vec2::zero());
             }
         }
-        server.pc = ProjectContext::Region(region_id);
+        server.shared.pc = ProjectContext::Region(region_id);
         let child = project.regions[0].map.profiles.remove(&profile_id).unwrap();
-        assert!(project.get_map(&server).is_none());
+        assert!(project.get_map(&server.shared).is_none());
         assert_eq!(
             map(&project, &server).unwrap().id,
             parent_id,
             "a removed detail profile cannot erase the still-existing world"
         );
         project.regions[0].map.profiles.insert(profile_id, child);
-        server.editor_view_mode = EditorViewMode::D2;
-        server.editing_surface = Some(surface);
+        server.shared.editor_view_mode = EditorViewMode::D2;
+        server.shared.editing_surface = Some(surface);
         assert_eq!(map(&project, &server).unwrap().id, profile_id);
         map_mut(&mut project, &server).unwrap().offset = Vec2::new(3., 5.);
         assert_eq!(project.regions[0].map.offset, Vec2::new(7., 9.));
         let prefab = Map::new();
         let prefab_map_id = prefab.id;
         project.prefab_editor_map = Some(prefab);
-        server.pc = ProjectContext::Prefab(Uuid::new_v4());
+        server.shared.pc = ProjectContext::Prefab(Uuid::new_v4());
         for mode in [EditorViewMode::D2, EditorViewMode::Orbit] {
-            server.editor_view_mode = mode;
+            server.shared.editor_view_mode = mode;
             assert_eq!(map(&project, &server).unwrap().id, prefab_map_id);
             assert_eq!(map_mut(&mut project, &server).unwrap().id, prefab_map_id);
         }
-        server.pc = ProjectContext::Region(Uuid::new_v4());
-        server.curr_region = Uuid::new_v4();
+        server.shared.pc = ProjectContext::Region(Uuid::new_v4());
+        server.shared.curr_region = Uuid::new_v4();
         assert!(map(&project, &server).is_none());
         assert!(map_mut(&mut project, &server).is_none());
     }
     #[test]
     fn detail_scope_revokes_changed_plane_and_unserialized_footprint() {
-        let mut server = ServerContext::default();
-        server.geometry_edit_mode = GeometryEditMode::Detail;
+        let mut server = CreatorContext::default();
+        server.shared.geometry_edit_mode = GeometryEditMode::Detail;
         let mut surface = rusterix::Surface::new(7);
         surface.profile = Some(Uuid::new_v4());
-        server.active_detail_surface = Some(surface.clone());
+        server.shared.active_detail_surface = Some(surface.clone());
         let initial = DetailScope::current(&server);
         server
-            .active_detail_surface
+            .shared.active_detail_surface
             .as_mut()
             .unwrap()
             .edit_uv
             .origin
             .x = 3.;
         assert!(DetailScope::current(&server) != initial);
-        server.active_detail_surface = Some(surface.clone());
+        server.shared.active_detail_surface = Some(surface.clone());
         assert!(DetailScope::current(&server) == initial);
         let authored = serde_json::to_vec(&surface).unwrap();
         surface.world_vertices.push(Vec3::new(1., 2., 3.));
         assert_eq!(serde_json::to_vec(&surface).unwrap(), authored);
-        server.active_detail_surface = Some(surface);
+        server.shared.active_detail_surface = Some(surface);
         assert!(DetailScope::current(&server) != initial);
-        server.active_detail_surface = None;
+        server.shared.active_detail_surface = None;
         assert!(DetailScope::current(&server) != initial);
     }
 }
@@ -191,12 +191,12 @@ impl Editor {
         let parent = self
             .documents
             .project
-            .get_region_ctx(&self.server_ctx)
+            .get_region_ctx(&self.server_ctx.shared)
             .unwrap();
         let fixture = RegionContextFixture {
             project: self.documents.project.clone(),
-            context: self.server_ctx.pc,
-            mode: self.server_ctx.editor_view_mode,
+            context: self.server_ctx.shared.pc,
+            mode: self.server_ctx.shared.editor_view_mode,
             parent: parent.map.id,
             authored: serde_json::to_vec(&parent.map).unwrap(),
             actor: Vec::new(),
@@ -218,7 +218,7 @@ impl Editor {
         if two_d {
             // Screen selection forces the editor into 2D. Returning to an
             // actor keeps that mode without changing the region's game camera.
-            self.server_ctx.editor_view_mode = EditorViewMode::D2;
+            self.server_ctx.shared.editor_view_mode = EditorViewMode::D2;
         }
         crate::undo::project_helper::set_project_context(
             ctx,
@@ -232,7 +232,7 @@ impl Editor {
         fixture
     }
     fn native_region_actor_bytes_for_test(&self) -> Vec<u8> {
-        let actor = match self.server_ctx.pc {
+        let actor = match self.server_ctx.shared.pc {
             ProjectContext::Character(id) => &self.documents.project.characters[&id].map,
             ProjectContext::Item(id) => &self.documents.project.items[&id].map,
             _ => panic!("expected actor context"),
@@ -248,7 +248,7 @@ impl Editor {
             .world
             .presented
             .as_ref()
-            .filter(|frame| frame.ready && frame.binding.context == self.server_ctx.pc)
+            .filter(|frame| frame.ready && frame.binding.context == self.server_ctx.shared.pc)
         else {
             return false;
         };
@@ -265,7 +265,7 @@ impl Editor {
         let region = self
             .documents
             .project
-            .get_region_ctx(&self.server_ctx)
+            .get_region_ctx(&self.server_ctx.shared)
             .unwrap();
         assert_eq!(
             frame.binding.geometry_config,
@@ -286,7 +286,7 @@ impl Editor {
         ctx: &mut TheContext,
     ) {
         self.documents.project = fixture.project;
-        self.server_ctx.editor_view_mode = fixture.mode;
+        self.server_ctx.shared.editor_view_mode = fixture.mode;
         crate::undo::project_helper::set_project_context(
             ctx,
             ui,
@@ -312,11 +312,11 @@ pub(crate) struct DetailFixture {
 #[cfg(test)]
 impl Editor {
     pub(crate) fn begin_native_surface_detail_for_test(&mut self) -> DetailFixture {
-        assert!(self.server_ctx.editor_view_mode != EditorViewMode::D2);
-        assert_eq!(self.server_ctx.curr_map_tool_type, MapToolType::Vertex);
-        let mode = self.server_ctx.geometry_edit_mode;
-        let active = self.server_ctx.active_detail_surface.clone();
-        let editing = self.server_ctx.editing_surface.clone();
+        assert!(self.server_ctx.shared.editor_view_mode != EditorViewMode::D2);
+        assert_eq!(self.server_ctx.shared.curr_map_tool_type, MapToolType::Vertex);
+        let mode = self.server_ctx.shared.geometry_edit_mode;
+        let active = self.server_ctx.shared.active_detail_surface.clone();
+        let editing = self.server_ctx.shared.editing_surface.clone();
         let parent = map_mut(&mut self.documents.project, &self.server_ctx).unwrap();
         let original = parent.clone();
         parent.clear_selection();
@@ -334,12 +334,12 @@ impl Editor {
         parent.changed += 1;
         let parent_id = parent.id;
         let staged = serde_json::to_vec(parent).unwrap();
-        self.server_ctx.geometry_edit_mode = GeometryEditMode::Detail;
-        self.server_ctx.active_detail_surface = Some(surface.clone());
-        self.server_ctx.editing_surface = Some(surface);
-        self.server_ctx.hover = (None, None, None);
-        self.server_ctx.geo_hit = None;
-        self.server_ctx.hover_cursor_3d = None;
+        self.server_ctx.shared.geometry_edit_mode = GeometryEditMode::Detail;
+        self.server_ctx.shared.active_detail_surface = Some(surface.clone());
+        self.server_ctx.shared.editing_surface = Some(surface);
+        self.server_ctx.shared.hover = (None, None, None);
+        self.server_ctx.shared.geo_hit = None;
+        self.server_ctx.shared.hover_cursor_3d = None;
         DetailFixture {
             original,
             staged,
@@ -362,7 +362,7 @@ impl Editor {
         assert_eq!(frame.stamp.map, fixture.parent);
         assert_eq!(parent.id, fixture.parent);
         assert_eq!(
-            self.documents.project.get_map(&self.server_ctx).unwrap().id,
+            self.documents.project.get_map(&self.server_ctx.shared).unwrap().id,
             fixture.profile
         );
         assert_eq!(
@@ -379,7 +379,7 @@ impl Editor {
                 .any(|id| matches!(id, scenevm::GeoId::GeometryObject(_)))),
             "the parent world's populated geometry must remain in the source"
         );
-        let surface = self.server_ctx.active_detail_surface.as_ref().unwrap();
+        let surface = self.server_ctx.shared.active_detail_surface.as_ref().unwrap();
         let vertex = &parent.profiles[&fixture.profile].vertices[0];
         let point = surface.uv_to_world(Vec2::new(vertex.x, -vertex.y));
         let camera = self.native_world_camera().unwrap();
@@ -457,7 +457,7 @@ impl Editor {
     ) -> bool {
         let parent = map(&self.documents.project, &self.server_ctx).unwrap();
         assert_eq!(serde_json::to_vec(parent).unwrap(), expected);
-        assert!(self.documents.project.get_map(&self.server_ctx).is_none());
+        assert!(self.documents.project.get_map(&self.server_ctx.shared).is_none());
         assert_eq!(self.native_world_map_id(), Some(fixture.parent));
         self.native_viewport
             .world
@@ -473,15 +473,15 @@ impl Editor {
     ) {
         self.documents
             .project
-            .get_region_mut(&self.server_ctx.curr_region)
+            .get_region_mut(&self.server_ctx.shared.curr_region)
             .unwrap()
             .map = fixture.original;
-        self.server_ctx.geometry_edit_mode = fixture.mode;
-        self.server_ctx.active_detail_surface = fixture.active;
-        self.server_ctx.editing_surface = fixture.editing;
-        self.server_ctx.hover = (None, None, None);
-        self.server_ctx.geo_hit = None;
-        self.server_ctx.hover_cursor_3d = None;
+        self.server_ctx.shared.geometry_edit_mode = fixture.mode;
+        self.server_ctx.shared.active_detail_surface = fixture.active;
+        self.server_ctx.shared.editing_surface = fixture.editing;
+        self.server_ctx.shared.hover = (None, None, None);
+        self.server_ctx.shared.geo_hit = None;
+        self.server_ctx.shared.hover_cursor_3d = None;
         self.invalidate_native_world_viewport(ui);
     }
 }

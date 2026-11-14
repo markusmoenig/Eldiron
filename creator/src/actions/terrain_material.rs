@@ -231,7 +231,7 @@ mod tests {
     use crate::actions::{Action, edit_linedef::EditLinedef, edit_sector::EditSector};
     #[test]
     fn geometry_toml_roundtrip_and_material_assignment_have_map_undo_without_changing_height() {
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         for line in [false, true] {
             let mut map = Map::default();
             let points =
@@ -276,8 +276,8 @@ mod tests {
             load(&mut reopened, &props, kind);
             assert_eq!(reopened.get_f32_value("terrainMaterialSoftEdge"), Some(0.6));
 
-            server.pc = ProjectContext::Region(Uuid::new_v4());
-            server.editor_view_mode = EditorViewMode::Orbit;
+            server.shared.pc = ProjectContext::Region(Uuid::new_v4());
+            server.shared.editor_view_mode = EditorViewMode::Orbit;
             assert!(action.is_applicable(&map, &mut TheContext::new(800, 600, 1.), &server));
             assert!(action.set_hud_material_source(&map, &server, 0, PixelSource::TileId(source)));
             let undo = action

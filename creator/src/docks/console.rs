@@ -273,11 +273,11 @@ impl ConsoleDock {
     fn prompt(
         &self,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         runtime: Option<RegionInspection<'_>>,
     ) -> String {
         let region_name = project
-            .get_region_ctx(server_ctx)
+            .get_region_ctx(&server_ctx.shared)
             .map(|region| region.name.clone())
             .unwrap_or_else(|| "Region".to_string());
         match self.focus {
@@ -732,13 +732,13 @@ impl ConsoleDock {
     }
     fn runtime_snapshot(
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         runtime: Option<RegionInspection<'_>>,
     ) -> Result<(Vec<RuntimeEntity>, Vec<RuntimeItem>), String> {
         let runtime = runtime
             .filter(|runtime| runtime.state == ServerState::Running)
             .ok_or("Game is not running.")?;
-        let region_id = project.get_region_ctx(server_ctx).map(|region| region.id);
+        let region_id = project.get_region_ctx(&server_ctx.shared).map(|region| region.id);
         if region_id != Some(runtime.region_id) {
             return Err("Runtime region is no longer selected.".into());
         }
@@ -1002,7 +1002,7 @@ impl ConsoleDock {
         group: Option<&str>,
         include_unavailable: bool,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         ctx: &mut TheContext,
     ) -> Result<TheFeedbackDocument, String> {
         let valid_groups = ActionGroup::ALL.map(ActionGroup::id);
@@ -1016,7 +1016,7 @@ impl ConsoleDock {
         }
 
         let default_map = Map::default();
-        let map = project.get_map(server_ctx).unwrap_or(&default_map);
+        let map = project.get_map(&server_ctx.shared).unwrap_or(&default_map);
         let actions = server_ctx.actions.read();
         let mut entries = actions
             .actions
@@ -1089,7 +1089,7 @@ impl ConsoleDock {
         &mut self,
         request: &ConsoleRequest,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         ctx: &mut TheContext,
         runtime: Option<RegionInspection<'_>>,
     ) -> Result<TheFeedbackDocument, String> {
@@ -1320,7 +1320,7 @@ impl ConsoleDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         runtime: Option<RegionInspection<'_>>,
     ) -> bool {
         self.bind_runtime(runtime);
@@ -1464,7 +1464,7 @@ impl Dock for ConsoleDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &Project,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) {
         if self.document.is_empty() {
             self.document = Self::intro();
@@ -1485,7 +1485,7 @@ impl Dock for ConsoleDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         self.handle_event_with_runtime(event, ui, ctx, project, server_ctx, None)
     }
@@ -1505,7 +1505,7 @@ mod tests {
         let mut ui = TheUI::default();
         let mut ctx = TheContext::new(640, 480, 1.0);
         let mut project = Project::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         assert!(dock.handle_event(
             &TheEvent::Custom(
                 TheId::named(CONSOLE_FEEDBACK_ACTION),
@@ -1567,8 +1567,8 @@ mod tests {
         session.server.state = ServerState::Running;
         let view = session.inspect_region(&map_id).unwrap();
         assert_eq!(view.region_id, region);
-        let mut selection = ServerContext::new();
-        selection.curr_region = region;
+        let mut selection = CreatorContext::new();
+        selection.shared.curr_region = region;
         let mut ctx = TheContext::new(640, 480, 1.);
         let mut ui = TheUI::new();
         let mut dock = ConsoleDock::new();
@@ -1640,7 +1640,7 @@ mod tests {
             dock.take_pending_requests(),
             vec![ConsoleRequest::Focus("7".into())]
         );
-        selection.curr_region = Uuid::new_v4();
+        selection.shared.curr_region = Uuid::new_v4();
         assert!(
             dock.execute_local_request(
                 &ConsoleRequest::Show,

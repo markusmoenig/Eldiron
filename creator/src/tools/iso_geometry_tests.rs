@@ -34,9 +34,9 @@ fn iso_geometry_tools_create_edit_and_name_goto_areas() {
         let mut view = TheRenderView::new(TheId::named("PolyView"));
         view.set_dim(TheDim::sized(1000, 700), &mut ctx);
         ui.canvas.set_widget(view);
-        let mut server = ServerContext::default();
-        server.editor_view_mode = EditorViewMode::D2;
-        server.pc = ProjectContext::Region(Uuid::new_v4());
+        let mut server = CreatorContext::default();
+        server.shared.editor_view_mode = EditorViewMode::D2;
+        server.shared.pc = ProjectContext::Region(Uuid::new_v4());
         let mut line = LinedefTool::new();
         let corners = [
             Vec2::new(-2., -1.),
@@ -53,7 +53,7 @@ fn iso_geometry_tools_create_edit_and_name_goto_areas() {
                 &mut map,
                 &mut server,
             );
-            assert_eq!(server.hover_cursor, Some(point));
+            assert_eq!(server.shared.hover_cursor, Some(point));
             let undo = line.map_event(
                 MapEvent::MapClicked(q),
                 &mut ui,
@@ -78,7 +78,7 @@ fn iso_geometry_tools_create_edit_and_name_goto_areas() {
             &mut map,
             &mut server,
         );
-        assert_eq!(server.hover.2, Some(id));
+        assert_eq!(server.shared.hover.2, Some(id));
         sector.map_event(
             MapEvent::MapClicked(center),
             &mut ui,
@@ -132,7 +132,7 @@ fn iso_geometry_tools_create_edit_and_name_goto_areas() {
             &mut map,
             &mut server,
         );
-        assert!(server.hover.1.is_some(), "edge picking, terrain={terrain}");
+        assert!(server.shared.hover.1.is_some(), "edge picking, terrain={terrain}");
         line.map_event(
             MapEvent::MapClicked(midpoint),
             &mut ui,
@@ -174,7 +174,7 @@ fn iso_geometry_tools_create_edit_and_name_goto_areas() {
             &mut map,
             &mut server,
         );
-        assert!(server.hover.0.is_some());
+        assert!(server.shared.hover.0.is_some());
         vertex.map_event(
             MapEvent::MapClicked(q),
             &mut ui,
@@ -218,7 +218,7 @@ fn iso_geometry_tools_create_edit_and_name_goto_areas() {
             &mut map,
             &mut server,
         );
-        assert!(server.hover.0.is_none());
+        assert!(server.shared.hover.0.is_none());
         vertex.map_event(
             MapEvent::MapClicked(a),
             &mut ui,

@@ -66,7 +66,7 @@ pub(crate) fn check(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
     author.editing_look_at_3d = Vec3::new(-0.5, 0., 0.75);
     let id = author.id;
     project.regions.push(author);
-    let mut server = ServerContext::new();
+    let mut server = CreatorContext::new();
     {
         let mut manager = server.docks.write();
         manager.docks.insert(KEY.into(), Box::new(Plain));
@@ -74,9 +74,9 @@ pub(crate) fn check(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
         manager.state = DockManagerState::Minimized;
         manager.dock = KEY.into();
     }
-    server.pc = ProjectContext::Region(id);
-    server.curr_region = id;
-    server.editor_view_mode = EditorViewMode::FirstP;
+    server.shared.pc = ProjectContext::Region(id);
+    server.shared.curr_region = id;
+    server.shared.editor_view_mode = EditorViewMode::FirstP;
     let mut images = ImageRegistry::new(gpu.clone());
     let mut source_scene =
         rusterix::SceneHandler::with_vm(scenevm::SceneVM::new_with_context(gpu.clone(), 1, 1));
@@ -353,10 +353,10 @@ pub(crate) fn check(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
         );
         let resized = prepare(&mut owner, &project, &mut ui, &ctx, &mut images, true).unwrap();
         owner.presented(Some(resized));
-        let mut document = ServerContext::new();
-        document.pc = server.pc;
-        document.curr_region = id;
-        document.editor_view_mode = server.editor_view_mode;
+        let mut document = CreatorContext::new();
+        document.shared.pc = server.shared.pc;
+        document.shared.curr_region = id;
+        document.shared.editor_view_mode = server.shared.editor_view_mode;
         assert!(
             owner
                 .navigate(&view_id, Vec2::zero(), &project, &document, &mut ui, &ctx)
@@ -456,26 +456,26 @@ fn check_parent_sources(
                 .surfaces
                 .insert(surface.id, surface.clone());
             project.prefab_editor_map = Some(isolated.clone());
-            let mut server = ServerContext::new();
-            server.curr_region = parent;
-            server.pc = ProjectContext::Region(parent);
+            let mut server = CreatorContext::new();
+            server.shared.curr_region = parent;
+            server.shared.pc = ProjectContext::Region(parent);
             match context {
                 0 => {
-                    server.pc = ProjectContext::Prefab(Uuid::new_v4());
-                    server.editor_view_mode = EditorViewMode::D2;
+                    server.shared.pc = ProjectContext::Prefab(Uuid::new_v4());
+                    server.shared.editor_view_mode = EditorViewMode::D2;
                 }
                 1 => {
-                    server.editing_surface = Some(surface.clone());
-                    server.editor_view_mode = EditorViewMode::D2;
+                    server.shared.editing_surface = Some(surface.clone());
+                    server.shared.editor_view_mode = EditorViewMode::D2;
                 }
                 _ => {
-                    server.active_detail_surface = Some(surface.clone());
-                    server.geometry_edit_mode = GeometryEditMode::Detail;
-                    server.editor_view_mode = EditorViewMode::Orbit;
+                    server.shared.active_detail_surface = Some(surface.clone());
+                    server.shared.geometry_edit_mode = GeometryEditMode::Detail;
+                    server.shared.editor_view_mode = EditorViewMode::Orbit;
                 }
             }
-            assert_eq!(project.get_map(&server).unwrap().id, isolated.id);
-            let untouched = serde_json::to_value(project.get_map(&server).unwrap()).unwrap();
+            assert_eq!(project.get_map(&server.shared).unwrap().id, isolated.id);
+            let untouched = serde_json::to_value(project.get_map(&server.shared).unwrap()).unwrap();
             let mut ctx = TheContext::new(143, 83, 1.);
             ctx.ui.command_paint = true;
             let mut ui = TheUI::new();
@@ -589,14 +589,14 @@ fn check_parent_sources(
                 .navigate(&view_id, at, &project, &server, &mut ui, &ctx)
                 .unwrap()
                 .unwrap();
-            let old_context = server.pc;
-            server.pc = ProjectContext::Prefab(Uuid::new_v4());
+            let old_context = server.shared.pc;
+            server.shared.pc = ProjectContext::Prefab(Uuid::new_v4());
             assert!(
                 owner
                     .navigate(&view_id, at, &project, &server, &mut ui, &ctx)
                     .is_err()
             );
-            server.pc = old_context;
+            server.shared.pc = old_context;
             sidebar.minimap_scene = owner;
             sidebar.handle_event(
                 &TheEvent::RenderViewClicked(view_id.clone(), at),
@@ -605,7 +605,7 @@ fn check_parent_sources(
                 &mut project,
                 &mut server,
             );
-            let actual = if server.editor_view_mode == EditorViewMode::D2 {
+            let actual = if server.shared.editor_view_mode == EditorViewMode::D2 {
                 editor_view_center(&project.regions[0].map)
             } else {
                 let p = project.regions[0].editing_position_3d;
@@ -616,7 +616,7 @@ fn check_parent_sources(
                 "parent navigation iso={iso} context={context}"
             );
             assert_eq!(
-                serde_json::to_value(project.get_map(&server).unwrap()).unwrap(),
+                serde_json::to_value(project.get_map(&server.shared).unwrap()).unwrap(),
                 untouched,
                 "parent navigation must not modify the isolated map"
             );
@@ -734,9 +734,9 @@ fn check_screens(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
     let other_id = other_screen.id;
     project.screens.insert(other_id, other_screen);
     project.screens.insert(id, screen);
-    let mut server = ServerContext::new();
-    server.pc = ProjectContext::Screen(id);
-    server.editor_view_mode = EditorViewMode::D2;
+    let mut server = CreatorContext::new();
+    server.shared.pc = ProjectContext::Screen(id);
+    server.shared.editor_view_mode = EditorViewMode::D2;
     let mut assets = rusterix::Assets::default();
     for mode in 0..3 {
         tile.uv_pages = if mode == 0 {
@@ -836,10 +836,10 @@ fn check_screens(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
                 .unwrap()
                 .unwrap();
             let frame = owner.current.as_ref().unwrap().clone();
-            let mut other = ServerContext::new();
-            other.document_instance = server.document_instance;
-            other.pc = ProjectContext::Screen(other_id);
-            other.editor_view_mode = EditorViewMode::D2;
+            let mut other = CreatorContext::new();
+            other.shared.document_instance = server.shared.document_instance;
+            other.shared.pc = ProjectContext::Screen(other_id);
+            other.shared.editor_view_mode = EditorViewMode::D2;
             assert!(
                 owner
                     .navigate(&view_id, Vec2::new(70, 42), &project, &other, &mut ui, &ctx)
@@ -928,7 +928,7 @@ fn check_screens(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
                         &assets,
                         (size.x as u32, size.y as u32),
                         transform,
-                        server.document_instance,
+                        server.shared.document_instance,
                         assets.tiles_revision,
                         &regions,
                     )
@@ -1053,8 +1053,8 @@ fn check_screens(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
                 )
                 .unwrap();
             assert!(images.get(frame.output.image).is_none());
-            let current = server.pc;
-            server.pc = ProjectContext::Screen(Uuid::new_v4());
+            let current = server.shared.pc;
+            server.shared.pc = ProjectContext::Screen(Uuid::new_v4());
             sidebar.handle_event(
                 &TheEvent::Custom(TheId::named("Soft Update Minimap"), TheValue::Empty),
                 &mut ui,
@@ -1068,7 +1068,7 @@ fn check_screens(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
                     .has_cpu_display_storage(),
                 "deleting an authored screen cannot opt its minimap back into a bitmap adapter"
             );
-            server.pc = current;
+            server.shared.pc = current;
         }
         assert_eq!(saved, serde_json::to_value(&project).unwrap());
     }
@@ -1079,7 +1079,7 @@ fn check_screens(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
 fn check_reference_cache(
     gpu: &Arc<GpuContext>,
     project: &Project,
-    server: &ServerContext,
+    server: &CreatorContext,
     assets: &rusterix::Assets,
 ) {
     server.reference.bind_context(gpu.clone());
@@ -1090,7 +1090,7 @@ fn check_reference_cache(
     let key = server.reference.minimap().key;
     let bbox = server.reference.minimap().bbox;
     assert!(!server.reference.minimap().image.pixels().is_empty());
-    let second = ServerContext::new();
+    let second = CreatorContext::new();
     second.reference.minimap_mut().bbox = Vec4::new(100., 200., 300., 400.);
     second.reference.minimap_mut().key = key.wrapping_add(1);
     assert!(!second.reference.initialized());

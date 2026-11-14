@@ -362,8 +362,8 @@ mod tests {
         ui.get_render_view(VIEW)
             .unwrap()
             .set_dim(TheDim::new(0, 0, 1200, 650), &mut ctx);
-        let mut server = ServerContext::default();
-        server.pc = ProjectContext::GameRules;
+        let mut server = CreatorContext::default();
+        server.shared.pc = ProjectContext::GameRules;
         dock.activate(&mut ui, &mut ctx, &project, &mut server);
         let root = dock
             .branch_order

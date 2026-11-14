@@ -1260,23 +1260,23 @@ impl Dock for NodesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) {
         #[cfg(feature = "native-ui")]
         if ctx.ui.command_paint {
-            self.activate_native(ui, ctx, project, server.pc, None);
+            self.activate_native(ui, ctx, project, server.shared.pc, None);
             return;
         }
-        sync_node_list(ui, ctx, server.pc);
+        sync_node_list(ui, ctx, server.shared.pc);
         if let Some(layout) = ui.get_hlayout("Node Graph Actions") {
-            Self::populate_toolbar(layout, server.pc == ProjectContext::GameRules);
+            Self::populate_toolbar(layout, server.shared.pc == ProjectContext::GameRules);
             ctx.ui.relayout = true;
         }
         self.tiles.refresh(project);
-        let owner = Self::owner(server.pc);
-        self.definitions = if server.pc == ProjectContext::GameRules {
+        let owner = Self::owner(server.shared.pc);
+        self.definitions = if server.shared.pc == ProjectContext::GameRules {
             shared::rulesets::graph::definitions()
-        } else if entity::is_configuration(server.pc) {
+        } else if entity::is_configuration(server.shared.pc) {
             entity::definitions(project)
         } else {
             catalog::definitions_for_project(project)
@@ -1391,7 +1391,7 @@ impl Dock for NodesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         #[cfg(feature = "native-ui")]
         if self.native_enabled {
@@ -1536,7 +1536,7 @@ impl Dock for NodesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         #[cfg(feature = "native-ui")]
         if self.native_enabled {
@@ -1566,7 +1566,7 @@ impl Dock for NodesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         #[cfg(feature = "native-ui")]
         if self.native_enabled {
@@ -1597,7 +1597,7 @@ impl Dock for NodesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         #[cfg(feature = "native-ui")]
         if self.native_enabled {
@@ -1697,7 +1697,7 @@ impl Dock for NodesDock {
         match event {
             TheEvent::RenderViewDrop(id, point, drop) if id.name == VIEW => {
                 if drop.id.name == "Item Item" {
-                    if !matches!(server.pc, ProjectContext::CharacterData(_)) {
+                    if !matches!(server.shared.pc, ProjectContext::CharacterData(_)) {
                         return false;
                     }
                     match self.drop_equipment_item(project, drop, *point, &server.reference) {
@@ -1714,7 +1714,7 @@ impl Dock for NodesDock {
                     let Some(key) = drop.id.name.strip_prefix("Node Catalog/") else {
                         return false;
                     };
-                    if key != drop.data || !node_available(server.pc, key) {
+                    if key != drop.data || !node_available(server.shared.pc, key) {
                         return false;
                     }
                     self.finish(project, &server.reference);
@@ -1737,7 +1737,7 @@ impl Dock for NodesDock {
                         }
                         if key == "event"
                             && !matches!(
-                                server.pc,
+                                server.shared.pc,
                                 ProjectContext::Character(_)
                                     | ProjectContext::CharacterCode(_)
                                     | ProjectContext::RegionCharacterInstance(_, _)

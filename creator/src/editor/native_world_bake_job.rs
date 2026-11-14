@@ -70,9 +70,9 @@ impl Editor {
         sampling_viewport: Option<(u32, u32)>,
     ) -> Option<(Key, scenevm::Camera3D, (u32, u32))> {
         if !self.native_viewport.enabled
-            || self.server_ctx.pc.is_prefab()
-            || self.server_ctx.get_map_context() != MapContext::Region
-            || self.server_ctx.editor_view_mode != EditorViewMode::Iso
+            || self.server_ctx.shared.pc.is_prefab()
+            || self.server_ctx.shared.get_map_context() != MapContext::Region
+            || self.server_ctx.shared.editor_view_mode != EditorViewMode::Iso
         {
             return None;
         }
@@ -80,7 +80,7 @@ impl Editor {
         let region = self
             .documents
             .project
-            .get_region(&self.server_ctx.curr_region)?;
+            .get_region(&self.server_ctx.shared.curr_region)?;
         if region.map.id != request.0 {
             return None;
         }
@@ -104,7 +104,7 @@ impl Editor {
             Key {
                 document,
                 region: region.id,
-                context: self.server_ctx.pc,
+                context: self.server_ctx.shared.pc,
                 source: SourceStamp::new(&region.map),
                 assets,
                 config: self.native_world_geometry_config(),
@@ -122,7 +122,7 @@ impl Editor {
         if self.server_ctx.bake.initialized() {
             self.server_ctx.bake.write().cancel_work();
         }
-        self.server_ctx.background_progress = None;
+        self.server_ctx.shared.background_progress = None;
     }
     pub(crate) fn retire_native_bake_device(&mut self, generation: u64) {
         let old = self.native_viewport.world.bake_jobs.generation;
@@ -169,7 +169,7 @@ impl Editor {
                     // This is an invalid document/map/mode, not missing layout:
                     // a completed native result must never remain unowned.
                     self.server_ctx.bake.write().reset();
-                    self.server_ctx.background_progress = None;
+                    self.server_ctx.shared.background_progress = None;
                 }
                 jobs.active = None;
                 jobs.legacy = None;
@@ -180,7 +180,7 @@ impl Editor {
         if let Some(old) = jobs.legacy.as_ref().filter(|old| *old != &key) {
             if request.is_some_and(|(_, request)| request == old.request) {
                 self.server_ctx.bake.write().cancel_work();
-                self.server_ctx.background_progress = None;
+                self.server_ctx.shared.background_progress = None;
                 jobs.legacy = None;
                 self.native_viewport.world.bake_jobs = jobs;
                 ctx.ui.redraw_all = true;
@@ -199,7 +199,7 @@ impl Editor {
                     .bake
                     .write()
                     .sync_persisted_asset(map.id, map.orthographic_bake.as_ref());
-                self.server_ctx.background_progress = None;
+                self.server_ctx.shared.background_progress = None;
                 ctx.ui.redraw_all = true;
                 self.native_viewport.world.bake_jobs = jobs;
                 return;
@@ -236,7 +236,7 @@ impl Editor {
                 ctx.ui.redraw_all = true;
             }
             jobs.active = None;
-            self.server_ctx.background_progress = None;
+            self.server_ctx.shared.background_progress = None;
         }
         if let Some((map, _)) = request {
             if jobs.active.is_none() && jobs.legacy.is_none() {
@@ -300,7 +300,7 @@ impl Editor {
                 job.source.advance();
             }
         }
-        self.server_ctx.background_progress = self.server_ctx.bake.read().progress_text();
+        self.server_ctx.shared.background_progress = self.server_ctx.bake.read().progress_text();
         self.native_viewport.world.bake_jobs = jobs;
     }
     /// Called for every drawable root, even when another dock hides the world.
@@ -367,7 +367,7 @@ impl Editor {
                     Ok(_) => (),
                     Err(error) => {
                         self.server_ctx.bake.write().fail(error.clone());
-                        self.server_ctx.background_progress = None;
+                        self.server_ctx.shared.background_progress = None;
                         jobs.active = None;
                         ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                         ctx.ui.redraw_all = true;

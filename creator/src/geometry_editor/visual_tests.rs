@@ -95,7 +95,7 @@ fn quadruped_uses_the_same_resources_and_pose_keys_interpolate() {
 }
 #[test]
 fn viewport_drag_saves_once_and_escape_restores_source() {
-    let mut server = ServerContext::default();
+    let mut server = CreatorContext::default();
     let mut d = scene::new_document();
     let joint = scene::add_joint(&mut d, "root", [0.2, 1., 0.]).unwrap();
     let e = d.evaluate().unwrap();
@@ -255,7 +255,7 @@ fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
     pages.add_canvas(workspace(TheCanvas::new()));
     pages.set_index(crate::procedural_material::SIDEBAR_PAGE);
     ui.canvas.set_layout(pages);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     host.scene_event(
         &TheEvent::IndexChanged(TheId::named("MZ Geometry Tool"), 1),
         &mut p,
@@ -263,7 +263,7 @@ fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
         &mut ctx,
      &creator_history)
     .unwrap();
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert_eq!(host.group_path, ["body-op-0"]);
     host.playback.phase = 0.37;
     host.scene_event(
@@ -273,7 +273,7 @@ fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
         &mut ctx,
      &creator_history)
     .unwrap();
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert!(host.group_path.is_empty());
     assert!(!host.playback.playing);
     assert_eq!(host.playback.phase, 0.37);
@@ -289,7 +289,7 @@ fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
         &mut ctx,
      &creator_history)
     .unwrap();
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     host.inspector.joint = scene::armature(host.document.as_ref().unwrap())
         .unwrap()
         .1

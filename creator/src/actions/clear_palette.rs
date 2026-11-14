@@ -34,8 +34,8 @@ impl Action for ClearPalette {
         None
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.palette_tool_active
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.palette_tool_active
     }
 
     fn apply_project(
@@ -43,7 +43,7 @@ impl Action for ClearPalette {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let prev = project.palette.clone();
         let prev_materials = project.palette_materials.clone();
@@ -72,7 +72,7 @@ impl Action for ClearPalette {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         match event {
             _ => {}

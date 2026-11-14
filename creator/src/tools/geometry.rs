@@ -2922,7 +2922,7 @@ fn refresh_geometry_selection(ctx: &mut TheContext, reference: &CreatorReference
 /// Keep the compact Project sidebar settings in sync with a direct 3D object
 /// selection. The full Actions page is intentionally user-controlled: selecting
 /// geometry there must not replace the action the user is currently working with.
-fn activate_project_geometry_action(ui: &mut TheUI, map: &Map, server_ctx: &mut ServerContext) {
+fn activate_project_geometry_action(ui: &mut TheUI, map: &Map, server_ctx: &mut CreatorContext) {
     let project_page_is_active = ui
         .get_stack_layout("Sidebar Page Stack")
         .is_some_and(|stack| stack.index() == 0);
@@ -2936,7 +2936,7 @@ fn activate_project_geometry_action(ui: &mut TheUI, map: &Map, server_ctx: &mut 
     if let Some(action) = server_ctx.actions.read()
         .get_action_by_command_id("geometry.edit")
     {
-        server_ctx.curr_action_id = Some(action.id().uuid);
+        server_ctx.shared.curr_action_id = Some(action.id().uuid);
     }
 }
 
@@ -2979,13 +2979,13 @@ impl Tool for GeometryTool {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match tool_event {
             Activate => {
-                server_ctx.curr_map_tool_type = MapToolType::Selection;
-                server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
-                if let Some(map) = project.get_map_mut(server_ctx) {
+                server_ctx.shared.curr_map_tool_type = MapToolType::Selection;
+                server_ctx.shared.geometry_edit_mode = GeometryEditMode::Geometry;
+                if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                     map.geometry_selection_mode = 0;
                     map.selected_vertices.clear();
                     map.selected_linedefs.clear();
@@ -3003,9 +3003,9 @@ impl Tool for GeometryTool {
                 true
             }
             DeActivate => {
-                server_ctx.curr_map_tool_type = MapToolType::General;
-                server_ctx.hover_cursor = None;
-                server_ctx.hover_cursor_3d = None;
+                server_ctx.shared.curr_map_tool_type = MapToolType::General;
+                server_ctx.shared.hover_cursor = None;
+                server_ctx.shared.hover_cursor_3d = None;
                 self.undo_map = None;
                 self.drag = None;
                 self.rectangle_start = None;
@@ -3023,7 +3023,7 @@ impl Tool for GeometryTool {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         match map_event {
             MapClicked(coord) => {
@@ -3055,7 +3055,7 @@ impl Tool for GeometryTool {
                 self.rectangle_undo_map = None;
                 self.rectangle_mode = false;
 
-                if let Some((axis, gizmo_kind)) = server_ctx.geo_hit.and_then(|hit| match hit {
+                if let Some((axis, gizmo_kind)) = server_ctx.shared.geo_hit.and_then(|hit| match hit {
                     GeoId::Gizmo(axis_id) => {
                         gizmo_axis_for_map(map, axis_id).zip(gizmo_kind(axis_id))
                     }
@@ -3132,18 +3132,18 @@ impl Tool for GeometryTool {
                     };
                     let vertex_indices = (!selected_indices.is_empty()).then_some(selected_indices);
                     let start_hit = if matches!(gizmo_kind, GizmoDragKind::Resize { .. }) {
-                        server_ctx.geo_hit_pos
+                        server_ctx.shared.geo_hit_pos
                     } else if axis.y.abs() < 0.5 {
                         let resting_y = bounds
                             .map(|(min, _)| min.y)
-                            .unwrap_or(server_ctx.geo_hit_pos.y);
+                            .unwrap_or(server_ctx.shared.geo_hit_pos.y);
                         Vec3::new(
-                            server_ctx.geo_hit_pos.x,
+                            server_ctx.shared.geo_hit_pos.x,
                             resting_y,
-                            server_ctx.geo_hit_pos.z,
+                            server_ctx.shared.geo_hit_pos.z,
                         )
                     } else {
-                        server_ctx.geo_hit_pos
+                        server_ctx.shared.geo_hit_pos
                     };
                     self.undo_map = Some(map.clone());
                     self.drag = Some(GeometryDrag {
@@ -3169,7 +3169,7 @@ impl Tool for GeometryTool {
                     return None;
                 }
 
-                let Some(GeoId::GeometryObject(object_id)) = server_ctx.geo_hit else {
+                let Some(GeoId::GeometryObject(object_id)) = server_ctx.shared.geo_hit else {
                     self.rectangle_start = Some(Vec2::new(coord.x as f32, coord.y as f32));
                     self.rectangle_undo_map = Some(map.clone());
                     self.rectangle_mode = false;
@@ -3184,7 +3184,7 @@ impl Tool for GeometryTool {
                             self.undo_map = Some(map.clone());
                             self.drag = Some(GeometryDrag {
                                 object_id: Uuid::nil(),
-                                start_hit: server_ctx.geo_hit_pos,
+                                start_hit: server_ctx.shared.geo_hit_pos,
                                 start_vertices: Vec::new(),
                                 start_transform: rusterix::identity_block_prop_transform(),
                                 start_object_transforms: Vec::new(),
@@ -3194,7 +3194,7 @@ impl Tool for GeometryTool {
                                 vertex_indices: None,
                                 axis: None,
                                 gizmo_kind: None,
-                                start_plane_hit: Some(server_ctx.geo_hit_pos),
+                                start_plane_hit: Some(server_ctx.shared.geo_hit_pos),
                                 changed: false,
                             });
                         }
@@ -3237,23 +3237,23 @@ impl Tool for GeometryTool {
                 let selection_mode = geometry_selection_mode(map);
                 let selected_face = match selection_mode {
                     GeometrySelectionMode::Face => server_ctx
-                        .hover_ray_origin_3d
-                        .zip(server_ctx.hover_ray_dir_3d)
+                        .shared.hover_ray_origin_3d
+                        .zip(server_ctx.shared.hover_ray_dir_3d)
                         .and_then(|(ray_origin, ray_dir)| {
                             closest_geometry_face_from_ray(object, ray_origin, ray_dir)
                         })
-                        .or_else(|| closest_geometry_face(object, server_ctx.geo_hit_pos)),
+                        .or_else(|| closest_geometry_face(object, server_ctx.shared.geo_hit_pos)),
                     _ => None,
                 };
                 let selected_vertex = match selection_mode {
                     GeometrySelectionMode::Vertex => {
-                        closest_geometry_vertex(object, server_ctx.geo_hit_pos)
+                        closest_geometry_vertex(object, server_ctx.shared.geo_hit_pos)
                     }
                     _ => None,
                 };
                 let selected_edge = match selection_mode {
                     GeometrySelectionMode::Edge => {
-                        closest_geometry_edge(object, server_ctx.geo_hit_pos)
+                        closest_geometry_edge(object, server_ctx.shared.geo_hit_pos)
                     }
                     _ => None,
                 };
@@ -3351,7 +3351,7 @@ impl Tool for GeometryTool {
                     self.undo_map = Some(map.clone());
                     self.drag = Some(GeometryDrag {
                         object_id,
-                        start_hit: server_ctx.geo_hit_pos,
+                        start_hit: server_ctx.shared.geo_hit_pos,
                         start_vertices,
                         start_transform,
                         start_object_transforms: if selection_mode == GeometrySelectionMode::Object
@@ -3364,7 +3364,7 @@ impl Tool for GeometryTool {
                         vertex_indices: vertex_indices.clone(),
                         axis: None,
                         gizmo_kind: None,
-                        start_plane_hit: Some(server_ctx.geo_hit_pos),
+                        start_plane_hit: Some(server_ctx.shared.geo_hit_pos),
                         changed: false,
                     });
                 }
@@ -3436,10 +3436,10 @@ impl Tool for GeometryTool {
                 let mut next_axis_anchor = None;
 
                 let delta = if let Some(axis) = drag.axis {
-                    let Some(ray_origin) = server_ctx.hover_ray_origin_3d else {
+                    let Some(ray_origin) = server_ctx.shared.hover_ray_origin_3d else {
                         return None;
                     };
-                    let Some(ray_dir) = server_ctx.hover_ray_dir_3d else {
+                    let Some(ray_dir) = server_ctx.shared.hover_ray_dir_3d else {
                         return None;
                     };
                     let anchor = if let Some(anchor) = drag.start_plane_hit {
@@ -3467,12 +3467,12 @@ impl Tool for GeometryTool {
                     axis * amount
                 } else {
                     let hit = server_ctx
-                        .hover_ray_origin_3d
-                        .zip(server_ctx.hover_ray_dir_3d)
+                        .shared.hover_ray_origin_3d
+                        .zip(server_ctx.shared.hover_ray_dir_3d)
                         .and_then(|(ray_origin, ray_dir)| {
                             ray_plane_hit(ray_origin, ray_dir, drag.start_hit, Vec3::unit_y())
                         })
-                        .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos));
+                        .or_else(|| server_ctx.shared.geo_hit.map(|_| server_ctx.shared.geo_hit_pos));
                     let Some(hit) = hit else {
                         return None;
                     };
@@ -3720,7 +3720,7 @@ impl Tool for GeometryTool {
                         }
                     }
                     return Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(old_map),
                         Box::new(map.clone()),
                     ));
@@ -3753,7 +3753,7 @@ impl Tool for GeometryTool {
                     map.selected_block_prop_instances.clear();
                     sync_block_prop_surface_items(map, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(old_map),
                         Box::new(map.clone()),
                     ));
@@ -3767,7 +3767,7 @@ impl Tool for GeometryTool {
                     sanitize_geometry_selection(map);
                     refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(old_map),
                         Box::new(map.clone()),
                     ));
@@ -3781,7 +3781,7 @@ impl Tool for GeometryTool {
                 map.selected_geometry_faces.clear();
                 refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                 Some(ProjectUndoAtom::MapEdit(
-                    server_ctx.pc,
+                    server_ctx.shared.pc,
                     Box::new(old_map),
                     Box::new(map.clone()),
                 ))
@@ -3812,7 +3812,7 @@ impl Tool for GeometryTool {
                             TheValue::Empty,
                         ));
                         return Some(ProjectUndoAtom::MapEdit(
-                            server_ctx.pc,
+                            server_ctx.shared.pc,
                             Box::new(old_map),
                             Box::new(map.clone()),
                         ));
@@ -3837,7 +3837,7 @@ impl Tool for GeometryTool {
                     }
                     refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(old_map),
                         Box::new(map.clone()),
                     ));
@@ -3851,7 +3851,7 @@ impl Tool for GeometryTool {
                     sanitize_geometry_selection(map);
                     refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(old_map),
                         Box::new(map.clone()),
                     ));
@@ -3866,7 +3866,7 @@ impl Tool for GeometryTool {
                     sanitize_geometry_selection(map);
                     refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(old_map),
                         Box::new(map.clone()),
                     ));
@@ -3881,7 +3881,7 @@ impl Tool for GeometryTool {
                     sanitize_geometry_selection(map);
                     refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(old_map),
                         Box::new(map.clone()),
                     ));
@@ -3896,10 +3896,10 @@ impl Tool for GeometryTool {
                 }
 
                 if matches!(key, 'c' | 'C')
-                    && server_ctx.curr_map_tool_type == MapToolType::Linedef
+                    && server_ctx.shared.curr_map_tool_type == MapToolType::Linedef
                     && !map.selected_geometry_vertices.is_empty()
                 {
-                    if !select_geometry_contours(map, server_ctx.hover_ray_dir_3d) {
+                    if !select_geometry_contours(map, server_ctx.shared.hover_ray_dir_3d) {
                         return None;
                     }
                     refresh_geometry_selection(ctx, &server_ctx.reference);
@@ -3922,7 +3922,7 @@ impl Tool for GeometryTool {
                     server_ctx.reference.write().set_dirty();
                     server_ctx.reference.write().set_overlay_dirty();
                     return Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(old_map),
                         Box::new(map.clone()),
                     ));
@@ -3952,7 +3952,7 @@ impl Tool for GeometryTool {
                     sanitize_geometry_selection(map);
                     refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(old_map),
                         Box::new(map.clone()),
                     ));
@@ -3972,7 +3972,7 @@ impl Tool for GeometryTool {
                     server_ctx.reference.write().set_dirty();
                     server_ctx.reference.write().set_overlay_dirty();
                     return Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         Box::new(old_map),
                         Box::new(map.clone()),
                     ));
@@ -3994,7 +3994,7 @@ impl Tool for GeometryTool {
                 sanitize_geometry_selection(map);
                 server_ctx.reference.write().set_overlay_dirty();
                 Some(ProjectUndoAtom::MapEdit(
-                    server_ctx.pc,
+                    server_ctx.shared.pc,
                     Box::new(old_map),
                     Box::new(map.clone()),
                 ))
@@ -4009,7 +4009,7 @@ impl Tool for GeometryTool {
     fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
         Some(&mut self.hud)
     }
-    fn hud_selected_id(&self, map: &Map, _server_ctx: &ServerContext) -> Option<u32> {
+    fn hud_selected_id(&self, map: &Map, _server_ctx: &CreatorContext) -> Option<u32> {
         let id = map
             .selected_geometry_objects
             .first()
@@ -4019,9 +4019,9 @@ impl Tool for GeometryTool {
     fn overlay_screen_rectangle(
         &self,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> Option<(Vec2<f32>, Vec2<f32>)> {
-        if server.editor_view_mode != EditorViewMode::D2 {
+        if server.shared.editor_view_mode != EditorViewMode::D2 {
             map.curr_rectangle
         } else {
             None
@@ -4032,7 +4032,7 @@ impl Tool for GeometryTool {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         assets: &Assets,
     ) {
         if let Some(rect) = self.overlay_screen_rectangle(map, server_ctx) {

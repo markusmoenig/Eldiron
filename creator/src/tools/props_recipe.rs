@@ -111,25 +111,25 @@ pub fn template(
     geometry_recipe::generate(project, &Map::default(), &binding, previous)
 }
 
-pub fn prepare(project: &mut Project, server: &mut ServerContext) -> Result<(), String> {
+pub fn prepare(project: &mut Project, server: &mut CreatorContext) -> Result<(), String> {
     let Some(asset) = server
-        .curr_block_asset_id
+        .shared.curr_block_asset_id
         .filter(|id| project.procedural_appearances.contains_key(id))
     else {
-        server.block_recipe_template = None;
-        server.block_recipe_pending = false;
+        server.shared.block_recipe_template = None;
+        server.shared.block_recipe_pending = false;
         return Ok(());
     };
-    if server.block_recipe_pending {
+    if server.shared.block_recipe_pending {
         return Ok(());
     }
     let previous = server
-        .block_recipe_template
+        .shared.block_recipe_template
         .as_ref()
         .filter(|o| Binding::read(o).is_some_and(|b| b.asset == asset));
     let next = template(project, asset, previous)?;
-    server.curr_block_asset_name = Some(next.name.clone());
-    server.block_recipe_template = Some(next);
+    server.shared.curr_block_asset_name = Some(next.name.clone());
+    server.shared.block_recipe_template = Some(next);
     Ok(())
 }
 

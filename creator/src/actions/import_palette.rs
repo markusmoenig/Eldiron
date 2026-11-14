@@ -34,8 +34,8 @@ impl Action for ImportPalette {
         None
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.palette_tool_active
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.palette_tool_active
     }
 
     fn apply_project(
@@ -43,7 +43,7 @@ impl Action for ImportPalette {
         _project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) {
         ctx.ui.open_file_requester(
             TheId::named_with_id("actionImportPalette", Uuid::new_v4()),
@@ -72,7 +72,7 @@ impl Action for ImportPalette {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         false
     }

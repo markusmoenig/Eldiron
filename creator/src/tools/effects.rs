@@ -40,7 +40,7 @@ impl Tool for EffectsTool {
         _frame: &ToolOverlayFrame,
         _target: ToolOverlayTarget,
         _map: &Map,
-        _server: &ServerContext,
+        _server: &CreatorContext,
     ) -> bool {
         true
     }
@@ -49,7 +49,7 @@ impl Tool for EffectsTool {
         _frame: &ToolOverlayFrame,
         _target: ToolOverlayTarget,
         _map: &Map,
-        _server: &ServerContext,
+        _server: &CreatorContext,
     ) -> bool {
         true
     }
@@ -60,7 +60,7 @@ impl Tool for EffectsTool {
         _receipts: &[theframework::paint::FrameReceipt],
         _target: ToolOverlayTarget,
         _map: &Map,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) -> bool {
         true
     }
@@ -78,11 +78,11 @@ impl Tool for EffectsTool {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match event {
             ToolEvent::Activate => {
-                server_ctx.curr_map_tool_type = MapToolType::Effects;
+                server_ctx.shared.curr_map_tool_type = MapToolType::Effects;
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Geometry Overlay 3D"),
                     TheValue::Empty,
@@ -90,8 +90,8 @@ impl Tool for EffectsTool {
                 true
             }
             ToolEvent::DeActivate => {
-                server_ctx.curr_map_tool_type = MapToolType::General;
-                server_ctx.selected_prefab_effect_id = None;
+                server_ctx.shared.curr_map_tool_type = MapToolType::General;
+                server_ctx.shared.selected_prefab_effect_id = None;
                 true
             }
             _ => false,

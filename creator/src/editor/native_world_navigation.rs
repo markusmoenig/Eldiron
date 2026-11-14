@@ -41,7 +41,7 @@ impl Editor {
             }
         }
         if let MapEvent::MapClicked(at) = input {
-            if !self.server_ctx.game_input_mode
+            if !self.server_ctx.shared.game_input_mode
                 && self.server_ctx.tools.read().viewcube_navigation_enabled()
             {
                 let pick = world.cube.pick(
@@ -76,7 +76,7 @@ impl Editor {
         }
         if binding.paste.is_some()
             && binding.mode != EditorViewMode::D2
-            && !self.server_ctx.game_input_mode
+            && !self.server_ctx.shared.game_input_mode
             && self.server_ctx.tools.read().viewcube_navigation_enabled()
         {
             if let MapEvent::MapHover(at) = input {
@@ -115,7 +115,7 @@ impl Editor {
                 position,
             } => {
                 self.native_viewport.world.relative_navigation = None;
-                if self.server_ctx.game_input_mode
+                if self.server_ctx.shared.game_input_mode
                     || session.ui.dialog.is_some()
                     || session.ui.popover.is_some()
                     || session.ui.context_menu.is_some()
@@ -180,11 +180,11 @@ impl Editor {
                     } else if let Some(region) = self
                         .documents
                         .project
-                        .get_region_mut(&self.server_ctx.curr_region)
+                        .get_region_mut(&self.server_ctx.shared.curr_region)
                     {
                         self.server_ctx.camera.pan_3d_by_delta_f32(
                             region,
-                            &self.server_ctx,
+                            &self.server_ctx.shared,
                             delta,
                             Vec2::new(next.size.0 as i32, next.size.1 as i32),
                         );
@@ -211,16 +211,16 @@ impl Editor {
         let focus = session.context.ui.focus.as_ref().map(|id| id.uuid);
         let focused = crate::utils::map_editor_render_view(&mut session.ui, &self.server_ctx)
             .is_some_and(|view| Some(view.id().uuid) == focus);
-        let game_look = self.server_ctx.native_game_input
+        let game_look = self.server_ctx.shared.native_game_input
             && focused
             && self.wants_mouse_motion()
             && self
                 .native_game_input_frame(&mut session.ui, &session.context)
                 .is_some();
         let fly = self.native_world_owns_viewport()
-            && self.server_ctx.editor_view_mode == EditorViewMode::FirstP
-            && self.server_ctx.editor_fly_nav_active
-            && self.server_ctx.editor_fly_nav_mouse_down
+            && self.server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+            && self.server_ctx.shared.editor_fly_nav_active
+            && self.server_ctx.shared.editor_fly_nav_mouse_down
             && focused;
         // Iso/Orbit navigation already consumes logical pointer deltas above.
         // Also applying raw device movement would double it and reintroduce DPI
@@ -236,18 +236,18 @@ impl Editor {
         let region = self
             .documents
             .project
-            .get_region(&self.server_ctx.curr_region);
+            .get_region(&self.server_ctx.shared.curr_region);
         serde_json::json!({
             "position": region.map(|r| r.editing_position_3d.into_array()),
             "center": region.map(|r| r.editing_look_at_3d.into_array()),
-            "mode": match self.server_ctx.editor_view_mode { EditorViewMode::D2 => "2d", EditorViewMode::Iso => "iso", EditorViewMode::Orbit => "orbit", EditorViewMode::FirstP => "first-person" },
-            "navigation": self.native_viewport.world.relative_navigation.is_some(), "moving": camera.move_action.is_some(), "fly": self.server_ctx.editor_fly_nav_active,
-            "fly_mouse": self.server_ctx.editor_fly_nav_mouse_down,
+            "mode": match self.server_ctx.shared.editor_view_mode { EditorViewMode::D2 => "2d", EditorViewMode::Iso => "iso", EditorViewMode::Orbit => "orbit", EditorViewMode::FirstP => "first-person" },
+            "navigation": self.native_viewport.world.relative_navigation.is_some(), "moving": camera.move_action.is_some(), "fly": self.server_ctx.shared.editor_fly_nav_active,
+            "fly_mouse": self.server_ctx.shared.editor_fly_nav_mouse_down,
             "world": self.native_world_owns_viewport(),
             "bake": self.native_viewport.world.bake_jobs.diagnostics(&self.server_ctx.bake.read()),
             "bake_pages": self.native_viewport.world.gpu.as_ref().and_then(|gpu| gpu.bake.diagnostics()),
             "source": {
-                "context": format!("{:?}", self.server_ctx.pc),
+                "context": format!("{:?}", self.server_ctx.shared.pc),
                 "map": self.native_world_map_id(),
                 "presented": self.native_viewport.world.presented.as_ref().map(|frame| serde_json::json!({
                     "context": format!("{:?}", frame.binding.context),
@@ -258,11 +258,11 @@ impl Editor {
                 })),
             },
             "paste": {
-                "active": self.server_ctx.paste_clipboard.is_some(),
+                "active": self.server_ctx.shared.paste_clipboard.is_some(),
                 "authored_vertices": scope::map(&self.documents.project, &self.server_ctx).map(|map| map.vertices.len()),
                 "projected_vertices": self.native_viewport.world.paste.as_ref().map(|preview| preview.map.vertices.len()),
                 "ready": self.native_viewport.world.presented.as_ref().is_some_and(|frame| frame.binding.paste.is_some() && frame.ready),
-                "target": self.server_ctx.hover_cursor_3d.map(|point| point.into_array()),
+                "target": self.server_ctx.shared.hover_cursor_3d.map(|point| point.into_array()),
             },
             "speech": self.native_viewport.world.speech.diagnostics(),
         })

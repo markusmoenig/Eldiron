@@ -52,14 +52,14 @@ impl ToolList {
     }
     pub(crate) fn active_editor_display_owner(
         &self,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> Option<EditorDisplayOwner> {
         let session = self.editor_display_session.as_ref()?;
-        if self.editor_mode || session.project_context != server.pc {
+        if self.editor_mode || session.project_context != server.shared.pc {
             return None;
         }
         let active = match session.owner {
-            EditorDisplayOwner::Action(id) => Some(id) == server.curr_action_id,
+            EditorDisplayOwner::Action(id) => Some(id) == server.shared.curr_action_id,
             EditorDisplayOwner::Tool(id) => self
                 .game_tools
                 .get(self.curr_game_tool)
@@ -95,11 +95,11 @@ impl ToolList {
         &mut self,
         binding: &NativeDisplayBinding,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> Option<DisplayFrame> {
         if self.native_document != Some(binding.document)
             || self.active_editor_display_owner(server) != Some(binding.owner)
-            || binding.context != server.pc
+            || binding.context != server.shared.pc
             || !self.native_display_source_current( &server.actions)
         {
             // A concurrent owner edit wins. Never restore an old draft over it.
@@ -115,7 +115,7 @@ impl ToolList {
         binding: &NativeDisplayBinding,
         frame: &DisplayFrame,
         receipts: &[theframework::paint::FrameReceipt],
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         if self.native_document != Some(binding.document)
             || self.active_editor_display_owner(server) != Some(binding.owner)
@@ -134,13 +134,13 @@ impl ToolList {
         focused: bool,
         command_zoom: bool,
         project: &mut Project,
-        server: &ServerContext,
+        server: &CreatorContext,
         ctx: &mut TheContext,
     ) -> NativeDisplayOutcome {
         use NativeDisplayOutcome::*;
         if self.native_document != Some(binding.document)
             || self.active_editor_display_owner(server) != Some(binding.owner)
-            || binding.context != server.pc
+            || binding.context != server.shared.pc
             || !self.native_display_source_current( &server.actions)
         {
             self.editor_display_session = None;
@@ -188,7 +188,7 @@ impl ToolList {
                 }
             }
             EditorDisplayResult::GridSubdivisionChanged(value) => {
-                if let Some(map) = project.get_map_mut(server) {
+                if let Some(map) = project.get_map_mut(&server.shared) {
                     map.subdivisions = value;
                 }
             }

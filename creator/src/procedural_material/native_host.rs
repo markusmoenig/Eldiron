@@ -600,7 +600,7 @@ mod tests {
         host.open(id, &mut ui, &mut ctx, &project);
         ui.get_stack_layout(PREVIEW_STACK).unwrap().set_index(1);
         ui.prepare_paint_layout(&mut ctx);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         host.update(&mut ui, &mut ctx, &mut project, &mut server);
         ui.prepare_paint_layout(&mut ctx);
         let authored = serde_json::to_value(&project).unwrap();

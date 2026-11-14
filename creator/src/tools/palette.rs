@@ -9,8 +9,8 @@ pub struct PaletteTool {
 }
 
 impl PaletteTool {
-    fn selection_tool_type(project: &Project, server_ctx: &ServerContext) -> MapToolType {
-        if let Some(map) = project.get_map(server_ctx) {
+    fn selection_tool_type(project: &Project, server_ctx: &CreatorContext) -> MapToolType {
+        if let Some(map) = project.get_map(&server_ctx.shared) {
             if !map.selected_vertices.is_empty() {
                 MapToolType::Vertex
             } else if !map.selected_linedefs.is_empty() {
@@ -60,14 +60,14 @@ impl Tool for PaletteTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match tool_event {
             Activate => {
-                server_ctx.palette_tool_active = true;
-                server_ctx.curr_map_tool_type = Self::selection_tool_type(project, server_ctx);
-                server_ctx.hover_cursor = None;
-                server_ctx.hover_cursor_3d = None;
+                server_ctx.shared.palette_tool_active = true;
+                server_ctx.shared.curr_map_tool_type = Self::selection_tool_type(project, server_ctx);
+                server_ctx.shared.hover_cursor = None;
+                server_ctx.shared.hover_cursor_3d = None;
 
                 let current_dock = server_ctx.docks.read().dock.clone();
                 if current_dock != "Palette" {
@@ -90,10 +90,10 @@ impl Tool for PaletteTool {
                 true
             }
             DeActivate => {
-                server_ctx.palette_tool_active = false;
-                server_ctx.curr_map_tool_type = MapToolType::General;
-                server_ctx.hover_cursor = None;
-                server_ctx.hover_cursor_3d = None;
+                server_ctx.shared.palette_tool_active = false;
+                server_ctx.shared.curr_map_tool_type = MapToolType::General;
+                server_ctx.shared.hover_cursor = None;
+                server_ctx.shared.hover_cursor_3d = None;
                 if let Some(mode) = self.previous_sidebar_mode.take() {
                     server_ctx.sidebar_mode = mode;
                 }

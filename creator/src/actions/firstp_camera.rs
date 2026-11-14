@@ -36,9 +36,9 @@ impl Action for FirstPCamera {
         Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '6'))
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.editor_view_mode != EditorViewMode::FirstP
-            && server_ctx.get_map_context() == MapContext::Region
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.editor_view_mode != EditorViewMode::FirstP
+            && server_ctx.shared.get_map_context() == MapContext::Region
     }
 
     fn apply(
@@ -46,9 +46,9 @@ impl Action for FirstPCamera {
         _map: &mut Map,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
-        server_ctx.editing_surface = None;
+        server_ctx.shared.editing_surface = None;
         ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(4));
         ctx.ui.send(TheEvent::IndexChanged(
             TheId::named("Editor View Switch"),
@@ -62,7 +62,7 @@ impl Action for FirstPCamera {
         project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         server_ctx.tools.write()
             .update_geometry_overlay_3d(project, server_ctx);
@@ -78,7 +78,7 @@ impl Action for FirstPCamera {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

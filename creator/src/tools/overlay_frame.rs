@@ -41,13 +41,13 @@ impl ToolOverlayTarget {
             revision: self.revision,
         }
     }
-    fn valid(self, server: &ServerContext) -> bool {
+    fn valid(self, server: &CreatorContext) -> bool {
         self.visible
             && self.size.0 > 0
             && self.size.1 > 0
             && self.size.0 <= i32::MAX as usize
             && self.size.1 <= i32::MAX as usize
-            && self.context == server.pc
+            && self.context == server.shared.pc
     }
 }
 /// Resolved source inputs. Theme, action slots and source images are supplied by
@@ -90,16 +90,16 @@ struct SelectionSource {
     rectangle: Option<(Vec2<f32>, Vec2<f32>)>,
 }
 impl SelectionSource {
-    fn new<T: Tool + ?Sized>(tool: &T, map: &Map, server: &ServerContext) -> Self {
+    fn new<T: Tool + ?Sized>(tool: &T, map: &Map, server: &CreatorContext) -> Self {
         Self {
             id: tool.hud_selected_id(map, server),
-            mode: server.geometry_edit_mode,
+            mode: server.shared.geometry_edit_mode,
             detail: server
-                .active_detail_surface
+                .shared.active_detail_surface
                 .as_ref()
                 .map(|s| (s.id, s.sector_id, s.profile)),
             profile: server
-                .active_detail_surface
+                .shared.active_detail_surface
                 .as_ref()
                 .and_then(|s| s.profile)
                 .and_then(|id| map.profiles.get(&id))
@@ -113,12 +113,12 @@ impl SelectionSource {
             rectangle: tool.overlay_screen_rectangle(map, server),
         }
     }
-    fn matches<T: Tool + ?Sized>(&self, tool: &T, map: &Map, server: &ServerContext) -> bool {
+    fn matches<T: Tool + ?Sized>(&self, tool: &T, map: &Map, server: &CreatorContext) -> bool {
         if self.id != tool.hud_selected_id(map, server)
-            || self.mode != server.geometry_edit_mode
+            || self.mode != server.shared.geometry_edit_mode
             || self.detail
                 != server
-                    .active_detail_surface
+                    .shared.active_detail_surface
                     .as_ref()
                     .map(|s| (s.id, s.sector_id, s.profile))
             || self.rectangle != tool.overlay_screen_rectangle(map, server)
@@ -126,7 +126,7 @@ impl SelectionSource {
             return false;
         }
         let current = server
-            .active_detail_surface
+            .shared.active_detail_surface
             .as_ref()
             .and_then(|s| s.profile)
             .and_then(|id| map.profiles.get(&id));
@@ -361,7 +361,7 @@ impl ToolOverlayFrame {
             commands.draw_reference(buffer, ctx);
         }
     }
-    fn matches(&self, target: ToolOverlayTarget, server: &ServerContext) -> bool {
+    fn matches(&self, target: ToolOverlayTarget, server: &CreatorContext) -> bool {
         self.target == target && target.valid(server)
     }
     fn source_matches<T: Tool + ?Sized>(
@@ -369,7 +369,7 @@ impl ToolOverlayFrame {
         tool: &T,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.matches(target, server)
             && tool.id().uuid == target.tool
@@ -380,7 +380,7 @@ impl ToolOverlayFrame {
         hud: &Hud,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.parts
             .iter()
@@ -405,7 +405,7 @@ impl ToolOverlayFrame {
         &self,
         overlay: &props_overlay::PropsOverlay,
         target: ToolOverlayTarget,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.parts
             .iter()
@@ -428,7 +428,7 @@ impl ToolOverlayFrame {
         tool: &mut T,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.source_matches(&*tool, target, map, server)
             && tool.overlay_command_source_current(self, target, map, server)
@@ -438,7 +438,7 @@ impl ToolOverlayFrame {
         hud: &Hud,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.parts
             .iter()
@@ -473,7 +473,7 @@ impl ToolOverlayFrame {
         &self,
         overlay: &props_overlay::PropsOverlay,
         target: ToolOverlayTarget,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.parts
             .iter()
@@ -496,7 +496,7 @@ impl ToolOverlayFrame {
         tool: &mut T,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.source_matches(&*tool, target, map, server)
             && tool.overlay_input_current(self, target, map, server)
@@ -529,7 +529,7 @@ impl ToolOverlayFrame {
         receipts: &[theframework::paint::FrameReceipt],
         target: ToolOverlayTarget,
         map: &Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         if !self.source_matches(&*tool, target, map, server) {
             return false;
@@ -561,7 +561,7 @@ impl ToolOverlayFrame {
         overlay: &mut props_overlay::PropsOverlay,
         receipts: &[theframework::paint::FrameReceipt],
         target: ToolOverlayTarget,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         if !self.matches(target, server) {
             return false;

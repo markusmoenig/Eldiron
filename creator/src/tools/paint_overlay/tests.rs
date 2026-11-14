@@ -184,7 +184,7 @@ fn reference_paint_panel_actions_and_pointer_capture_never_retarget_stale_contro
     let (tx, rx) = std::sync::mpsc::channel();
     ctx.ui.state_events_sender = Some(tx);
     let mut ui = TheUI::new();
-    let server = ServerContext::default();
+    let server = CreatorContext::default();
     let mut overlay = fixture(0);
     overlay.draw(&mut buffer, &mut ctx, colors());
     assert!(overlay.map_event(
@@ -326,7 +326,7 @@ fn native_paint_panel_composes_all_reference_modes_and_reconstructs_without_disp
 fn paint_panel_native_routing_keeps_actions_and_distinguishes_unavailable_from_outside() {
     let (mut ctx, _) = setup((640, 360));
     let mut ui = TheUI::new();
-    let server = ServerContext::default();
+    let server = CreatorContext::default();
     let (tx, rx) = std::sync::mpsc::channel();
     ctx.ui.state_events_sender = Some(tx);
     let mut overlay = fixture(0);

@@ -128,7 +128,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let changed = Self::set_navigation_page(index, ui, ctx);
         if index == 2 {
@@ -137,9 +137,9 @@ impl Sidebar {
                 crate::docks::prefab_nodes::sync_node_list(ui, ctx);
             }
             if !prefab {
-                crate::docks::nodes::sync_node_list(ui, ctx, server_ctx.pc);
+                crate::docks::nodes::sync_node_list(ui, ctx, server_ctx.shared.pc);
             }
-            if !prefab && crate::docks::nodes::has_catalog(server_ctx.pc) {
+            if !prefab && crate::docks::nodes::has_catalog(server_ctx.shared.pc) {
                 server_ctx.docks.write()
                     .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
             }
@@ -227,7 +227,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         hard: bool,
     ) -> bool {
         let Some(view) = ui.get_render_view("MiniMap") else {
@@ -273,9 +273,9 @@ impl Sidebar {
                 return ui.get_render_view("MiniMap").unwrap().needs_redraw();
             }
             self.minimap_scene.deactivate(ui);
-            let missing_overview = if server_ctx.get_map_context() == MapContext::Region {
-                project.get_region(&server_ctx.curr_region).is_none()
-            } else { project.get_map(server_ctx).is_none() };
+            let missing_overview = if server_ctx.shared.get_map_context() == MapContext::Region {
+                project.get_region(&server_ctx.shared.curr_region).is_none()
+            } else { project.get_map(&server_ctx.shared).is_none() };
             if missing_overview {
                 let view = ui.get_render_view("MiniMap").unwrap();
                 view.set_image_handle(None);
@@ -305,7 +305,7 @@ impl Sidebar {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         crate::procedural_material::register_preview_icons(ctx, ui.style.theme().as_ref());
         // Tree View
@@ -318,7 +318,7 @@ impl Sidebar {
 
         let mut regions_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("regions"),
-            server_ctx.tree_regions_id,
+            server_ctx.shared.tree_regions_id,
         ));
         regions_node.set_open(true);
 
@@ -326,54 +326,54 @@ impl Sidebar {
 
         let characters_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("characters"),
-            server_ctx.tree_characters_id,
+            server_ctx.shared.tree_characters_id,
         ));
         root.add_child(characters_node);
 
         let items_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("items"),
-            server_ctx.tree_items_id,
+            server_ctx.shared.tree_items_id,
         ));
         root.add_child(items_node);
 
         let tilemaps_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("tilesets"),
-            server_ctx.tree_tilemaps_id,
+            server_ctx.shared.tree_tilemaps_id,
         ));
         root.add_child(tilemaps_node);
 
         let screens_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("screens"),
-            server_ctx.tree_screens_id,
+            server_ctx.shared.tree_screens_id,
         ));
         root.add_child(screens_node);
 
         let avatars_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("avatars"),
-            server_ctx.tree_avatars_id,
+            server_ctx.shared.tree_avatars_id,
         ));
         root.add_child(avatars_node);
 
         let mut assets_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("assets"),
-            server_ctx.tree_assets_id,
+            server_ctx.shared.tree_assets_id,
         ));
 
         let fonts_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("fonts"),
-            server_ctx.tree_assets_fonts_id,
+            server_ctx.shared.tree_assets_fonts_id,
         ));
         assets_node.add_child(fonts_node);
         let audio_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             "Audio",
-            server_ctx.tree_assets_audio_id,
+            server_ctx.shared.tree_assets_audio_id,
         ));
         assets_node.add_child(audio_node);
         root.add_child(assets_node);
 
         let mut palette_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("palette"),
-            server_ctx.tree_palette_id,
+            server_ctx.shared.tree_palette_id,
         ));
 
         let mut palette_label = TheTreeItem::new(TheId::named("Palette Header"));
@@ -717,7 +717,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         self.handle_event_with_runtime(event, ui, ctx, project, server_ctx, None)
     }
@@ -729,7 +729,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         runtime: Option<eldiron_runtime::RegionInspection<'_>>,
     ) -> bool {
         if self.tileset_creator.event(event,ui,ctx,project,server_ctx){return true;}
@@ -850,7 +850,7 @@ impl Sidebar {
                             server_ctx,
                             ProjectContext::Asset(id.uuid),
                         );
-                    } else if id.uuid == server_ctx.tree_palette_id {
+                    } else if id.uuid == server_ctx.shared.tree_palette_id {
                         server_ctx.sidebar_mode = SidebarMode::Palette;
                         apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                         ctx.ui.send(TheEvent::Custom(
@@ -864,9 +864,9 @@ impl Sidebar {
                 if id.name == "Sidebar Tabs" {
                     redraw |= self.activate_navigation_page(*index, ui, ctx, project, server_ctx);
                 } else if id.name == "Character Region Override" {
-                    server_ctx.character_region_override = *index == 1;
+                    server_ctx.shared.character_region_override = *index == 1;
                 } else if id.name == "Item Region Override" {
-                    server_ctx.item_region_override = *index == 1;
+                    server_ctx.shared.item_region_override = *index == 1;
                 } else if id.name == "Palette Item" {
                     project.palette.current_index = *index as u16;
                     apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
@@ -900,7 +900,7 @@ impl Sidebar {
                             if let Some(avatar) = project.find_avatar_for_animation(&anim_id) {
                                 let avatar_id = avatar.id;
 
-                                server_ctx.editing_ctx = PixelEditingContext::AvatarFrame(
+                                server_ctx.shared.editing_ctx = PixelEditingContext::AvatarFrame(
                                     avatar_id,
                                     anim_id,
                                     persp_index,
@@ -944,7 +944,7 @@ impl Sidebar {
                                 .unwrap_or_else(|| vec![rusterix::Texture::alloc(32, 32)]);
                         }
                         if frame_index < frames.len() {
-                            server_ctx.editing_ctx =
+                            server_ctx.shared.editing_ctx =
                                 PixelEditingContext::ItemIcon(item_id, on, frame_index);
                             let mut dm = server_ctx.docks.write();
                             dm.set_dock("Tiles".into(), ui, ctx, project, server_ctx);
@@ -961,7 +961,7 @@ impl Sidebar {
                         let dim = *render_view.dim();
 
                         // Color selected
-                        let palette_minimap_active = server_ctx.palette_tool_active
+                        let palette_minimap_active = server_ctx.shared.palette_tool_active
                             && server_ctx.docks.read().dock == "Palette";
                         if palette_minimap_active {
                             #[cfg(feature = "native-render")]
@@ -1042,7 +1042,7 @@ impl Sidebar {
                         #[cfg(feature = "native-render")]
                         let native_parent = ctx.ui.command_paint
                             && (native_bbox.is_some() || native_position.is_some())
-                            && server_ctx.get_map_context() == MapContext::Region;
+                            && server_ctx.shared.get_map_context() == MapContext::Region;
                         #[cfg(not(feature = "native-render"))]
                         let native_parent = false;
                         let mut update_pos_3d: Option<Vec3<f32>> = None;
@@ -1050,8 +1050,8 @@ impl Sidebar {
                         let mut handled_minimap_input = false;
 
                         let navigation_map = if native_parent {
-                            project.get_region_mut(&server_ctx.curr_region).map(|region| &mut region.map)
-                        } else { project.get_map_mut(server_ctx) };
+                            project.get_region_mut(&server_ctx.shared.curr_region).map(|region| &mut region.map)
+                        } else { project.get_map_mut(&server_ctx.shared) };
                         if let Some(map) = navigation_map
                             && let Some(bbox) = minimap_bbox_for_map(map)
                         {
@@ -1074,27 +1074,27 @@ impl Sidebar {
                             let grid_y = grid_pos.y;
 
                             // Keep 2D and 3D camera anchors independent.
-                            if server_ctx.editor_view_mode == EditorViewMode::D2 {
-                                server_ctx.center_map_at_grid_pos(
+                            if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
+                                server_ctx.shared.center_map_at_grid_pos(
                                     Vec2::new(width, height),
                                     grid_pos,
                                     map,
                                 );
                             } else if ui.shift
-                                && server_ctx.editor_view_mode == EditorViewMode::FirstP
-                                && server_ctx.get_map_context() == MapContext::Region
-                                && (native_parent || server_ctx.editing_surface.is_none())
+                                && server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+                                && server_ctx.shared.get_map_context() == MapContext::Region
+                                && (native_parent || server_ctx.shared.editing_surface.is_none())
                             {
                                 let current_y = project
-                                    .get_region(&server_ctx.curr_region)
+                                    .get_region(&server_ctx.shared.curr_region)
                                     .map(|region| region.editing_look_at_3d.y)
                                     .unwrap_or(0.0);
                                 update_look_at_3d = Some(Vec3::new(grid_x, current_y, grid_y));
-                            } else if server_ctx.get_map_context() == MapContext::Region
-                                && (native_parent || server_ctx.editing_surface.is_none())
+                            } else if server_ctx.shared.get_map_context() == MapContext::Region
+                                && (native_parent || server_ctx.shared.editing_surface.is_none())
                             {
                                 let current_y = project
-                                    .get_region(&server_ctx.curr_region)
+                                    .get_region(&server_ctx.shared.curr_region)
                                     .map(|region| region.editing_position_3d.y)
                                     .unwrap_or(0.0);
                                 update_pos_3d = Some(Vec3::new(grid_x, current_y, grid_y));
@@ -1103,12 +1103,12 @@ impl Sidebar {
                         }
 
                         if let Some(pos_3d) = update_pos_3d
-                            && let Some(region) = project.get_region_mut(&server_ctx.curr_region)
+                            && let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region)
                         {
                             region.editing_position_3d = pos_3d;
                         }
                         if let Some(look_at_3d) = update_look_at_3d
-                            && let Some(region) = project.get_region_mut(&server_ctx.curr_region)
+                            && let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region)
                         {
                             region.editing_look_at_3d = look_at_3d;
                         }
@@ -1196,7 +1196,7 @@ impl Sidebar {
                     return true;
                 }
                 let editing_item_icon =
-                    matches!(server_ctx.editing_ctx, PixelEditingContext::ItemIcon(..));
+                    matches!(server_ctx.shared.editing_ctx, PixelEditingContext::ItemIcon(..));
                 if id.name == "Item Icon Frames Changed"
                     || (id.name == "Editing Texture Updated" && editing_item_icon)
                 {
@@ -1213,14 +1213,14 @@ impl Sidebar {
                         anim_id,
                         persp_index,
                         frame_index,
-                    ) = server_ctx.editing_ctx
+                    ) = server_ctx.shared.editing_ctx
                     {
-                        if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx)
+                        if let Some(texture) = project.get_editing_texture(&server_ctx.shared.editing_ctx)
                         {
                             let icon_name = format!("Avatar Perspective Icons {}", persp_index);
                             if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                                 if let Some(avatars_node) =
-                                    tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+                                    tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_avatars_id)
                                 {
                                     // Find the avatar node
                                     if let Some(avatar_node) = avatars_node
@@ -1254,11 +1254,11 @@ impl Sidebar {
                             }
                         }
                     } else if let PixelEditingContext::ItemIcon(item_id, on, frame_index) =
-                        server_ctx.editing_ctx
-                        && let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx)
+                        server_ctx.shared.editing_ctx
+                        && let Some(texture) = project.get_editing_texture(&server_ctx.shared.editing_ctx)
                         && let Some(tree_layout) = ui.get_tree_layout("Project Tree")
                         && let Some(items_node) =
-                            tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
+                            tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_items_id)
                         && let Some(item_node) = items_node
                             .childs
                             .iter_mut()
@@ -1282,7 +1282,7 @@ impl Sidebar {
                     && let Some(item) = project.items.get(item_id)
                     && let Some(tree_layout) = ui.get_tree_layout("Project Tree")
                     && let Some(items_node) =
-                        tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
+                        tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_items_id)
                     && let Some(item_node) = items_node
                         .childs
                         .iter_mut()
@@ -1303,13 +1303,13 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Backup Editing Position" {
-                    if let Some(region) = project.get_region_ctx(server_ctx) {
-                        server_ctx.editing_pos_buffer = Some(region.editing_position_3d);
+                    if let Some(region) = project.get_region_ctx(&server_ctx.shared) {
+                        server_ctx.shared.editing_pos_buffer = Some(region.editing_position_3d);
                     }
                 } else if id.name == "Update Action Parameters" {
                     // Update the current action params (if any)
                     self.sync_current_action_toml_params(ui, ctx, Some(project), server_ctx);
-                    if let Some(curr_action_id) = server_ctx.curr_action_id {
+                    if let Some(curr_action_id) = server_ctx.shared.curr_action_id {
                         if let Some(action) = server_ctx.actions.write()
                             .get_action_by_id_mut(curr_action_id)
                         {
@@ -1321,7 +1321,7 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Refresh Action Parameters" {
-                    if let Some(curr_action_id) = server_ctx.curr_action_id
+                    if let Some(curr_action_id) = server_ctx.shared.curr_action_id
                         && let Some(action) = server_ctx.actions.write()
                             .get_action_by_id_mut(curr_action_id)
                     {
@@ -1329,7 +1329,7 @@ impl Sidebar {
                     }
                 } else if id.name == "Update Action List" {
                     // Update the current action params (if any)
-                    if let Some(curr_action_id) = server_ctx.curr_action_id {
+                    if let Some(curr_action_id) = server_ctx.shared.curr_action_id {
                         if let Some(_action) = server_ctx.actions.write()
                             .get_action_by_id_mut(curr_action_id)
                         {
@@ -1340,7 +1340,7 @@ impl Sidebar {
                         }
                     }
                     self.show_actions(ui, ctx, project, server_ctx);
-                    if server_ctx.curr_action_id.is_none() {
+                    if server_ctx.shared.curr_action_id.is_none() {
                         self.show_empty_action_toml(ui, ctx);
                     }
                 } else if id.name == "Nodegraph Id Changed" {
@@ -1380,10 +1380,10 @@ impl Sidebar {
                         tab.set_index(1);
                     }
                 } else if id.name == "Update Content List" {
-                    if server_ctx.get_map_context() == MapContext::Region {
-                        self.apply_region(ui, ctx, Some(server_ctx.curr_region), project);
-                    } else if server_ctx.get_map_context() == MapContext::Screen {
-                        self.apply_screen(ui, ctx, project.get_screen_ctx(server_ctx));
+                    if server_ctx.shared.get_map_context() == MapContext::Region {
+                        self.apply_region(ui, ctx, Some(server_ctx.shared.curr_region), project);
+                    } else if server_ctx.shared.get_map_context() == MapContext::Screen {
+                        self.apply_screen(ui, ctx, project.get_screen_ctx(&server_ctx.shared));
                     }
                 }
             }
@@ -1561,12 +1561,12 @@ impl Sidebar {
                         ),
                     );
                 } else if item_id.name == "Rename Region" {
-                    if let Some(tilemap) = project.get_region(&server_ctx.curr_region) {
+                    if let Some(tilemap) = project.get_region(&server_ctx.shared.curr_region) {
                         open_text_dialog(
                             "Rename Region",
                             "Region Name",
                             tilemap.name.as_str(),
-                            server_ctx.curr_region,
+                            server_ctx.shared.curr_region,
                             ui,
                             ctx,
                         );
@@ -1651,7 +1651,7 @@ impl Sidebar {
                 if let Some(key) = id.name.strip_prefix("Node Catalog/") {
                     let prefab = server_ctx.docks.read().dock == "Prefabs";
                     if (prefab && crate::docks::prefab_nodes::node_available(key))
-                        || (!prefab && crate::docks::nodes::node_available(server_ctx.pc, key))
+                        || (!prefab && crate::docks::nodes::node_available(server_ctx.shared.pc, key))
                     {
                         let mut drop = TheDrop::new(id.clone());
                         drop.set_title(text.clone());
@@ -1692,7 +1692,7 @@ impl Sidebar {
                 }
             }
             TheEvent::TileDropped(id, _, _) => {
-                if let Some(action_id) = server_ctx.curr_action_id
+                if let Some(action_id) = server_ctx.shared.curr_action_id
                     && id.name.starts_with("action")
                 {
                     if let Some(action) =
@@ -1708,7 +1708,7 @@ impl Sidebar {
                 if id.name == Self::ACTION_PARAMS_EDITOR
                     || id.name == Self::PROJECT_ACTION_PARAMS_EDITOR
                 {
-                    if let Some(action_id) = server_ctx.curr_action_id
+                    if let Some(action_id) = server_ctx.shared.curr_action_id
                         && let Some(source) = value.to_string()
                     {
                         self.mirror_action_params_editor(ui, &id.name, &source);
@@ -1722,7 +1722,7 @@ impl Sidebar {
                                     let _ = action.handle_event(&ev, project, ui, ctx, server_ctx);
                                 }
 
-                                if server_ctx.auto_action {
+                                if server_ctx.shared.auto_action {
                                     ctx.ui.send(TheEvent::StateChanged(
                                         TheId::named("Action Apply"),
                                         TheWidgetState::Clicked,
@@ -1917,14 +1917,14 @@ impl Sidebar {
                             }
                         }
                     }
-                } else if let Some(action_id) = server_ctx.curr_action_id
+                } else if let Some(action_id) = server_ctx.shared.curr_action_id
                     && id.name.starts_with("action")
                 {
                     if let Some(action) =
                         server_ctx.actions.write().get_action_by_id_mut(action_id)
                     {
                         if action.handle_event(event, project, ui, ctx, server_ctx) {
-                            if server_ctx.auto_action {
+                            if server_ctx.shared.auto_action {
                                 ctx.ui.send(TheEvent::StateChanged(
                                     TheId::named("Action Apply"),
                                     TheWidgetState::Clicked,
@@ -1937,7 +1937,7 @@ impl Sidebar {
 
                 if id.name == "RegionConfigEdit" {
                     if let Some(code) = value.to_string() {
-                        if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                        if let Some(region) = project.get_region_ctx_mut(&server_ctx.shared) {
                             apply_region_config(&mut region.map, code.clone());
                             region.config = code;
                         }
@@ -1991,7 +1991,7 @@ impl Sidebar {
                 } else if id.name == "Region Content Filter Edit"
                     || id.name == "Region Content Dropdown"
                 {
-                    self.apply_region(ui, ctx, Some(server_ctx.curr_region), project);
+                    self.apply_region(ui, ctx, Some(server_ctx.shared.curr_region), project);
                 } else if let Some(collection_id) = self.curr_tile_collection_uuid
                     && let Some(collection) = project.tile_collections.get_mut(&collection_id)
                 {
@@ -2028,7 +2028,7 @@ impl Sidebar {
                 }
             }
             TheEvent::FileRequesterResult(id, paths) => {
-                if let Some(action_id) = server_ctx.curr_action_id
+                if let Some(action_id) = server_ctx.shared.curr_action_id
                     && id.name.starts_with("action")
                 {
                     if let Some(action) =
@@ -2376,7 +2376,7 @@ impl Sidebar {
                                     Box::new(project.clone()),
                                     Box::new(next),
                                     screen,
-                                    server_ctx.pc,
+                                    server_ctx.shared.pc,
                                 );
                                 atom.redo(project, ui, ctx, server_ctx);
                                 server_ctx.history.write().add_undo(atom, ctx);
@@ -2553,7 +2553,7 @@ impl Sidebar {
                 }
             }
             TheEvent::KeyDown(TheValue::Char(c)) => {
-                if server_ctx.game_mode || server_ctx.game_input_mode || server_ctx.text_game_mode {
+                if server_ctx.shared.game_mode || server_ctx.shared.game_input_mode || server_ctx.shared.text_game_mode {
                     return false;
                 }
 
@@ -2685,7 +2685,7 @@ impl Sidebar {
             }
             TheEvent::StateChanged(id, state) => {
                 if id.name == "Action Auto" {
-                    server_ctx.auto_action = *state == TheWidgetState::Selected;
+                    server_ctx.shared.auto_action = *state == TheWidgetState::Selected;
                 } else
                 // Iterate actions
                 if let Some((
@@ -2702,7 +2702,7 @@ impl Sidebar {
                     // more UI work that also consults the action catalog.
                     let mut actions = server_ctx.actions.write();
                     actions.get_action_by_id_mut(id.uuid).map(|action| {
-                        server_ctx.curr_action_id = Some(action.id().uuid);
+                        server_ctx.shared.curr_action_id = Some(action.id().uuid);
 
                         if let Some(map) = action.map_scope().map_mut(project, server_ctx) {
                             action.load_params(map);
@@ -2710,7 +2710,7 @@ impl Sidebar {
                         action.load_params_project(project, server_ctx);
 
                         let editor_display = action.editor_display();
-                        let auto_apply = (server_ctx.auto_action
+                        let auto_apply = (server_ctx.shared.auto_action
                             || action.role() == ActionRole::Camera)
                             && editor_display.is_none();
 
@@ -2726,7 +2726,7 @@ impl Sidebar {
                 } {
                     server_ctx.tools.write().begin_action_edit(
                         action_id,
-                        server_ctx.pc,
+                        server_ctx.shared.pc,
                         editor_display,
                         ctx,
                      &server_ctx.actions);
@@ -2739,7 +2739,7 @@ impl Sidebar {
                         ));
                     }
                 } else if id.name == "Action Apply" || id.name == "Project Action Apply" {
-                    if let Some(action_id) = server_ctx.curr_action_id {
+                    if let Some(action_id) = server_ctx.shared.curr_action_id {
                         self.sync_current_action_toml_params(ui, ctx, Some(project), server_ctx);
                         if let Some(action) = server_ctx.actions.read().get_action_by_id(action_id)
                         {
@@ -2770,7 +2770,7 @@ impl Sidebar {
                     }
                 } else if id.name == "Shader Item" {
                     let material_id = id.uuid;
-                    server_ctx.curr_material_id = Some(material_id);
+                    server_ctx.shared.curr_material_id = Some(material_id);
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Minimap"),
                         TheValue::Empty,
@@ -2861,8 +2861,8 @@ impl Sidebar {
                     atom.redo(project, ui, ctx, server_ctx);
                     server_ctx.history.write().add_undo(atom, ctx);
                 } else if id.name == "Import Region" {
-                    if let Some(id) = server_ctx.pc.id() {
-                        if server_ctx.pc.is_region() {
+                    if let Some(id) = server_ctx.shared.pc.id() {
+                        if server_ctx.shared.pc.is_region() {
                             ctx.ui.open_file_requester(
                                 TheId::named_with_id("Region Import", id),
                                 "Import Region".into(),
@@ -2879,7 +2879,7 @@ impl Sidebar {
                     atom.redo(project, ui, ctx, server_ctx);
                     server_ctx.history.write().add_undo(atom, ctx);
                 } else if id.name == "Import Character" {
-                    if let Some(id) = server_ctx.pc.id() {
+                    if let Some(id) = server_ctx.shared.pc.id() {
                         ctx.ui.open_file_requester(
                             TheId::named_with_id("Character Import", id),
                             "Import Character".into(),
@@ -2890,7 +2890,7 @@ impl Sidebar {
                         );
                     }
                 } else if id.name == "Import Avatar" {
-                    if let Some(id) = server_ctx.pc.id() {
+                    if let Some(id) = server_ctx.shared.pc.id() {
                         ctx.ui.open_file_requester(
                             TheId::named_with_id("Avatar Import", id),
                             fl!("import_avatar"),
@@ -2901,9 +2901,9 @@ impl Sidebar {
                         );
                     }
                 } else if id.name == "Import Avatar Atlas" {
-                    if let Some(id) = server_ctx.pc.id()
+                    if let Some(id) = server_ctx.shared.pc.id()
                         && matches!(
-                            server_ctx.pc,
+                            server_ctx.shared.pc,
                             ProjectContext::Avatar(_) | ProjectContext::AvatarAnimation(_, _, _)
                         )
                     {
@@ -2959,7 +2959,7 @@ impl Sidebar {
                     atom.redo(project, ui, ctx, server_ctx);
                     server_ctx.history.write().add_undo(atom, ctx);
                 } else if id.name == "Import Item" {
-                    if let Some(id) = server_ctx.pc.id() {
+                    if let Some(id) = server_ctx.shared.pc.id() {
                         ctx.ui.open_file_requester(
                             TheId::named_with_id("Item Import", id),
                             "Import Item".into(),
@@ -3006,15 +3006,15 @@ impl Sidebar {
                         ),
                     );
                 } else if id.name == "Project Remove" {
-                    if server_ctx.pc.is_region() {
-                        if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id()
+                    if server_ctx.shared.pc.is_region() {
+                        if let Some(instance_id) = server_ctx.shared.pc.get_region_character_instance_id()
                         {
                             // This is a character instance in the region
 
                             let mut character = Character::default();
                             let mut index = 0;
 
-                            if let Some(r) = project.get_region_ctx(server_ctx) {
+                            if let Some(r) = project.get_region_ctx(&server_ctx.shared) {
                                 if let Some(ind) = r.characters.get_index_of(&instance_id) {
                                     index = ind;
                                 }
@@ -3025,20 +3025,20 @@ impl Sidebar {
 
                             let atom = ProjectUndoAtom::RemoveRegionCharacterInstance(
                                 index,
-                                server_ctx.curr_region,
+                                server_ctx.shared.curr_region,
                                 character,
                             );
                             atom.redo(project, ui, ctx, server_ctx);
                             server_ctx.history.write().add_undo(atom, ctx);
                         } else if let Some(instance_id) =
-                            server_ctx.pc.get_region_item_instance_id()
+                            server_ctx.shared.pc.get_region_item_instance_id()
                         {
                             // This is a item instance in the region
 
                             let mut item = Item::default();
                             let mut index = 0;
 
-                            if let Some(r) = project.get_region_ctx(server_ctx) {
+                            if let Some(r) = project.get_region_ctx(&server_ctx.shared) {
                                 if let Some(ind) = r.items.get_index_of(&instance_id) {
                                     index = ind;
                                 }
@@ -3049,7 +3049,7 @@ impl Sidebar {
 
                             let atom = ProjectUndoAtom::RemoveRegionItemInstance(
                                 index,
-                                server_ctx.curr_region,
+                                server_ctx.shared.curr_region,
                                 item,
                             );
                             atom.redo(project, ui, ctx, server_ctx);
@@ -3057,7 +3057,7 @@ impl Sidebar {
                         } else {
                             // Remove Region
                             let mut region = Region::default();
-                            if let Some(r) = project.get_region_ctx(server_ctx) {
+                            if let Some(r) = project.get_region_ctx(&server_ctx.shared) {
                                 region = r.clone();
                             }
 
@@ -3069,10 +3069,10 @@ impl Sidebar {
                                 server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
-                    } else if server_ctx.pc.is_character() {
+                    } else if server_ctx.shared.pc.is_character() {
                         // Remove Character
                         let mut character: Character = Character::default();
-                        if let Some(id) = server_ctx.pc.id() {
+                        if let Some(id) = server_ctx.shared.pc.id() {
                             if let Some(c) = project.characters.get(&id) {
                                 character = c.clone();
                             }
@@ -3084,7 +3084,7 @@ impl Sidebar {
                             }
                         }
                     } else if let ProjectContext::AvatarAnimation(avatar_id, anim_id, _) =
-                        server_ctx.pc
+                        server_ctx.shared.pc
                     {
                         // Remove Avatar Animation
                         if let Some(avatar) = project.avatars.get(&avatar_id)
@@ -3100,7 +3100,7 @@ impl Sidebar {
                             atom.redo(project, ui, ctx, server_ctx);
                             server_ctx.history.write().add_undo(atom, ctx);
                         }
-                    } else if let ProjectContext::Avatar(avatar_id) = server_ctx.pc {
+                    } else if let ProjectContext::Avatar(avatar_id) = server_ctx.shared.pc {
                         // Remove Avatar
                         if let Some(avatar) = project.avatars.get(&avatar_id).cloned()
                             && let Some(index) = project.avatars.get_index_of(&avatar_id)
@@ -3109,10 +3109,10 @@ impl Sidebar {
                             atom.redo(project, ui, ctx, server_ctx);
                             server_ctx.history.write().add_undo(atom, ctx);
                         }
-                    } else if server_ctx.pc.is_item() {
+                    } else if server_ctx.shared.pc.is_item() {
                         // Remove Item
                         let mut item: Item = Item::default();
-                        if let Some(id) = server_ctx.pc.id() {
+                        if let Some(id) = server_ctx.shared.pc.id() {
                             if let Some(c) = project.items.get(&id) {
                                 item = c.clone();
                             }
@@ -3123,10 +3123,10 @@ impl Sidebar {
                                 server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
-                    } else if server_ctx.pc.is_tilemap() {
+                    } else if server_ctx.shared.pc.is_tilemap() {
                         // Remove Tilemap
                         let mut tilemap: Tilemap = Tilemap::default();
-                        if let Some(id) = server_ctx.pc.id() {
+                        if let Some(id) = server_ctx.shared.pc.id() {
                             if let Some(t) = project.get_tilemap(id) {
                                 tilemap = t.clone();
                             }
@@ -3139,10 +3139,10 @@ impl Sidebar {
                                 server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
-                    } else if server_ctx.pc.is_screen() {
+                    } else if server_ctx.shared.pc.is_screen() {
                         // Remove Screen
                         let mut screen: Screen = Screen::default();
-                        if let Some(id) = server_ctx.pc.id() {
+                        if let Some(id) = server_ctx.shared.pc.id() {
                             if let Some(s) = project.screens.get(&id) {
                                 screen = s.clone();
                             }
@@ -3153,10 +3153,10 @@ impl Sidebar {
                                 server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
-                    } else if server_ctx.pc.is_asset() {
+                    } else if server_ctx.shared.pc.is_asset() {
                         // Remove Asset
                         let mut asset: Asset = Asset::default();
-                        if let Some(id) = server_ctx.pc.id() {
+                        if let Some(id) = server_ctx.shared.pc.id() {
                             if let Some(a) = project.assets.get(&id) {
                                 asset = a.clone();
                             }
@@ -3169,8 +3169,8 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Project Duplicate" {
-                    if server_ctx.pc.is_region() {
-                        if let Some(region) = project.get_region_ctx(server_ctx).cloned() {
+                    if server_ctx.shared.pc.is_region() {
+                        if let Some(region) = project.get_region_ctx(&server_ctx.shared).cloned() {
                             let mut duplicated = region;
                             duplicated.id = Uuid::new_v4();
                             duplicated.name = format!("{} Copy", duplicated.name);
@@ -3180,13 +3180,13 @@ impl Sidebar {
                             project.regions.push(duplicated.clone());
                             if let Some(tree_layout) = ui.get_tree_layout("Project Tree")
                                 && let Some(region_node) =
-                                    tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id)
+                                    tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_regions_id)
                             {
                                 let mut node = gen_region_tree_node(&duplicated);
                                 node.set_open(true);
                                 region_node.add_child(node);
                             }
-                            server_ctx.curr_region = duplicated.id;
+                            server_ctx.shared.curr_region = duplicated.id;
                             set_project_context(
                                 ctx,
                                 ui,
@@ -3199,8 +3199,8 @@ impl Sidebar {
                             server_ctx.history.write().add_undo(undo, ctx);
                             redraw = true;
                         }
-                    } else if server_ctx.pc.is_character() {
-                        if let Some(id) = server_ctx.pc.id()
+                    } else if server_ctx.shared.pc.is_character() {
+                        if let Some(id) = server_ctx.shared.pc.id()
                             && let Some(character) = project.characters.get(&id).cloned()
                         {
                             let mut duplicated = character;
@@ -3213,7 +3213,7 @@ impl Sidebar {
                             project.add_character(duplicated.clone());
                             if let Some(tree_layout) = ui.get_tree_layout("Project Tree")
                                 && let Some(characters_node) =
-                                    tree_layout.get_node_by_id_mut(&server_ctx.tree_characters_id)
+                                    tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_characters_id)
                             {
                                 let mut node = gen_character_tree_node(&duplicated);
                                 node.set_open(true);
@@ -3232,8 +3232,8 @@ impl Sidebar {
                             server_ctx.history.write().add_undo(undo, ctx);
                             redraw = true;
                         }
-                    } else if server_ctx.pc.is_item() {
-                        if let Some(id) = server_ctx.pc.id()
+                    } else if server_ctx.shared.pc.is_item() {
+                        if let Some(id) = server_ctx.shared.pc.id()
                             && let Some(item) = project.items.get(&id).cloned()
                         {
                             let mut duplicated = item;
@@ -3246,7 +3246,7 @@ impl Sidebar {
                             project.add_item(duplicated.clone());
                             if let Some(tree_layout) = ui.get_tree_layout("Project Tree")
                                 && let Some(items_node) =
-                                    tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
+                                    tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_items_id)
                             {
                                 append_item_tree(items_node, &duplicated, project, true);
                             }
@@ -3262,8 +3262,8 @@ impl Sidebar {
                             server_ctx.history.write().add_undo(undo, ctx);
                             redraw = true;
                         }
-                    } else if server_ctx.pc.is_screen() {
-                        if let Some(id) = server_ctx.pc.id()
+                    } else if server_ctx.shared.pc.is_screen() {
+                        if let Some(id) = server_ctx.shared.pc.id()
                             && let Some(screen) = project.screens.get(&id).cloned()
                         {
                             let mut duplicated = screen;
@@ -3275,13 +3275,13 @@ impl Sidebar {
                             project.add_screen(duplicated.clone());
                             if let Some(tree_layout) = ui.get_tree_layout("Project Tree")
                                 && let Some(screens_node) =
-                                    tree_layout.get_node_by_id_mut(&server_ctx.tree_screens_id)
+                                    tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_screens_id)
                             {
                                 let mut node = gen_screen_tree_node(&duplicated);
                                 node.set_open(true);
                                 screens_node.add_child(node);
                             }
-                            server_ctx.curr_screen = duplicated.id;
+                            server_ctx.shared.curr_screen = duplicated.id;
                             set_project_context(
                                 ctx,
                                 ui,
@@ -3295,7 +3295,7 @@ impl Sidebar {
                             redraw = true;
                         }
                     } else {
-                        let avatar_id = match server_ctx.pc {
+                        let avatar_id = match server_ctx.shared.pc {
                             ProjectContext::Avatar(id) => Some(id),
                             ProjectContext::AvatarAnimation(id, _, _) => Some(id),
                             _ => None,
@@ -3313,7 +3313,7 @@ impl Sidebar {
                             project.add_avatar(duplicated.clone());
                             if let Some(tree_layout) = ui.get_tree_layout("Project Tree")
                                 && let Some(avatars_node) =
-                                    tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)
+                                    tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_avatars_id)
                             {
                                 let mut node = gen_avatar_tree_node(&duplicated);
                                 node.set_open(true);
@@ -3333,8 +3333,8 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Project Export" {
-                    if let Some(id) = server_ctx.pc.id() {
-                        if server_ctx.pc.is_region() {
+                    if let Some(id) = server_ctx.shared.pc.id() {
+                        if server_ctx.shared.pc.is_region() {
                             ctx.ui.save_file_requester(
                                 TheId::named_with_id("Region Export", id),
                                 "Export Region".into(),
@@ -3343,7 +3343,7 @@ impl Sidebar {
                                     vec!["eldiron_region".to_string()],
                                 ),
                             );
-                        } else if server_ctx.pc.is_character() {
+                        } else if server_ctx.shared.pc.is_character() {
                             ctx.ui.save_file_requester(
                                 TheId::named_with_id("Character Export", id),
                                 "Export Character".into(),
@@ -3353,7 +3353,7 @@ impl Sidebar {
                                 ),
                             );
                         } else if matches!(
-                            server_ctx.pc,
+                            server_ctx.shared.pc,
                             ProjectContext::Avatar(_) | ProjectContext::AvatarAnimation(_, _, _)
                         ) {
                             ctx.ui.save_file_requester(
@@ -3364,7 +3364,7 @@ impl Sidebar {
                                     vec!["png".to_string(), "PNG".to_string()],
                                 ),
                             );
-                        } else if server_ctx.pc.is_item() {
+                        } else if server_ctx.shared.pc.is_item() {
                             ctx.ui.save_file_requester(
                                 TheId::named_with_id("Item Export", id),
                                 "Export Item".into(),
@@ -3373,7 +3373,7 @@ impl Sidebar {
                                     vec!["eldiron_item".to_string()],
                                 ),
                             );
-                        } else if server_ctx.pc.is_tilemap() {
+                        } else if server_ctx.shared.pc.is_tilemap() {
                             ctx.ui.save_file_requester(
                                 TheId::named_with_id("Tileset Export", id),
                                 "Export Tileset".into(),
@@ -3382,7 +3382,7 @@ impl Sidebar {
                                     vec!["eldiron_tileset".to_string()],
                                 ),
                             );
-                        } else if server_ctx.pc.is_screen() {
+                        } else if server_ctx.shared.pc.is_screen() {
                             ctx.ui.save_file_requester(
                                 TheId::named_with_id("Screen Export", id),
                                 "Export Screen".into(),
@@ -3391,7 +3391,7 @@ impl Sidebar {
                                     vec!["eldiron_screen".to_string()],
                                 ),
                             );
-                        } else if server_ctx.pc.is_asset() {
+                        } else if server_ctx.shared.pc.is_asset() {
                             if let Some(asset) = project.assets.get(&id) {
                                 let (req_id, title, ext_label, ext) = match &asset.buffer {
                                     AssetBuffer::Audio(_) => (
@@ -3416,8 +3416,8 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Region Item" {
-                    server_ctx.editing_pos_buffer = None;
-                    server_ctx.curr_region = id.references;
+                    server_ctx.shared.editing_pos_buffer = None;
+                    server_ctx.shared.curr_region = id.references;
                     set_project_context(
                         ctx,
                         ui,
@@ -3432,9 +3432,9 @@ impl Sidebar {
                     if let Some(region_id) =
                         crate::undo::project_helper::region_of_area(project, id.references)
                     {
-                        server_ctx.editing_pos_buffer = None;
-                        let switched = server_ctx.curr_region != region_id;
-                        server_ctx.curr_region = region_id;
+                        server_ctx.shared.editing_pos_buffer = None;
+                        let switched = server_ctx.shared.curr_region != region_id;
+                        server_ctx.shared.curr_region = region_id;
                         if switched {
                             // Follow the place into its region before centring on it.
                             crate::undo::project_helper::update_region(ctx, &server_ctx.reference);
@@ -3446,7 +3446,7 @@ impl Sidebar {
                                 crate::undo::project_helper::area_center(region, id.references)
                         {
                             let dim = *render_view.dim();
-                            server_ctx.center_map_at_grid_pos(
+                            server_ctx.shared.center_map_at_grid_pos(
                                 vek::Vec2::new(dim.width as f32, dim.height as f32),
                                 vek::Vec2::new(x, y),
                                 &mut region.map,
@@ -3463,8 +3463,8 @@ impl Sidebar {
                         redraw = true;
                     }
                 } else if id.name == "Region Settings Item" {
-                    server_ctx.editing_pos_buffer = None;
-                    server_ctx.curr_region = id.references;
+                    server_ctx.shared.editing_pos_buffer = None;
+                    server_ctx.shared.curr_region = id.references;
                     set_project_context(
                         ctx,
                         ui,
@@ -3476,8 +3476,8 @@ impl Sidebar {
                     self.apply_region(ui, ctx, Some(id.references), project);
                     redraw = true;
                 } else if id.name == "Region Code Item" {
-                    server_ctx.editing_pos_buffer = None;
-                    server_ctx.curr_region = id.references;
+                    server_ctx.shared.editing_pos_buffer = None;
+                    server_ctx.shared.curr_region = id.references;
                     set_project_context(
                         ctx,
                         ui,
@@ -3488,9 +3488,9 @@ impl Sidebar {
                     redraw = true;
                 } else if id.name == "Character Item" {
                     if let Some(_) = project.characters.get(&id.references) {
-                        server_ctx.curr_character =
+                        server_ctx.shared.curr_character =
                             ContentContext::CharacterTemplate(id.references);
-                        server_ctx.cc = ContentContext::CharacterTemplate(id.uuid);
+                        server_ctx.shared.cc = ContentContext::CharacterTemplate(id.uuid);
                         set_project_context(
                             ctx,
                             ui,
@@ -3502,9 +3502,9 @@ impl Sidebar {
                     }
                 } else if id.name == "Character Item Name Edit" {
                     if let Some(_) = project.characters.get(&id.references) {
-                        server_ctx.curr_character =
+                        server_ctx.shared.curr_character =
                             ContentContext::CharacterTemplate(id.references);
-                        server_ctx.cc = ContentContext::CharacterTemplate(id.references);
+                        server_ctx.shared.cc = ContentContext::CharacterTemplate(id.references);
                         set_project_context(
                             ctx,
                             ui,
@@ -3516,9 +3516,9 @@ impl Sidebar {
                     }
                 } else if id.name == "Character Item Code Edit" {
                     if let Some(_) = project.characters.get(&id.references) {
-                        server_ctx.curr_character =
+                        server_ctx.shared.curr_character =
                             ContentContext::CharacterTemplate(id.references);
-                        server_ctx.cc = ContentContext::CharacterTemplate(id.references);
+                        server_ctx.shared.cc = ContentContext::CharacterTemplate(id.references);
                         set_project_context(
                             ctx,
                             ui,
@@ -3530,9 +3530,9 @@ impl Sidebar {
                     }
                 } else if id.name == "Character Item Data Edit" {
                     if let Some(_) = project.characters.get(&id.references) {
-                        server_ctx.curr_character =
+                        server_ctx.shared.curr_character =
                             ContentContext::CharacterTemplate(id.references);
-                        server_ctx.cc = ContentContext::CharacterTemplate(id.references);
+                        server_ctx.shared.cc = ContentContext::CharacterTemplate(id.references);
                         set_project_context(
                             ctx,
                             ui,
@@ -3547,9 +3547,9 @@ impl Sidebar {
                         if character.preview_rigging.trim().is_empty() {
                             character.preview_rigging = default_preview_rigging_toml();
                         }
-                        server_ctx.curr_character =
+                        server_ctx.shared.curr_character =
                             ContentContext::CharacterTemplate(id.references);
-                        server_ctx.cc = ContentContext::CharacterTemplate(id.references);
+                        server_ctx.shared.cc = ContentContext::CharacterTemplate(id.references);
                         set_project_context(
                             ctx,
                             ui,
@@ -3561,8 +3561,8 @@ impl Sidebar {
                     }
                 } else if id.name == "Item Item" {
                     if let Some(_) = project.items.get(&id.references) {
-                        server_ctx.curr_item = ContentContext::ItemTemplate(id.references);
-                        server_ctx.cc = ContentContext::ItemTemplate(id.uuid);
+                        server_ctx.shared.curr_item = ContentContext::ItemTemplate(id.references);
+                        server_ctx.shared.cc = ContentContext::ItemTemplate(id.uuid);
                         set_project_context(
                             ctx,
                             ui,
@@ -3574,8 +3574,8 @@ impl Sidebar {
                     }
                 } else if id.name == "Item Item Name Edit" {
                     if let Some(_) = project.items.get(&id.references) {
-                        server_ctx.curr_item = ContentContext::ItemTemplate(id.references);
-                        server_ctx.cc = ContentContext::ItemTemplate(id.references);
+                        server_ctx.shared.curr_item = ContentContext::ItemTemplate(id.references);
+                        server_ctx.shared.cc = ContentContext::ItemTemplate(id.references);
                         set_project_context(
                             ctx,
                             ui,
@@ -3720,8 +3720,8 @@ impl Sidebar {
                     }
                 } else if id.name == "Item Item Code Edit" {
                     if let Some(_) = project.items.get(&id.references) {
-                        server_ctx.curr_character = ContentContext::ItemTemplate(id.references);
-                        server_ctx.cc = ContentContext::ItemTemplate(id.references);
+                        server_ctx.shared.curr_character = ContentContext::ItemTemplate(id.references);
+                        server_ctx.shared.cc = ContentContext::ItemTemplate(id.references);
                         set_project_context(
                             ctx,
                             ui,
@@ -3733,8 +3733,8 @@ impl Sidebar {
                     }
                 } else if id.name == "Item Item Data Edit" {
                     if let Some(_) = project.items.get(&id.references) {
-                        server_ctx.curr_character = ContentContext::ItemTemplate(id.references);
-                        server_ctx.cc = ContentContext::ItemTemplate(id.references);
+                        server_ctx.shared.curr_character = ContentContext::ItemTemplate(id.references);
+                        server_ctx.shared.cc = ContentContext::ItemTemplate(id.references);
                         set_project_context(
                             ctx,
                             ui,
@@ -3799,7 +3799,7 @@ impl Sidebar {
                 } else if id.name == "Screen Item" {
                     if let Some(s) = project.screens.get(&id.uuid) {
                         self.apply_screen(ui, ctx, Some(s));
-                        server_ctx.curr_screen = id.uuid;
+                        server_ctx.shared.curr_screen = id.uuid;
                         redraw = true;
                         server_ctx.reference.write().set_dirty();
                     }
@@ -3848,7 +3848,7 @@ impl Sidebar {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         project: &mut Project,
     ) {
         #[cfg(feature = "native-render")]
@@ -4100,11 +4100,11 @@ impl Sidebar {
         &mut self,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         project: &mut Project,
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(avatar_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id) {
+            if let Some(avatar_node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_avatars_id) {
                 avatar_node.clear();
 
                 for (_index, avatar) in project.avatars.iter() {
@@ -4121,13 +4121,13 @@ impl Sidebar {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         project: &mut Project,
     ) {
         let mut id: Option<Uuid> = None;
 
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(region_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id) {
+            if let Some(region_node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_regions_id) {
                 region_node.clear();
 
                 for (index, region) in project.regions.iter().enumerate() {
@@ -4143,7 +4143,7 @@ impl Sidebar {
         }
 
         if let Some(id) = id {
-            server_ctx.curr_region = id;
+            server_ctx.shared.curr_region = id;
             set_project_context(ctx, ui, project, server_ctx, ProjectContext::Region(id));
             self.apply_region(ui, ctx, Some(id), project);
         }
@@ -4154,12 +4154,12 @@ impl Sidebar {
         &mut self,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         project: &mut Project,
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(characters_node) =
-                tree_layout.get_node_by_id_mut(&server_ctx.tree_characters_id)
+                tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_characters_id)
             {
                 characters_node.clear();
 
@@ -4177,11 +4177,11 @@ impl Sidebar {
         &mut self,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         project: &mut Project,
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(items_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id) {
+            if let Some(items_node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_items_id) {
                 populate_item_tree(items_node, project);
             }
         }
@@ -4192,11 +4192,11 @@ impl Sidebar {
         &mut self,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         project: &mut Project,
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(tilema_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id)
+            if let Some(tilema_node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_tilemaps_id)
             {
                 tilema_node.clear();
 
@@ -4213,11 +4213,11 @@ impl Sidebar {
         &mut self,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         project: &mut Project,
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
-            if let Some(screen_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_screens_id) {
+            if let Some(screen_node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_screens_id) {
                 screen_node.clear();
 
                 for (_, screen) in project.screens.iter() {
@@ -4233,17 +4233,17 @@ impl Sidebar {
         &mut self,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         project: &mut Project,
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(font_node) =
-                tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_fonts_id)
+                tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_assets_fonts_id)
             {
                 font_node.clear();
             }
             if let Some(audio_node) =
-                tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_audio_id)
+                tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_assets_audio_id)
             {
                 audio_node.clear();
             }
@@ -4252,14 +4252,14 @@ impl Sidebar {
                 match &asset.buffer {
                     AssetBuffer::Font(_) => {
                         if let Some(font_node) =
-                            tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_fonts_id)
+                            tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_assets_fonts_id)
                         {
                             font_node.add_child(gen_asset_tree_node(asset));
                         }
                     }
                     AssetBuffer::Audio(_) => {
                         if let Some(audio_node) =
-                            tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_audio_id)
+                            tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_assets_audio_id)
                         {
                             audio_node.add_child(gen_asset_tree_node(asset));
                         }
@@ -4768,7 +4768,7 @@ impl Sidebar {
         &self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _server_ctx: &ServerContext,
+        _server_ctx: &CreatorContext,
         action: &dyn Action,
     ) {
         let params = action.params();
@@ -4809,9 +4809,9 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: Option<&mut Project>,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
-        let Some(action_id) = server_ctx.curr_action_id else {
+        let Some(action_id) = server_ctx.shared.curr_action_id else {
             return false;
         };
         let preferred_editor = ctx
@@ -4871,7 +4871,7 @@ impl Sidebar {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Result<(), String> {
         if source.trim().is_empty() {
             return Ok(());
@@ -4901,7 +4901,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Result<(), String> {
         let mut actions = server_ctx.actions.write();
         let action = actions
@@ -4919,7 +4919,7 @@ impl Sidebar {
             ));
         }
 
-        server_ctx.curr_action_id = Some(action.id().uuid);
+        server_ctx.shared.curr_action_id = Some(action.id().uuid);
         if let Some(map) = action.map_scope().map(project, server_ctx) {
             action.load_params(map);
         }
@@ -4959,7 +4959,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Result<bool, String> {
         let resolved = {
             let tools = server_ctx.tools.read();
@@ -4997,7 +4997,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Result<usize, String> {
         let requests = collect_editor_automation_requests(source)?;
         for (index, request) in requests.iter().enumerate() {
@@ -5020,7 +5020,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         for list_id in ["Action List", "Prefab Action List"] {
             if let Some(layout) = ui.canvas.get_layout(Some(&list_id.to_string()), None)
@@ -5035,12 +5035,12 @@ impl Sidebar {
                 let hide_camera_actions =
                     server_ctx.docks.read().get_state() == DockManagerState::Editor;
 
-                if let Some(map) = project.get_map(server_ctx).or(Some(&Map::default())) {
+                if let Some(map) = project.get_map(&server_ctx.shared).or(Some(&Map::default())) {
                     for (registration_index, action) in actions.actions.iter().enumerate() {
                         let Some(map) = action.map_scope().map(project, server_ctx).or_else(|| {
                             (action.map_scope() == crate::actions::ActionMapScope::Selected).then_some(map)
                         }) else { continue; };
-                        let is_current = Some(action.id().uuid) == server_ctx.curr_action_id;
+                        let is_current = Some(action.id().uuid) == server_ctx.shared.curr_action_id;
                         let keep_current_action_slots =
                             is_current && action.preserves_hud_material_slots();
                         if action.is_applicable(map, ctx, server_ctx) || keep_current_action_slots {
@@ -5092,12 +5092,12 @@ impl Sidebar {
                 }
 
                 if !found_current {
-                    server_ctx.curr_action_id = None;
+                    server_ctx.shared.curr_action_id = None;
                 }
             }
         }
 
-        if let Some(action_id) = server_ctx.curr_action_id {
+        if let Some(action_id) = server_ctx.shared.curr_action_id {
             self.sync_current_action_toml_params(ui, ctx, None, server_ctx);
             if let Some(action) = server_ctx.actions.write().get_action_by_id_mut(action_id) {
                 if let Some(map) = action.map_scope().map(project, server_ctx) {
@@ -5187,12 +5187,12 @@ impl Sidebar {
         map: &mut Map,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         param_update: bool,
     ) -> bool {
         if let Some(undo_atom) = action.apply(map, ui, ctx, server_ctx) {
-            if server_ctx.editor_view_mode == EditorViewMode::D2
-                && server_ctx.profile_view.is_some()
+            if server_ctx.shared.editor_view_mode == EditorViewMode::D2
+                && server_ctx.shared.profile_view.is_some()
             {
             } else {
                 map.update_surfaces();
@@ -5248,7 +5248,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         self.activate_navigation_page(3, ui, ctx, project, server_ctx)
     }
@@ -5258,7 +5258,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         self.activate_navigation_page(0, ui, ctx, project, server_ctx)
     }
@@ -5268,7 +5268,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         self.activate_navigation_page(1, ui, ctx, project, server_ctx)
     }
@@ -5278,7 +5278,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         self.activate_navigation_page(4, ui, ctx, project, server_ctx)
     }
@@ -5288,7 +5288,7 @@ impl Sidebar {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         self.activate_navigation_page(5, ui, ctx, project, server_ctx)
     }
@@ -5335,10 +5335,10 @@ mod tests {
         ui.init(&mut ctx);
         let rx = ui.add_state_listener("grid shortcut".into());
         let mut project = Project::default();
-        let mut server = ServerContext::default();
-        server.curr_region = project.regions[0].id;
+        let mut server = CreatorContext::default();
+        server.shared.curr_region = project.regions[0].id;
         let mut sidebar = Sidebar::new();
-        let old = server.show_editor_grid;
+        let old = server.shared.show_editor_grid;
         ui.ctrl = !cfg!(target_os = "macos");
         ui.logo = cfg!(target_os = "macos");
         ui.key_down(Some('t'), None, &mut ctx);
@@ -5346,6 +5346,6 @@ mod tests {
         for event in rx.try_iter() {
             sidebar.handle_event(&event, &mut ui, &mut ctx, &mut project, &mut server);
         }
-        assert_eq!(server.show_editor_grid, !old);
+        assert_eq!(server.shared.show_editor_grid, !old);
     }
 }

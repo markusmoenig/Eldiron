@@ -413,7 +413,7 @@ fn expand(mut project: Project) -> (Project, [Uuid; 9]) {
     }
     map.properties.set("tiles", Value::TileOverrides(cells));
     map.grid_size = 42.;
-    ServerContext::default().center_map_at_grid_pos(
+    CreatorContext::default().shared.center_map_at_grid_pos(
         Vec2::new(1200., 850.),
         Vec2::new(5.5, 23.5),
         map,
@@ -798,10 +798,10 @@ fn footprint_controls_review(project: &Project, fence: Uuid) {
         .unwrap()
         .id;
     p.regions[0].map.selected_sectors = vec![id];
-    let mut server = ServerContext::default();
-    server.curr_region = p.regions[0].id;
-    server.pc = ProjectContext::Region(server.curr_region);
-    server.editor_view_mode = EditorViewMode::D2;
+    let mut server = CreatorContext::default();
+    server.shared.curr_region = p.regions[0].id;
+    server.shared.pc = ProjectContext::Region(server.shared.curr_region);
+    server.shared.editor_view_mode = EditorViewMode::D2;
     let mut ui = TheUI::new();
     let mut ctx = TheContext::new(1000, 700, 1.);
     ui.init(&mut ctx);

@@ -1124,7 +1124,7 @@ mod tests {
         let c = super::super::recipe_browser::controls(&doc).unwrap();
         assert_eq!(c[0].label, "Length (m)");
         assert_eq!(c[0].value, 2.);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let undo = ProjectUndoAtom::ProceduralAppearanceEdit(
             id,
             Some(before.clone()),

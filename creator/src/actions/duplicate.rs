@@ -149,7 +149,7 @@ impl Action for Duplicate {
         Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'd'))
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &CreatorContext) -> bool {
         !map.selected_vertices.is_empty()
             || !map.selected_linedefs.is_empty()
             || !map.selected_sectors.is_empty()
@@ -181,7 +181,7 @@ impl Action for Duplicate {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         self.clear_duplicated_geometry_pairs();
         if map.selected_vertices.is_empty()
@@ -486,7 +486,7 @@ impl Action for Duplicate {
         map.selected_geometry_surface_segments.clear();
 
         Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
+            server_ctx.shared.pc,
             Box::new(prev),
             Box::new(map.clone()),
         ))
@@ -497,13 +497,13 @@ impl Action for Duplicate {
         project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let duplicated_pairs = self.take_duplicated_geometry_pairs();
         if duplicated_pairs.is_empty() {
             return;
         }
-        let ProjectContext::Prefab(asset_id) = server_ctx.pc else {
+        let ProjectContext::Prefab(asset_id) = server_ctx.shared.pc else {
             return;
         };
 
@@ -548,7 +548,7 @@ impl Action for Duplicate {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -569,8 +569,8 @@ mod tests {
         let action = Duplicate::new();
         let mut ui = TheUI::default();
         let mut ctx = TheContext::new(64, 64, 1.0);
-        let mut server_ctx = ServerContext::default();
-        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.pc = ProjectContext::Region(Uuid::new_v4());
 
         let Some(ProjectUndoAtom::MapEdit(_, old_map, new_map)) =
             action.apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
@@ -600,7 +600,7 @@ mod tests {
         let object = rusterix::GeometryObject::box_("Box", Vec3::zero(), Vec3::new(2., 1., 1.));
         map.selected_geometry_objects.push(object.id);
         map.geometry_objects.push(object);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(64, 64, 1.);
         first.nodeui.set_f32_value("actionDuplicateX", 5.);
@@ -640,8 +640,8 @@ mod tests {
         let action = Duplicate::new();
         let mut ui = TheUI::default();
         let mut ctx = TheContext::new(64, 64, 1.0);
-        let mut server_ctx = ServerContext::default();
-        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.pc = ProjectContext::Region(Uuid::new_v4());
 
         let Some(ProjectUndoAtom::MapEdit(_, old_map, new_map)) =
             action.apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)

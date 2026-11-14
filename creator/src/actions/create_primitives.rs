@@ -45,7 +45,7 @@ fn finish_created_object(
     mut object: rusterix::GeometryObject,
     previous: Map,
     ctx: &mut TheContext,
-    server_ctx: &mut ServerContext,
+    server_ctx: &mut CreatorContext,
 ) -> Option<ProjectUndoAtom> {
     object.kind = rusterix::GeometryObjectKind::Generated;
     let object_id = object.id;
@@ -53,7 +53,7 @@ fn finish_created_object(
     map.clear_selection();
     map.selected_geometry_objects.push(object_id);
     map.update_surfaces();
-    server_ctx.curr_map_tool_type = MapToolType::Selection;
+    server_ctx.shared.curr_map_tool_type = MapToolType::Selection;
     ctx.ui.send(TheEvent::Custom(
         TheId::named("Set Tool"),
         TheValue::Text("tool.geometry".into()),
@@ -65,7 +65,7 @@ fn finish_created_object(
     server_ctx.reference.write().set_dirty();
     server_ctx.reference.write().set_overlay_dirty();
     Some(ProjectUndoAtom::MapEdit(
-        server_ctx.pc,
+        server_ctx.shared.pc,
         Box::new(previous),
         Box::new(map.clone()),
     ))
@@ -114,9 +114,9 @@ impl Action for CreateRoundedBox {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
     }
 
     fn apply(
@@ -124,7 +124,7 @@ impl Action for CreateRoundedBox {
         map: &mut Map,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let size = Vec3::new(
             self.nodeui.get_f32_value(WIDTH_ID).unwrap_or(1.0).max(0.05),
@@ -180,7 +180,7 @@ impl Action for CreateRoundedBox {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -227,9 +227,9 @@ impl Action for CreateCylinder {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
     }
 
     fn apply(
@@ -237,7 +237,7 @@ impl Action for CreateCylinder {
         map: &mut Map,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let radius = self
             .nodeui
@@ -282,7 +282,7 @@ impl Action for CreateCylinder {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

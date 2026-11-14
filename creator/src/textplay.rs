@@ -179,7 +179,7 @@ impl TextGameState {
         input_id: &str,
         command: &str,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         runtime: &mut TextGameRuntime<'_>,
         ui: &mut TheUI,
         ctx: &mut TheContext,
@@ -212,7 +212,7 @@ impl TextGameState {
     pub(crate) fn update(
         &mut self,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         runtime: &mut TextGameRuntime<'_>,
         messages: &mut Vec<TextGameMessage>,
         says: &mut Vec<TextGameSay>,
@@ -220,7 +220,7 @@ impl TextGameState {
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) {
-        if !server_ctx.text_game_mode {
+        if !server_ctx.shared.text_game_mode {
             return;
         }
 
@@ -323,7 +323,7 @@ impl TextGameState {
     fn prune_choices(
         &mut self,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         runtime: &mut TextGameRuntime<'_>,
     ) {
         let Some(region) = current_region(project, server_ctx) else {
@@ -357,7 +357,7 @@ impl TextGameState {
         &mut self,
         input: &str,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         runtime: &mut TextGameRuntime<'_>,
     ) -> bool {
         self.prune_choices(project, server_ctx, runtime);
@@ -548,7 +548,7 @@ impl TextGameState {
         true
     }
 
-    fn push_room_text(&mut self, project: &Project, server_ctx: &ServerContext) {
+    fn push_room_text(&mut self, project: &Project, server_ctx: &CreatorContext) {
         let colors = authoring_colors(&project.authoring);
         let room = render_room_blocks(project, server_ctx, &colors);
         if !room.is_empty() {
@@ -623,7 +623,7 @@ impl TextGameState {
     fn process_auto_attack(
         &mut self,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         runtime: &mut TextGameRuntime<'_>,
     ) {
         if authoring_auto_attack_mode(&project.authoring) != AutoAttackMode::OnAttack {
@@ -672,7 +672,7 @@ impl TextGameState {
     fn apply_outputs(
         &mut self,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         outputs: &[TextSessionOutput],
     ) {
         let colors = authoring_colors(&project.authoring);
@@ -756,14 +756,14 @@ fn expand_tabs(text: &str, tab_width: usize) -> String {
 
 fn current_region<'a>(
     project: &'a Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Option<&'a shared::region::Region> {
-    project.get_region_ctx(server_ctx)
+    project.get_region_ctx(&server_ctx.shared)
 }
 
 fn render_room_blocks(
     project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     colors: &TextGameColors,
 ) -> Vec<TheTextViewBlock> {
     let mut blocks = Vec::new();
@@ -964,7 +964,7 @@ fn block_ends_with(block: &TheTextViewBlock, suffix: &str) -> bool {
 fn move_by_direction(
     direction: &str,
     project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     runtime: &mut TextGameRuntime<'_>,
 ) -> bool {
     let Some(region) = current_region(project, server_ctx) else {
@@ -988,7 +988,7 @@ fn move_by_direction(
 fn move_by_exit_name(
     target: &str,
     project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     runtime: &mut TextGameRuntime<'_>,
 ) -> bool {
     let Some(region) = current_region(project, server_ctx) else {
@@ -1015,7 +1015,7 @@ fn move_by_exit_name(
 
 fn trigger_text_intent(
     project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     runtime: &mut TextGameRuntime<'_>,
     intent: &str,
     query: &str,
@@ -1053,7 +1053,7 @@ fn trigger_text_intent(
 
 fn current_player_supported_intents(
     project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> BTreeSet<String> {
     current_region(project, server_ctx)
         .map(|region| sg::current_player_supported_intents(project, &region.map))
@@ -1107,7 +1107,7 @@ fn ruleset_spell_kind(project: &Project, spell_id: &str) -> String {
 
 fn trigger_text_spell(
     project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     runtime: &mut TextGameRuntime<'_>,
     spell: &str,
     target: Option<&str>,
@@ -1145,7 +1145,7 @@ fn trigger_text_spell(
 
 fn trigger_text_action(
     project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     runtime: &mut TextGameRuntime<'_>,
     action: &str,
     target: Option<&str>,
@@ -1168,7 +1168,7 @@ fn trigger_text_action(
 
 fn current_time_hour(
     project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     server: &rusterix::Server,
 ) -> Option<u8> {
     let region = current_region(project, server_ctx)?;
@@ -1177,7 +1177,7 @@ fn current_time_hour(
 
 fn current_time_label(
     project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     server: &rusterix::Server,
 ) -> Option<String> {
     let region = current_region(project, server_ctx)?;

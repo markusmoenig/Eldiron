@@ -2,10 +2,10 @@ use crate::prelude::*;
 
 const SAMPLE_COUNT_ID: &str = "actionBakeSamples";
 
-fn bake_applicable(server_ctx: &ServerContext) -> bool {
-    server_ctx.get_map_context() == MapContext::Region
-        && !server_ctx.pc.is_prefab()
-        && server_ctx.editor_view_mode == EditorViewMode::Iso
+fn bake_applicable(server_ctx: &CreatorContext) -> bool {
+    server_ctx.shared.get_map_context() == MapContext::Region
+        && !server_ctx.shared.pc.is_prefab()
+        && server_ctx.shared.editor_view_mode == EditorViewMode::Iso
 }
 
 pub struct RenderOrthographicBake {
@@ -53,7 +53,7 @@ impl Action for RenderOrthographicBake {
         ActionMapScope::RegionWorld
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
         bake_applicable(server_ctx)
     }
 
@@ -62,7 +62,7 @@ impl Action for RenderOrthographicBake {
         map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let samples = self
             .nodeui
@@ -79,7 +79,7 @@ impl Action for RenderOrthographicBake {
         if let Some(mut reference) = server_ctx.reference.existing_mut() {
             reference.set_dirty();
         }
-        server_ctx.background_progress = progress;
+        server_ctx.shared.background_progress = progress;
         ctx.ui.redraw_all = true;
         ctx.ui.send(TheEvent::SetStatusText(
             TheId::empty(),
@@ -98,7 +98,7 @@ impl Action for RenderOrthographicBake {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -141,7 +141,7 @@ impl Action for ToggleOrthographicBakeVisibility {
         ActionMapScope::RegionWorld
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
         bake_applicable(server_ctx)
     }
 
@@ -150,7 +150,7 @@ impl Action for ToggleOrthographicBakeVisibility {
         _map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let status = match _server_ctx.bake.write().toggle_visibility() {
             Some(true) => fl!("status_bake_visible"),
@@ -172,7 +172,7 @@ impl Action for ToggleOrthographicBakeVisibility {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -215,7 +215,7 @@ impl Action for ClearOrthographicBake {
         ActionMapScope::RegionWorld
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
         bake_applicable(server_ctx)
     }
 
@@ -224,7 +224,7 @@ impl Action for ClearOrthographicBake {
         map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let before = map.clone();
         // This action edits the map synchronously. No delayed persisted clear
@@ -232,7 +232,7 @@ impl Action for ClearOrthographicBake {
         server_ctx.bake.write().reset();
         map.orthographic_bake = None;
         map.changed = map.changed.wrapping_add(1);
-        server_ctx.background_progress = None;
+        server_ctx.shared.background_progress = None;
         ctx.ui.redraw_all = true;
         ctx.ui.send(TheEvent::SetStatusText(
             TheId::empty(),
@@ -255,7 +255,7 @@ impl Action for ClearOrthographicBake {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -267,18 +267,18 @@ pub(crate) mod tests {
 
     #[test]
     fn bake_actions_are_available_only_in_the_orthographic_region_view() {
-        let mut server_ctx = ServerContext::default();
-        server_ctx.editor_view_mode = EditorViewMode::Iso;
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.editor_view_mode = EditorViewMode::Iso;
         assert!(bake_applicable(&server_ctx));
 
-        server_ctx.editor_view_mode = EditorViewMode::Orbit;
+        server_ctx.shared.editor_view_mode = EditorViewMode::Orbit;
         assert!(!bake_applicable(&server_ctx));
     }
 
     #[test]
     fn bake_actions_own_transient_state_without_creating_a_reference_renderer() {
-        let mut first = ServerContext::default();
-        let second = ServerContext::default();
+        let mut first = CreatorContext::default();
+        let second = CreatorContext::default();
         let mut map = Map::new();
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(64, 64, 1.);
@@ -371,14 +371,14 @@ pub(crate) mod tests {
             .map
             .surfaces
             .insert(surface.id, surface.clone());
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         server.reference.bind_context(gpu);
-        server.curr_region = region_id;
-        server.pc = ProjectContext::Region(region_id);
-        server.editor_view_mode = EditorViewMode::Iso;
-        server.geometry_edit_mode = GeometryEditMode::Detail;
-        server.active_detail_surface = Some(surface);
-        assert_eq!(project.get_map(&server).unwrap().id, child_id);
+        server.shared.curr_region = region_id;
+        server.shared.pc = ProjectContext::Region(region_id);
+        server.shared.editor_view_mode = EditorViewMode::Iso;
+        server.shared.geometry_edit_mode = GeometryEditMode::Detail;
+        server.shared.active_detail_surface = Some(surface);
+        assert_eq!(project.get_map(&server.shared).unwrap().id, child_id);
         let original_child =
             serde_json::to_vec(&project.regions[0].map.profiles[&child_id]).unwrap();
         let mut ui = TheUI::new();
@@ -450,7 +450,7 @@ pub(crate) mod tests {
             .undo(&mut server, &mut project, &mut ui, &mut ctx);
         assert_eq!(project.regions[0].map.id, parent_id);
         assert_eq!(project.regions[0].map.orthographic_bake, authored_bake);
-        assert_eq!(project.get_map(&server).unwrap().id, child_id);
+        assert_eq!(project.get_map(&server.shared).unwrap().id, child_id);
         assert_eq!(
             serde_json::to_vec(&project.regions[0].map.profiles[&child_id]).unwrap(),
             original_child

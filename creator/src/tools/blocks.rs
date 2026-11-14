@@ -56,36 +56,36 @@ impl BlockTool {
     }
 
     fn selected_asset(
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<&'static crate::blocks::BlockAsset> {
         let id = server_ctx
-            .curr_block_asset_id
+            .shared.curr_block_asset_id
             .unwrap_or_else(default_block_asset_id);
         let asset = block_asset(id)?;
-        server_ctx.curr_block_asset_id = Some(asset.id);
-        server_ctx.curr_block_asset_name = Some(asset.name.to_string());
+        server_ctx.shared.curr_block_asset_id = Some(asset.id);
+        server_ctx.shared.curr_block_asset_name = Some(asset.name.to_string());
         Some(asset)
     }
 
-    fn selected_asset_id(server_ctx: &mut ServerContext) -> Uuid {
+    fn selected_asset_id(server_ctx: &mut CreatorContext) -> Uuid {
         *server_ctx
-            .curr_block_asset_id
+            .shared.curr_block_asset_id
             .get_or_insert_with(default_block_asset_id)
     }
 
-    fn placement_hit(server_ctx: &ServerContext) -> Option<Vec3<f32>> {
+    fn placement_hit(server_ctx: &CreatorContext) -> Option<Vec3<f32>> {
         crate::blocks::block_grid_plane_hit(server_ctx).or_else(|| {
             server_ctx
-                .hover_cursor_3d
-                .or(server_ctx.hover_surface_hit_pos)
-                .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
+                .shared.hover_cursor_3d
+                .or(server_ctx.shared.hover_surface_hit_pos)
+                .or_else(|| server_ctx.shared.geo_hit.map(|_| server_ctx.shared.geo_hit_pos))
         })
     }
 
-    fn horizontal_grid_step(map: &Map, server_ctx: &ServerContext) -> f32 {
+    fn horizontal_grid_step(map: &Map, server_ctx: &CreatorContext) -> f32 {
         let rusterix = server_ctx.reference.read();
         crate::blocks::block_tool_horizontal_grid_step(
-            server_ctx.curr_block_asset_id,
+            server_ctx.shared.curr_block_asset_id,
             &rusterix.assets.block_props,
             map,
             server_ctx,
@@ -93,9 +93,9 @@ impl BlockTool {
     }
 
     fn selected_prop_placement_mode(
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> Option<rusterix::BlockPropPlacementMode> {
-        let asset_id = server_ctx.curr_block_asset_id?;
+        let asset_id = server_ctx.shared.curr_block_asset_id?;
         if block_asset(asset_id).is_some() {
             return None;
         }
@@ -125,22 +125,22 @@ impl BlockTool {
         )
     }
 
-    fn current_placement(map: &Map, server_ctx: &ServerContext) -> Option<BlockPlacement> {
+    fn current_placement(map: &Map, server_ctx: &CreatorContext) -> Option<BlockPlacement> {
         let horizontal_step = Self::horizontal_grid_step(map, server_ctx);
-        let vertical_step = server_ctx.block_grid_cell_size.max(0.05);
-        let grid_y = server_ctx.block_grid_level as f32 * vertical_step;
+        let vertical_step = server_ctx.shared.block_grid_cell_size.max(0.05);
+        let grid_y = server_ctx.shared.block_grid_level as f32 * vertical_step;
         let placement_mode = Self::selected_prop_placement_mode(server_ctx);
         let point = if placement_mode
             .is_some_and(|mode| mode != rusterix::BlockPropPlacementMode::Ground)
         {
             server_ctx
-                .hover_surface_hit_pos
-                .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
+                .shared.hover_surface_hit_pos
+                .or_else(|| server_ctx.shared.geo_hit.map(|_| server_ctx.shared.geo_hit_pos))
                 .or_else(|| Self::placement_hit(server_ctx))?
         } else {
             Self::placement_hit(server_ctx)?
         };
-        let normal = server_ctx.hover_surface_normal.or_else(|| {
+        let normal = server_ctx.shared.hover_surface_normal.or_else(|| {
             (placement_mode == Some(rusterix::BlockPropPlacementMode::AnySurface))
                 .then_some(Vec3::unit_y())
         });
@@ -157,11 +157,11 @@ impl BlockTool {
             .map(|normal| Self::snap_horizontal_surface_hit(point, normal, horizontal_step))
             .unwrap_or(point);
         Some(BlockPlacement {
-            cell: Self::snapped_grid_cell(point, horizontal_step, server_ctx.block_grid_level),
+            cell: Self::snapped_grid_cell(point, horizontal_step, server_ctx.shared.block_grid_level),
             base_y: block_surface_base_y(server_ctx, grid_y).unwrap_or(grid_y),
             hit,
             normal,
-            geo_id: server_ctx.geo_hit,
+            geo_id: server_ctx.shared.geo_hit,
         })
     }
 
@@ -706,7 +706,7 @@ impl BlockTool {
         SupportedPropPlacement::Attached(instance, placement)
     }
 
-    fn clear_drag(&mut self, server_ctx: &mut ServerContext) {
+    fn clear_drag(&mut self, server_ctx: &mut CreatorContext) {
         self.drag_start_cell = None;
         self.drag_end_cell = None;
         self.drag_base_y = None;
@@ -714,12 +714,12 @@ impl BlockTool {
         self.drag_surface_normal = None;
         self.drag_surface_geo = None;
         self.drag_changed = false;
-        server_ctx.block_drag_base_y = None;
-        server_ctx.block_drag_start_cell = None;
-        server_ctx.block_drag_end_cell = None;
+        server_ctx.shared.block_drag_base_y = None;
+        server_ctx.shared.block_drag_start_cell = None;
+        server_ctx.shared.block_drag_end_cell = None;
     }
 
-    fn begin_drag(&mut self, map: &Map, server_ctx: &mut ServerContext) -> bool {
+    fn begin_drag(&mut self, map: &Map, server_ctx: &mut CreatorContext) -> bool {
         let Some(placement) = Self::current_placement(map, server_ctx) else {
             self.clear_drag(server_ctx);
             return false;
@@ -732,13 +732,13 @@ impl BlockTool {
         self.drag_surface_normal = placement.normal;
         self.drag_surface_geo = placement.geo_id;
         self.drag_changed = false;
-        server_ctx.block_drag_base_y = Some(placement.base_y);
-        server_ctx.block_drag_start_cell = Some(cell);
-        server_ctx.block_drag_end_cell = Some(cell);
+        server_ctx.shared.block_drag_base_y = Some(placement.base_y);
+        server_ctx.shared.block_drag_start_cell = Some(cell);
+        server_ctx.shared.block_drag_end_cell = Some(cell);
         true
     }
 
-    fn update_drag(&mut self, map: &Map, server_ctx: &mut ServerContext) -> bool {
+    fn update_drag(&mut self, map: &Map, server_ctx: &mut CreatorContext) -> bool {
         let Some(placement) = Self::current_placement(map, server_ctx) else {
             return false;
         };
@@ -746,13 +746,13 @@ impl BlockTool {
         if self.drag_start_cell.is_none() {
             self.drag_start_cell = Some(cell);
             self.drag_base_y = Some(placement.base_y);
-            server_ctx.block_drag_base_y = Some(placement.base_y);
-            server_ctx.block_drag_start_cell = Some(cell);
+            server_ctx.shared.block_drag_base_y = Some(placement.base_y);
+            server_ctx.shared.block_drag_start_cell = Some(cell);
         }
         if self.drag_end_cell != Some(cell) {
             self.drag_end_cell = Some(cell);
             self.drag_changed = true;
-            server_ctx.block_drag_end_cell = Some(cell);
+            server_ctx.shared.block_drag_end_cell = Some(cell);
             return true;
         }
         false
@@ -770,21 +770,21 @@ impl BlockTool {
         &mut self,
         ctx: &mut TheContext,
         map: &mut Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let start = self.drag_start_cell?;
         let end = self.drag_end_cell.unwrap_or(start);
         let prev = map.clone();
         let cell_size = Self::horizontal_grid_step(map, server_ctx);
-        let vertical_step = server_ctx.block_grid_cell_size.max(0.05);
+        let vertical_step = server_ctx.shared.block_grid_cell_size.max(0.05);
         let base_y = self
             .drag_base_y
-            .or(server_ctx.block_drag_base_y)
+            .or(server_ctx.shared.block_drag_base_y)
             .unwrap_or(start.y as f32 * vertical_step);
         let operation = server_ctx
-            .block_operation
+            .shared.block_operation
             .clamp(BLOCK_OPERATION_PLACE, BLOCK_OPERATION_ERASE);
-        let cells = block_stroke_cells(start, end, server_ctx.block_stroke_mode);
+        let cells = block_stroke_cells(start, end, server_ctx.shared.block_stroke_mode);
         if cells.is_empty() {
             return None;
         }
@@ -815,13 +815,13 @@ impl BlockTool {
                         *cell,
                         base_y,
                         cell_size,
-                        server_ctx.block_rotation_quarters,
+                        server_ctx.shared.block_rotation_quarters,
                         block_sizing_from_context(server_ctx),
-                        server_ctx.block_damage_enabled,
+                        server_ctx.shared.block_damage_enabled,
                         &palette,
                     ));
                 }
-            } else if let Some(template) = server_ctx.block_recipe_template.as_ref().filter(|o| {
+            } else if let Some(template) = server_ctx.shared.block_recipe_template.as_ref().filter(|o| {
                 shared::geometry_recipe::Binding::read(o).is_some_and(|b| b.asset == asset_id)
             }) {
                 asset_name = template.name.clone();
@@ -831,12 +831,12 @@ impl BlockTool {
                         *cell,
                         base_y,
                         cell_size,
-                        server_ctx.block_rotation_quarters,
+                        server_ctx.shared.block_rotation_quarters,
                     ));
                 }
             } else {
                 asset_name = server_ctx
-                    .curr_block_asset_name
+                    .shared.curr_block_asset_name
                     .clone()
                     .unwrap_or_else(|| "Project Prop".to_string());
                 let asset = server_ctx.reference.read()
@@ -852,7 +852,7 @@ impl BlockTool {
                                 *cell,
                                 base_y,
                                 cell_size,
-                                server_ctx.block_rotation_quarters,
+                                server_ctx.shared.block_rotation_quarters,
                                 block_sizing_from_context(server_ctx),
                             ));
                         }
@@ -867,7 +867,7 @@ impl BlockTool {
                                 &assets,
                                 hit,
                                 cell_size,
-                                server_ctx.block_rotation_quarters,
+                                server_ctx.shared.block_rotation_quarters,
                                 block_sizing_from_context(server_ctx),
                             )
                         } else {
@@ -888,7 +888,7 @@ impl BlockTool {
                                     hit,
                                     self.drag_surface_normal,
                                     self.drag_surface_geo,
-                                    server_ctx.block_rotation_quarters,
+                                    server_ctx.shared.block_rotation_quarters,
                                     block_sizing_from_context(server_ctx),
                                 ) {
                                     created_props.push(instance);
@@ -958,7 +958,7 @@ impl BlockTool {
             TheValue::Empty,
         ));
         Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
+            server_ctx.shared.pc,
             Box::new(prev),
             Box::new(map.clone()),
         ))
@@ -1008,24 +1008,24 @@ impl Tool for BlockTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match tool_event {
             Activate => {
-                if !server_ctx.editor_view_mode.is_3d() {
+                if !server_ctx.shared.editor_view_mode.is_3d() {
                     ctx.ui.send(TheEvent::SetStatusText(
                         TheId::empty(),
                         fl!("props_requires_3d"),
                     ));
                     return false;
                 }
-                server_ctx.block_tool_active = true;
-                server_ctx.curr_map_tool_type = MapToolType::General;
+                server_ctx.shared.block_tool_active = true;
+                server_ctx.shared.curr_map_tool_type = MapToolType::General;
                 server_ctx
-                    .curr_block_asset_id
+                    .shared.curr_block_asset_id
                     .get_or_insert_with(default_block_asset_id);
-                if server_ctx.curr_block_asset_name.is_none() {
-                    server_ctx.curr_block_asset_name =
+                if server_ctx.shared.curr_block_asset_name.is_none() {
+                    server_ctx.shared.curr_block_asset_name =
                         Self::selected_asset(server_ctx).map(|asset| asset.name.to_string());
                 }
                 self.clear_drag(server_ctx);
@@ -1046,7 +1046,7 @@ impl Tool for BlockTool {
                     server_ctx,
                 );
                 if let Err(error) = super::props_recipe::prepare(project, server_ctx) {
-                    server_ctx.block_recipe_template = None;
+                    server_ctx.shared.block_recipe_template = None;
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 self.overlay.sync(project, server_ctx);
@@ -1061,10 +1061,10 @@ impl Tool for BlockTool {
                 true
             }
             DeActivate => {
-                server_ctx.block_tool_active = false;
-                server_ctx.curr_map_tool_type = MapToolType::General;
-                server_ctx.hover_cursor = None;
-                server_ctx.hover_cursor_3d = None;
+                server_ctx.shared.block_tool_active = false;
+                server_ctx.shared.curr_map_tool_type = MapToolType::General;
+                server_ctx.shared.hover_cursor = None;
+                server_ctx.shared.hover_cursor_3d = None;
                 self.clear_drag(server_ctx);
                 let prefab_editor_open = {
                     let manager = server_ctx.docks.read();
@@ -1093,7 +1093,7 @@ impl Tool for BlockTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         if self.overlay.map_event(&map_event, ui, ctx, server_ctx) {
             self.clear_drag(server_ctx);
@@ -1106,7 +1106,7 @@ impl Tool for BlockTool {
             return None;
         }
 
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
             return None;
         }
 
@@ -1137,9 +1137,9 @@ impl Tool for BlockTool {
                 undo
             }
             MapKey('r') | MapKey('R') => {
-                server_ctx.block_rotation_quarters =
-                    (server_ctx.block_rotation_quarters + 1).rem_euclid(4);
-                let degrees = (server_ctx.block_rotation_quarters.rem_euclid(4) * 90) as i64;
+                server_ctx.shared.block_rotation_quarters =
+                    (server_ctx.shared.block_rotation_quarters + 1).rem_euclid(4);
+                let degrees = (server_ctx.shared.block_rotation_quarters.rem_euclid(4) * 90) as i64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_rotation", degrees = degrees)),
@@ -1155,8 +1155,8 @@ impl Tool for BlockTool {
                 None
             }
             MapKey(']') | MapKey('}') => {
-                server_ctx.block_grid_level += 1;
-                let level = server_ctx.block_grid_level as i64;
+                server_ctx.shared.block_grid_level += 1;
+                let level = server_ctx.shared.block_grid_level as i64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_grid_level", level = level)),
@@ -1172,8 +1172,8 @@ impl Tool for BlockTool {
                 None
             }
             MapKey('[') | MapKey('{') => {
-                server_ctx.block_grid_level -= 1;
-                let level = server_ctx.block_grid_level as i64;
+                server_ctx.shared.block_grid_level -= 1;
+                let level = server_ctx.shared.block_grid_level as i64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_grid_level", level = level)),
@@ -1190,9 +1190,9 @@ impl Tool for BlockTool {
             }
             MapKey('h') => {
                 let step = Self::sizing_step(map);
-                server_ctx.block_height_cells =
-                    Self::stepped_size(server_ctx.block_height_cells, step, 1.0, step);
-                let height = server_ctx.block_height_cells as f64;
+                server_ctx.shared.block_height_cells =
+                    Self::stepped_size(server_ctx.shared.block_height_cells, step, 1.0, step);
+                let height = server_ctx.shared.block_height_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_height", height = height)),
@@ -1209,9 +1209,9 @@ impl Tool for BlockTool {
             }
             MapKey('H') => {
                 let step = Self::sizing_step(map);
-                server_ctx.block_height_cells =
-                    Self::stepped_size(server_ctx.block_height_cells, step, -1.0, step);
-                let height = server_ctx.block_height_cells as f64;
+                server_ctx.shared.block_height_cells =
+                    Self::stepped_size(server_ctx.shared.block_height_cells, step, -1.0, step);
+                let height = server_ctx.shared.block_height_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_height", height = height)),
@@ -1228,9 +1228,9 @@ impl Tool for BlockTool {
             }
             MapKey('w') => {
                 let step = Self::sizing_step(map);
-                server_ctx.block_span_extra_cells =
-                    Self::stepped_size(server_ctx.block_span_extra_cells, step, 1.0, 0.0);
-                let width = server_ctx.block_span_extra_cells as f64;
+                server_ctx.shared.block_span_extra_cells =
+                    Self::stepped_size(server_ctx.shared.block_span_extra_cells, step, 1.0, 0.0);
+                let width = server_ctx.shared.block_span_extra_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_width_extra", width = width)),
@@ -1247,9 +1247,9 @@ impl Tool for BlockTool {
             }
             MapKey('W') => {
                 let step = Self::sizing_step(map);
-                server_ctx.block_span_extra_cells =
-                    Self::stepped_size(server_ctx.block_span_extra_cells, step, -1.0, 0.0);
-                let width = server_ctx.block_span_extra_cells as f64;
+                server_ctx.shared.block_span_extra_cells =
+                    Self::stepped_size(server_ctx.shared.block_span_extra_cells, step, -1.0, 0.0);
+                let width = server_ctx.shared.block_span_extra_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_width_extra", width = width)),
@@ -1266,9 +1266,9 @@ impl Tool for BlockTool {
             }
             MapKey('z') => {
                 let step = Self::sizing_step(map);
-                server_ctx.block_depth_extra_cells =
-                    Self::stepped_size(server_ctx.block_depth_extra_cells, step, 1.0, 0.0);
-                let depth = server_ctx.block_depth_extra_cells as f64;
+                server_ctx.shared.block_depth_extra_cells =
+                    Self::stepped_size(server_ctx.shared.block_depth_extra_cells, step, 1.0, 0.0);
+                let depth = server_ctx.shared.block_depth_extra_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_depth_extra", depth = depth)),
@@ -1285,9 +1285,9 @@ impl Tool for BlockTool {
             }
             MapKey('Z') => {
                 let step = Self::sizing_step(map);
-                server_ctx.block_depth_extra_cells =
-                    Self::stepped_size(server_ctx.block_depth_extra_cells, step, -1.0, 0.0);
-                let depth = server_ctx.block_depth_extra_cells as f64;
+                server_ctx.shared.block_depth_extra_cells =
+                    Self::stepped_size(server_ctx.shared.block_depth_extra_cells, step, -1.0, 0.0);
+                let depth = server_ctx.shared.block_depth_extra_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_depth_extra", depth = depth)),
@@ -1303,7 +1303,7 @@ impl Tool for BlockTool {
                 None
             }
             MapKey('e') | MapKey('E') => {
-                server_ctx.block_operation = if server_ctx.block_operation == BLOCK_OPERATION_ERASE
+                server_ctx.shared.block_operation = if server_ctx.shared.block_operation == BLOCK_OPERATION_ERASE
                 {
                     BLOCK_OPERATION_PLACE
                 } else {
@@ -1311,7 +1311,7 @@ impl Tool for BlockTool {
                 };
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
-                    if server_ctx.block_operation == BLOCK_OPERATION_ERASE {
+                    if server_ctx.shared.block_operation == BLOCK_OPERATION_ERASE {
                         fl!("status_block_mode_erase")
                     } else {
                         fl!("status_block_mode_place")
@@ -1328,10 +1328,10 @@ impl Tool for BlockTool {
                 None
             }
             MapKey('d') | MapKey('D') => {
-                server_ctx.block_damage_enabled = !server_ctx.block_damage_enabled;
+                server_ctx.shared.block_damage_enabled = !server_ctx.shared.block_damage_enabled;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
-                    if server_ctx.block_damage_enabled {
+                    if server_ctx.shared.block_damage_enabled {
                         fl!("status_block_damage_on")
                     } else {
                         fl!("status_block_damage_off")
@@ -1365,9 +1365,9 @@ impl Tool for BlockTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
-        if !server.block_tool_active {
+        if !server.shared.block_tool_active {
             return false;
         }
         let mut handled = false;
@@ -1383,20 +1383,20 @@ impl Tool for BlockTool {
                 handled = true;
                 match id.name.as_str() {
                     "Props Rotation" => {
-                        server.block_rotation_quarters = (value.round() as i32).rem_euclid(4)
+                        server.shared.block_rotation_quarters = (value.round() as i32).rem_euclid(4)
                     }
-                    "Props Grid" => server.block_grid_cell_size = value.clamp(0.05, 16.),
+                    "Props Grid" => server.shared.block_grid_cell_size = value.clamp(0.05, 16.),
                     "Props Subdivisions" => {
-                        if let Some(map) = project.get_map_mut(server) {
+                        if let Some(map) = project.get_map_mut(&server.shared) {
                             map.subdivisions = value.round().clamp(1., 16.);
                         }
                     }
                     "Props Level" => {
-                        server.block_grid_level = (value.round() as i32).clamp(-128, 128)
+                        server.shared.block_grid_level = (value.round() as i32).clamp(-128, 128)
                     }
-                    "Props Height" => server.block_height_cells = value.clamp(0.05, 16.),
-                    "Props Width" => server.block_span_extra_cells = value.clamp(0., 16.),
-                    "Props Depth" => server.block_depth_extra_cells = value.clamp(0., 16.),
+                    "Props Height" => server.shared.block_height_cells = value.clamp(0.05, 16.),
+                    "Props Width" => server.shared.block_span_extra_cells = value.clamp(0., 16.),
+                    "Props Depth" => server.shared.block_depth_extra_cells = value.clamp(0., 16.),
                     key if key.starts_with("Props Recipe ") => {
                         let args = key
                             .trim_start_matches("Props Recipe ")
@@ -1406,7 +1406,7 @@ impl Tool for BlockTool {
                             .first()
                             .and_then(|s| Uuid::parse_str(s).ok())
                             .zip(args.get(1).and_then(|s| s.parse::<usize>().ok()))
-                            && server.curr_block_asset_id == Some(asset)
+                            && server.shared.curr_block_asset_id == Some(asset)
                         {
                             let before = project.clone();
                             match super::props_recipe::set_control(project, asset, index, value) {
@@ -1444,7 +1444,7 @@ impl Tool for BlockTool {
             }
         }
         let revision = (
-            server.curr_block_asset_id,
+            server.shared.curr_block_asset_id,
             project.procedural_appearances.revision(),
             project.procedural_materials.revision(),
             project.palette.clone(),
@@ -1452,7 +1452,7 @@ impl Tool for BlockTool {
         );
         if self.recipe_revision.as_ref() != Some(&revision) {
             if let Err(error) = super::props_recipe::prepare(project, server) {
-                server.block_recipe_template = None;
+                server.shared.block_recipe_template = None;
                 ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
             }
             self.recipe_revision = Some(revision);
@@ -1496,7 +1496,7 @@ impl Tool for BlockTool {
         frame: &ToolOverlayFrame,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         frame.hud_input_current(&self.hud, target, map, server)
             && frame.props_input_current(&self.overlay, target, server)
@@ -1506,7 +1506,7 @@ impl Tool for BlockTool {
         frame: &ToolOverlayFrame,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         frame.hud_command_source_current(&self.hud, target, map, server)
             && frame.props_command_source_current(&self.overlay, target, server)
@@ -1514,7 +1514,7 @@ impl Tool for BlockTool {
     fn show_overlay_popup(
         &mut self,
         command: &ToolOverlayCommand,
-        server: &ServerContext,
+        server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) -> bool {
@@ -1527,7 +1527,7 @@ impl Tool for BlockTool {
         receipts: &[theframework::paint::FrameReceipt],
         target: ToolOverlayTarget,
         map: &Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         let hud = frame.presented_hud(self, receipts, target, map, server);
         let props = frame.presented_props(&mut self.overlay, receipts, target, server);
@@ -1542,7 +1542,7 @@ impl Tool for BlockTool {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         assets: &rusterix::Assets,
     ) {
         self.hud.draw(buffer, map, ctx, server_ctx, None, assets);

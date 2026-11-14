@@ -26,11 +26,11 @@ pub struct Controls {
     pub visible: bool,
 }
 impl Controls {
-    pub fn read(project: &Project, server: &ServerContext) -> Option<Self> {
-        let paint = if let ProjectContext::Prefab(id) = server.pc {
+    pub fn read(project: &Project, server: &CreatorContext) -> Option<Self> {
+        let paint = if let ProjectContext::Prefab(id) = server.shared.pc {
             project.block_prop_paint.get(&id)?
         } else {
-            &project.get_region(&server.curr_region)?.iso_paint
+            &project.get_region(&server.shared.curr_region)?.iso_paint
         };
         let source = paint.active_source;
         let mut controls = Self {
@@ -91,13 +91,13 @@ impl PaintOverlay {
     pub fn is_active(&self) -> bool {
         self.controls.is_some()
     }
-    pub fn sync(&mut self, project: &Project, server: &ServerContext) {
+    pub fn sync(&mut self, project: &Project, server: &CreatorContext) {
         let next = Controls::read(project, server);
-        if self.controls != next || self.reference_context != Some(server.pc) {
+        if self.controls != next || self.reference_context != Some(server.shared.pc) {
             self.frames.invalidate();
         }
         self.controls = next;
-        self.reference_context = Some(server.pc);
+        self.reference_context = Some(server.shared.pc);
     }
     pub(crate) fn visible(&self, size: (usize, usize)) -> bool {
         self.controls.is_some() && size.0 >= 340 && size.1 >= 260
@@ -488,7 +488,7 @@ impl PaintOverlay {
         event: &MapEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         if self.native_input {
             return false;
@@ -501,7 +501,7 @@ impl PaintOverlay {
                 )
             })
             .unwrap_or(self.last_size);
-        if self.reference_context.is_some_and(|pc| pc != server.pc) {
+        if self.reference_context.is_some_and(|pc| pc != server.shared.pc) {
             self.frames.invalidate();
         }
         let scope = self.reference_scope();
@@ -527,7 +527,7 @@ impl PaintOverlay {
         event: &MapEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> PanelEvent {
         match event {
             MapEvent::MapDragged(_) | MapEvent::MapUp(_) if self.down => {
@@ -571,7 +571,7 @@ impl PaintOverlay {
         action: Action,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) {
         let Some(c) = self.controls.as_ref() else {
             return;

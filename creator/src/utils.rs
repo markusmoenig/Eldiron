@@ -6,8 +6,8 @@ use toml::*;
 /// Return the render view that owns map/prefab editing input. Prefab editor
 /// events keep the established PolyView contract, but their actual widget is
 /// intentionally isolated under a different id.
-pub fn map_editor_render_view_name(server_ctx: &ServerContext) -> &'static str {
-    map_editor_render_view_name_for_context(server_ctx.pc)
+pub fn map_editor_render_view_name(server_ctx: &CreatorContext) -> &'static str {
+    map_editor_render_view_name_for_context(server_ctx.shared.pc)
 }
 
 pub fn map_editor_render_view_name_for_context(project_context: ProjectContext) -> &'static str {
@@ -20,17 +20,17 @@ pub fn map_editor_render_view_name_for_context(project_context: ProjectContext) 
 
 pub fn map_editor_render_view<'a>(
     ui: &'a mut TheUI,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Option<&'a mut dyn TheRenderViewTrait> {
     ui.get_render_view(map_editor_render_view_name(server_ctx))
 }
 
 pub(crate) fn native_prefab_view_event(
     event: &TheEvent,
-    server: &ServerContext,
+    server: &CreatorContext,
     ui: &mut TheUI,
 ) -> Option<TheEvent> {
-    if !server.pc.is_prefab() {
+    if !server.shared.pc.is_prefab() {
         return None;
     }
     let mut translated = event.clone();
@@ -67,11 +67,11 @@ pub fn default_preview_rigging_toml() -> String {
 
 pub fn update_region_settings(
     project: &mut Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     let mut changed = false;
-    if let Some(id) = server_ctx.pc.id() {
-        if server_ctx.pc.is_region() {
+    if let Some(id) = server_ctx.shared.pc.id() {
+        if server_ctx.shared.pc.is_region() {
             if let Some(region) = project.get_region_mut(&id) {
                 let parsed: toml::Value = toml::from_str(&region.config)?;
                 // Parse [render] section
@@ -141,13 +141,13 @@ pub fn set_code(
     ui: &mut TheUI,
     ctx: &mut TheContext,
     project: &mut Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) {
     let mut success = false;
 
-    match server_ctx.cc {
+    match server_ctx.shared.cc {
         ContentContext::CharacterInstance(uuid) => {
-            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+            if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
                 if let Some(character_instance) = region.characters.get_mut(&uuid) {
                     ui.set_widget_value(
                         "CodeEdit",
@@ -159,7 +159,7 @@ pub fn set_code(
             }
         }
         ContentContext::Sector(uuid) => {
-            if let Some(map) = project.get_map_mut(server_ctx) {
+            if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                 for s in &map.sectors {
                     if s.creator_id == uuid {
                         if let Some(Value::Str(source)) = s.properties.get("source") {
@@ -192,7 +192,7 @@ pub fn set_code(
         ContentContext::ItemInstance(uuid) => {
             let mut temp_id = None;
 
-            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+            if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
                 if let Some(item_inst) = region.items.get_mut(&uuid) {
                     temp_id = Some(item_inst.item_id);
                 }
@@ -247,7 +247,7 @@ pub fn set_code(
 }
 
 /// Returns the currently active source
-pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<PixelSource> {
+pub fn get_source(_ui: &mut TheUI, server_ctx: &CreatorContext) -> Option<PixelSource> {
     if server_ctx.docks.read().dock == "Palette" {
         let palette = server_ctx.reference.authoring_palette();
         if palette.get_current_color().is_some() {
@@ -255,13 +255,13 @@ pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<PixelSo
         }
     }
 
-    if let Some(source) = server_ctx.curr_tile_source {
+    if let Some(source) = server_ctx.shared.curr_tile_source {
         return Some(match source {
             TileSource::SingleTile(id) => PixelSource::TileId(id),
         });
     }
 
-    server_ctx.curr_tile_id.map(PixelSource::TileId)
+    server_ctx.shared.curr_tile_id.map(PixelSource::TileId)
 }
 
 #[derive(Clone)]
@@ -271,16 +271,16 @@ pub enum SurfaceApplySource {
 
 pub fn get_surface_apply_source(
     _project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Option<SurfaceApplySource> {
-    if let Some(source) = server_ctx.curr_tile_source {
+    if let Some(source) = server_ctx.shared.curr_tile_source {
         return match source {
             TileSource::SingleTile(id) => Some(SurfaceApplySource::Direct(PixelSource::TileId(id))),
         };
     }
 
     server_ctx
-        .curr_tile_id
+        .shared.curr_tile_id
         .map(PixelSource::TileId)
         .map(SurfaceApplySource::Direct)
 }
@@ -861,32 +861,32 @@ pub(crate) fn filter_iso_placements_for_3d(
 }
 
 /// Renders the current map in the scenemanager depending on the current viewmode.
-pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
+pub fn scenemanager_render_map(project: &Project, server_ctx: &CreatorContext) {
     // Screens should not trigger SceneManager SetMap updates.
-    if server_ctx.get_map_context() == MapContext::Screen {
+    if server_ctx.shared.get_map_context() == MapContext::Screen {
         return;
     }
 
-    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+    if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
         // In 2D we render the current map (region/profile/character/item), but never screens.
-        if let Some(map) = project.get_map(server_ctx) {
+        if let Some(map) = project.get_map(&server_ctx.shared) {
             server_ctx.jobs.scene_mut().set_map(map.clone());
         }
     } else {
-        if server_ctx.pc.is_prefab() {
-            if let Some(map) = project.get_map(server_ctx) {
+        if server_ctx.shared.pc.is_prefab() {
+            if let Some(map) = project.get_map(&server_ctx.shared) {
                 server_ctx.jobs.scene_mut().set_map(map.clone());
             }
             return;
         }
         // In 3D, SceneManager builds region geometry. This includes profile/surface editing
         // contexts, but excludes non-region contexts.
-        if server_ctx.get_map_context() != MapContext::Region {
+        if server_ctx.shared.get_map_context() != MapContext::Region {
             return;
         }
 
         // In 3D region mode (including profiles), render the region map.
-        if let Some(id) = server_ctx.pc.id() {
+        if let Some(id) = server_ctx.shared.pc.id() {
             if let Some(region) = project.get_region(&id) {
                 let mut map = region.map.clone();
                 filter_iso_placements_for_3d(&mut map, &project.tiles);
@@ -898,13 +898,13 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
     }
 }
 
-pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &ServerContext) {
+pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &CreatorContext) {
     let mut material_maps = project
         .regions
         .iter()
         .map(|region| &region.map)
         .collect::<Vec<_>>();
-    if let Some(current_map) = project.get_map(server_ctx)
+    if let Some(current_map) = project.get_map(&server_ctx.shared)
         && !material_maps
             .iter()
             .any(|map| std::ptr::eq(*map, current_map))
@@ -929,13 +929,13 @@ pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &ServerContext) 
 }
 
 /// Install procedural bake results without clearing or rebuilding the visible map.
-pub fn editor_scene_refresh_material_textures(project: &Project, server_ctx: &ServerContext) {
+pub fn editor_scene_refresh_material_textures(project: &Project, server_ctx: &CreatorContext) {
     let (tiles, indices) = {
         let mut rusterix = server_ctx.reference.write();
-        if server_ctx.editor_view_mode == EditorViewMode::D2
-            && server_ctx.editing_surface.is_none()
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2
+            && server_ctx.shared.editing_surface.is_none()
             && project
-                .get_map(server_ctx)
+                .get_map(&server_ctx.shared)
                 .is_some_and(|map| map.camera == MapCamera::TwoDIso)
         {
             rusterix.refresh_tile_textures_cpu(project.tiles.clone());
@@ -956,18 +956,18 @@ pub fn editor_scene_refresh_material_textures(project: &Project, server_ctx: &Se
 pub fn editor_scene_refresh_prefab_assets(
     before: &Project,
     project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> bool {
     let mut changed_assets = FxHashSet::default();
     changed_assets.extend(before.block_props.keys().copied());
     changed_assets.extend(project.block_props.keys().copied());
     changed_assets.retain(|id| before.block_props.get(id) != project.block_props.get(id));
 
-    let Some(old_map) = before.get_map(server_ctx) else {
+    let Some(old_map) = before.get_map(&server_ctx.shared) else {
         editor_scene_full_rebuild(project, server_ctx);
         return false;
     };
-    let Some(new_map) = project.get_map(server_ctx) else {
+    let Some(new_map) = project.get_map(&server_ctx.shared) else {
         editor_scene_full_rebuild(project, server_ctx);
         return false;
     };
@@ -1029,7 +1029,7 @@ pub fn editor_scene_refresh_prefab_assets(
 
 pub fn editor_scene_apply_map_edit(
     project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     old_map: &Map,
     new_map: &Map,
 ) -> bool {
@@ -1063,7 +1063,7 @@ pub fn editor_scene_apply_map_edit(
 
 pub fn editor_scene_apply_map_edit_atom(
     project: &Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     undo_atom: &crate::undo::project_atoms::ProjectUndoAtom,
 ) -> bool {
     if let crate::undo::project_atoms::ProjectUndoAtom::MapEdit(_, old_map, new_map) = undo_atom {

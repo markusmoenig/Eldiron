@@ -294,7 +294,7 @@ impl CreateGeometryBox {
 
     pub(crate) fn viewport_center_position(
         ui: &mut TheUI,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<Vec3<f32>> {
         let render_view =
             ui.get_render_view(crate::utils::map_editor_render_view_name(server_ctx))?;
@@ -311,8 +311,8 @@ impl CreateGeometryBox {
         )?;
         drop(rusterix);
 
-        server_ctx.hover_ray_origin_3d = Some(ray_origin);
-        server_ctx.hover_ray_dir_3d = Some(ray_dir);
+        server_ctx.shared.hover_ray_origin_3d = Some(ray_origin);
+        server_ctx.shared.hover_ray_dir_3d = Some(ray_dir);
 
         if ray_dir.y.abs() > 1e-6 {
             let t = -ray_origin.y / ray_dir.y;
@@ -327,7 +327,7 @@ impl CreateGeometryBox {
     pub(crate) fn bounds_for_primitive(
         map: &Map,
         ui: &mut TheUI,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         size: Vec3<f32>,
     ) -> Option<(Vec3<f32>, Vec3<f32>)> {
         let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
@@ -343,7 +343,7 @@ impl CreateGeometryBox {
                 anchor, normal, face_min, face_max, size, step, true,
             ));
         }
-        if server_ctx.pc.is_prefab() {
+        if server_ctx.shared.pc.is_prefab() {
             let half = size * 0.5;
             return Some((
                 Vec3::new(-half.x, 0.0, -half.z),
@@ -352,7 +352,7 @@ impl CreateGeometryBox {
         }
         let position = Self::viewport_center_position(ui, server_ctx)
             .or(map.curr_grid_pos_3d)
-            .unwrap_or(server_ctx.geo_hit_pos);
+            .unwrap_or(server_ctx.shared.geo_hit_pos);
         let min = Vec3::new(
             Self::snapped(position.x, step),
             Self::snapped(position.y, step),
@@ -390,9 +390,9 @@ impl Action for CreateGeometryUnitBox {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
     }
 
     fn apply(
@@ -400,7 +400,7 @@ impl Action for CreateGeometryUnitBox {
         map: &mut Map,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let prev = map.clone();
         let (min, max) = if !map.selected_geometry_vertices.is_empty() {
@@ -412,7 +412,7 @@ impl Action for CreateGeometryUnitBox {
             let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
             let position = CreateGeometryBox::viewport_center_position(ui, server_ctx)
                 .or(map.curr_grid_pos_3d)
-                .unwrap_or(server_ctx.geo_hit_pos);
+                .unwrap_or(server_ctx.shared.geo_hit_pos);
             let center = Vec3::new(
                 CreateGeometryBox::snapped(position.x, step),
                 CreateGeometryBox::snapped(position.y, step),
@@ -426,7 +426,7 @@ impl Action for CreateGeometryUnitBox {
         map.geometry_objects.push(object);
         map.clear_selection();
         map.selected_geometry_objects.push(id);
-        server_ctx.curr_map_tool_type = MapToolType::Selection;
+        server_ctx.shared.curr_map_tool_type = MapToolType::Selection;
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Set Tool"),
             TheValue::Text("tool.geometry".into()),
@@ -437,7 +437,7 @@ impl Action for CreateGeometryUnitBox {
         ));
 
         Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
+            server_ctx.shared.pc,
             Box::new(prev),
             Box::new(map.clone()),
         ))
@@ -453,7 +453,7 @@ impl Action for CreateGeometryUnitBox {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -513,9 +513,9 @@ impl Action for CreateGeometryBox {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
     }
 
     fn load_params(&mut self, map: &Map) {
@@ -531,7 +531,7 @@ impl Action for CreateGeometryBox {
         map: &mut Map,
         ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let prev = map.clone();
         let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
@@ -558,7 +558,7 @@ impl Action for CreateGeometryBox {
         } else {
             let position = Self::viewport_center_position(ui, server_ctx)
                 .or(map.curr_grid_pos_3d)
-                .unwrap_or(server_ctx.geo_hit_pos);
+                .unwrap_or(server_ctx.shared.geo_hit_pos);
             let min = Vec3::new(
                 Self::snapped(position.x, step),
                 Self::snapped(position.y, step),
@@ -573,7 +573,7 @@ impl Action for CreateGeometryBox {
         map.geometry_objects.push(object);
         map.clear_selection();
         map.selected_geometry_objects.push(id);
-        server_ctx.curr_map_tool_type = MapToolType::Selection;
+        server_ctx.shared.curr_map_tool_type = MapToolType::Selection;
         _ctx.ui.send(TheEvent::Custom(
             TheId::named("Set Tool"),
             TheValue::Text("tool.geometry".into()),
@@ -584,7 +584,7 @@ impl Action for CreateGeometryBox {
         ));
 
         Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
+            server_ctx.shared.pc,
             Box::new(prev),
             Box::new(map.clone()),
         ))
@@ -600,7 +600,7 @@ impl Action for CreateGeometryBox {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }
@@ -615,7 +615,7 @@ mod tests {
         let mut first = CreateGeometryBox::new();
         let mut second = CreateGeometryBox::new();
         let mut map = Map::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(64, 64, 1.);
         first.nodeui.set_f32_value("actionGeometryWidth", 2.);

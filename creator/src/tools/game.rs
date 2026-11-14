@@ -43,7 +43,7 @@ impl Tool for GameTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match tool_event {
             ToolEvent::Activate => {
@@ -60,16 +60,16 @@ impl Tool for GameTool {
                 if let Some(sidebar) = ui.canvas.right.take() {
                     self.sidebar = Some(Mutex::new(sidebar));
                 }
-                server_ctx.curr_map_tool_type = MapToolType::Game;
-                server_ctx.game_mode = true;
+                server_ctx.shared.curr_map_tool_type = MapToolType::Game;
+                server_ctx.shared.game_mode = true;
 
                 if let Some(stack) = ui.get_stack_layout("Game Output Stack") {
-                    stack.set_index(if server_ctx.text_game_mode { 1 } else { 0 });
+                    stack.set_index(if server_ctx.shared.text_game_mode { 1 } else { 0 });
                 }
-                if server_ctx.text_game_mode {
+                if server_ctx.shared.text_game_mode {
                     crate::textplay::TextGameState::request_activation(
                         crate::textplay::TextGameState::GAME_INPUT_ID,
-                        server_ctx.document_instance,
+                        server_ctx.shared.document_instance,
                         ui,
                         ctx,
                     );
@@ -109,7 +109,7 @@ impl Tool for GameTool {
                 ctx.ui.redraw_all = true;
                 ctx.ui.relayout = true;
 
-                server_ctx.game_mode = false;
+                server_ctx.shared.game_mode = false;
                 true
             }
             _ => false,
@@ -122,10 +122,10 @@ impl Tool for GameTool {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         #[cfg(feature = "native-render")]
-        if ctx.ui.command_paint && (_server_ctx.game_mode || _server_ctx.native_game_input) {
+        if ctx.ui.command_paint && (_server_ctx.shared.game_mode || _server_ctx.shared.native_game_input) {
             return None;
         }
         match map_event {
@@ -174,10 +174,10 @@ impl Tool for GameTool {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         #[cfg(feature = "native-render")]
-        if ctx.ui.command_paint && (server_ctx.game_mode || server_ctx.native_game_input) {
+        if ctx.ui.command_paint && (server_ctx.shared.game_mode || server_ctx.shared.native_game_input) {
             return false;
         }
         #[allow(clippy::single_match)]
@@ -186,12 +186,12 @@ impl Tool for GameTool {
                 server_ctx.reference.write().client.end_mouse_look();
             }
             TheEvent::KeyDown(TheValue::Char(char)) => {
-                if server_ctx.text_game_mode {
+                if server_ctx.shared.text_game_mode {
                     return false;
                 }
                 let mut rusterix = server_ctx.reference.write();
                 if rusterix.server.state == rusterix::ServerState::Running {
-                    if server_ctx.game_input_mode && !server_ctx.game_mode {
+                    if server_ctx.shared.game_input_mode && !server_ctx.shared.game_mode {
                         let action = rusterix
                             .client
                             .user_event("key_down".into(), Value::Str(char.to_string()));
@@ -206,12 +206,12 @@ impl Tool for GameTool {
                 }
             }
             TheEvent::KeyUp(TheValue::Char(char)) => {
-                if server_ctx.text_game_mode {
+                if server_ctx.shared.text_game_mode {
                     return false;
                 }
                 let mut rusterix = server_ctx.reference.write();
                 if rusterix.server.state == rusterix::ServerState::Running {
-                    if server_ctx.game_input_mode && !server_ctx.game_mode {
+                    if server_ctx.shared.game_input_mode && !server_ctx.shared.game_mode {
                         let action = rusterix
                             .client
                             .user_event("key_up".into(), Value::Str(char.to_string()));
@@ -226,7 +226,7 @@ impl Tool for GameTool {
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(code))
             | TheEvent::KeyCodeUp(TheValue::KeyCode(code)) => {
-                if server_ctx.text_game_mode {
+                if server_ctx.shared.text_game_mode {
                     return false;
                 }
                 let key = match code {
@@ -260,7 +260,7 @@ impl Tool for GameTool {
             TheEvent::RenderViewHoverChanged(id, coord) => {
                 // Do not run "real game play" hover/cursor logic when only routing input
                 // from the editor view into the running server.
-                if server_ctx.game_input_mode && !server_ctx.game_mode {
+                if server_ctx.shared.game_input_mode && !server_ctx.shared.game_mode {
                     return false;
                 }
                 if id.name == "PolyView" {

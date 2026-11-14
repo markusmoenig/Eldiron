@@ -278,9 +278,9 @@ impl Action for EditGeometry {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
             && map.selected_geometry_objects.len() == 1
     }
 
@@ -364,7 +364,7 @@ impl Action for EditGeometry {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let id = *map.selected_geometry_objects.first()?;
         let object = map
@@ -595,7 +595,7 @@ impl Action for EditGeometry {
                 object.properties.remove("primitive_radius");
                 object.properties.remove("primitive_segments");
                 object.properties.remove("primitive_smooth");
-                object.kind = if server_ctx.pc.is_prefab() {
+                object.kind = if server_ctx.shared.pc.is_prefab() {
                     rusterix::GeometryObjectKind::Prop
                 } else {
                     rusterix::GeometryObjectKind::Brush
@@ -625,7 +625,7 @@ impl Action for EditGeometry {
         server_ctx.reference.write().set_dirty();
         server_ctx.reference.write().set_overlay_dirty();
         Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
+            server_ctx.shared.pc,
             Box::new(prev),
             Box::new(map.clone()),
         ))
@@ -641,7 +641,7 @@ impl Action for EditGeometry {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

@@ -126,12 +126,12 @@ impl Action for EditTileMeta {
         None
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.docks.read().dock == "Tiles" && server_ctx.curr_tile_id.is_some()
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.docks.read().dock == "Tiles" && server_ctx.shared.curr_tile_id.is_some()
     }
 
-    fn load_params_project(&mut self, project: &Project, server_ctx: &mut ServerContext) {
-        if let Some(tile_id) = server_ctx.curr_tile_id {
+    fn load_params_project(&mut self, project: &Project, server_ctx: &mut CreatorContext) {
+        if let Some(tile_id) = server_ctx.shared.curr_tile_id {
             if let Some(tile) = project.get_tile(&tile_id) {
                 self.nodeui
                     .set_i32_value("actionTileRole", tile.role as i32);
@@ -160,7 +160,7 @@ impl Action for EditTileMeta {
         project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let role = self.nodeui.get_i32_value("actionTileRole").unwrap_or(0);
         let blocking = self.nodeui.get_i32_value("actionTileBlocking").unwrap_or(0);
@@ -196,7 +196,7 @@ impl Action for EditTileMeta {
             material_finish = "natural";
         }
 
-        if let Some(tile_id) = server_ctx.curr_tile_id {
+        if let Some(tile_id) = server_ctx.shared.curr_tile_id {
             if let Some(tile) = project.get_tile_mut(&tile_id) {
                 let role = TileRole::from_index(role as u8);
                 let blocking = blocking == 1;
@@ -233,7 +233,7 @@ impl Action for EditTileMeta {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

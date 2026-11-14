@@ -65,9 +65,9 @@ pub fn sync_bounds_selection(map: &mut Map, previous: &mut Option<(Uuid, Vec<u32
     }
 }
 
-pub fn sync(ui: &mut TheUI, project: &Project, server: &ServerContext, ctx: &mut TheContext) {
+pub fn sync(ui: &mut TheUI, project: &Project, server: &CreatorContext, ctx: &mut TheContext) {
     let map = project
-        .get_map(server)
+        .get_map(&server.shared)
         .filter(|m| m.camera == MapCamera::TwoDIso);
     if let Some(layout) = ui.get_layout("Iso Placement Controls") {
         let height = if map.is_some() { 270 } else { 0 };
@@ -122,12 +122,12 @@ pub fn sync(ui: &mut TheUI, project: &Project, server: &ServerContext, ctx: &mut
 pub fn handle_event(
     event: &TheEvent,
     project: &mut Project,
-    server: &ServerContext,
+    server: &CreatorContext,
     ctx: &mut TheContext,
 ) -> bool {
     if matches!(event,TheEvent::StateChanged(id,TheWidgetState::Clicked) if id.name=="Iso Detach Connection")
     {
-        if let Some(map) = project.get_map_mut(server) {
+        if let Some(map) = project.get_map_mut(&server.shared) {
             let before = map.clone();
             let linked = map.selected_sectors.iter().any(|id| {
                 map.find_sector(*id)
@@ -142,7 +142,7 @@ pub fn handle_event(
                 map.changed = map.changed.wrapping_add(1);
                 server.history.write().add_undo(
                     crate::undo::project_atoms::ProjectUndoAtom::MapEdit(
-                        server.pc,
+                        server.shared.pc,
                         Box::new(before),
                         Box::new(map.clone()),
                     ),
@@ -155,7 +155,7 @@ pub fn handle_event(
     }
     if matches!(event,TheEvent::StateChanged(id,TheWidgetState::Clicked) if id.name=="Iso Pick Surface")
     {
-        if let Some(map) = project.get_map_mut(server) {
+        if let Some(map) = project.get_map_mut(&server.shared) {
             map.properties.set("iso_pick_height", Value::Bool(true));
             ctx.ui.send(TheEvent::SetStatusText(
                 TheId::empty(),
@@ -168,11 +168,11 @@ pub fn handle_event(
         if id.name == "Iso Placement Bounds" {
             let enabled = matches!(value, TheValue::Bool(true));
             let before = project
-                .get_map(server)
+                .get_map(&server.shared)
                 .filter(|m| m.camera == MapCamera::TwoDIso)
                 .cloned();
             if let Some(before) = before {
-                if let Some(map) = project.get_map_mut(server) {
+                if let Some(map) = project.get_map_mut(&server.shared) {
                     map.properties
                         .set("iso_brush_follow_mesh_bounds", Value::Bool(enabled));
                     for id in map.selected_sectors.clone() {
@@ -188,11 +188,11 @@ pub fn handle_event(
                     map.changed = map.changed.wrapping_add(1);
                 }
                 shared::isometric::placement::synchronize(project);
-                let after = project.get_map(server).unwrap().clone();
+                let after = project.get_map(&server.shared).unwrap().clone();
                 if !before.selected_sectors.is_empty() {
                     server.history.write().add_undo(
                         crate::undo::project_atoms::ProjectUndoAtom::MapEdit(
-                            server.pc,
+                            server.shared.pc,
                             Box::new(before.clone()),
                             Box::new(after.clone()),
                         ),
@@ -238,7 +238,7 @@ pub fn handle_event(
         _ => return false,
     };
     if let Some(map) = project
-        .get_map_mut(server)
+        .get_map_mut(&server.shared)
         .filter(|m| m.camera == MapCamera::TwoDIso)
     {
         map.properties.set(key, value);
@@ -630,11 +630,11 @@ mod tests {
         map.properties.set("iso_edit_height", Value::Float(0.));
         pick_surface(&mut map, size, pixel);
         assert_eq!(map.properties.get_float_default("iso_edit_height", 0.), 2.);
-        let server = ServerContext::default();
-        let picked = server.local_to_map_cell(size, pixel, &map, 1.);
+        let server = CreatorContext::default();
+        let picked = server.shared.local_to_map_cell(size, pixel, &map, 1.);
         assert_eq!(picked, Vec2::new(8., 0.));
         let selected = server
-            .geometry_at_for_tool(size, pixel, &map, shared::context::MapToolType::Sector)
+            .shared.geometry_at_for_tool(size, pixel, &map, shared::context::MapToolType::Sector)
             .2
             .unwrap();
         assert_eq!(
@@ -644,7 +644,7 @@ mod tests {
                 .get_float_default("floor_height", 0.),
             2.
         );
-        let selection = server.geometry_in_screen_rectangle(
+        let selection = server.shared.geometry_in_screen_rectangle(
             size,
             pixel - Vec2::broadcast(20.),
             pixel + Vec2::broadcast(20.),

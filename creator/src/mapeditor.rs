@@ -4,13 +4,13 @@ use vek::{Vec2, Vec3};
 
 pub(crate) fn geometry_selection_status_text(
     map: &Map,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Option<String> {
-    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+    if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
         return None;
     }
 
-    if server_ctx.block_tool_active {
+    if server_ctx.shared.block_tool_active {
         return Some(fl!("status_block_tool_active"));
     }
 
@@ -45,12 +45,12 @@ pub(crate) fn geometry_selection_status_text(
         return Some(fl!("status_geometry_object_selection"));
     }
 
-    match server_ctx.curr_map_tool_type {
+    match server_ctx.shared.curr_map_tool_type {
         MapToolType::Selection
         | MapToolType::Sector
         | MapToolType::Vertex
         | MapToolType::Linedef => {
-            if server_ctx.editor_view_mode == EditorViewMode::Orbit {
+            if server_ctx.shared.editor_view_mode == EditorViewMode::Orbit {
                 Some(fl!("status_geometry_empty_selection_orbit"))
             } else {
                 Some(fl!("status_geometry_empty_selection"))
@@ -290,15 +290,15 @@ impl MapEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
-        if server_ctx.editor_view_mode == EditorViewMode::D2
-            || server_ctx.get_map_context() != MapContext::Region
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2
+            || server_ctx.shared.get_map_context() != MapContext::Region
         {
             return false;
         }
 
-        let Some(map) = project.get_map_mut(server_ctx) else {
+        let Some(map) = project.get_map_mut(&server_ctx.shared) else {
             return false;
         };
         let prev = map.clone();
@@ -307,7 +307,7 @@ impl MapEditor {
         }
 
         let undo_atom =
-            ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone()));
+            ProjectUndoAtom::MapEdit(server_ctx.shared.pc, Box::new(prev), Box::new(map.clone()));
         crate::utils::editor_scene_apply_map_edit_atom(project, server_ctx, &undo_atom);
         server_ctx.history.write().add_undo(undo_atom, ctx);
         server_ctx.reference.write().set_overlay_dirty();
@@ -345,14 +345,14 @@ impl MapEditor {
         found.then_some((min, max))
     }
 
-    fn immediate_geometry_paste_position(map: &Map, server_ctx: &ServerContext) -> Vec2<f32> {
-        if let Some(pos) = server_ctx.hover_cursor_3d {
+    fn immediate_geometry_paste_position(map: &Map, server_ctx: &CreatorContext) -> Vec2<f32> {
+        if let Some(pos) = server_ctx.shared.hover_cursor_3d {
             return Vec2::new(pos.x, pos.z);
         }
-        if server_ctx.geo_hit.is_some() {
-            return Vec2::new(server_ctx.geo_hit_pos.x, server_ctx.geo_hit_pos.z);
+        if server_ctx.shared.geo_hit.is_some() {
+            return Vec2::new(server_ctx.shared.geo_hit_pos.x, server_ctx.shared.geo_hit_pos.z);
         }
-        if let Some(pos) = server_ctx.hover_cursor {
+        if let Some(pos) = server_ctx.shared.hover_cursor {
             return pos;
         }
         if let Some((min, max)) = Self::selected_geometry_bbox_xz(map) {
@@ -365,17 +365,17 @@ impl MapEditor {
     fn paste_geometry_objects_immediately(
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
-        if server_ctx.editor_view_mode == EditorViewMode::D2
-            || server_ctx.get_map_context() != MapContext::Region
-            || server_ctx.clipboard.geometry_objects.is_empty()
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2
+            || server_ctx.shared.get_map_context() != MapContext::Region
+            || server_ctx.shared.clipboard.geometry_objects.is_empty()
         {
             return false;
         }
 
-        let clipboard = server_ctx.clipboard.clone();
-        let Some(map) = project.get_map_mut(server_ctx) else {
+        let clipboard = server_ctx.shared.clipboard.clone();
+        let Some(map) = project.get_map_mut(&server_ctx.shared) else {
             return false;
         };
 
@@ -389,10 +389,10 @@ impl MapEditor {
 
         map.sanitize();
         map.changed += 1;
-        server_ctx.paste_clipboard = None;
+        server_ctx.shared.paste_clipboard = None;
 
         let undo_atom =
-            ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone()));
+            ProjectUndoAtom::MapEdit(server_ctx.shared.pc, Box::new(prev), Box::new(map.clone()));
         crate::utils::editor_scene_apply_map_edit_atom(project, server_ctx, &undo_atom);
         server_ctx.history.write().add_undo(undo_atom, ctx);
         server_ctx.reference.write().set_overlay_dirty();
@@ -600,7 +600,7 @@ impl MapEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let native_view_owned = server_ctx.tools.read().native_world_input;
         if native_view_owned
@@ -636,9 +636,9 @@ impl MapEditor {
                 if !server_ctx.polyview_has_focus(ctx) {
                     return false;
                 }
-                if let Some(map) = project.get_map_mut(server_ctx) {
+                if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                     if map.has_selection() {
-                        server_ctx.clipboard = map.copy_selected(false);
+                        server_ctx.shared.clipboard = map.copy_selected(false);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
                             "Geometry copied into clipboard.".to_string(),
@@ -655,10 +655,10 @@ impl MapEditor {
                 if !server_ctx.polyview_has_focus(ctx) {
                     return false;
                 }
-                if let Some(map) = project.get_map_mut(server_ctx) {
+                if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                     if map.has_selection() {
                         let _prev = map.clone();
-                        server_ctx.clipboard = map.copy_selected(true);
+                        server_ctx.shared.clipboard = map.copy_selected(true);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
                             "Geometry copied into clipboard.".to_string(),
@@ -676,12 +676,12 @@ impl MapEditor {
                 if Self::paste_geometry_objects_immediately(ctx, project, server_ctx) {
                     return true;
                 }
-                if !server_ctx.clipboard.is_empty() && server_ctx.polyview_has_focus(ctx) {
+                if !server_ctx.shared.clipboard.is_empty() && server_ctx.polyview_has_focus(ctx) {
                     ctx.ui.send(TheEvent::SetStatusText(
                         TheId::empty(),
                         "Geometry pasted. Click to insert, Escape to cancel.".to_string(),
                     ));
-                    server_ctx.paste_clipboard = Some(server_ctx.clipboard.clone());
+                    server_ctx.shared.paste_clipboard = Some(server_ctx.shared.clipboard.clone());
                 }
             }
             TheEvent::Custom(id, _value) => {
@@ -690,7 +690,7 @@ impl MapEditor {
                         layout.clear();
                     }
                 } else if id.name == "Select Map Entity" {
-                    let region_id = server_ctx.curr_region;
+                    let region_id = server_ctx.shared.curr_region;
                     let selected = project.get_region(&region_id).and_then(|region| {
                         if region.characters.contains_key(&id.uuid) {
                             Some((
@@ -707,8 +707,8 @@ impl MapEditor {
                         }
                     });
                     if let Some((pc, content)) = selected {
-                        server_ctx.curr_region_content = content;
-                        server_ctx.cc = content;
+                        server_ctx.shared.curr_region_content = content;
+                        server_ctx.shared.cc = content;
                         set_project_context(ctx, ui, project, server_ctx, pc);
                         ctx.ui.redraw_all = true;
                     }
@@ -716,7 +716,7 @@ impl MapEditor {
                     set_code(ui, ctx, project, server_ctx);
                     self.apply_map_settings(ui, ctx, project, server_ctx);
 
-                    if let Some(map) = project.get_map(server_ctx)
+                    if let Some(map) = project.get_map(&server_ctx.shared)
                         && let Some(status) = geometry_selection_status_text(map, server_ctx)
                     {
                         ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
@@ -750,16 +750,16 @@ impl MapEditor {
                 if id.name == "PolyView" {
                     let precise_trackpad_scroll =
                         matches!(event, TheEvent::RenderViewPreciseScrollBy(_, _));
-                    let is_running = server_ctx.play_state == rusterix::ServerState::Running;
-                    if is_running && server_ctx.game_mode {
+                    let is_running = server_ctx.shared.play_state == rusterix::ServerState::Running;
+                    if is_running && server_ctx.shared.game_mode {
                         let mut rusterix = server_ctx.reference.write();
                         if rusterix.client.scroll_messages(coord.y as isize) {
                             return true;
                         }
                         rusterix.client.target_offset -= *coord;
-                    } else if !server_ctx.world_mode {
-                        if server_ctx.editor_view_mode == EditorViewMode::D2
-                            && let Some(map) = project.get_map_mut(server_ctx)
+                    } else if !server_ctx.shared.world_mode {
+                        if server_ctx.shared.editor_view_mode == EditorViewMode::D2
+                            && let Some(map) = project.get_map_mut(&server_ctx.shared)
                         {
                             if ui.ctrl || ui.logo {
                                 let old_grid_size = map.grid_size;
@@ -775,16 +775,16 @@ impl MapEditor {
                             map.curr_rectangle = None;
                         }
 
-                        if server_ctx.get_map_context() == MapContext::Region {
-                            if server_ctx.editor_view_mode == EditorViewMode::D2
-                                && server_ctx.profile_view.is_some()
+                        if server_ctx.shared.get_map_context() == MapContext::Region {
+                            if server_ctx.shared.editor_view_mode == EditorViewMode::D2
+                                && server_ctx.shared.profile_view.is_some()
                             {
                             } else {
-                                if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                                     if ui.ctrl || ui.logo {
                                         server_ctx.camera
                                             .scroll_by(coord.y as f32, &mut server_ctx.shared);
-                                    } else if server_ctx.editor_view_mode == EditorViewMode::FirstP
+                                    } else if server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
                                         && (precise_trackpad_scroll || ui.shift)
                                     {
                                         // First-person navigation has no orbit
@@ -802,21 +802,21 @@ impl MapEditor {
                                                 coord.map(|value| value as f32 * pan_speed);
                                             #[cfg(target_os = "macos")]
                                             let pan_delta = if precise_trackpad_scroll
-                                                && server_ctx.editor_view_mode
+                                                && server_ctx.shared.editor_view_mode
                                                     == EditorViewMode::Orbit
                                             {
                                                 Vec2::new(-pan_delta.x, -pan_delta.y)
                                             } else {
                                                 pan_delta
                                             };
-                                            if server_ctx.pc.is_prefab() {
+                                            if server_ctx.shared.pc.is_prefab() {
                                                 server_ctx.camera
                                                     .pan_prefab_by_delta(pan_delta, view_size);
                                             } else if let Some(region) =
-                                                project.get_region_mut(&server_ctx.curr_region)
+                                                project.get_region_mut(&server_ctx.shared.curr_region)
                                             {
                                                 if precise_trackpad_scroll
-                                                    && server_ctx.editor_view_mode
+                                                    && server_ctx.shared.editor_view_mode
                                                         == EditorViewMode::Orbit
                                                 {
                                                     server_ctx.camera
@@ -825,7 +825,7 @@ impl MapEditor {
                                                         );
                                                 } else {
                                                     server_ctx.camera.pan_3d_by_delta_f32(
-                                                        region, server_ctx, pan_delta, view_size,
+                                                        region, &server_ctx.shared, pan_delta, view_size,
                                                     );
                                                 }
                                             }
@@ -837,7 +837,7 @@ impl MapEditor {
                                         server_ctx.camera
                                             .scroll_by(coord.y as f32, &mut server_ctx.shared);
                                     }
-                                    if server_ctx.pc.is_prefab() {
+                                    if server_ctx.shared.pc.is_prefab() {
                                         let camera =
                                             server_ctx.camera.orbit_camera.clone();
                                         server_ctx.reference.write()
@@ -851,7 +851,7 @@ impl MapEditor {
                                     redraw = true;
                                 }
                             }
-                            if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                            if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Soft Update Minimap"),
                                     TheValue::Empty,
@@ -863,13 +863,13 @@ impl MapEditor {
             }
             TheEvent::RenderViewZoomBy(id, delta) => {
                 if id.name == "PolyView"
-                    && !server_ctx.world_mode
-                    && server_ctx.editor_view_mode == EditorViewMode::D2
+                    && !server_ctx.shared.world_mode
+                    && server_ctx.shared.editor_view_mode == EditorViewMode::D2
                 {
                     let is_running =
-                        server_ctx.play_state == rusterix::ServerState::Running;
-                    if !(is_running && server_ctx.game_mode)
-                        && let Some(map) = project.get_map_mut(server_ctx)
+                        server_ctx.shared.play_state == rusterix::ServerState::Running;
+                    if !(is_running && server_ctx.shared.game_mode)
+                        && let Some(map) = project.get_map_mut(&server_ctx.shared)
                     {
                         let old_grid_size = map.grid_size;
                         map.grid_size = (old_grid_size * (*delta * 2.5).exp()).clamp(5.0, 100.0);
@@ -878,14 +878,14 @@ impl MapEditor {
                         redraw = true;
                     }
                 } else if id.name == "PolyView"
-                    && !server_ctx.world_mode
-                    && server_ctx.get_map_context() == MapContext::Region
+                    && !server_ctx.shared.world_mode
+                    && server_ctx.shared.get_map_context() == MapContext::Region
                 {
                     // NSEvent magnification is a small relative value. Scale it
                     // into the same useful range as the established wheel zoom.
                     server_ctx.camera
                         .scroll_by(*delta * 20.0, &mut server_ctx.shared);
-                    if server_ctx.pc.is_prefab() {
+                    if server_ctx.shared.pc.is_prefab() {
                         let camera = server_ctx.camera.orbit_camera.clone();
                         server_ctx.reference.write()
                             .client
@@ -904,7 +904,7 @@ impl MapEditor {
             }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Map Editor Camera" {
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
                         region.map.camera = match index {
                             0 => MapCamera::TwoD,
                             1 => MapCamera::TwoDIso,
@@ -917,7 +917,7 @@ impl MapEditor {
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "Grid Subdiv" {
                     if let Some(value) = value.to_i32() {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
+                        if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                             map.subdivisions =
                                 (1.0 / shared::context::ServerContext::edit_grid_step(value as f32)).round();
                         }
@@ -926,7 +926,7 @@ impl MapEditor {
             }
             TheEvent::StateChanged(id, state) => {
                 if id.name == "linedefAddMidpoint" && *state == TheWidgetState::Clicked {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
+                    if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                         let prev = map.clone();
                         let mut changed = false;
                         for linedef_id in &map.selected_linedefs.clone() {
@@ -964,7 +964,7 @@ impl MapEditor {
                             if sector.creator_id == id.uuid {
                                 screen.map.selected_sectors = vec![sector.id];
                                 server_ctx.reference.write().set_dirty();
-                                server_ctx.cc = ContentContext::Sector(id.uuid);
+                                server_ctx.shared.cc = ContentContext::Sector(id.uuid);
                                 // if !sector.properties.contains("source") {
                                 //     // Create default code item
                                 //     if let Some(bytes) = crate::Embedded::get("python/widget.py") {
@@ -1001,7 +1001,7 @@ impl MapEditor {
                         if let Some(center) = center {
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
-                                server_ctx.center_map_at_grid_pos(
+                                server_ctx.shared.center_map_at_grid_pos(
                                     Vec2::new(dim.width as f32, dim.height as f32),
                                     Vec2::new(center.x, center.y),
                                     &mut screen.map,
@@ -1035,10 +1035,10 @@ impl MapEditor {
                         })
                         .map(|region| region.id);
                     if let Some(content_region) = content_region
-                        && content_region != server_ctx.curr_region
+                        && content_region != server_ctx.shared.curr_region
                     {
-                        server_ctx.curr_region = content_region;
-                        server_ctx.editing_pos_buffer = None;
+                        server_ctx.shared.curr_region = content_region;
+                        server_ctx.shared.editing_pos_buffer = None;
                         crate::undo::project_helper::update_region(ctx, &server_ctx.reference);
                         redraw = true;
                     }
@@ -1047,7 +1047,7 @@ impl MapEditor {
 
                     let mut temp_id = None;
                     let mut temp_name = "".to_string();
-                    if let Some(region) = project.get_region(&server_ctx.curr_region) {
+                    if let Some(region) = project.get_region(&server_ctx.shared.curr_region) {
                         if let Some(character) = region.characters.get(&id.uuid) {
                             temp_id = Some(character.character_id);
                         }
@@ -1060,7 +1060,7 @@ impl MapEditor {
                     }
 
                     if !temp_name.is_empty() {
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                        if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
                             if let Some(character) = region.characters.get_mut(&id.uuid) {
                                 character.name = temp_name.clone();
                             }
@@ -1072,7 +1072,7 @@ impl MapEditor {
                     let mut character_template_id: Option<Uuid> = None;
                     let mut found = false;
                     let mut is_character_instance = false;
-                    if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                    if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
                         region.map.clear_selection();
 
                         if let Some(character) = region.characters.get(&id.uuid) {
@@ -1090,9 +1090,9 @@ impl MapEditor {
                                 character_template_id = Some(character.character_id);
                             }
                             region.map.selected_entity_item = Some(id.uuid);
-                            server_ctx.curr_region_content =
+                            server_ctx.shared.curr_region_content =
                                 ContentContext::CharacterInstance(id.uuid);
-                            server_ctx.cc = ContentContext::CharacterInstance(id.uuid);
+                            server_ctx.shared.cc = ContentContext::CharacterInstance(id.uuid);
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
                                 let mut position =
@@ -1107,8 +1107,8 @@ impl MapEditor {
                                     }
                                 }
 
-                                if !server_ctx.content_click_from_map {
-                                    server_ctx.center_map_at_grid_pos(
+                                if !server_ctx.shared.content_click_from_map {
+                                    server_ctx.shared.center_map_at_grid_pos(
                                         Vec2::new(dim.width as f32, dim.height as f32),
                                         position,
                                         &mut region.map,
@@ -1126,13 +1126,13 @@ impl MapEditor {
                             // }
 
                             region.map.selected_entity_item = Some(id.uuid);
-                            server_ctx.curr_region_content = ContentContext::ItemInstance(id.uuid);
-                            server_ctx.cc = ContentContext::ItemInstance(id.uuid);
+                            server_ctx.shared.curr_region_content = ContentContext::ItemInstance(id.uuid);
+                            server_ctx.shared.cc = ContentContext::ItemInstance(id.uuid);
                             if let Some(render_view) = ui.get_render_view("PolyView") {
                                 let dim = *render_view.dim();
 
-                                if !server_ctx.content_click_from_map {
-                                    server_ctx.center_map_at_grid_pos(
+                                if !server_ctx.shared.content_click_from_map {
+                                    server_ctx.shared.center_map_at_grid_pos(
                                         Vec2::new(dim.width as f32, dim.height as f32),
                                         Vec2::new(item.position.x, item.position.z),
                                         &mut region.map,
@@ -1151,14 +1151,14 @@ impl MapEditor {
                                         TheValue::Text(String::new()),
                                     );
 
-                                    server_ctx.curr_region_content =
+                                    server_ctx.shared.curr_region_content =
                                         ContentContext::Sector(id.uuid);
-                                    server_ctx.cc = ContentContext::Sector(id.uuid);
+                                    server_ctx.shared.cc = ContentContext::Sector(id.uuid);
                                     if let Some(center) = sector.center(&region.map) {
                                         if let Some(render_view) = ui.get_render_view("PolyView") {
                                             let dim = *render_view.dim();
 
-                                            server_ctx.center_map_at_grid_pos(
+                                            server_ctx.shared.center_map_at_grid_pos(
                                                 Vec2::new(dim.width as f32, dim.height as f32),
                                                 center,
                                                 &mut region.map,
@@ -1168,7 +1168,7 @@ impl MapEditor {
                                 }
                             }
                         }
-                        server_ctx.content_click_from_map = false;
+                        server_ctx.shared.content_click_from_map = false;
                         server_ctx.reference.write().set_dirty();
                     }
 
@@ -1180,7 +1180,7 @@ impl MapEditor {
                                 project,
                                 server_ctx,
                                 ProjectContext::RegionCharacterInstance(
-                                    server_ctx.curr_region,
+                                    server_ctx.shared.curr_region,
                                     id.uuid,
                                 ),
                             );
@@ -1190,16 +1190,16 @@ impl MapEditor {
                                 ui,
                                 project,
                                 server_ctx,
-                                ProjectContext::RegionItemInstance(server_ctx.curr_region, id.uuid),
+                                ProjectContext::RegionItemInstance(server_ctx.shared.curr_region, id.uuid),
                             );
                         }
                     }
 
                     // If in character sidebar mode, set the code aand data
                     if let Some(character_template_id) = character_template_id {
-                        server_ctx.curr_region_content =
+                        server_ctx.shared.curr_region_content =
                             ContentContext::CharacterTemplate(character_template_id);
-                        server_ctx.cc = ContentContext::CharacterTemplate(character_template_id);
+                        server_ctx.shared.cc = ContentContext::CharacterTemplate(character_template_id);
                         // set_code(ui, ctx, project, server_ctx);
                     }
                 }
@@ -1207,7 +1207,7 @@ impl MapEditor {
                 else if id.name == "Region Item" {
                     for r in &project.regions {
                         if r.id == id.uuid {
-                            server_ctx.curr_region = r.id;
+                            server_ctx.shared.curr_region = r.id;
                             redraw = true;
                         }
                     }
@@ -1231,13 +1231,13 @@ impl MapEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
-        if let Some(id) = server_ctx.pc.id()
-            && server_ctx.pc.is_screen()
+        if let Some(id) = server_ctx.shared.pc.id()
+            && server_ctx.shared.pc.is_screen()
         {
             let mut sector_id = None;
-            if let Some(map) = project.get_map_mut(server_ctx) {
+            if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                 if !map.selected_sectors.is_empty() {
                     if let Some(sector) = map.find_sector_mut(map.selected_sectors[0]) {
                         if sector.name.is_empty() {
@@ -1326,9 +1326,9 @@ impl MapEditor {
     }
 
     /// Adds an undo step for the given map change.
-    fn add_map_undo(&self, map: &Map, prev: Map, ctx: &mut TheContext, server_ctx: &ServerContext) {
+    fn add_map_undo(&self, map: &Map, prev: Map, ctx: &mut TheContext, server_ctx: &CreatorContext) {
         let undo_atom =
-            ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone()));
+            ProjectUndoAtom::MapEdit(server_ctx.shared.pc, Box::new(prev), Box::new(map.clone()));
         server_ctx.history.write().add_undo(undo_atom, ctx);
         server_ctx.reference.write().set_dirty();
     }

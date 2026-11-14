@@ -135,9 +135,9 @@ pub trait Tool: Send + Sync {
     }
     /// Request CPU authoring surface data for this event, independently of paint.
     fn view_surface_capture(&self, _event: &MapEvent) -> bool { false }
-    fn sync_overlay_sources(&mut self, _project: &Project, _server: &ServerContext) {}
+    fn sync_overlay_sources(&mut self, _project: &Project, _server: &CreatorContext) {}
     fn overlay_paint(&mut self) -> Option<&mut paint_overlay::PaintOverlay> { None }
-    fn clear_paint_overlay_hover(&mut self, _server: &mut ServerContext) {}
+    fn clear_paint_overlay_hover(&mut self, _server: &mut CreatorContext) {}
     fn view_rectangle_query(
         &self,
         _point: Vec2<i32>,
@@ -156,13 +156,13 @@ pub trait Tool: Send + Sync {
             hud.set_native_input(native);
         }
     }
-    fn hud_selected_id(&self, _map: &Map, _server: &ServerContext) -> Option<u32> {
+    fn hud_selected_id(&self, _map: &Map, _server: &CreatorContext) -> Option<u32> {
         None
     }
     fn overlay_screen_rectangle(
         &self,
         _map: &Map,
-        _server: &ServerContext,
+        _server: &CreatorContext,
     ) -> Option<(Vec2<f32>, Vec2<f32>)> {
         None
     }
@@ -179,7 +179,7 @@ pub trait Tool: Send + Sync {
         frame: &ToolOverlayFrame,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.overlay_hud()
             .is_some_and(|hud| frame.hud_input_current(hud, target, map, server))
@@ -189,20 +189,20 @@ pub trait Tool: Send + Sync {
         frame: &ToolOverlayFrame,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         self.overlay_hud()
             .is_some_and(|hud| frame.hud_command_source_current(hud, target, map, server))
     }
     fn apply_rect_overlay(
         &mut self, _action: rect_overlay::Action, _map: &mut Map,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
     ) -> Option<Vec<TheEvent>> { None }
     fn apply_terrain_overlay(
         &mut self,
         _action: terrain_overlay::Action,
         _map: &Map,
-        _server: &mut ServerContext,
+        _server: &mut CreatorContext,
         _ctx: &mut TheContext,
     ) -> bool {
         false
@@ -210,7 +210,7 @@ pub trait Tool: Send + Sync {
     fn show_overlay_popup(
         &mut self,
         _command: &ToolOverlayCommand,
-        _server: &ServerContext,
+        _server: &CreatorContext,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
     ) -> bool {
@@ -223,7 +223,7 @@ pub trait Tool: Send + Sync {
         receipts: &[theframework::paint::FrameReceipt],
         target: ToolOverlayTarget,
         map: &Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         let accepted = frame.presented_hud(self, receipts, target, map, server);
         if !accepted {
@@ -249,7 +249,7 @@ pub trait Tool: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         false
     }
@@ -260,7 +260,7 @@ pub trait Tool: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         None
     }
@@ -271,7 +271,7 @@ pub trait Tool: Send + Sync {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         _map: &mut Map,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         false
     }
@@ -282,7 +282,7 @@ pub trait Tool: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         region: &mut Region,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         self.map_event(map_event, ui, ctx, &mut region.map, server_ctx)
     }
@@ -294,7 +294,7 @@ pub trait Tool: Send + Sync {
         ctx: &mut TheContext,
         project: &mut Project,
         _asset_id: Uuid,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         project
             .prefab_editor_map
@@ -308,7 +308,7 @@ pub trait Tool: Send + Sync {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         false
     }
@@ -318,7 +318,7 @@ pub trait Tool: Send + Sync {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         assets: &Assets,
     ) {
     }

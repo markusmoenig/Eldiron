@@ -122,18 +122,18 @@ pub(crate) fn set_tile_override(
 
 /// Resolve exactly one editable surface and the active material slot. Faces have
 /// precedence over object/sector selection, as in the existing Apply Tile path.
-pub(crate) fn selection(map: &Map, server: &ServerContext) -> Option<MapMaterialBinding> {
-    if server.pc.is_region()
-        && server.curr_map_tool_type == MapToolType::Rect
-        && server.rect_compose_mode
+pub(crate) fn selection(map: &Map, server: &CreatorContext) -> Option<MapMaterialBinding> {
+    if server.shared.pc.is_region()
+        && server.shared.curr_map_tool_type == MapToolType::Rect
+        && server.shared.rect_compose_mode
     {
         return server
-            .rect_composition_target
+            .shared.rect_composition_target
             .as_ref()
             .filter(|binding| binding.map == map.id && rect_target_exists(map, &binding.surface))
             .cloned();
     }
-    let slot = server.selected_hud_icon_index;
+    let slot = server.shared.selected_hud_icon_index;
     let surface = if !map.selected_geometry_faces.is_empty() {
         if map.selected_geometry_faces.len() != 1 {
             return None;
@@ -148,7 +148,7 @@ pub(crate) fn selection(map: &Map, server: &ServerContext) -> Option<MapMaterial
     } else if !map.selected_geometry_objects.is_empty() {
         // A whole object can have many distinct materials. Select a face first.
         return None;
-    } else if server.curr_map_tool_type == MapToolType::Linedef {
+    } else if server.shared.curr_map_tool_type == MapToolType::Linedef {
         if map.selected_linedefs.len() != 1 || !(0..=3).contains(&slot) {
             return None;
         }
@@ -332,9 +332,9 @@ impl ProceduralMaterialEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) {
-        let Some(map) = project.get_map(server).filter(|map| map.id == binding.map) else {
+        let Some(map) = project.get_map(&server.shared).filter(|map| map.id == binding.map) else {
             Self::status(
                 ui,
                 ctx,
@@ -392,7 +392,7 @@ impl ProceduralMaterialEditor {
             };
             composition.clone()
         } else {
-            let overlay = server.curr_tile_id.filter(|id| {
+            let overlay = server.shared.curr_tile_id.filter(|id| {
                 *id != base
                     && project
                         .tiles
@@ -430,10 +430,10 @@ impl ProceduralMaterialEditor {
             binding: binding.clone(),
         };
         created.install(project);
-        *project.get_map_mut(server).unwrap() = new_map.clone();
+        *project.get_map_mut(&server.shared).unwrap() = new_map.clone();
         server.history.write().add_undo(
             ProjectUndoAtom::MapMaterialCompositionCreate(
-                server.pc,
+                server.shared.pc,
                 Box::new(old_map),
                 Box::new(new_map),
                 Box::new(created),
@@ -458,9 +458,9 @@ impl ProceduralMaterialEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) {
-        let selected = project.get_map(server).and_then(|map| {
+        let selected = project.get_map(&server.shared).and_then(|map| {
             selection(map, server).and_then(|binding| {
                 let id = source(map, &binding).as_ref().and_then(tile_id)?;
                 (project.map_material_bindings.get(&id) == Some(&binding)).then_some((id, binding))
@@ -480,7 +480,7 @@ impl ProceduralMaterialEditor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn fixture() -> (Project, ServerContext, Uuid, Uuid) {
+    fn fixture() -> (Project, CreatorContext, Uuid, Uuid) {
         let mut p = Project::default();
         let mut ids = vec![];
         for alias in ["Grass", "Road"] {
@@ -502,13 +502,13 @@ mod tests {
             region.map.sectors.push(sector);
         }
         region.map.selected_sectors = vec![1];
-        let mut server = ServerContext::default();
-        server.pc = ProjectContext::Region(region.id);
-        server.curr_region = region.id;
-        server.curr_map_tool_type = MapToolType::Sector;
-        server.selected_hud_icon_index = 0;
-        server.curr_tile_id = Some(ids[1]);
-        server.curr_tile_source = Some(rusterix::TileSource::SingleTile(ids[1]));
+        let mut server = CreatorContext::default();
+        server.shared.pc = ProjectContext::Region(region.id);
+        server.shared.curr_region = region.id;
+        server.shared.curr_map_tool_type = MapToolType::Sector;
+        server.shared.selected_hud_icon_index = 0;
+        server.shared.curr_tile_id = Some(ids[1]);
+        server.shared.curr_tile_source = Some(rusterix::TileSource::SingleTile(ids[1]));
         p.regions = vec![region];
         (p, server, ids[0], ids[1])
     }
@@ -526,7 +526,7 @@ mod tests {
         let originals = (p.tiles[&a].clone(), p.tiles[&b].clone());
         let (mut ui, mut ctx) = ui();
         let mut host = ProceduralMaterialEditor::default();
-        let binding = selection(p.get_map(&server).unwrap(), &server).unwrap();
+        let binding = selection(p.get_map(&server.shared).unwrap(), &server).unwrap();
         host.open_map_composition(binding, &mut ui, &mut ctx, &mut p, &mut server);
         let id = host.tile.unwrap();
         assert_eq!(p.material_compositions[&id].base, a);
@@ -545,14 +545,14 @@ mod tests {
         let (mut p, mut server, grass, road) = fixture();
         let (mut ui, mut ctx) = ui();
         let mut host = ProceduralMaterialEditor::default();
-        let binding = selection(p.get_map(&server).unwrap(), &server).unwrap();
+        let binding = selection(p.get_map(&server.shared).unwrap(), &server).unwrap();
         let grass_bundle = p.procedural_materials[&grass].clone();
         host.open_map_composition(binding.clone(), &mut ui, &mut ctx, &mut p, &mut server);
         let id = host.tile.unwrap();
         assert_ne!(id, grass);
         assert_ne!(id, road);
         assert_eq!(
-            source(p.get_map(&server).unwrap(), &binding),
+            source(p.get_map(&server.shared).unwrap(), &binding),
             Some(PixelSource::TileId(id))
         );
         assert_eq!(
@@ -566,7 +566,7 @@ mod tests {
         );
         assert_eq!(p.material_compositions[&id].base, grass);
         assert_eq!(p.material_compositions[&id].layers[0].material, road);
-        assert_eq!(server.curr_tile_id, Some(road));
+        assert_eq!(server.shared.curr_tile_id, Some(road));
         assert!(!p.tile_board_tiles.contains_key(&id));
         assert!(p.map_material_bindings.contains_key(&id));
         host.composition_view(&mut ui, &mut ctx, &p);
@@ -583,7 +583,7 @@ mod tests {
         );
         assert_eq!(p.material_compositions[&id].layers[0].position, 0.3);
         assert_eq!(p.procedural_materials[&grass], grass_bundle);
-        server.curr_tile_id = Some(grass);
+        server.shared.curr_tile_id = Some(grass);
         host.handle_event(
             &TheEvent::Custom(TheId::named("Tile Picked"), TheValue::Id(grass)),
             &mut ui,
@@ -607,10 +607,10 @@ mod tests {
             &mut server,
         );
         assert_eq!(p.material_compositions[&id].layers[0].material, grass);
-        p.get_map_mut(&server).unwrap().selected_sectors = vec![2];
+        p.get_map_mut(&server.shared).unwrap().selected_sectors = vec![2];
         host.follow_map_composition(&mut ui, &mut ctx, &p, &server);
         assert!(host.map_binding.is_none());
-        p.get_map_mut(&server).unwrap().selected_sectors = vec![1];
+        p.get_map_mut(&server.shared).unwrap().selected_sectors = vec![1];
         host.follow_map_composition(&mut ui, &mut ctx, &p, &server);
         assert_eq!(host.tile, Some(id));
         let restored: Project = serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
@@ -624,17 +624,17 @@ mod tests {
         let (mut p, mut server, grass, _) = fixture();
         let (mut ui, mut ctx) = ui();
         let mut host = ProceduralMaterialEditor::default();
-        let old = p.get_map(&server).unwrap().clone();
+        let old = p.get_map(&server.shared).unwrap().clone();
         let binding = MapMaterialBinding {
             map: old.id,
             surface: CompositionSurface::RectTile { sector: 1 },
         };
-        server.curr_map_tool_type = MapToolType::Rect;
-        server.rect_compose_mode = true;
-        server.rect_composition_target = Some(binding.clone());
+        server.shared.curr_map_tool_type = MapToolType::Rect;
+        server.shared.rect_compose_mode = true;
+        server.shared.rect_composition_target = Some(binding.clone());
         host.open_map_composition(binding.clone(), &mut ui, &mut ctx, &mut p, &mut server);
         let id = host.tile.unwrap();
-        let new = p.get_map(&server).unwrap().clone();
+        let new = p.get_map(&server.shared).unwrap().clone();
         let created = CreatedMapComposition {
             tile: p.tiles[&id].clone(),
             composition: p.material_compositions[&id].clone(),
@@ -642,7 +642,7 @@ mod tests {
             binding: binding.clone(),
         };
         let atom = ProjectUndoAtom::MapMaterialCompositionCreate(
-            server.pc,
+            server.shared.pc,
             Box::new(old),
             Box::new(new),
             Box::new(created),
@@ -653,13 +653,13 @@ mod tests {
         assert!(!p.material_compositions.contains_key(&id));
         assert!(!p.map_material_bindings.contains_key(&id));
         assert_eq!(
-            source(p.get_map(&server).unwrap(), &binding),
+            source(p.get_map(&server.shared).unwrap(), &binding),
             Some(PixelSource::TileId(grass))
         );
         assert_eq!(p.name, "Keep this rename");
         atom.redo(&mut p, &mut ui, &mut ctx, &mut server);
         assert_eq!(
-            source(p.get_map(&server).unwrap(), &binding),
+            source(p.get_map(&server.shared).unwrap(), &binding),
             Some(PixelSource::TileId(id))
         );
         assert!(p.map_material_bindings.contains_key(&id));
@@ -686,7 +686,7 @@ mod tests {
         );
         assert!(p.tiles[&id].textures[0].data.iter().any(|value| *value > 0));
         assert_eq!(
-            source(p.get_map(&server).unwrap(), &binding),
+            source(p.get_map(&server.shared).unwrap(), &binding),
             Some(PixelSource::TileId(id))
         );
     }
@@ -695,17 +695,17 @@ mod tests {
         let (mut p, mut server, _, _) = fixture();
         let (mut ui, mut ctx) = ui();
         let mut host = ProceduralMaterialEditor::default();
-        let binding = selection(p.get_map(&server).unwrap(), &server).unwrap();
+        let binding = selection(p.get_map(&server.shared).unwrap(), &server).unwrap();
         host.open_map_composition(binding, &mut ui, &mut ctx, &mut p, &mut server);
         let first = host.tile.unwrap();
-        p.get_map_mut(&server)
+        p.get_map_mut(&server.shared)
             .unwrap()
             .find_sector_mut(2)
             .unwrap()
             .properties
             .set("source", Value::Source(PixelSource::TileId(first)));
-        p.get_map_mut(&server).unwrap().selected_sectors = vec![2];
-        let binding = selection(p.get_map(&server).unwrap(), &server).unwrap();
+        p.get_map_mut(&server.shared).unwrap().selected_sectors = vec![2];
+        let binding = selection(p.get_map(&server.shared).unwrap(), &server).unwrap();
         host.open_map_composition(binding.clone(), &mut ui, &mut ctx, &mut p, &mut server);
         let second = host.tile.unwrap();
         assert_ne!(first, second);
@@ -731,7 +731,7 @@ mod tests {
     #[test]
     fn surface_targets_respect_face_priority_wall_rows_and_ceiling() {
         let (mut p, mut server, grass, _) = fixture();
-        let map = p.get_map_mut(&server).unwrap();
+        let map = p.get_map_mut(&server.shared).unwrap();
         let mut object = rusterix::GeometryObject::box_("Box", Vec3::zero(), Vec3::one());
         for face in &mut object.faces {
             face.tile = Some(PixelSource::TileId(grass));
@@ -753,7 +753,7 @@ mod tests {
         assert!(selection(map, &server).is_none());
         map.selected_geometry_faces.clear();
         map.selected_geometry_objects.clear();
-        server.selected_hud_icon_index = 1;
+        server.shared.selected_hud_icon_index = 1;
         let binding = selection(map, &server).unwrap();
         assert!(set_source(map, &binding, id));
         assert_eq!(
@@ -769,8 +769,8 @@ mod tests {
         );
         map.linedefs.push(rusterix::Linedef::new(7, 0, 1));
         map.selected_linedefs = vec![7];
-        server.curr_map_tool_type = MapToolType::Linedef;
-        server.selected_hud_icon_index = 2;
+        server.shared.curr_map_tool_type = MapToolType::Linedef;
+        server.shared.selected_hud_icon_index = 2;
         let binding = selection(map, &server).unwrap();
         assert!(set_source(map, &binding, id));
         assert_eq!(
@@ -800,30 +800,30 @@ mod tests {
         object.faces[0]
             .tiles
             .insert((1, 0), PixelSource::TileId(road));
-        p.get_map_mut(&server)
+        p.get_map_mut(&server.shared)
             .unwrap()
             .geometry_objects
             .push(object);
         let binding = MapMaterialBinding {
-            map: p.get_map(&server).unwrap().id,
+            map: p.get_map(&server.shared).unwrap().id,
             surface: CompositionSurface::GeometryTile {
                 object: object_id,
                 face: 0,
                 cell: [0, 0],
             },
         };
-        server.curr_map_tool_type = MapToolType::Rect;
-        server.rect_compose_mode = true;
-        server.rect_composition_target = Some(binding.clone());
+        server.shared.curr_map_tool_type = MapToolType::Rect;
+        server.shared.rect_compose_mode = true;
+        server.shared.rect_composition_target = Some(binding.clone());
         let mut host = ProceduralMaterialEditor::default();
         host.open_map_composition(binding.clone(), &mut ui, &mut ctx, &mut p, &mut server);
         let id = host.tile.unwrap();
-        let face = &p.get_map(&server).unwrap().geometry_objects[0].faces[0];
+        let face = &p.get_map(&server.shared).unwrap().geometry_objects[0].faces[0];
         assert_eq!(face.tile, Some(PixelSource::TileId(grass)));
         assert_eq!(face.tiles.get(&(1, 0)), Some(&PixelSource::TileId(road)));
         assert_eq!(face.tiles.get(&(0, 0)), Some(&PixelSource::TileId(id)));
         assert_eq!(p.material_compositions[&id].base, grass);
-        server.rect_tile_id_3d = (2, 1);
+        server.shared.rect_tile_id_3d = (2, 1);
         host.follow_map_composition(&mut ui, &mut ctx, &p, &server);
         assert_eq!(
             host.tile,
@@ -840,7 +840,7 @@ mod tests {
         assert_eq!(p.material_compositions[&id].layers[0].position, 0.2);
         let restored: Project = serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
         assert_eq!(restored.map_material_bindings[&id], binding);
-        server.rect_composition_target = Some(MapMaterialBinding {
+        server.shared.rect_composition_target = Some(MapMaterialBinding {
             map: binding.map,
             surface: CompositionSurface::GeometryTile {
                 object: object_id,
@@ -854,7 +854,7 @@ mod tests {
     #[test]
     fn terrain_and_sector_tile_overrides_preserve_other_cells_and_blend_shapes() {
         let (mut p, server, grass, road) = fixture();
-        let map = p.get_map_mut(&server).unwrap();
+        let map = p.get_map_mut(&server.shared).unwrap();
         let new = Uuid::new_v4();
         let preset = rusterix::VertexBlendPreset::from_index(1).unwrap();
         let properties = &mut map.find_sector_mut(1).unwrap().properties;
@@ -922,12 +922,12 @@ mod tests {
         let (mut p, mut server, grass, _) = fixture();
         let (mut ui, mut ctx) = ui();
         let binding = MapMaterialBinding {
-            map: p.get_map(&server).unwrap().id,
+            map: p.get_map(&server.shared).unwrap().id,
             surface: CompositionSurface::RectTile { sector: 1 },
         };
-        server.curr_map_tool_type = MapToolType::Rect;
-        server.rect_compose_mode = true;
-        server.rect_composition_target = Some(binding.clone());
+        server.shared.curr_map_tool_type = MapToolType::Rect;
+        server.shared.rect_compose_mode = true;
+        server.shared.rect_composition_target = Some(binding.clone());
         let mut host = ProceduralMaterialEditor::default();
         host.open_map_composition(binding, &mut ui, &mut ctx, &mut p, &mut server);
         let id = host.tile.unwrap();
@@ -936,7 +936,7 @@ mod tests {
             .validate()
             .unwrap();
         assert_eq!(
-            p.get_map(&server)
+            p.get_map(&server.shared)
                 .unwrap()
                 .find_sector(1)
                 .unwrap()
@@ -945,7 +945,7 @@ mod tests {
             Some(&PixelSource::TileId(id))
         );
         assert_eq!(
-            p.get_map(&server)
+            p.get_map(&server.shared)
                 .unwrap()
                 .find_sector(2)
                 .unwrap()
@@ -971,15 +971,15 @@ mod tests {
         let (mut ui, mut ctx) = ui();
         let mut host = ProceduralMaterialEditor::default();
         let binding = MapMaterialBinding {
-            map: p.get_map(&server).unwrap().id,
+            map: p.get_map(&server.shared).unwrap().id,
             surface: CompositionSurface::RectTile { sector: 1 },
         };
-        server.curr_map_tool_type = MapToolType::Rect;
-        server.rect_compose_mode = true;
-        server.rect_composition_target = Some(binding.clone());
+        server.shared.curr_map_tool_type = MapToolType::Rect;
+        server.shared.rect_compose_mode = true;
+        server.shared.rect_composition_target = Some(binding.clone());
         host.open_map_composition(binding.clone(), &mut ui, &mut ctx, &mut p, &mut server);
         let first = host.tile.unwrap();
-        p.get_map_mut(&server)
+        p.get_map_mut(&server.shared)
             .unwrap()
             .find_sector_mut(2)
             .unwrap()
@@ -998,7 +998,7 @@ mod tests {
         assert_eq!(p.material_compositions[&first].layers[0].position, 0.5);
         assert_eq!(p.material_compositions[&detached].layers[0].position, 0.1);
         assert_eq!(
-            p.get_map(&server)
+            p.get_map(&server.shared)
                 .unwrap()
                 .find_sector(2)
                 .unwrap()
@@ -1020,22 +1020,22 @@ mod tests {
         object.faces[0]
             .tiles
             .insert((1, 0), PixelSource::TileId(road));
-        p.get_map_mut(&server)
+        p.get_map_mut(&server.shared)
             .unwrap()
             .geometry_objects
             .push(object);
         let binding = MapMaterialBinding {
-            map: p.get_map(&server).unwrap().id,
+            map: p.get_map(&server.shared).unwrap().id,
             surface: CompositionSurface::GeometryTile {
                 object: object_id,
                 face: 0,
                 cell: [0, 0],
             },
         };
-        server.curr_map_tool_type = MapToolType::Rect;
-        server.rect_compose_mode = true;
-        server.editor_view_mode = EditorViewMode::FirstP;
-        server.rect_composition_target = Some(binding.clone());
+        server.shared.curr_map_tool_type = MapToolType::Rect;
+        server.shared.rect_compose_mode = true;
+        server.shared.editor_view_mode = EditorViewMode::FirstP;
+        server.shared.rect_composition_target = Some(binding.clone());
         let mut host = ProceduralMaterialEditor::default();
         host.open_map_composition(binding.clone(), &mut ui, &mut ctx, &mut p, &mut server);
         let id = host.tile.unwrap();
@@ -1062,7 +1062,7 @@ mod tests {
         let d = *ui.get_render_view(PREVIEW).unwrap().dim();
         let at = ((d.y + d.height / 2) as usize * 1200 + (d.x + d.width / 2) as usize) * 4;
         assert!(pixels[at..at + 3].iter().any(|c| *c > 100));
-        let face = &p.get_map(&server).unwrap().geometry_objects[0].faces[0];
+        let face = &p.get_map(&server.shared).unwrap().geometry_objects[0].faces[0];
         assert_eq!(face.tile, Some(PixelSource::TileId(grass)));
         assert_eq!(face.tiles.get(&(1, 0)), Some(&PixelSource::TileId(road)));
         assert_eq!(face.tiles.get(&(0, 0)), Some(&PixelSource::TileId(id)));

@@ -265,12 +265,12 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
     });
     let id = tile.id;
     project.tiles.insert(id, tile.clone());
-    let mut server = ServerContext::new();
-    server.editing_ctx = PixelEditingContext::Tile(id, 0);
+    let mut server = CreatorContext::new();
+    server.shared.editing_ctx = PixelEditingContext::Tile(id, 0);
     #[cfg(feature = "native-render")]
-    TilesEditorDock::check_native_image_clipboard_for_test(&project, server.editing_ctx);
+    TilesEditorDock::check_native_image_clipboard_for_test(&project, server.shared.editing_ctx);
     let mut region = Region::new();
-    server.curr_region = region.id;
+    server.shared.curr_region = region.id;
     region.map.camera = MapCamera::TwoDIso;
     project.regions.push(region);
     let mut character = shared::character::Character::new();
@@ -306,7 +306,7 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
     let mut sources = Sources::default();
     let mut cases = Vec::new();
     for frame in 0..2 {
-        server.animation_counter = frame;
+        server.shared.animation_counter = frame;
         for (label, size, dock) in [
             (
                 "minimap pixel editor",
@@ -334,10 +334,10 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
                 Box::new(DataEditorDock::new()) as Box<dyn Dock>,
             ),
         ] {
-            server.pc = if label.starts_with("minimap rig") {
+            server.shared.pc = if label.starts_with("minimap rig") {
                 ProjectContext::CharacterPreviewRigging(rig_id)
             } else {
-                ProjectContext::Region(server.curr_region)
+                ProjectContext::Region(server.shared.curr_region)
             };
             let source = dock
                 .native_minimap_source(size, &project, &server, &mut sources)
@@ -412,7 +412,7 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
     // remain immutable while the editor's next frame uses the new revision.
     project.tiles.get_mut(&id).unwrap().textures[0].data[0..4]
         .copy_from_slice(&[255, 80, 120, 255]);
-    server.animation_counter = 0;
+    server.shared.animation_counter = 0;
     let size = Vec2::new(143, 83);
     let dock = TilesEditorDock::native_minimap_fixture();
     let source = dock

@@ -1149,8 +1149,8 @@ impl Action for BuildProcedural {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.pc.is_region() && server_ctx.editor_view_mode == EditorViewMode::D2
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.pc.is_region() && server_ctx.shared.editor_view_mode == EditorViewMode::D2
     }
 
     fn apply_project(
@@ -1158,9 +1158,9 @@ impl Action for BuildProcedural {
         project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
-        let Some(region_id) = server_ctx.pc.id() else {
+        let Some(region_id) = server_ctx.shared.pc.id() else {
             return;
         };
         let Some(region) = project.get_region(&region_id) else {
@@ -1209,7 +1209,7 @@ impl Action for BuildProcedural {
             || old_map.sectors != new_map.sectors;
         if map_changed {
             server_ctx.history.write().add_undo(
-                ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(old_map), Box::new(new_map)),
+                ProjectUndoAtom::MapEdit(server_ctx.shared.pc, Box::new(old_map), Box::new(new_map)),
                 ctx,
             );
         }
@@ -1231,7 +1231,7 @@ impl Action for BuildProcedural {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

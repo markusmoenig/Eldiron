@@ -66,9 +66,9 @@ impl Action for IsoCamera {
         Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '5'))
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
         // server_ctx.editor_view_mode != EditorViewMode::Iso &&
-        server_ctx.get_map_context() == MapContext::Region
+        server_ctx.shared.get_map_context() == MapContext::Region
     }
 
     fn apply(
@@ -76,7 +76,7 @@ impl Action for IsoCamera {
         _map: &mut Map,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let azimuth = self.nodeui.get_f32_value("actionIsoAzimuth").unwrap_or(0.0);
 
@@ -99,7 +99,7 @@ impl Action for IsoCamera {
             .iso_camera
             .set_parameter_f32("scale", scale);
 
-        server_ctx.editing_surface = None;
+        server_ctx.shared.editing_surface = None;
         ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(3));
         ctx.ui.send(TheEvent::IndexChanged(
             TheId::named("Editor View Switch"),
@@ -114,7 +114,7 @@ impl Action for IsoCamera {
         project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         server_ctx.tools.write()
             .update_geometry_overlay_3d(project, server_ctx);
@@ -130,7 +130,7 @@ impl Action for IsoCamera {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

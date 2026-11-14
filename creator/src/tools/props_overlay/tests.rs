@@ -1,19 +1,19 @@
 use super::*;
 use crate::hud::HudColors;
-fn fixture(kind: usize) -> (PropsOverlay, ServerContext) {
-    let mut server = ServerContext::default();
+fn fixture(kind: usize) -> (PropsOverlay, CreatorContext) {
+    let mut server = CreatorContext::default();
     server.hud_colors = HudColors::from_theme(&TheBlackBlueTheme::new());
-    server.editor_view_mode = EditorViewMode::Orbit;
-    server.curr_block_asset_id = Some(if kind == 0 {
+    server.shared.editor_view_mode = EditorViewMode::Orbit;
+    server.shared.curr_block_asset_id = Some(if kind == 0 {
         crate::blocks::block_assets()[0].id
     } else {
         Uuid::from_u128(91)
     });
-    server.curr_block_asset_name = Some("Retained Props Source".into());
-    server.block_operation = kind as i32 % 3;
-    server.block_stroke_mode = kind as i32 % 2;
-    server.block_rotation_quarters = 3;
-    server.block_damage_enabled = true;
+    server.shared.curr_block_asset_name = Some("Retained Props Source".into());
+    server.shared.block_operation = kind as i32 % 3;
+    server.shared.block_stroke_mode = kind as i32 % 2;
+    server.shared.block_rotation_quarters = 3;
+    server.shared.block_damage_enabled = true;
     let mut overlay = PropsOverlay {
         builtin: kind == 0,
         deletable: kind == 1,
@@ -80,7 +80,7 @@ fn acknowledge(
     frame: &PanelFrame<PropsSource, Action>,
     scope: PanelScope,
     size: (usize, usize),
-    server: &ServerContext,
+    server: &CreatorContext,
 ) -> bool {
     #[cfg(feature = "native-ui")]
     {
@@ -110,7 +110,7 @@ fn props_panel_preparation_stages_actions_and_requires_current_document_asset_an
         matches!(overlay.hit_test(scope, size, point, &server), PanelHit::Inside(Some((_, Action::Event(TheEvent::IndexChanged(id,0))))) if id.name == "Blocks Dock Operation")
     );
     let old = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
-    server.curr_block_asset_id = Some(Uuid::new_v4());
+    server.shared.curr_block_asset_id = Some(Uuid::new_v4());
     assert!(matches!(
         overlay.hit_test(scope, size, point, &server),
         PanelHit::Unavailable
@@ -118,12 +118,12 @@ fn props_panel_preparation_stages_actions_and_requires_current_document_asset_an
     assert!(!acknowledge(&mut overlay, &old, scope, size, &server));
     let selected = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
     assert!(acknowledge(&mut overlay, &selected, scope, size, &server));
-    server.block_rotation_quarters += 1;
+    server.shared.block_rotation_quarters += 1;
     assert!(matches!(
         overlay.hit_test(scope, size, point, &server),
         PanelHit::Unavailable
     ));
-    server.block_rotation_quarters -= 1;
+    server.shared.block_rotation_quarters -= 1;
     overlay.recipe.as_mut().unwrap().1[0].control.value += 1.;
     assert!(matches!(
         overlay.hit_test(scope, size, point, &server),
@@ -164,14 +164,14 @@ fn props_panel_preparation_stages_actions_and_requires_current_document_asset_an
         (300, 360),
         &server
     ));
-    server.editor_view_mode = EditorViewMode::D2;
+    server.shared.editor_view_mode = EditorViewMode::D2;
     let hidden = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
     assert!(hidden.commands.is_empty());
     assert!(matches!(
         overlay.hit_test(scope, size, point, &server),
         PanelHit::Unavailable
     ));
-    server.editor_view_mode = EditorViewMode::Orbit;
+    server.shared.editor_view_mode = EditorViewMode::Orbit;
     let resumed = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
     overlay.invalidate_frame();
     assert!(!acknowledge(&mut overlay, &resumed, scope, size, &server));
@@ -207,7 +207,7 @@ fn reference_props_panel_dispatches_existing_actions_and_consumes_stale_captured
         &mut ctx,
         &server
     ));
-    server.curr_block_asset_id = Some(Uuid::new_v4());
+    server.shared.curr_block_asset_id = Some(Uuid::new_v4());
     assert!(overlay.map_event(
         &MapEvent::MapClicked(Vec2::new(30, 70)),
         &mut ui,
@@ -227,7 +227,7 @@ fn reference_props_panel_dispatches_existing_actions_and_consumes_stale_captured
         &mut ctx,
         &server
     ));
-    server.editor_view_mode = EditorViewMode::D2;
+    server.shared.editor_view_mode = EditorViewMode::D2;
     overlay.draw(&mut buffer, &mut ctx, &server);
     assert!(!overlay.bounds.is_valid());
 }
@@ -343,7 +343,7 @@ fn props_panel_native_routing_preserves_events_and_blocks_unpresented_or_changed
     assert!(
         matches!(rx.try_recv(), Ok(TheEvent::IndexChanged(id,0)) if id.name == "Blocks Dock Operation")
     );
-    server.curr_block_asset_id = Some(Uuid::new_v4());
+    server.shared.curr_block_asset_id = Some(Uuid::new_v4());
     assert_eq!(
         overlay.route_map_event(
             scope,

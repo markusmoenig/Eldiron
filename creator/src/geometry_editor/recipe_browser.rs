@@ -691,7 +691,7 @@ mod tests {
             None,
             Some(project.procedural_appearances[&id].clone()),
         );
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         atom.undo(&mut project, &mut ui, &mut ctx, &mut server);
         assert!(!project.procedural_appearances.contains_key(&id));
         atom.redo(&mut project, &mut ui, &mut ctx, &mut server);

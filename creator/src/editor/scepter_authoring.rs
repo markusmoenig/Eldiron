@@ -203,7 +203,7 @@ impl Editor {
                         self.documents.project
                             .regions
                             .iter()
-                            .position(|r| r.id == self.server_ctx.curr_region)
+                            .position(|r| r.id == self.server_ctx.shared.curr_region)
                             .ok_or("Select a region")?
                     };
                     let map = &self.documents.project.regions[index].map;
@@ -223,7 +223,7 @@ impl Editor {
                         self.documents.project
                             .regions
                             .iter()
-                            .position(|r| r.id == self.server_ctx.curr_region)
+                            .position(|r| r.id == self.server_ctx.shared.curr_region)
                             .ok_or("Select a region")?
                     };
                     json!({"region":self.documents.project.regions[i].id,"characters":self.documents.project.regions[i].characters.values().collect::<Vec<_>>(),"items":self.documents.project.regions[i].items.values().collect::<Vec<_>>()})
@@ -427,7 +427,7 @@ impl Editor {
             || self.documents.project.tiles.len() != staged.tiles.len();
         let old = std::mem::replace(&mut self.documents.project, staged);
         crate::undo::project_helper::refresh_region_tree_diff(ui, &old, &self.documents.project);
-        let missing_selection = match self.server_ctx.pc {
+        let missing_selection = match self.server_ctx.shared.pc {
             ProjectContext::RegionCharacterInstance(region, id) => self
                 .documents.project
                 .regions
@@ -443,7 +443,7 @@ impl Editor {
             _ => false,
         };
         if missing_selection {
-            let region = self.server_ctx.curr_region;
+            let region = self.server_ctx.shared.curr_region;
             crate::undo::project_helper::set_project_context(
                 ctx,
                 ui,

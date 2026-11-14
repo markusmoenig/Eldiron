@@ -61,7 +61,7 @@ impl Action for EditLinedef {
         None
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &CreatorContext) -> bool {
         !map.selected_linedefs.is_empty()
     }
 
@@ -81,7 +81,7 @@ impl Action for EditLinedef {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         if let Err(error) = terrain_material::validate(&self.nodeui, &server_ctx.reference) {
             _ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
@@ -101,7 +101,7 @@ impl Action for EditLinedef {
                     linedef.name = name.clone();
                     changed = true;
                 }
-                if server_ctx.pc.is_region() {
+                if server_ctx.shared.pc.is_region() {
                     changed |=
                         shape_terrain::apply(&self.nodeui, &mut linedef.properties, Kind::Line);
                     changed |=
@@ -111,7 +111,7 @@ impl Action for EditLinedef {
         }
 
         if changed {
-            if server_ctx.pc.is_region()
+            if server_ctx.shared.pc.is_region()
                 && (self
                     .nodeui
                     .get_bool_value("terrainEnabled")
@@ -122,7 +122,7 @@ impl Action for EditLinedef {
             }
             map.changed = map.changed.wrapping_add(1);
             Some(ProjectUndoAtom::MapEdit(
-                server_ctx.pc,
+                server_ctx.shared.pc,
                 Box::new(prev),
                 Box::new(map.clone()),
             ))
@@ -134,23 +134,23 @@ impl Action for EditLinedef {
     fn hud_material_slots(
         &self,
         _map: &Map,
-        _server: &ServerContext,
+        _server: &CreatorContext,
     ) -> Option<Vec<super::ActionMaterialSlot>> {
         _server
-            .pc
+            .shared.pc
             .is_region()
             .then(|| terrain_material::slots(&self.nodeui, Kind::Line, &_server.reference))
     }
     fn set_hud_material_source(
         &mut self,
         _map: &Map,
-        _server: &ServerContext,
+        _server: &CreatorContext,
         slot: i32,
         source: rusterix::PixelSource,
     ) -> bool {
         terrain_material::set_slot(&mut self.nodeui, slot, Some(source), Kind::Line)
     }
-    fn clear_hud_material_slot(&mut self, _map: &Map, _server: &ServerContext, slot: i32) -> bool {
+    fn clear_hud_material_slot(&mut self, _map: &Map, _server: &CreatorContext, slot: i32) -> bool {
         terrain_material::set_slot(&mut self.nodeui, slot, None, Kind::Line)
     }
     fn preserves_hud_material_slots(&self) -> bool {
@@ -167,7 +167,7 @@ impl Action for EditLinedef {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

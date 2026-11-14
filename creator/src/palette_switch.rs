@@ -116,7 +116,7 @@ impl PaletteSwitchController {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         if let TheEvent::ValueChanged(id, _) = event {
             if id.name == "Dialog Value" && ui.dialog_text == "Load Lospec Palette" {
@@ -513,7 +513,7 @@ mod tests {
         };
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(800, 600, 1.);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         assert!(controller.handle_event(
             &TheEvent::DialogValueOnClose(
                 TheDialogButtonRole::Reject,
@@ -555,7 +555,7 @@ mod tests {
         let mut controller = PaletteSwitchController::default();
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(800, 600, 1.);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         assert!(controller.handle_event(
             &TheEvent::Custom(
                 TheId::named("Preview Palette Switch"),

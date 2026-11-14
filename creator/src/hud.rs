@@ -50,7 +50,7 @@ impl HudColors {
     }
 }
 
-pub(crate) fn colors(server: &ServerContext) -> HudColors {
+pub(crate) fn colors(server: &CreatorContext) -> HudColors {
     server.hud_colors
 }
 
@@ -60,7 +60,7 @@ pub(crate) struct HudStyle {
     pub(crate) geometry_labels: [String; 2],
 }
 impl HudStyle {
-    pub(crate) fn current(server: &ServerContext) -> Self {
+    pub(crate) fn current(server: &CreatorContext) -> Self {
         Self {
             colors: colors(server),
             geometry_labels: [fl!("hud_geometry_op_move"), fl!("hud_geometry_op_size")],
@@ -79,7 +79,7 @@ pub(crate) struct HudImageSource<'a> {
 #[derive(Clone, Copy)]
 pub(crate) struct HudInputs<'a> {
     pub(crate) map: &'a Map,
-    pub(crate) server: &'a ServerContext,
+    pub(crate) server: &'a CreatorContext,
     pub(crate) assets: &'a Assets,
     pub(crate) selected_id: Option<u32>,
     pub(crate) material_slots: Option<&'a [ActionMaterialSlot]>,
@@ -148,7 +148,7 @@ impl Hud {
         buffer: &mut TheRGBABuffer,
         map: &Map,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) {
         let help = crate::mapeditor::geometry_selection_status_text(map, server_ctx);
         let size = (
@@ -191,13 +191,13 @@ impl Hud {
         &self,
         map: &Map,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<Vec<ActionMaterialSlot>> {
-        if server_ctx.get_map_context() != MapContext::Region {
+        if server_ctx.shared.get_map_context() != MapContext::Region {
             return None;
         }
 
-        if let Some(action_id) = server_ctx.curr_action_id
+        if let Some(action_id) = server_ctx.shared.curr_action_id
             && let Some(action) = server_ctx.actions.read().get_action_by_id(action_id)
         {
             if let Some(slots) = action.hud_material_slots(map, server_ctx) {
@@ -216,9 +216,9 @@ impl Hud {
         &self,
         map: &Map,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<Vec<ActionMaterialSlot>> {
-        if !server_ctx.palette_tool_active {
+        if !server_ctx.shared.palette_tool_active {
             return None;
         }
         crate::actions::named_geometry_hud_material_slots_for_selection(map)
@@ -443,13 +443,13 @@ impl Hud {
         (length > 0.0).then_some(length)
     }
 
-    fn geometry_length_readout(map: &Map, server_ctx: &ServerContext) -> Option<f32> {
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+    fn geometry_length_readout(map: &Map, server_ctx: &CreatorContext) -> Option<f32> {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
             return None;
         }
-        if matches!(server_ctx.curr_map_tool_type, MapToolType::Linedef)
+        if matches!(server_ctx.shared.curr_map_tool_type, MapToolType::Linedef)
             && let Some(start) = map.curr_grid_pos_3d
-            && let Some(end) = server_ctx.hover_cursor_3d
+            && let Some(end) = server_ctx.shared.hover_cursor_3d
         {
             let length = (end - start).magnitude();
             if length > 0.0 {
@@ -491,7 +491,7 @@ impl Hud {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         id: Option<u32>,
         assets: &Assets,
     ) {
@@ -518,7 +518,7 @@ impl Hud {
         size: (usize, usize),
         map: &Map,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         id: Option<u32>,
         assets: &Assets,
         style: &HudStyle,
@@ -587,7 +587,7 @@ impl Hud {
         let icon_size = 40;
         let mut icons = 0;
 
-        if server_ctx.get_map_context() == MapContext::Region {
+        if server_ctx.shared.get_map_context() == MapContext::Region {
             icons = if let Some(slots) = &action_material_slots {
                 slots.len() as i32
             } else if self.mode == HudMode::Vertex {
@@ -597,7 +597,7 @@ impl Hud {
             } else {
                 1
             };
-        } else if server_ctx.get_map_context() == MapContext::Screen {
+        } else if server_ctx.shared.get_map_context() == MapContext::Screen {
             icons = if self.mode == HudMode::Sector { 2 } else { 0 };
         }
 
@@ -612,8 +612,8 @@ impl Hud {
         paint.rect(&(0, 0, width, info_height), &bg_color);
         paint.rect(&(0, info_height - 1, width, 1), &colors.border);
 
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
-            if let Some(v) = server_ctx.hover_cursor {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
+            if let Some(v) = server_ctx.shared.hover_cursor {
                 paint.rect(&(8, 2, 150, 16), &panel_color);
                 paint.text(
                     &(10, 2),
@@ -630,8 +630,8 @@ impl Hud {
             if let Some((snapped, coord_color)) = Self::selected_geometry_coord(map)
                 .map(|coord| (coord, sel_text_color))
                 .or_else(|| {
-                    server_ctx.hover_cursor_3d.map(|v| {
-                        let mut snapped = server_ctx.snap_world_point_for_edit(map, v);
+                    server_ctx.shared.hover_cursor_3d.map(|v| {
+                        let mut snapped = server_ctx.shared.snap_world_point_for_edit(map, v);
                         snapped.y = v.y;
                         (snapped, text_color)
                     })
@@ -683,7 +683,7 @@ impl Hud {
             }
         }
 
-        if let Some(v) = &server_ctx.background_progress {
+        if let Some(v) = &server_ctx.shared.background_progress {
             paint.text(
                 &(550, 2),
                 v,
@@ -699,7 +699,7 @@ impl Hud {
         // Icons
 
         let selected_icon_index = if icons > 0 {
-            server_ctx.selected_hud_icon_index.clamp(0, icons - 1)
+            server_ctx.shared.selected_hud_icon_index.clamp(0, icons - 1)
         } else {
             0
         };
@@ -769,12 +769,12 @@ impl Hud {
 
         // Show Subdivs
         if (matches!(map.camera, MapCamera::TwoD | MapCamera::TwoDIso)
-            || server_ctx.get_map_context() == MapContext::Screen
-            || server_ctx.editor_view_mode != EditorViewMode::D2)
+            || server_ctx.shared.get_map_context() == MapContext::Screen
+            || server_ctx.shared.editor_view_mode != EditorViewMode::D2)
             && self.mode != HudMode::Terrain
             && self.mode != HudMode::Rect
         {
-            let x = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+            let x = if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                 185
             } else {
                 215
@@ -837,8 +837,8 @@ impl Hud {
                 layout.subdivisions.push(rect);
             }
 
-            if server_ctx.editor_view_mode != EditorViewMode::D2
-                && server_ctx.get_map_context() == MapContext::Region
+            if server_ctx.shared.editor_view_mode != EditorViewMode::D2
+                && server_ctx.shared.get_map_context() == MapContext::Region
             {
                 let rect = TheDim::rect(
                     x + (Self::GRID_SUBDIVISIONS.len() as i32 * size) + 6,
@@ -864,8 +864,8 @@ impl Hud {
 
         layout.edit_modes.clear();
         if self.mode == HudMode::Selection
-            && server_ctx.editor_view_mode != EditorViewMode::D2
-            && server_ctx.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
+            && server_ctx.shared.get_map_context() == MapContext::Region
         {
             let labels = &style.geometry_labels;
             let modes = [GeometryGizmoOp::Move, GeometryGizmoOp::Resize];
@@ -874,7 +874,7 @@ impl Hud {
 
             for i in 0..2 {
                 let rect = TheDim::rect(start_x + (i as i32 * (button_w + 4)), 0, button_w, 20);
-                let active = server_ctx.geometry_gizmo_op == modes[i];
+                let active = server_ctx.shared.geometry_gizmo_op == modes[i];
                 let fg = if active { sel_text_color } else { text_color };
                 let inner = if active { colors.selected } else { panel_color };
 
@@ -918,7 +918,7 @@ impl Hud {
 
         // Terrain: Height
         if self.mode == HudMode::Terrain {
-            if let Some(v) = server_ctx.hover_height {
+            if let Some(v) = server_ctx.shared.hover_height {
                 paint.text(
                     &(150, 2),
                     &format!("Elevation {v:.2}"),
@@ -934,8 +934,8 @@ impl Hud {
 
         // Preview
 
-        if server_ctx.get_map_context() == MapContext::Character
-            || server_ctx.get_map_context() == MapContext::Item
+        if server_ctx.shared.get_map_context() == MapContext::Character
+            || server_ctx.shared.get_map_context() == MapContext::Item
         {
             if let Some(Value::Texture(texture)) = map.properties.get("shape") {
                 let w = texture.width as i32;
@@ -973,7 +973,7 @@ impl Hud {
         map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         if self.native_input {
             return false;
@@ -987,10 +987,10 @@ impl Hud {
             self.invalidate_frame();
             return consumed;
         }
-        if server_ctx.get_map_context() != MapContext::Region
-            && server_ctx.get_map_context() != MapContext::Screen
-            && server_ctx.get_map_context() != MapContext::Character
-            && server_ctx.get_map_context() != MapContext::Item
+        if server_ctx.shared.get_map_context() != MapContext::Region
+            && server_ctx.shared.get_map_context() != MapContext::Screen
+            && server_ctx.shared.get_map_context() != MapContext::Character
+            && server_ctx.shared.get_map_context() != MapContext::Item
         {
             return false;
         }
@@ -1010,7 +1010,7 @@ impl Hud {
         _map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         /*
         if self.timeline_rect.contains(Vec2::new(x, y)) {
@@ -1040,7 +1040,7 @@ impl Hud {
         _map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.mouse_pos = Vec2::new(x, y);
 
@@ -1066,7 +1066,7 @@ impl Hud {
         map: &mut Map,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         if self.native_input {
             return false;
@@ -1093,7 +1093,7 @@ impl Hud {
         &self,
         index: i32,
         map: &Map,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         action_material_slots: Option<&[ActionMaterialSlot]>,
     ) -> String {
         let mut text: String = "".into();
@@ -1103,13 +1103,13 @@ impl Hud {
                 return slot.label.clone();
             }
         }
-        if server_ctx.get_map_context() == MapContext::Region {
+        if server_ctx.shared.get_map_context() == MapContext::Region {
             if self.mode == HudMode::Sector || Self::has_selected_geometry_surface(map) {
                 if index == 0 {
                     text = "TILE".into();
                 }
             }
-        } else if server_ctx.get_map_context() == MapContext::Screen {
+        } else if server_ctx.shared.get_map_context() == MapContext::Screen {
             if index == 0 {
                 text = "NORM".into();
             } else if index == 1 {
@@ -1264,8 +1264,8 @@ mod tests {
     fn iso_geometry_tools_show_and_apply_the_shared_subdivision_toolbar() {
         let mut map = Map::default();
         map.camera = MapCamera::TwoDIso;
-        let mut server = ServerContext::default();
-        server.editor_view_mode = EditorViewMode::D2;
+        let mut server = CreatorContext::default();
+        server.shared.editor_view_mode = EditorViewMode::D2;
         let mut ctx = TheContext::new(900, 500, 1.);
         let mut ui = TheUI::new();
         let mut buffer = TheRGBABuffer::new(TheDim::sized(900, 500));
@@ -1346,10 +1346,10 @@ mod tests {
     fn geometry_length_readout_uses_active_3d_surface_line() {
         let mut map = Map::new();
         map.curr_grid_pos_3d = Some(Vec3::new(0.0, 0.0, 0.0));
-        let mut server_ctx = ServerContext::new();
-        server_ctx.editor_view_mode = EditorViewMode::Orbit;
-        server_ctx.curr_map_tool_type = MapToolType::Linedef;
-        server_ctx.hover_cursor_3d = Some(Vec3::new(3.0, 4.0, 0.0));
+        let mut server_ctx = CreatorContext::new();
+        server_ctx.shared.editor_view_mode = EditorViewMode::Orbit;
+        server_ctx.shared.curr_map_tool_type = MapToolType::Linedef;
+        server_ctx.shared.hover_cursor_3d = Some(Vec3::new(3.0, 4.0, 0.0));
 
         assert_eq!(Hud::geometry_length_readout(&map, &server_ctx), Some(5.0));
     }
@@ -1358,8 +1358,8 @@ mod tests {
     fn geometry_length_readout_is_hidden_in_2d_mode() {
         let (mut map, object_id) = box_map();
         map.selected_geometry_vertices = vec![(object_id, 0), (object_id, 1)];
-        let mut server_ctx = ServerContext::new();
-        server_ctx.editor_view_mode = EditorViewMode::D2;
+        let mut server_ctx = CreatorContext::new();
+        server_ctx.shared.editor_view_mode = EditorViewMode::D2;
 
         assert_eq!(Hud::geometry_length_readout(&map, &server_ctx), None);
     }

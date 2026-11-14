@@ -86,21 +86,21 @@ impl Editor {
         }
     }
     pub(super) fn native_world_geometry_config(&self) -> String {
-        if self.server_ctx.editor_view_mode == EditorViewMode::D2
+        if self.server_ctx.shared.editor_view_mode == EditorViewMode::D2
             || !scope::uses_region(&self.server_ctx)
         {
             return String::new();
         }
         self.documents
             .project
-            .get_region_ctx(&self.server_ctx)
+            .get_region_ctx(&self.server_ctx.shared)
             .map(|region| region.config.clone())
             .unwrap_or_default()
     }
     /// Shared CPU projection policy for authored and pending-paste sources.
     /// Keep editor-only placement/config filtering out of serialized maps.
     pub(super) fn project_native_world_geometry(&self, map: &mut Map) {
-        if self.server_ctx.editor_view_mode != EditorViewMode::D2
+        if self.server_ctx.shared.editor_view_mode != EditorViewMode::D2
             && scope::uses_region(&self.server_ctx)
         {
             crate::utils::filter_iso_placements_for_3d(map, &self.documents.project.tiles);
@@ -129,11 +129,11 @@ impl Editor {
                 .play_session
                 .as_ref()
                 .map(|play| play.pump().session_id()),
-            context: self.server_ctx.pc,
+            context: self.server_ctx.shared.pc,
             map: map.id,
             changed: map.changed,
             camera: map.camera,
-            three_d: self.server_ctx.editor_view_mode != EditorViewMode::D2,
+            three_d: self.server_ctx.shared.editor_view_mode != EditorViewMode::D2,
             custom: custom::Description::current(map, &self.server_ctx).is_some(),
             config: self.native_world_geometry_config(),
             assets: self.native_world_asset_key(assets),

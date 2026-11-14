@@ -259,9 +259,9 @@ impl Action for EditFaceParticles {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
             && !map.selected_geometry_faces.is_empty()
     }
 
@@ -307,9 +307,9 @@ impl Action for EditFaceParticles {
         }
     }
 
-    fn load_params_project(&mut self, project: &Project, server_ctx: &mut ServerContext) {
+    fn load_params_project(&mut self, project: &Project, server_ctx: &mut CreatorContext) {
         let settings = project
-            .get_map(server_ctx)
+            .get_map(&server_ctx.shared)
             .and_then(|map| {
                 Self::selected_surface_ids(map)
                     .first()
@@ -348,7 +348,7 @@ impl Action for EditFaceParticles {
         map: &mut Map,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let previous = map.clone();
         let (enabled, settings) = self.values();
@@ -359,7 +359,7 @@ impl Action for EditFaceParticles {
         server_ctx.reference.write().set_dirty();
         server_ctx.reference.write().set_overlay_dirty();
         Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
+            server_ctx.shared.pc,
             Box::new(previous),
             Box::new(map.clone()),
         ))
@@ -375,7 +375,7 @@ impl Action for EditFaceParticles {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

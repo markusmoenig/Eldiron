@@ -461,17 +461,17 @@ pub trait Action: Send + Sync {
         None
     }
 
-    fn is_applicable(&self, map: &Map, ctx: &mut TheContext, server_ctx: &ServerContext) -> bool;
+    fn is_applicable(&self, map: &Map, ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool;
 
     fn load_params(&mut self, map: &Map) {}
-    fn load_params_project(&mut self, project: &Project, server_ctx: &mut ServerContext) {}
+    fn load_params_project(&mut self, project: &Project, server_ctx: &mut CreatorContext) {}
 
     fn apply(
         &self,
         map: &mut Map,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         None
     }
@@ -481,14 +481,14 @@ pub trait Action: Send + Sync {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
     }
 
     fn hud_material_slots(
         &self,
         _map: &Map,
-        _server_ctx: &ServerContext,
+        _server_ctx: &CreatorContext,
     ) -> Option<Vec<ActionMaterialSlot>> {
         None
     }
@@ -496,7 +496,7 @@ pub trait Action: Send + Sync {
     fn set_hud_material_from_tile(
         &mut self,
         map: &Map,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         _slot_index: i32,
         tile_id: Uuid,
     ) -> bool {
@@ -506,7 +506,7 @@ pub trait Action: Send + Sync {
     fn set_hud_material_source(
         &mut self,
         _map: &Map,
-        _server_ctx: &ServerContext,
+        _server_ctx: &CreatorContext,
         _slot_index: i32,
         _source: PixelSource,
     ) -> bool {
@@ -516,7 +516,7 @@ pub trait Action: Send + Sync {
     fn clear_hud_material_slot(
         &mut self,
         _map: &Map,
-        _server_ctx: &ServerContext,
+        _server_ctx: &CreatorContext,
         _slot_index: i32,
     ) -> bool {
         false
@@ -529,7 +529,7 @@ pub trait Action: Send + Sync {
     fn minimap_preview_segments(
         &self,
         _map: &Map,
-        _server_ctx: &ServerContext,
+        _server_ctx: &CreatorContext,
     ) -> Vec<ActionMinimapSegment> {
         Vec::new()
     }
@@ -560,7 +560,7 @@ pub trait Action: Send + Sync {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool;
 }
 

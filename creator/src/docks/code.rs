@@ -72,17 +72,17 @@ impl Dock for CodeDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
-        if server_ctx.pc.is_world_code() {
+        if server_ctx.shared.pc.is_world_code() {
             ui.set_widget_value(
                 "DockCodeEditor",
                 ctx,
                 TheValue::Text(project.world_source.clone()),
             );
             self.switch_to_entity(EntityKey::World, ctx);
-        } else if let Some(region_id) = server_ctx.pc.id() {
-            if server_ctx.pc.is_region_code() {
+        } else if let Some(region_id) = server_ctx.shared.pc.id() {
+            if server_ctx.shared.pc.is_region_code() {
                 if let Some(region) = project.get_region(&region_id) {
                     ui.set_widget_value(
                         "DockCodeEditor",
@@ -91,7 +91,7 @@ impl Dock for CodeDock {
                     );
                     self.switch_to_entity(EntityKey::Region(region_id), ctx);
                 }
-            } else if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
+            } else if let Some(instance_id) = server_ctx.shared.pc.get_region_character_instance_id() {
                 if let Some(region) = project.get_region(&region_id)
                     && let Some(character_instance) = region.characters.get(&instance_id)
                 {
@@ -105,7 +105,7 @@ impl Dock for CodeDock {
                         ctx,
                     );
                 }
-            } else if let Some(instance_id) = server_ctx.pc.get_region_item_instance_id() {
+            } else if let Some(instance_id) = server_ctx.shared.pc.get_region_item_instance_id() {
                 if let Some(region) = project.get_region(&region_id)
                     && let Some(item_instance) = region.items.get(&instance_id)
                 {
@@ -116,7 +116,7 @@ impl Dock for CodeDock {
                     );
                     self.switch_to_entity(EntityKey::ItemInstance(region_id, instance_id), ctx);
                 }
-            } else if server_ctx.pc.is_character() {
+            } else if server_ctx.shared.pc.is_character() {
                 let id = region_id;
                 if let Some(character) = project.characters.get(&id) {
                     ui.set_widget_value(
@@ -127,7 +127,7 @@ impl Dock for CodeDock {
                     // Switch to this entity's undo stack
                     self.switch_to_entity(EntityKey::Character(id), ctx);
                 }
-            } else if server_ctx.pc.is_item() {
+            } else if server_ctx.shared.pc.is_item() {
                 let id = region_id;
                 if let Some(item) = project.items.get(&id) {
                     ui.set_widget_value("DockCodeEditor", ctx, TheValue::Text(item.source.clone()));
@@ -149,7 +149,7 @@ impl Dock for CodeDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let mut redraw = false;
 
@@ -166,14 +166,14 @@ impl Dock for CodeDock {
                         }
                     }
 
-                    if server_ctx.pc.is_world_code() {
+                    if server_ctx.shared.pc.is_world_code() {
                         if let Some(code) = value.to_string() {
                             project.world_source = code.clone();
                             project.world_source_debug = code;
                             redraw = true;
                         }
-                    } else if let Some(id) = server_ctx.pc.id() {
-                        if server_ctx.pc.is_region_code() {
+                    } else if let Some(id) = server_ctx.shared.pc.id() {
+                        if server_ctx.shared.pc.is_region_code() {
                             if let Some(code) = value.to_string()
                                 && let Some(region) = project.get_region_mut(&id)
                             {
@@ -182,7 +182,7 @@ impl Dock for CodeDock {
                                 redraw = true;
                             }
                         } else if let Some(instance_id) =
-                            server_ctx.pc.get_region_character_instance_id()
+                            server_ctx.shared.pc.get_region_character_instance_id()
                         {
                             if let Some(code) = value.to_string()
                                 && let Some(region) = project.get_region_mut(&id)
@@ -193,7 +193,7 @@ impl Dock for CodeDock {
                                 redraw = true;
                             }
                         } else if let Some(instance_id) =
-                            server_ctx.pc.get_region_item_instance_id()
+                            server_ctx.shared.pc.get_region_item_instance_id()
                         {
                             if let Some(code) = value.to_string()
                                 && let Some(region) = project.get_region_mut(&id)
@@ -203,7 +203,7 @@ impl Dock for CodeDock {
                                 item.source_debug = code;
                                 redraw = true;
                             }
-                        } else if server_ctx.pc.is_character() {
+                        } else if server_ctx.shared.pc.is_character() {
                             if let Some(code) = value.to_string() {
                                 if let Some(character) = project.characters.get_mut(&id) {
                                     character.source = code.clone();
@@ -211,7 +211,7 @@ impl Dock for CodeDock {
                                     redraw = true;
                                 }
                             }
-                        } else if server_ctx.pc.is_item() {
+                        } else if server_ctx.shared.pc.is_item() {
                             if let Some(code) = value.to_string() {
                                 if let Some(item) = project.items.get_mut(&id) {
                                     item.source = code.clone();
@@ -233,7 +233,7 @@ impl Dock for CodeDock {
         ui: &mut TheUI,
         _ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         debug: &EldrinDebugModule,
     ) {
         let Some(target) = self.runtime_debug_target(project, server_ctx) else {
@@ -278,7 +278,7 @@ impl Dock for CodeDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if let Some(entity_key) = self.current_entity {
             if let Some(undo) = self.entity_undos.get_mut(&entity_key) {
@@ -299,7 +299,7 @@ impl Dock for CodeDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if let Some(entity_key) = self.current_entity {
             if let Some(undo) = self.entity_undos.get_mut(&entity_key) {
@@ -364,41 +364,41 @@ impl CodeDock {
         &mut self,
         ui: &mut TheUI,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if let Some(edit) = ui.get_text_area_edit("DockCodeEditor") {
             let state = edit.get_state();
             let text = state.rows.join("\n");
 
-            if server_ctx.pc.is_world_code() {
+            if server_ctx.shared.pc.is_world_code() {
                 project.world_source = text.clone();
                 project.world_source_debug = text;
-            } else if let Some(id) = server_ctx.pc.id() {
-                if server_ctx.pc.is_region_code() {
+            } else if let Some(id) = server_ctx.shared.pc.id() {
+                if server_ctx.shared.pc.is_region_code() {
                     if let Some(region) = project.get_region_mut(&id) {
                         region.source = text.clone();
                         region.source_debug = text;
                     }
-                } else if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
+                } else if let Some(instance_id) = server_ctx.shared.pc.get_region_character_instance_id() {
                     if let Some(region) = project.get_region_mut(&id)
                         && let Some(character) = region.characters.get_mut(&instance_id)
                     {
                         character.source = text.clone();
                         character.source_debug = text;
                     }
-                } else if let Some(instance_id) = server_ctx.pc.get_region_item_instance_id() {
+                } else if let Some(instance_id) = server_ctx.shared.pc.get_region_item_instance_id() {
                     if let Some(region) = project.get_region_mut(&id)
                         && let Some(item) = region.items.get_mut(&instance_id)
                     {
                         item.source = text.clone();
                         item.source_debug = text;
                     }
-                } else if server_ctx.pc.is_character() {
+                } else if server_ctx.shared.pc.is_character() {
                     if let Some(character) = project.characters.get_mut(&id) {
                         character.source = text.clone();
                         character.source_debug = text;
                     }
-                } else if server_ctx.pc.is_item() {
+                } else if server_ctx.shared.pc.is_item() {
                     if let Some(item) = project.items.get_mut(&id) {
                         item.source = text.clone();
                         item.source_debug = text;
@@ -411,7 +411,7 @@ impl CodeDock {
     fn runtime_debug_target(
         &self,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> Option<EldrinDebugTarget> {
         match self.current_entity {
             Some(EntityKey::World) => Some(EldrinDebugTarget::World),
@@ -435,7 +435,7 @@ impl CodeDock {
                 .find(|item| item.creator_id == instance_id)
                 .map(|item| EldrinDebugTarget::Item(item.id)),
             Some(EntityKey::Character(template_id)) => {
-                let region = project.get_region(&server_ctx.curr_region)?;
+                let region = project.get_region(&server_ctx.shared.curr_region)?;
                 region
                     .characters
                     .values()
@@ -450,7 +450,7 @@ impl CodeDock {
                     })
             }
             Some(EntityKey::Item(template_id)) => {
-                let region = project.get_region(&server_ctx.curr_region)?;
+                let region = project.get_region(&server_ctx.shared.curr_region)?;
                 region
                     .items
                     .values()

@@ -33,12 +33,12 @@ impl CollisionProbeTool {
 
     fn pointer_position(
         ui: &mut TheUI,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         map: &Map,
         coord: Vec2<i32>,
         plane_y: Option<f32>,
     ) -> Option<Vec3<f32>> {
-        if server_ctx.editor_view_mode != EditorViewMode::D2 {
+        if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
             if let Some(y) = plane_y
                 && let Some(hit) = Self::ray_plane_position(server_ctx, y)
                 && Self::point_inside_probe_bounds(map, hit)
@@ -46,11 +46,11 @@ impl CollisionProbeTool {
                 return Some(hit);
             }
 
-            if let Some(hit) = server_ctx.hover_cursor_3d {
+            if let Some(hit) = server_ctx.shared.hover_cursor_3d {
                 return Some(hit);
             }
-            if server_ctx.geo_hit.is_some() {
-                return Some(server_ctx.geo_hit_pos);
+            if server_ctx.shared.geo_hit.is_some() {
+                return Some(server_ctx.shared.geo_hit_pos);
             }
         }
 
@@ -70,9 +70,9 @@ impl CollisionProbeTool {
             && point.z <= bbox.max.y + pad
     }
 
-    fn ray_plane_position(server_ctx: &ServerContext, y: f32) -> Option<Vec3<f32>> {
-        let origin = server_ctx.hover_ray_origin_3d?;
-        let dir = server_ctx.hover_ray_dir_3d?;
+    fn ray_plane_position(server_ctx: &CreatorContext, y: f32) -> Option<Vec3<f32>> {
+        let origin = server_ctx.shared.hover_ray_origin_3d?;
+        let dir = server_ctx.shared.hover_ray_dir_3d?;
         if dir.y.abs() <= 1e-6 {
             return None;
         }
@@ -120,7 +120,7 @@ impl CollisionProbeTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         start: Vec3<f32>,
         coord: Vec2<i32>,
     ) -> Option<Vec3<f32>> {
@@ -142,13 +142,13 @@ impl CollisionProbeTool {
             reference_y,
         );
 
-        server_ctx.collision_probe_target = Some(Vec3::new(target.x, reference_y, target.z));
+        server_ctx.shared.collision_probe_target = Some(Vec3::new(target.x, reference_y, target.z));
         let target_y = result
             .steps
             .last()
             .map(|step| step.to.y)
             .unwrap_or(reference_y);
-        server_ctx.collision_probe_result = Some(result);
+        server_ctx.shared.collision_probe_result = Some(result);
         server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.redraw_all = true;
         Some(Vec3::new(target.x, target_y, target.z))
@@ -159,33 +159,33 @@ impl CollisionProbeTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         coord: Vec2<i32>,
     ) -> Option<Vec3<f32>> {
         let start = server_ctx
-            .collision_probe_points
+            .shared.collision_probe_points
             .last()
             .copied()
-            .or(server_ctx.collision_probe_start)?;
-        server_ctx.collision_probe_start = Some(start);
+            .or(server_ctx.shared.collision_probe_start)?;
+        server_ctx.shared.collision_probe_start = Some(start);
         self.update_probe_from_start(ui, ctx, map, server_ctx, start, coord)
     }
 
-    fn clear_probe(server_ctx: &mut ServerContext) {
-        server_ctx.collision_probe_start = None;
-        server_ctx.collision_probe_target = None;
-        server_ctx.collision_probe_result = None;
-        server_ctx.collision_probe_results.clear();
-        server_ctx.collision_probe_points.clear();
-        server_ctx.collision_probe_dragging = false;
+    fn clear_probe(server_ctx: &mut CreatorContext) {
+        server_ctx.shared.collision_probe_start = None;
+        server_ctx.shared.collision_probe_target = None;
+        server_ctx.shared.collision_probe_result = None;
+        server_ctx.shared.collision_probe_results.clear();
+        server_ctx.shared.collision_probe_points.clear();
+        server_ctx.shared.collision_probe_dragging = false;
     }
 
-    fn finish_active_polyline(server_ctx: &mut ServerContext) {
-        server_ctx.collision_probe_start = None;
-        server_ctx.collision_probe_target = None;
-        server_ctx.collision_probe_result = None;
-        server_ctx.collision_probe_points.clear();
-        server_ctx.collision_probe_dragging = false;
+    fn finish_active_polyline(server_ctx: &mut CreatorContext) {
+        server_ctx.shared.collision_probe_start = None;
+        server_ctx.shared.collision_probe_target = None;
+        server_ctx.shared.collision_probe_result = None;
+        server_ctx.shared.collision_probe_points.clear();
+        server_ctx.shared.collision_probe_dragging = false;
     }
 
     fn draw_marker(buffer: &mut TheRGBABuffer, pos: Vec2<i32>, color: [u8; 4]) {
@@ -431,11 +431,11 @@ impl Tool for CollisionProbeTool {
         _ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match tool_event {
             ToolEvent::Activate => {
-                server_ctx.curr_map_tool_type = MapToolType::CollisionProbe;
+                server_ctx.shared.curr_map_tool_type = MapToolType::CollisionProbe;
                 Self::clear_probe(server_ctx);
                 ctx.ui.redraw_all = true;
                 true
@@ -456,11 +456,11 @@ impl Tool for CollisionProbeTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         match map_event {
             MapClicked(coord) => {
-                if server_ctx.collision_probe_points.is_empty() {
+                if server_ctx.shared.collision_probe_points.is_empty() {
                     if let Some(start) = Self::pointer_position(ui, server_ctx, map, coord, None) {
                         let world = Self::build_collision_world(map, &server_ctx.reference);
                         let start_2d = Vec2::new(start.x, start.z);
@@ -468,41 +468,41 @@ impl Tool for CollisionProbeTool {
                             .get_floor_height_nearest(start_2d, start.y)
                             .unwrap_or(start.y);
                         let start = Vec3::new(start.x, reference_y, start.z);
-                        server_ctx.collision_probe_start = Some(start);
-                        server_ctx.collision_probe_target = None;
-                        server_ctx.collision_probe_result = None;
-                        server_ctx.collision_probe_points.push(start);
-                        server_ctx.collision_probe_dragging = true;
+                        server_ctx.shared.collision_probe_start = Some(start);
+                        server_ctx.shared.collision_probe_target = None;
+                        server_ctx.shared.collision_probe_result = None;
+                        server_ctx.shared.collision_probe_points.push(start);
+                        server_ctx.shared.collision_probe_dragging = true;
                         server_ctx.reference.write().set_overlay_dirty();
                         ctx.ui.redraw_all = true;
                     }
                 } else if let Some(target) = self.update_probe(ui, ctx, map, server_ctx, coord) {
-                    if let Some(result) = server_ctx.collision_probe_result.clone()
+                    if let Some(result) = server_ctx.shared.collision_probe_result.clone()
                         && result.steps.len() > 0
                     {
-                        server_ctx.collision_probe_results.push(result);
+                        server_ctx.shared.collision_probe_results.push(result);
                     }
-                    server_ctx.collision_probe_points.push(target);
-                    server_ctx.collision_probe_start = Some(target);
-                    server_ctx.collision_probe_target = None;
-                    server_ctx.collision_probe_result = None;
-                    server_ctx.collision_probe_dragging = true;
+                    server_ctx.shared.collision_probe_points.push(target);
+                    server_ctx.shared.collision_probe_start = Some(target);
+                    server_ctx.shared.collision_probe_target = None;
+                    server_ctx.shared.collision_probe_result = None;
+                    server_ctx.shared.collision_probe_dragging = true;
                     server_ctx.reference.write().set_overlay_dirty();
                     ctx.ui.redraw_all = true;
                 }
             }
             MapHover(coord) => {
-                if !server_ctx.collision_probe_points.is_empty() {
+                if !server_ctx.shared.collision_probe_points.is_empty() {
                     self.update_probe(ui, ctx, map, server_ctx, coord);
                 }
             }
             MapDragged(coord) => {
-                if !server_ctx.collision_probe_points.is_empty() {
+                if !server_ctx.shared.collision_probe_points.is_empty() {
                     self.update_probe(ui, ctx, map, server_ctx, coord);
                 }
             }
             MapEscape => {
-                if server_ctx.collision_probe_points.is_empty() {
+                if server_ctx.shared.collision_probe_points.is_empty() {
                     Self::clear_probe(server_ctx);
                 } else {
                     Self::finish_active_polyline(server_ctx);
@@ -521,16 +521,16 @@ impl Tool for CollisionProbeTool {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         _assets: &Assets,
     ) {
-        let active_result = server_ctx.collision_probe_result.as_ref();
-        let latest_result = active_result.or_else(|| server_ctx.collision_probe_results.last());
+        let active_result = server_ctx.shared.collision_probe_result.as_ref();
+        let latest_result = active_result.or_else(|| server_ctx.shared.collision_probe_results.last());
         let Some(latest_result) = latest_result else {
             return;
         };
 
-        if server_ctx.editor_view_mode != EditorViewMode::D2 {
+        if server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
             let dim = *buffer.dim();
             Self::draw_goto_route_3d_screen(buffer, dim, latest_result, false, &server_ctx.reference);
             Self::draw_legend(buffer, _ctx, latest_result);
@@ -538,7 +538,7 @@ impl Tool for CollisionProbeTool {
         }
 
         let dim = *buffer.dim();
-        for result in &server_ctx.collision_probe_results {
+        for result in &server_ctx.shared.collision_probe_results {
             Self::draw_result_2d(buffer, map, dim, result, false);
         }
         if let Some(result) = active_result {

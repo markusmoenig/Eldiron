@@ -66,7 +66,7 @@ impl UndoManager {
 
     pub fn undo(
         &mut self,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
@@ -82,7 +82,7 @@ impl UndoManager {
 
     pub fn redo(
         &mut self,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,

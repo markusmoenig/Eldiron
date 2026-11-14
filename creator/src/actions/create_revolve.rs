@@ -259,9 +259,9 @@ impl Action for CreateRevolve {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        server_ctx.shared.get_map_context() == MapContext::Region
+            && server_ctx.shared.editor_view_mode != EditorViewMode::D2
     }
 
     fn editor_display(&self) -> Option<EditorDisplay> {
@@ -282,7 +282,7 @@ impl Action for CreateRevolve {
         map: &mut Map,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let previous = map.clone();
         let segments = self
@@ -293,10 +293,10 @@ impl Action for CreateRevolve {
         let smooth = self.nodeui.get_bool_value(SMOOTH_ID).unwrap_or(true);
         let mut object = Self::build_object(&self.profile, segments, smooth)?;
 
-        let position = if server_ctx.pc.is_prefab() {
+        let position = if server_ctx.shared.pc.is_prefab() {
             Vec3::zero()
         } else {
-            map.curr_grid_pos_3d.unwrap_or(server_ctx.geo_hit_pos)
+            map.curr_grid_pos_3d.unwrap_or(server_ctx.shared.geo_hit_pos)
         };
         for vertex in &mut object.vertices {
             *vertex += position;
@@ -305,7 +305,7 @@ impl Action for CreateRevolve {
         map.geometry_objects.push(object);
         map.clear_selection();
         map.selected_geometry_objects.push(object_id);
-        server_ctx.curr_map_tool_type = MapToolType::Selection;
+        server_ctx.shared.curr_map_tool_type = MapToolType::Selection;
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Set Tool"),
             TheValue::Text("tool.geometry".into()),
@@ -316,7 +316,7 @@ impl Action for CreateRevolve {
         ));
 
         Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
+            server_ctx.shared.pc,
             Box::new(previous),
             Box::new(map.clone()),
         ))
@@ -332,7 +332,7 @@ impl Action for CreateRevolve {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

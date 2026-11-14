@@ -75,8 +75,8 @@ impl Editor {
         let jobs = &self.native_viewport.world.bake_jobs;
         eprintln!(
             "Paint request state: mode={:?}, context={:?}, status={:?}, active={}, adapter={}, source_ready={:?}",
-            self.server_ctx.editor_view_mode,
-            self.server_ctx.pc,
+            self.server_ctx.shared.editor_view_mode,
+            self.server_ctx.shared.pc,
             self.server_ctx.bake.read().status(),
             jobs.active.is_some(),
             jobs.legacy.is_some(),
@@ -96,7 +96,7 @@ impl Editor {
         let region = self
             .documents
             .project
-            .get_region_mut(&self.server_ctx.curr_region)
+            .get_region_mut(&self.server_ctx.shared.curr_region)
             .unwrap();
         let before = region.iso_paint.clone();
         let chunk = region.iso_paint.baked_chunks.values_mut().next().unwrap();
@@ -133,7 +133,7 @@ impl Editor {
         let floor = self
             .documents
             .project
-            .get_region(&self.server_ctx.curr_region)
+            .get_region(&self.server_ctx.shared.curr_region)
             .unwrap()
             .map
             .geometry_objects
@@ -178,7 +178,7 @@ impl Editor {
         let region = self
             .documents
             .project
-            .get_region_mut(&self.server_ctx.curr_region)
+            .get_region_mut(&self.server_ctx.shared.curr_region)
             .unwrap();
         let paint = &mut region.iso_paint;
         for y in -2..=2 {
@@ -212,7 +212,7 @@ impl Editor {
         let region = self
             .documents
             .project
-            .get_region(&self.server_ctx.curr_region)
+            .get_region(&self.server_ctx.shared.curr_region)
             .unwrap();
         assert_eq!(
             serde_json::to_vec(&region.iso_paint).unwrap(),

@@ -1533,7 +1533,7 @@ impl ProceduralMaterialEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         if crate::iso_editor::handle_event(event, project, server, ctx) {
             return true;
@@ -1587,7 +1587,7 @@ impl ProceduralMaterialEditor {
                         ctx,
                         project,
                     );
-                } else if let Some(id) = server.curr_tile_id {
+                } else if let Some(id) = server.shared.curr_tile_id {
                     self.open(id, ui, ctx, project);
                 } else {
                     self.clear_selection(ui, ctx);
@@ -1736,7 +1736,7 @@ impl ProceduralMaterialEditor {
                 false
             }
             TheEvent::Custom(id, _) if id.name == "Make Procedural Tile" => {
-                if let Some(id) = server.curr_tile_id {
+                if let Some(id) = server.shared.curr_tile_id {
                     if project.procedural_materials.contains_key(&id) {
                         self.open(id, ui, ctx, project);
                     } else {
@@ -1748,7 +1748,7 @@ impl ProceduralMaterialEditor {
                     }
                     return true;
                 }
-                let Some(cell) = server.curr_tile_board_cell else {
+                let Some(cell) = server.shared.curr_tile_board_cell else {
                     Self::status(ui, ctx, "Select an empty tile slot first.");
                     return true;
                 };
@@ -1767,9 +1767,9 @@ impl ProceduralMaterialEditor {
                         project.tiles.insert(id, tile);
                         project.procedural_materials.insert(id, bundle);
                         project.place_tile_at_picker_selection(id, Some(cell));
-                        server.curr_tile_board_cell = None;
-                        server.curr_tile_id = Some(id);
-                        server.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
+                        server.shared.curr_tile_board_cell = None;
+                        server.shared.curr_tile_id = Some(id);
+                        server.shared.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
                         server.history.write().add_undo(
                             ProjectUndoAtom::TilePickerEdit(
                                 Box::new(before),
@@ -1790,7 +1790,7 @@ impl ProceduralMaterialEditor {
             }
             TheEvent::Custom(id, TheValue::Id(tile)) if id.name == "Tile Picked" => {
                 let composing=self.active && self.tile.is_some_and(|id|project.material_compositions.contains_key(&id));
-                if self.map_binding.is_none() && !composing && server.curr_map_tool_type != MapToolType::IsoPaint {
+                if self.map_binding.is_none() && !composing && server.shared.curr_map_tool_type != MapToolType::IsoPaint {
                     self.open(*tile, ui, ctx, project);
                 }
                 false
@@ -2123,11 +2123,11 @@ impl ProceduralMaterialEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         let mut perf = crate::misc::FrameProfile::new();
         if let Some(map) = project
-            .get_map_mut(server)
+            .get_map_mut(&server.shared)
             .filter(|m| m.camera == rusterix::MapCamera::TwoDIso)
         {
             crate::iso_editor::sync_bounds_selection(map, &mut self.iso_bounds_selection);
@@ -2140,7 +2140,7 @@ impl ProceduralMaterialEditor {
             changed = true;
         }
         let iso_mode = project
-            .get_map(server)
+            .get_map(&server.shared)
             .is_some_and(|m| m.camera == rusterix::MapCamera::TwoDIso);
         if self.iso_mode != iso_mode {
             self.iso_mode = iso_mode;
@@ -2159,13 +2159,13 @@ impl ProceduralMaterialEditor {
             ));
             if self.iso_revision != Some(revision) {
                 self.iso_revision = Some(revision);
-                let before = project.get_map(server).cloned();
+                let before = project.get_map(&server.shared).cloned();
                 for error in shared::isometric::synchronize(project) {
                     Self::status(ui, ctx, error);
                 }
                 refresh_tiles(ctx);
                 crate::utils::editor_scene_refresh_material_textures(project, server);
-                if let (Some(before), Some(after)) = (before, project.get_map(server)) {
+                if let (Some(before), Some(after)) = (before, project.get_map(&server.shared)) {
                     if before.changed != after.changed {
                         crate::utils::editor_scene_apply_map_edit(project, server, &before, after);
                     }
@@ -2191,7 +2191,7 @@ impl ProceduralMaterialEditor {
             let current = revision(project);
             if self.iso_placement_revision != Some(current) {
                 let before = project
-                    .get_map(server)
+                    .get_map(&server.shared)
                     .filter(|m| {
                         m.sectors.iter().any(|s| {
                             s.properties
@@ -2201,7 +2201,7 @@ impl ProceduralMaterialEditor {
                     .cloned();
                 let changed_maps = shared::isometric::placement::synchronize(project);
                 self.iso_placement_revision = Some(revision(project));
-                if let (Some(before), Some(after)) = (before, project.get_map(server)) {
+                if let (Some(before), Some(after)) = (before, project.get_map(&server.shared)) {
                     if changed_maps.contains(&after.id) {
                         crate::utils::editor_scene_apply_map_edit(project, server, &before, after);
                         ctx.ui.send(TheEvent::Custom(
@@ -2438,11 +2438,11 @@ impl ProceduralMaterialEditor {
         }
         perf.lap("material_bakes");
         let Some(tile) = self.tile else {
-            return self.draw_preview(ui, server.animation_counter) || changed;
+            return self.draw_preview(ui, server.shared.animation_counter) || changed;
         };
         #[cfg(not(target_arch = "wasm32"))]
         if self.model_sources.pending(tile) {
-            return self.draw_preview(ui, server.animation_counter) || changed;
+            return self.draw_preview(ui, server.shared.animation_counter) || changed;
         }
         let pixel_density =
             shared::ruleset_materials::resolution(&project.config, &tile).unwrap_or(pixel_density);
@@ -2574,7 +2574,7 @@ impl ProceduralMaterialEditor {
                 });
             }
         }
-        changed |= self.draw_preview(ui, server.animation_counter);
+        changed |= self.draw_preview(ui, server.shared.animation_counter);
 
         changed
     }
@@ -2804,8 +2804,8 @@ material "surface" called "Wall Bricks"
             "source",
             rusterix::Value::Source(rusterix::PixelSource::TileId(outputs[0])),
         );
-        let mut server = ServerContext::default();
-        server.curr_region = p.regions[0].id;
+        let mut server = CreatorContext::default();
+        server.shared.curr_region = p.regions[0].id;
         let mut host = ProceduralMaterialEditor::default();
         host.handle_event(
             &TheEvent::Custom(TheId::named("Open Mesh Material"), TheValue::Id(material)),
@@ -3298,7 +3298,7 @@ material "surface" called "Wall Bricks"
         project.procedural_materials.insert(id, after.clone());
         project.name = "Keep rename".into();
         let (mut ui, mut ctx) = workspace_ui(1200, 850);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let atom = ProjectUndoAtom::ProceduralMaterialEdit(id, before.clone(), after.clone());
         atom.undo(&mut project, &mut ui, &mut ctx, &mut server);
         assert_eq!(project.procedural_materials[&id], before);
@@ -3533,7 +3533,7 @@ material "surface" called "Wall Bricks"
             .insert(id, cache_key(&after));
         let atom = ProjectUndoAtom::ProceduralMaterialEdit(id, before.clone(), after.clone());
         let (mut ui, mut ctx) = ui_fixture();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         atom.undo(&mut project, &mut ui, &mut ctx, &mut server);
         assert_eq!(project.procedural_materials[&id], before);
         assert!(!project.procedural_material_cache_keys.contains_key(&id));
@@ -3547,7 +3547,7 @@ material "surface" called "Wall Bricks"
         let (mut ui, mut ctx) = ui_fixture();
         let mut host = ProceduralMaterialEditor::default();
         let mut project = Project::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         crate::sidebar::Sidebar::set_navigation_page(SIDEBAR_PAGE, &mut ui, &mut ctx);
         host.update(&mut ui, &mut ctx, &mut project, &mut server);
         assert!(host.active);
@@ -3609,9 +3609,9 @@ material "surface" called "Wall Bricks"
             "source",
             rusterix::Value::Source(rusterix::PixelSource::TileId(outputs[0])),
         );
-        let mut server = ServerContext::default();
-        server.curr_region = p.regions[0].id;
-        server.curr_tile_id = Some(outputs[0]);
+        let mut server = CreatorContext::default();
+        server.shared.curr_region = p.regions[0].id;
+        server.shared.curr_tile_id = Some(outputs[0]);
         let mut host = ProceduralMaterialEditor::default();
         host.handle_event(
             &TheEvent::Custom(TheId::named("Tile Picked"), TheValue::Id(outputs[0])),
@@ -3711,7 +3711,7 @@ material "surface" called "Wall Bricks"
     fn picking_isometric_material_tiles_edits_the_source_and_supports_undo() {
         let (mut ui, mut ctx) = ui_fixture();
         let mut project = Project::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let recipe = Uuid::new_v4();
         let output = Uuid::new_v4();
         let before = starter(recipe).unwrap().save().unwrap();
@@ -3729,7 +3729,7 @@ material "surface" called "Wall Bricks"
                 signature: 0,
             },
         );
-        server.curr_tile_id = Some(output);
+        server.shared.curr_tile_id = Some(output);
         let mut host = ProceduralMaterialEditor::default();
         host.handle_event(
             &TheEvent::Custom(TheId::named("Tile Picked"), TheValue::Id(output)),
@@ -3739,7 +3739,7 @@ material "surface" called "Wall Bricks"
             &mut server,
         );
         assert_eq!(host.tile, Some(recipe));
-        assert_eq!(server.curr_tile_id, Some(output));
+        assert_eq!(server.shared.curr_tile_id, Some(output));
         assert!(!project.tiles.contains_key(&recipe));
         assert!(host.handle_event(
             &TheEvent::IndexChanged(TheId::named("Material Tiling"), 1),
@@ -3901,7 +3901,7 @@ material "surface" called "Wall Bricks"
         let (mut ui, mut ctx) = ui_fixture();
         let mut host = ProceduralMaterialEditor::default();
         let mut project = Project::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let tile = rusterix::Tile::from_texture(rusterix::Texture::alloc(16, 16));
         let id = tile.id;
         let asset = edited(
@@ -3962,7 +3962,7 @@ material "surface" called "Wall Bricks"
         let (mut ui, mut ctx) = ui_fixture();
         let mut host = ProceduralMaterialEditor::default();
         let mut project = Project::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let before = serde_json::to_string(&project).unwrap();
         for (name, index) in [
             ("Material Preview Target", 1),
@@ -4081,8 +4081,8 @@ material "surface" called "Wall Bricks"
             .find(|(_, t)| t.alias == "Grass")
             .unwrap()
             .0;
-        let mut server = ServerContext::default();
-        server.curr_tile_id = Some(grass);
+        let mut server = CreatorContext::default();
+        server.shared.curr_tile_id = Some(grass);
         let mut host = ProceduralMaterialEditor::default();
         host.open(grass, &mut ui, &mut ctx, &project);
         let index = shared::ruleset_materials::definitions(&project.config)
@@ -4102,7 +4102,7 @@ material "surface" called "Wall Bricks"
             Some(shared::rulesets::material_asset_id("tunic"))
         );
         assert_eq!(
-            server.curr_tile_id,
+            server.shared.curr_tile_id,
             Some(grass),
             "Library editing must preserve the map brush"
         );
@@ -4162,9 +4162,9 @@ material "surface" called "Wall Bricks"
     fn make_proc_selects_material_tab_and_minimap_preview_without_changing_main_view() {
         let (mut ui, mut ctx) = ui_fixture();
         let mut project = Project::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let mut host = ProceduralMaterialEditor::default();
-        server.curr_tile_board_cell = Some((None, Vec2::new(3, 4)));
+        server.shared.curr_tile_board_cell = Some((None, Vec2::new(3, 4)));
         let before = project.clone();
         assert!(host.handle_event(
             &TheEvent::Custom(TheId::named("Make Procedural Tile"), TheValue::Empty),
@@ -4173,7 +4173,7 @@ material "surface" called "Wall Bricks"
             &mut project,
             &mut server
         ));
-        let id = server.curr_tile_id.unwrap();
+        let id = server.shared.curr_tile_id.unwrap();
         assert!(project.procedural_materials.contains_key(&id));
         assert_eq!(project.tile_board_tiles.get(&id), Some(&Vec2::new(3, 4)));
         assert_eq!(ui.get_stack_layout("Game Output Stack").unwrap().index(), 1);
@@ -4205,7 +4205,7 @@ material "surface" called "Wall Bricks"
             0
         );
         assert_eq!(ui.get_stack_layout(PREVIEW_STACK).unwrap().index(), 0);
-        assert_eq!(server.curr_tile_id, Some(id));
+        assert_eq!(server.shared.curr_tile_id, Some(id));
     }
 }
 
@@ -4225,7 +4225,7 @@ mod gpu_workspace_test {
         let (mut ui, mut ctx) = super::tests::workspace_ui(1200, 850);
         ui.init(&mut ctx);
         let mut host = ProceduralMaterialEditor::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         for _ in 0..3 {
             host.update(&mut ui, &mut ctx, &mut project, &mut server);
             assert!(
@@ -4244,7 +4244,7 @@ mod gpu_workspace_test {
     #[test]
     #[ignore = "requires a GPU device; writes /tmp/eldiron-materials-palette.png"]
     fn palette_starter_initial_cards_and_palette_updates_render_in_the_sidebar() {
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let mut project = Project::default();
         project.palette.colors[37] = Some(TheColor::new(0.8, 0.1, 0.1, 0.5));
         project.palette.colors[34] = Some(TheColor::new(0.1, 0.8, 0.1, 1.));
@@ -4494,7 +4494,7 @@ mod gpu_workspace_test {
             &mut ui,
             &mut ctx,
             &mut project,
-            &mut ServerContext::default(),
+            &mut CreatorContext::default(),
         );
         ui.get_widget("Material Preview Target")
             .unwrap()

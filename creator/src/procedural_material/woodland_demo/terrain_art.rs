@@ -344,19 +344,19 @@ fn capture_geometry_terrain_toml() {
     let mut ctx = TheContext::new(1500, 960, 1.);
     ui.set_theme(Box::new(TheBrownTheme::new()), &mut ctx);
     ui.init(&mut ctx);
-    let mut server = ServerContext::default();
-    server.curr_region = project.regions[0].id;
-    server.pc = ProjectContext::Region(server.curr_region);
-    server.curr_map_tool_type = rusterix::MapToolType::Linedef;
+    let mut server = CreatorContext::default();
+    server.shared.curr_region = project.regions[0].id;
+    server.shared.pc = ProjectContext::Region(server.shared.curr_region);
+    server.shared.curr_map_tool_type = rusterix::MapToolType::Linedef;
     let line = project.regions[0].map.linedefs.iter().find(|l| l.properties.get_bool_default("terrain_example", false)).unwrap().id;
     project.regions[0].map.selected_linedefs = vec![line];
     project.regions[0].map.selected_sectors.clear();
     let mut sidebar = crate::sidebar::Sidebar::new();
     sidebar.init_ui(&mut ui, &mut ctx, &mut server);
-    server.curr_action_id = Some(Uuid::parse_str(crate::actions::edit_linedef::EDIT_LINEDEF_ACTION_ID).unwrap());
+    server.shared.curr_action_id = Some(Uuid::parse_str(crate::actions::edit_linedef::EDIT_LINEDEF_ACTION_ID).unwrap());
     {
         let mut actions = server.actions.write();
-        actions.get_action_by_id_mut(server.curr_action_id.unwrap()).unwrap().load_params(&project.regions[0].map);
+        actions.get_action_by_id_mut(server.shared.curr_action_id.unwrap()).unwrap().load_params(&project.regions[0].map);
     }
     sidebar.handle_event(&TheEvent::Custom(TheId::named("Refresh Action Parameters"), TheValue::Empty), &mut ui, &mut ctx, &mut project, &mut server);
     ui.get_stack_layout("Sidebar Page Stack").unwrap().set_index(1);

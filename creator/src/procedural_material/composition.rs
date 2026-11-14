@@ -1196,7 +1196,7 @@ impl ProceduralMaterialEditor {
         &self,
         project: &mut Project,
         ctx: &mut TheContext,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> Result<Uuid, String> {
         let source = self.tile.ok_or("Select a composition first")?;
         let composition = project
@@ -1224,7 +1224,7 @@ impl ProceduralMaterialEditor {
         project.tiles.insert(id, tile);
         project.material_compositions.insert(id, composition);
         project.procedural_materials.insert(id, bundle);
-        project.place_tile_at_picker_selection(id, server.curr_tile_board_cell);
+        project.place_tile_at_picker_selection(id, server.shared.curr_tile_board_cell);
         server.history.write().add_undo(
             ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(project.clone())),
             ctx,
@@ -1237,7 +1237,7 @@ impl ProceduralMaterialEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         let Some(tile) = self.tile else {
             return false;
@@ -1356,7 +1356,7 @@ impl ProceduralMaterialEditor {
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "Composition Use Picked" =>
             {
-                let Some(material) = server.curr_tile_id.filter(|id| {
+                let Some(material) = server.shared.curr_tile_id.filter(|id| {
                     *id != tile
                         && project
                             .tiles
@@ -1541,7 +1541,7 @@ impl ProceduralMaterialEditor {
         }
         match name {
             ADD => {
-                let Some(source) = server.curr_tile_id.filter(|id| {
+                let Some(source) = server.shared.curr_tile_id.filter(|id| {
                     *id != tile
                         && project
                             .tiles
@@ -1721,7 +1721,7 @@ mod tests {
             },
         );
         let mut host = ProceduralMaterialEditor::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         host.open(tile, &mut ui, &mut ctx, &p);
         host.composition_view(&mut ui, &mut ctx, &p);
         for absent in [BASE, MATERIAL, LAYER, "Ruleset Material"] {
@@ -1731,7 +1731,7 @@ mod tests {
             );
         }
         assert!(ui.get_widget("Composition Use Picked").is_some());
-        server.curr_tile_id = Some(c);
+        server.shared.curr_tile_id = Some(c);
         host.handle_event(
             &TheEvent::Custom(TheId::named("Tile Picked"), TheValue::Id(c)),
             &mut ui,
@@ -1760,7 +1760,7 @@ mod tests {
             sample(&p, tile, [0.5; 2], Channel::BaseColor),
             vec![0.5, 0., 0.5]
         );
-        server.curr_tile_id = Some(b);
+        server.shared.curr_tile_id = Some(b);
         host.handle_event(
             &TheEvent::IndexChanged(TheId::named("Composition Actions"), 0),
             &mut ui,
@@ -1830,7 +1830,7 @@ mod tests {
             );
             let before = p.material_compositions[&tile].clone();
             let mut host = ProceduralMaterialEditor::default();
-            let mut server = ServerContext::default();
+            let mut server = CreatorContext::default();
             host.open(tile, &mut ui, &mut ctx, &p);
             for advanced in [false, true] {
                 host.composition_advanced = advanced;
@@ -1897,8 +1897,8 @@ mod tests {
                 tiling: Default::default(),
             },
         );
-        let mut server = ServerContext::default();
-        server.curr_tile_id = Some(tile);
+        let mut server = CreatorContext::default();
+        server.shared.curr_tile_id = Some(tile);
         let mut host = ProceduralMaterialEditor::default();
         host.open(tile, &mut ui, &mut ctx, &p);
         assert!(!host.composition_advanced);
@@ -1919,7 +1919,7 @@ mod tests {
         ));
         assert_eq!(host.tile, Some(mask));
         assert_eq!(
-            server.curr_tile_id,
+            server.shared.curr_tile_id,
             Some(tile),
             "editing a mask must preserve the map brush"
         );
@@ -1933,7 +1933,7 @@ mod tests {
         assert_eq!(host.tile, Some(tile));
         assert_eq!(host.composition_layer, 0);
         assert_eq!(p.material_compositions[&tile], original);
-        assert_eq!(server.curr_tile_id, Some(tile));
+        assert_eq!(server.shared.curr_tile_id, Some(tile));
     }
 
     #[test]
@@ -2466,7 +2466,7 @@ mod tests {
             },
         );
         let mut host = ProceduralMaterialEditor::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         host.open(id, &mut ui, &mut ctx, &p);
         host.sync_compositions(&mut p, &mut ui, &mut ctx);
         host.composition_view(&mut ui, &mut ctx, &p);
@@ -2585,20 +2585,20 @@ mod tests {
             map: p.regions[0].map.id,
             surface: CompositionSurface::RectTile { sector: 1 },
         };
-        let mut server = ServerContext::default();
-        server.pc = ProjectContext::Region(p.regions[0].id);
-        server.curr_region = p.regions[0].id;
-        server.curr_map_tool_type = MapToolType::Rect;
-        server.rect_compose_mode = true;
-        server.rect_composition_target = Some(binding.clone());
-        server.curr_tile_id = Some(earth);
-        server.curr_tile_source = Some(rusterix::TileSource::SingleTile(earth));
+        let mut server = CreatorContext::default();
+        server.shared.pc = ProjectContext::Region(p.regions[0].id);
+        server.shared.curr_region = p.regions[0].id;
+        server.shared.curr_map_tool_type = MapToolType::Rect;
+        server.shared.rect_compose_mode = true;
+        server.shared.rect_composition_target = Some(binding.clone());
+        server.shared.curr_tile_id = Some(earth);
+        server.shared.curr_tile_source = Some(rusterix::TileSource::SingleTile(earth));
         let (mut ui, mut ctx) = super::super::tests::workspace_ui(1200, 950);
         let mut host = ProceduralMaterialEditor::default();
         host.open_map_composition(binding, &mut ui, &mut ctx, &mut p, &mut server);
         let id = host.tile.unwrap();
         host.composition_view(&mut ui, &mut ctx, &p);
-        server.curr_tile_id = Some(output);
+        server.shared.curr_tile_id = Some(output);
         host.handle_event(
             &TheEvent::Custom(TheId::named("Tile Picked"), TheValue::Id(output)),
             &mut ui,
@@ -2682,8 +2682,8 @@ mod tests {
         );
         let mut host = ProceduralMaterialEditor::default();
         host.open(original, &mut ui, &mut ctx, &p);
-        let mut server = ServerContext::default();
-        server.curr_tile_board_cell = Some((None, Vec2::new(6, 6)));
+        let mut server = CreatorContext::default();
+        server.shared.curr_tile_board_cell = Some((None, Vec2::new(6, 6)));
         let before = p.clone();
         let saved = host
             .save_composition_copy(&mut p, &mut ctx, &server)
@@ -2705,8 +2705,8 @@ mod tests {
         region.map = Map::default();
         add_floor(&mut region.map, 1, saved, [-2., 0.], [0., 1.]);
         add_floor(&mut region.map, 2, saved, [0., 0.], [2., 1.]);
-        server.pc = ProjectContext::Region(region.id);
-        server.curr_region = region.id;
+        server.shared.pc = ProjectContext::Region(region.id);
+        server.shared.curr_region = region.id;
         let map_id = region.map.id;
         p.regions.push(region);
         let text = bundle(saved, &p, None).unwrap();
@@ -2875,7 +2875,7 @@ mod tests {
         );
         let before = project.material_compositions[&id].clone();
         let mut host = ProceduralMaterialEditor::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         host.open(id, &mut ui, &mut ctx, &project);
         assert!(host.handle_event(
             &TheEvent::IndexChanged(TheId::named("Material Tiling"), 2),
@@ -2939,7 +2939,7 @@ mod tests {
             },
         );
         let mut host = ProceduralMaterialEditor::default();
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         assert!(ui.get_widget(crate::geometry_editor::MODE).is_some());
         host.open(id, &mut ui, &mut ctx, &project);
         host.composition_view(&mut ui, &mut ctx, &project);
@@ -3040,8 +3040,8 @@ mod tests {
                 layers: vec![CompositionLayer::split(b)],
             },
         );
-        let mut server = ServerContext::default();
-        server.curr_tile_id = Some(b);
+        let mut server = CreatorContext::default();
+        server.shared.curr_tile_id = Some(b);
         let mut host = ProceduralMaterialEditor::default();
         host.open(id, &mut ui, &mut ctx, &p);
         host.composition_view(&mut ui, &mut ctx, &p);
@@ -3117,7 +3117,7 @@ mod tests {
                 layers: vec![CompositionLayer::split(b)],
             },
         );
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let mut host = ProceduralMaterialEditor::default();
         host.open(id, &mut ui, &mut ctx, &p);
         host.composition_advanced = true;
@@ -3233,7 +3233,7 @@ mod tests {
         let mut host = ProceduralMaterialEditor::default();
         host.open(id, &mut ui, &mut ctx, &p);
         host.composition_view(&mut ui, &mut ctx, &p);
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         for (revision, position) in [(1, 0.5), (2, 0.2)] {
             p.material_compositions.get_mut(&id).unwrap().layers[0].position = position;
             host.composition_view(&mut ui, &mut ctx, &p);

@@ -91,8 +91,8 @@ fn isometric_model_recipe_edits_refresh_all_tiles_and_the_scene_automatically() 
             },
         );
     }
-    let mut server = ServerContext::default();
-    server.curr_region = p.regions[0].id;
+    let mut server = CreatorContext::default();
+    server.shared.curr_region = p.regions[0].id;
     let mut geometry = GeometryEditor::default();
     let mut publisher = crate::procedural_material::ProceduralMaterialEditor::default();
     let picked = TheEvent::Custom(TheId::named("Tile Picked"), TheValue::Id(outputs[1]));
@@ -211,7 +211,7 @@ fn picking_isometric_model_tiles_keeps_map_visible_until_explicit_mesh_edit() {
                 &mut ui,
                 &mut ctx,
              &creator_history);
-            host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+            host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
             assert!(!host.active);
             assert!(!is_visible(&mut ui));
         }
@@ -231,8 +231,8 @@ fn isometric_map_selects_tile_preview_and_new_models_keep_it() {
     let (mut ui, mut ctx) = fixture(1100, 800);
     let mut p = Project::default();
     p.regions[0].map.camera = rusterix::MapCamera::TwoDIso;
-    let mut server = ServerContext::default();
-    server.curr_region = p.regions[0].id;
+    let mut server = CreatorContext::default();
+    server.shared.curr_region = p.regions[0].id;
     let mut host = GeometryEditor::default();
     host.update(&p, &mut ui, &mut ctx, &server);
     assert_eq!(host.camera, 4);
@@ -361,7 +361,7 @@ fn toolbars_show_context_actions_without_mutating_the_model() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     for (tool, context, action) in [
         (1, 1, "MZ Mirror Branch"),
         (3, 2, "MZ Delete Profile"),
@@ -378,7 +378,7 @@ fn toolbars_show_context_actions_without_mutating_the_model() {
         ui.get_widget(PREVIEW)
             .unwrap()
             .set_dim(TheDim::zero(), &mut ctx);
-        host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+        host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
         layout::sync_controls(&host, &mut ui, &mut ctx);
         ui.canvas.set_dim(TheDim::new(0, 0, 1100, 800), &mut ctx);
         assert_eq!(
@@ -435,7 +435,7 @@ fn creation_menu_enters_the_large_editor_without_resizing_the_minimap() {
             .get_shared_ratio(),
         0.78
     );
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert_eq!(
         ui.get_stack_layout("Geometry Context Tools")
             .unwrap()
@@ -464,14 +464,14 @@ fn full_viewport_gpu_review() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     host.handle_event(
         &TheEvent::IndexChanged(TheId::named("MZ Geometry Tool"), 1),
         &mut p,
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     ui.canvas.set_dim(TheDim::new(0, 0, 1500, 1000), &mut ctx);
     let dim = *ui.get_widget(PREVIEW).unwrap().dim();
     let e = host.evaluation.as_ref().unwrap();
@@ -566,7 +566,7 @@ fn rigs_open_visible_and_keep_their_own_realtime_schedule() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert_eq!(host.scene.tool, 1);
     assert!(host.wants_realtime());
     assert_eq!(host.group_path, ["body-op-0"]);
@@ -574,7 +574,7 @@ fn rigs_open_visible_and_keep_their_own_realtime_schedule() {
     assert!(!host.playback.playing);
     assert!(ui.get_widget("MZ Edit Texture").is_none());
     crate::sidebar::Sidebar::set_navigation_page(0, &mut ui, &mut ctx);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert!(!host.wants_realtime());
 }
 #[test]
@@ -611,7 +611,7 @@ fn orbit_preview_benchmark() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     ui.canvas.set_dim(TheDim::new(0, 0, 1500, 1000), &mut ctx);
     let instance = wgpu::Instance::default();
     let adapter =
@@ -636,7 +636,7 @@ fn orbit_preview_benchmark() {
     let viewport = *ui.get_widget(PREVIEW).unwrap().dim();
     let warm = Instant::now();
     while host.displayed_revision == 0 && warm.elapsed() < Duration::from_secs(10) {
-        host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+        host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
         std::thread::sleep(Duration::from_millis(5));
     }
     assert!(host.displayed_revision > 0);
@@ -648,7 +648,7 @@ fn orbit_preview_benchmark() {
         let tick = Instant::now();
         let previous = host.displayed_revision;
         host.yaw += 0.75;
-        host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+        host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
         ui.draw(&mut pixels, &mut ctx);
         if host.displayed_revision > previous {
             presented += 1;
@@ -697,7 +697,7 @@ fn rig_mode_exposes_parent_clips_and_can_play_pause_and_scrub_without_navigation
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert_eq!(host.group_path, ["body-op-0"]);
     assert_eq!(host.scene.tool, 1);
     assert_eq!(
@@ -736,7 +736,7 @@ fn rig_mode_exposes_parent_clips_and_can_play_pause_and_scrub_without_navigation
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert!(host.playback.playing);
     assert_eq!(host.scene.tool, 1);
     assert_eq!(host.group_path, ["body-op-0"]);
@@ -783,7 +783,7 @@ fn rig_mode_exposes_parent_clips_and_can_play_pause_and_scrub_without_navigation
             &mut ui,
             &mut ctx,
          &creator_history);
-        host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+        host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
         assert_eq!(host.playback.clips[host.playback.selected - 1].0, "walk");
         assert!(host.playback.playing);
         assert_eq!(host.playback.phase, 0.25);
@@ -843,7 +843,7 @@ fn open_dropdowns_keep_hovered_choices_until_mouse_up() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     ui.canvas.set_dim(TheDim::new(0, 0, 1400, 900), &mut ctx);
     ui.get_widget(PREVIEW)
         .unwrap()
@@ -861,7 +861,7 @@ fn open_dropdowns_keep_hovered_choices_until_mouse_up() {
             &mut ctx,
         );
         for _ in 0..3 {
-            host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+            host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
             host.playback
                 .tick(host.evaluation.as_ref().unwrap(), &mut ui, &mut ctx);
             assert_eq!(
@@ -881,7 +881,7 @@ fn open_dropdowns_keep_hovered_choices_until_mouse_up() {
         while let Ok(event) = rx.try_recv() {
             host.handle_event(&event, &mut p, &mut ui, &mut ctx, &creator_history);
         }
-        host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+        host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
         assert_eq!(
             ui.get_widget(name)
                 .unwrap()
@@ -918,7 +918,7 @@ fn rig_overlay_and_rest_transport_have_stable_actionable_states() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert!(host.playback.show_rig);
     host.handle_event(
         &TheEvent::IndexChanged(TheId::named("MZ Rig Overlay"), 0),
@@ -926,7 +926,7 @@ fn rig_overlay_and_rest_transport_have_stable_actionable_states() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert!(!host.playback.show_rig);
     assert_eq!(
         ui.get_widget("MZ Rig Overlay")
@@ -970,11 +970,11 @@ fn rig_overlay_and_rest_transport_have_stable_actionable_states() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     host.playback.phase = 0.37;
     host.playback.playing = false;
     host.inspector_dirty = true;
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert_eq!(
         host.playback.phase, 0.37,
         "inspector refresh must not seek a paused clip"
@@ -985,7 +985,7 @@ fn rig_overlay_and_rest_transport_have_stable_actionable_states() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert_eq!(
         host.inspector.joint, 4,
         "Rig–Pose–Rig retains the selected joint"
@@ -996,7 +996,7 @@ fn rig_overlay_and_rest_transport_have_stable_actionable_states() {
     p.procedural_appearances.insert(id, empty.save().unwrap());
     host.group_path.clear();
     host.key = None;
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     let before = p.procedural_appearances[&id].clone();
     host.handle_event(
         &TheEvent::IndexChanged(TheId::named("MZ Geometry Tool"), 4),
@@ -1004,7 +1004,7 @@ fn rig_overlay_and_rest_transport_have_stable_actionable_states() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     host.playback
         .tick(host.evaluation.as_ref().unwrap(), &mut ui, &mut ctx);
     assert_eq!(p.procedural_appearances[&id], before);
@@ -1041,7 +1041,7 @@ fn use_in_game_copies_the_whole_root_and_keeps_the_editing_scope() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     assert_eq!(host.group_path, ["body-op-0"]);
     let selected = host.selected_operation.clone();
     host.handle_event(
@@ -1053,7 +1053,7 @@ fn use_in_game_copies_the_whole_root_and_keeps_the_editing_scope() {
         &mut ui,
         &mut ctx,
      &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
+    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
     let target = Uuid::parse_str(shared::rulesets::HUMANOID_APPEARANCE_ASSET_ID).unwrap();
     assert_eq!(host.selected, Some(target));
     assert_eq!(host.group_path, ["body-op-0"]);
@@ -1074,7 +1074,7 @@ fn use_in_game_copies_the_whole_root_and_keeps_the_editing_scope() {
         None,
         Some(p.procedural_appearances[&target].clone()),
     );
-    let mut server = ServerContext::default();
+    let mut server = CreatorContext::default();
     atom.undo(&mut p, &mut ui, &mut ctx, &mut server);
     assert!(!p.procedural_appearances.contains_key(&target));
     atom.redo(&mut p, &mut ui, &mut ctx, &mut server);
@@ -1122,8 +1122,8 @@ fn mesh_selection_panel_keeps_map_and_exposes_clickable_edit_and_height_controls
         &mut ctx,
      &creator_history);
     if p.regions[0].map.camera == rusterix::MapCamera::TwoDIso {
-        let mut server=ServerContext::default();
-        server.curr_region=p.regions[0].id;
+        let mut server=CreatorContext::default();
+        server.shared.curr_region=p.regions[0].id;
         crate::iso_editor::sync(&mut ui,&p,&server,&mut ctx);
     }
     ui.canvas.set_dim(TheDim::new(0, 0, 1400, 900), &mut ctx);
@@ -1223,7 +1223,7 @@ fn mesh_texture_opens_shared_material_and_returns_to_same_recipe_operation() {
     assert!(!is_visible(&mut ui));
     let event=receiver.try_iter().find(|e|matches!(e,TheEvent::Custom(id,TheValue::Id(id2)) if id.name=="Open Mesh Material" && *id2==material)).unwrap();
     let mut materials = crate::procedural_material::ProceduralMaterialEditor::default();
-    let mut server = ServerContext::default();
+    let mut server = CreatorContext::default();
     assert!(materials.handle_event(&event, &mut ui, &mut ctx, &mut p, &mut server));
     assert!(p.tiles.contains_key(&material));
     let back = TheEvent::Custom(TheId::named("Return to Mesh Recipe"), TheValue::Empty);
@@ -1287,7 +1287,7 @@ fn embedded_mesh_material_becomes_a_named_picker_asset_and_relinks_the_recipe() 
     );
     let after = p.clone();
     let atom = ProjectUndoAtom::TilePickerEdit(Box::new(before.clone()), Box::new(after));
-    let mut server = ServerContext::default();
+    let mut server = CreatorContext::default();
     atom.undo(&mut p, &mut ui, &mut ctx, &mut server);
     assert_eq!(p.procedural_materials, before.procedural_materials);
     assert_eq!(p.procedural_appearances, before.procedural_appearances);

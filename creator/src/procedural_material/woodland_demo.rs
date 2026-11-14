@@ -952,7 +952,7 @@ fn expand_playground(mut project: Project) -> Project {
         instance.position = Vec3::new(12.5, height, 17.5);
     }
     map.grid_size = 22.;
-    ServerContext::default().center_map_at_grid_pos(
+    CreatorContext::default().shared.center_map_at_grid_pos(
         Vec2::new(1200., 850.),
         Vec2::new(17., 16.),
         map,

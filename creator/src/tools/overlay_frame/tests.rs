@@ -11,7 +11,7 @@ fn tool(kind: usize) -> Box<dyn Tool> {
         _ => unreachable!(),
     }
 }
-fn fixture(kind: usize, state: usize) -> (Map, ServerContext) {
+fn fixture(kind: usize, state: usize) -> (Map, CreatorContext) {
     let mut map = Map::new();
     map.id = Uuid::from_u128(1001);
     map.vertices = vec![
@@ -37,14 +37,14 @@ fn fixture(kind: usize, state: usize) -> (Map, ServerContext) {
         map.selected_geometry_objects = vec![Uuid::from_u128(40)];
         map.curr_rectangle = Some((Vec2::new(54.25, 68.5), Vec2::new(170.75, 187.5)));
     }
-    let mut server = ServerContext::default();
-    server.pc = ProjectContext::Region(map.id);
-    server.editor_view_mode = if state == 0 {
+    let mut server = CreatorContext::default();
+    server.shared.pc = ProjectContext::Region(map.id);
+    server.shared.editor_view_mode = if state == 0 {
         EditorViewMode::D2
     } else {
         EditorViewMode::Orbit
     };
-    server.curr_map_tool_type = match kind {
+    server.shared.curr_map_tool_type = match kind {
         0 => MapToolType::Vertex,
         1 => MapToolType::Linedef,
         2 => MapToolType::Sector,
@@ -72,8 +72,8 @@ fn fixture(kind: usize, state: usize) -> (Map, ServerContext) {
         map.profiles.insert(id, profile);
         let mut surface = rusterix::Surface::new(31);
         surface.profile = Some(id);
-        server.geometry_edit_mode = GeometryEditMode::Detail;
-        server.active_detail_surface = Some(surface);
+        server.shared.geometry_edit_mode = GeometryEditMode::Detail;
+        server.shared.active_detail_surface = Some(surface);
     }
     (map, server)
 }
@@ -104,7 +104,7 @@ fn original_standard_tool_overlays_preserve_independent_fixtures() {
 fn target(
     tool: &dyn Tool,
     _map: &Map,
-    server: &ServerContext,
+    server: &CreatorContext,
     size: (usize, usize),
 ) -> ToolOverlayTarget {
     ToolOverlayTarget {
@@ -112,7 +112,7 @@ fn target(
         tool: tool.id().uuid,
         view: Uuid::from_u128(1102),
         revision: 1,
-        context: server.pc,
+        context: server.shared.pc,
         size,
         visible: true,
     }
@@ -121,7 +121,7 @@ fn prepare(
     tool: &mut dyn Tool,
     target: ToolOverlayTarget,
     map: &Map,
-    server: &ServerContext,
+    server: &CreatorContext,
     ctx: &TheContext,
     assets: &Assets,
 ) -> ToolOverlayFrame {
@@ -174,7 +174,7 @@ fn aggregate_preparation_preserves_original_draw_order_without_activating_input_
                 );
                 assert_eq!(image.pixels(), expected, "{kind}/{state}/{width}");
                 assert_eq!(serde_json::to_value(&map).unwrap(), original);
-                assert_eq!(server.selected_hud_icon_index, 0);
+                assert_eq!(server.shared.selected_hud_icon_index, 0);
             }
         }
     }
@@ -297,7 +297,7 @@ fn aggregate_document_widget_tool_source_layout_and_profile_changes_never_rebind
     assert!(!frame.input_current(tool.as_mut(), binding, &map, &server));
     let frame = prepare(tool.as_mut(), binding, &map, &server, &ctx, &assets);
     assert!(tool.presented_overlay(&frame, &markers(&frame), binding, &map, &mut server));
-    server.active_detail_surface.as_mut().unwrap().id = Uuid::new_v4();
+    server.shared.active_detail_surface.as_mut().unwrap().id = Uuid::new_v4();
     assert!(!frame.input_current(tool.as_mut(), binding, &map, &server));
     // Zero/hidden preparation actively revokes pending and presented geometry.
     let frame = prepare(tool.as_mut(), binding, &map, &server, &ctx, &assets);
@@ -348,7 +348,7 @@ fn aggregate_props_requires_all_visible_parts_and_keeps_hidden_panels_inactive()
         assert!(fresh.input_current(tool.as_mut(), binding, &map, &server));
         if state == 1 {
             // Props configuration can change without changing the HUD selection.
-            server.curr_block_asset_name = Some("Concurrent source change".into());
+            server.shared.curr_block_asset_name = Some("Concurrent source change".into());
             assert!(!fresh.input_current(tool.as_mut(), binding, &map, &server));
         }
     }
@@ -602,13 +602,13 @@ mod routing {
         fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
             self.inner.overlay_hud()
         }
-        fn hud_selected_id(&self, map: &Map, server: &ServerContext) -> Option<u32> {
+        fn hud_selected_id(&self, map: &Map, server: &CreatorContext) -> Option<u32> {
             self.inner.hud_selected_id(map, server)
         }
         fn overlay_screen_rectangle(
             &self,
             map: &Map,
-            server: &ServerContext,
+            server: &CreatorContext,
         ) -> Option<(Vec2<f32>, Vec2<f32>)> {
             self.inner.overlay_screen_rectangle(map, server)
         }
@@ -619,7 +619,7 @@ mod routing {
     ) -> (
         Box<dyn Tool>,
         Map,
-        ServerContext,
+        CreatorContext,
         TheContext,
         Arc<ToolOverlayFrame>,
         ToolOverlayTarget,
@@ -652,7 +652,7 @@ mod routing {
         tool: &mut dyn Tool,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
         wanted: crate::hud::HudAction,
     ) -> Vec2<i32> {
         let hud = tool.overlay_hud().unwrap();
@@ -1044,11 +1044,11 @@ mod routing {
                 )
                 .unwrap();
             if kind == 1 {
-                assert_eq!(server.selected_hud_icon_index, 1);
-                assert_eq!(server.selected_wall_row, Some(1));
+                assert_eq!(server.shared.selected_hud_icon_index, 1);
+                assert_eq!(server.shared.selected_wall_row, Some(1));
                 assert_eq!(effects.events.len(), 2);
             } else {
-                assert_eq!(server.geometry_gizmo_op, GeometryGizmoOp::Resize);
+                assert_eq!(server.shared.geometry_gizmo_op, GeometryGizmoOp::Resize);
                 assert!(effects.overlay_dirty);
             }
         }
@@ -1079,12 +1079,12 @@ mod routing {
                 .unwrap();
             assert!(!effects.scene_dirty && !effects.overlay_dirty);
             assert_eq!(
-                server.block_operation, 0,
+                server.shared.block_operation, 0,
                 "authoring waits for validated event delivery"
             );
             assert_eq!(effects.events.len(), 1);
             if stale {
-                server.curr_block_asset_id = Some(Uuid::new_v4());
+                server.shared.curr_block_asset_id = Some(Uuid::new_v4());
             }
             let event = effects.events.into_iter().next().unwrap().take_if_current(
                 tool.as_mut(),
@@ -1133,7 +1133,7 @@ mod routing {
             view.set_dim(TheDim::rect(23, 35, 800, 360), &mut ctx);
             ui.canvas.set_widget(view);
             if stale {
-                server.block_grid_level += 1;
+                server.shared.block_grid_level += 1;
             }
             let effects = accepted.apply(
                 tool.as_mut(),

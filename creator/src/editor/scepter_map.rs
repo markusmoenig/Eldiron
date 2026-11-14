@@ -1388,8 +1388,8 @@ mod acceptance {
             #[cfg(feature = "native-render")]
             editor.bind_native_reference_context(pollster::block_on(renderkit::GpuContext::headless()).unwrap());
             editor.documents.project = project;
-            editor.server_ctx.curr_region = editor.documents.project.regions[0].id;
-            editor.server_ctx.pc = ProjectContext::Region(editor.server_ctx.curr_region);
+            editor.server_ctx.shared.curr_region = editor.documents.project.regions[0].id;
+            editor.server_ctx.shared.pc = ProjectContext::Region(editor.server_ctx.shared.curr_region);
             *editor.server_ctx.history.write() = UndoManager::default();
             let mut ui = TheUI::new();
             let mut ctx = TheContext::new(1024, 768, 1.);

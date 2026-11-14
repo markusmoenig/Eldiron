@@ -41,14 +41,14 @@ impl Action for FilterEditingGeo {
         ActionRole::Editor
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        !server_ctx.pc.is_prefab()
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &CreatorContext) -> bool {
+        !server_ctx.shared.pc.is_prefab()
     }
 
-    fn load_params_project(&mut self, _project: &Project, server_ctx: &mut ServerContext) {
+    fn load_params_project(&mut self, _project: &Project, server_ctx: &mut CreatorContext) {
         self.nodeui.set_i32_value(
             "actionEditingGeoFilterMode",
-            server_ctx.editing_geo_filter.to_index(),
+            server_ctx.shared.editing_geo_filter.to_index(),
         );
     }
 
@@ -57,13 +57,13 @@ impl Action for FilterEditingGeo {
         project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         let mode = self
             .nodeui
             .get_i32_value("actionEditingGeoFilterMode")
             .unwrap_or(0);
-        server_ctx.editing_geo_filter = EditingGeoFilter::from_index(mode);
+        server_ctx.shared.editing_geo_filter = EditingGeoFilter::from_index(mode);
 
         crate::utils::editor_scene_full_rebuild(project, server_ctx);
         server_ctx.tools.write()
@@ -85,7 +85,7 @@ impl Action for FilterEditingGeo {
         _project: &mut Project,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         self.nodeui.handle_event(event)
     }

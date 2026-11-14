@@ -8,12 +8,12 @@ impl ToolList {
         assets: &Assets,
         scene: &mut rusterix::SceneHandler,
         map: &Map,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) {
-        let block_grid_active = server_ctx.block_tool_active;
+        let block_grid_active = server_ctx.shared.block_tool_active;
         let base_step = if block_grid_active {
             crate::blocks::block_tool_horizontal_grid_step(
-                server_ctx.curr_block_asset_id,
+                server_ctx.shared.curr_block_asset_id,
                 &assets.block_props,
                 map,
                 server_ctx,
@@ -39,7 +39,7 @@ impl ToolList {
         let min_z = min_z_step as f32 * display_step;
         let max_z = max_z_step as f32 * display_step;
         let grid_base_y = if block_grid_active {
-            server_ctx.block_grid_level as f32 * server_ctx.block_grid_cell_size.max(0.05)
+            server_ctx.shared.block_grid_level as f32 * server_ctx.shared.block_grid_cell_size.max(0.05)
         } else {
             0.0
         };
@@ -118,7 +118,7 @@ impl ToolList {
     pub(crate) fn prepare_geometry_overlay_3d(
         &mut self,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         assets: &Assets,
         camera: &dyn D3Camera,
         scene: &mut rusterix::SceneHandler,
@@ -129,7 +129,7 @@ impl ToolList {
             assets,
             camera,
             scene,
-            project.get_map(server_ctx),
+            project.get_map(&server_ctx.shared),
             None,
         );
     }
@@ -139,14 +139,14 @@ impl ToolList {
     pub(crate) fn prepare_geometry_overlay_3d_for_map(
         &mut self,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         assets: &Assets,
         camera: &dyn D3Camera,
         scene: &mut rusterix::SceneHandler,
         source_map: Option<&Map>,
         paste_ghosts: Option<&FxHashSet<GeoId>>,
     ) {
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
             return;
         }
 
@@ -212,19 +212,19 @@ impl ToolList {
                 }
             }
         }
-        if server_ctx.show_editor_grid
+        if server_ctx.shared.show_editor_grid
             && let Some(map) = source_map
         {
             self.add_construction_grid_3d(assets, scene, map, server_ctx);
         }
-        if server_ctx.curr_map_tool_type == MapToolType::Terrain {
+        if server_ctx.shared.curr_map_tool_type == MapToolType::Terrain {
             if let Some(map) = source_map
-                && let Some(center) = server_ctx.hover_cursor_3d
+                && let Some(center) = server_ctx.shared.hover_cursor_3d
             {
                 let points = TerrainTool::outline(
                     map,
                     Vec2::new(center.x, center.z),
-                    server_ctx.terrain_brush_radius,
+                    server_ctx.shared.terrain_brush_radius,
                 );
                 let tile = scene.selected;
                 let normal = camera.basis_vectors().0;
@@ -254,7 +254,7 @@ impl ToolList {
         let camera_scale = camera.scale();
         let camera_fov = camera.fov().to_radians();
         let overlay_world_size = |point: Vec3<f32>| -> f32 {
-            if server_ctx.editor_view_mode == EditorViewMode::Iso {
+            if server_ctx.shared.editor_view_mode == EditorViewMode::Iso {
                 (camera_scale * 0.035).clamp(0.055, 0.28)
             } else {
                 let distance = (point - camera_position).magnitude().max(0.1);
@@ -314,13 +314,13 @@ impl ToolList {
                     .add_line_3d(id, tile_id, a, b, thickness, normal, 100);
             };
 
-            let block_grid_active = server_ctx.block_tool_active;
+            let block_grid_active = server_ctx.shared.block_tool_active;
             let prefab_preview_color = Self::overlay_color(self.prefab_preview_wire_rgb, 0.92);
             let prefab_preview_footprint_color =
                 Self::overlay_color(self.prefab_preview_wire_rgb, 0.95);
             let grid_step = if block_grid_active {
                 crate::blocks::block_tool_horizontal_grid_step(
-                    server_ctx.curr_block_asset_id,
+                    server_ctx.shared.curr_block_asset_id,
                     &assets.block_props,
                     map,
                     server_ctx,
@@ -329,7 +329,7 @@ impl ToolList {
                 shared::context::ServerContext::edit_grid_step(map.subdivisions)
             };
             let grid_base_y = if block_grid_active {
-                server_ctx.block_grid_level as f32 * server_ctx.block_grid_cell_size.max(0.05)
+                server_ctx.shared.block_grid_level as f32 * server_ctx.shared.block_grid_cell_size.max(0.05)
             } else {
                 0.0
             };
@@ -339,28 +339,28 @@ impl ToolList {
                 0.012
             };
             if block_grid_active
-                && let Some(template) = server_ctx.block_recipe_template.as_ref()
+                && let Some(template) = server_ctx.shared.block_recipe_template.as_ref()
                 && let Some(hit) = crate::blocks::block_grid_plane_hit(server_ctx)
-                    .or(server_ctx.hover_cursor_3d)
-                    .or(server_ctx.hover_surface_hit_pos)
+                    .or(server_ctx.shared.hover_cursor_3d)
+                    .or(server_ctx.shared.hover_surface_hit_pos)
             {
                 let cell = Vec3::new(
                     (hit.x / grid_step).floor() as i32,
-                    server_ctx.block_grid_level,
+                    server_ctx.shared.block_grid_level,
                     (hit.z / grid_step).floor() as i32,
                 );
-                let cells = server_ctx.block_drag_start_cell.map_or_else(
+                let cells = server_ctx.shared.block_drag_start_cell.map_or_else(
                     || vec![cell],
                     |start| {
                         crate::blocks::block_stroke_cells(
                             start,
-                            server_ctx.block_drag_end_cell.unwrap_or(start),
-                            server_ctx.block_stroke_mode,
+                            server_ctx.shared.block_drag_end_cell.unwrap_or(start),
+                            server_ctx.shared.block_stroke_mode,
                         )
                     },
                 );
                 let base = server_ctx
-                    .block_drag_base_y
+                    .shared.block_drag_base_y
                     .or_else(|| crate::blocks::block_surface_base_y(server_ctx, grid_base_y))
                     .unwrap_or(grid_base_y);
                 let mut ghost = template.clone();
@@ -373,7 +373,7 @@ impl ToolList {
                         *cell,
                         base,
                         grid_step,
-                        server_ctx.block_rotation_quarters,
+                        server_ctx.shared.block_rotation_quarters,
                     );
                     let vertices = ghost
                         .vertices
@@ -410,14 +410,14 @@ impl ToolList {
             }
 
             if block_grid_active
-                && let Some(asset_id) = server_ctx.curr_block_asset_id
+                && let Some(asset_id) = server_ctx.shared.curr_block_asset_id
                 && let Some(asset) = crate::blocks::block_asset(asset_id)
                 && let Some(hit) = crate::blocks::block_grid_plane_hit(server_ctx)
-                    .or(server_ctx.hover_cursor_3d)
-                    .or(server_ctx.hover_surface_hit_pos)
-                    .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
+                    .or(server_ctx.shared.hover_cursor_3d)
+                    .or(server_ctx.shared.hover_surface_hit_pos)
+                    .or_else(|| server_ctx.shared.geo_hit.map(|_| server_ctx.shared.geo_hit_pos))
             {
-                let rotation = server_ctx.block_rotation_quarters.rem_euclid(4);
+                let rotation = server_ctx.shared.block_rotation_quarters.rem_euclid(4);
                 let block_sizing = crate::blocks::block_sizing_from_context(server_ctx);
                 let width_extra = if crate::blocks::asset_supports_width(asset) {
                     block_sizing.span_extra_cells
@@ -450,27 +450,27 @@ impl ToolList {
                 let outline_offset_z = offset_z * grid_step;
                 let hover_cell = Vec3::new(
                     (hit.x / grid_step).floor() as i32,
-                    server_ctx.block_grid_level,
+                    server_ctx.shared.block_grid_level,
                     (hit.z / grid_step).floor() as i32,
                 );
-                let cells = if let Some(start) = server_ctx.block_drag_start_cell {
+                let cells = if let Some(start) = server_ctx.shared.block_drag_start_cell {
                     crate::blocks::block_stroke_cells(
                         start,
-                        server_ctx.block_drag_end_cell.unwrap_or(start),
-                        server_ctx.block_stroke_mode,
+                        server_ctx.shared.block_drag_end_cell.unwrap_or(start),
+                        server_ctx.shared.block_stroke_mode,
                     )
                 } else {
                     vec![hover_cell]
                 };
                 let preview_base_y = server_ctx
-                    .block_drag_base_y
+                    .shared.block_drag_base_y
                     .or_else(|| crate::blocks::block_surface_base_y(server_ctx, grid_base_y))
                     .unwrap_or(grid_base_y);
                 let y = preview_base_y + 0.030;
                 let preview_color = prefab_preview_color;
                 let preview_fill = scene.selected;
                 let erase_preview =
-                    server_ctx.block_operation == crate::blocks::BLOCK_OPERATION_ERASE;
+                    server_ctx.shared.block_operation == crate::blocks::BLOCK_OPERATION_ERASE;
                 let fill_preview_boxes = !erase_preview && asset.name != "Stairs";
 
                 for (cell_index, cell) in cells.iter().enumerate() {
@@ -622,37 +622,37 @@ impl ToolList {
             }
 
             if block_grid_active
-                && let Some(asset_id) = server_ctx.curr_block_asset_id
+                && let Some(asset_id) = server_ctx.shared.curr_block_asset_id
                 && crate::blocks::block_asset(asset_id).is_none()
                 && assets.block_props.get(&asset_id).is_some_and(|asset| {
                     asset.placement.mode == rusterix::BlockPropPlacementMode::Ground
                 })
                 && let Some(hit) = crate::blocks::block_grid_plane_hit(server_ctx)
-                    .or(server_ctx.hover_cursor_3d)
-                    .or(server_ctx.hover_surface_hit_pos)
-                    .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
+                    .or(server_ctx.shared.hover_cursor_3d)
+                    .or(server_ctx.shared.hover_surface_hit_pos)
+                    .or_else(|| server_ctx.shared.geo_hit.map(|_| server_ctx.shared.geo_hit_pos))
             {
                 let hover_cell = Vec3::new(
                     (hit.x / grid_step).floor() as i32,
-                    server_ctx.block_grid_level,
+                    server_ctx.shared.block_grid_level,
                     (hit.z / grid_step).floor() as i32,
                 );
-                let cells = if let Some(start) = server_ctx.block_drag_start_cell {
+                let cells = if let Some(start) = server_ctx.shared.block_drag_start_cell {
                     crate::blocks::block_stroke_cells(
                         start,
-                        server_ctx.block_drag_end_cell.unwrap_or(start),
-                        server_ctx.block_stroke_mode,
+                        server_ctx.shared.block_drag_end_cell.unwrap_or(start),
+                        server_ctx.shared.block_stroke_mode,
                     )
                 } else {
                     vec![hover_cell]
                 };
                 let preview_base_y = server_ctx
-                    .block_drag_base_y
+                    .shared.block_drag_base_y
                     .or_else(|| crate::blocks::block_surface_base_y(server_ctx, grid_base_y))
                     .unwrap_or(grid_base_y);
                 let erase_preview =
-                    server_ctx.block_operation == crate::blocks::BLOCK_OPERATION_ERASE;
-                let rotation = server_ctx.block_rotation_quarters.rem_euclid(4);
+                    server_ctx.shared.block_operation == crate::blocks::BLOCK_OPERATION_ERASE;
+                let rotation = server_ctx.shared.block_rotation_quarters.rem_euclid(4);
                 let angle = rotation as f32 * std::f32::consts::FRAC_PI_2;
                 let (sin, cos) = angle.sin_cos();
 
@@ -735,8 +735,8 @@ impl ToolList {
             }
 
             if block_grid_active
-                && server_ctx.block_operation != crate::blocks::BLOCK_OPERATION_ERASE
-                && let Some(asset_id) = server_ctx.curr_block_asset_id
+                && server_ctx.shared.block_operation != crate::blocks::BLOCK_OPERATION_ERASE
+                && let Some(asset_id) = server_ctx.shared.curr_block_asset_id
                 && let Some(asset) = assets.block_props.get(&asset_id).cloned()
                 && asset.placement.mode != rusterix::BlockPropPlacementMode::Ground
             {
@@ -779,9 +779,9 @@ impl ToolList {
                         }
                     }
                 } else if let Some(hit) = server_ctx
-                    .hover_surface_hit_pos
-                    .or(server_ctx.hover_cursor_3d)
-                    .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
+                    .shared.hover_surface_hit_pos
+                    .or(server_ctx.shared.hover_cursor_3d)
+                    .or_else(|| server_ctx.shared.geo_hit.map(|_| server_ctx.shared.geo_hit_pos))
                 {
                     let size = overlay_world_size(hit).clamp(0.08, 0.28);
                     for (index, axis) in [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()]
@@ -851,7 +851,7 @@ impl ToolList {
                 }
             }
 
-            if server_ctx.curr_map_tool_type == MapToolType::Selection
+            if server_ctx.shared.curr_map_tool_type == MapToolType::Selection
                 && !map.selected_block_prop_instances.is_empty()
             {
                 let selected_ids = map
@@ -894,12 +894,12 @@ impl ToolList {
             }
 
             let direct_geometry_tool = matches!(
-                server_ctx.curr_map_tool_type,
+                server_ctx.shared.curr_map_tool_type,
                 MapToolType::Selection
                     | MapToolType::Vertex
                     | MapToolType::Linedef
                     | MapToolType::Sector
-            ) && server_ctx.geometry_edit_mode != GeometryEditMode::Detail;
+            ) && server_ctx.shared.geometry_edit_mode != GeometryEditMode::Detail;
             let selected_tile = scene.selected;
             let white_tile = scene.white;
             let push_cube_marker = |scene: &mut rusterix::SceneHandler,
@@ -961,8 +961,8 @@ impl ToolList {
                     );
                 }
             };
-            if server_ctx.curr_map_tool_type == MapToolType::Effects
-                && let Some(asset_id) = server_ctx.curr_block_asset_id
+            if server_ctx.shared.curr_map_tool_type == MapToolType::Effects
+                && let Some(asset_id) = server_ctx.shared.curr_block_asset_id
                 && let Some(asset) = assets.block_props.get(&asset_id).cloned()
             {
                 let instance = rusterix::BlockPropInstance::new(asset_id);
@@ -1001,7 +1001,7 @@ impl ToolList {
                     handles.push((light.effect_id, light.position, direction));
                 }
                 for (index, (effect_id, origin, direction)) in handles.into_iter().enumerate() {
-                    let selected = server_ctx.selected_prefab_effect_id == Some(effect_id);
+                    let selected = server_ctx.shared.selected_prefab_effect_id == Some(effect_id);
                     let size = overlay_world_size(origin);
                     let marker_size = (size * 1.25).clamp(0.08, 0.24);
                     let direction_length = (size * 5.5).clamp(0.35, 1.35);
@@ -1128,8 +1128,8 @@ impl ToolList {
                     }
                 }
             }
-            if server_ctx.curr_map_tool_type == MapToolType::Selection
-                && server_ctx.geometry_gizmo_op == GeometryGizmoOp::Move
+            if server_ctx.shared.curr_map_tool_type == MapToolType::Selection
+                && server_ctx.shared.geometry_gizmo_op == GeometryGizmoOp::Move
                 && !map.selected_block_prop_instances.is_empty()
             {
                 let selected_ids = map
@@ -1222,7 +1222,7 @@ impl ToolList {
             }
             for object in &map.geometry_objects {
                 let selected = map.selected_geometry_objects.contains(&object.id);
-                let hovered = server_ctx.geo_hit == Some(GeoId::GeometryObject(object.id));
+                let hovered = server_ctx.shared.geo_hit == Some(GeoId::GeometryObject(object.id));
                 if !selected && !hovered {
                     continue;
                 }
@@ -1253,8 +1253,8 @@ impl ToolList {
                     let mut gizmo_max = Vec3::broadcast(f32::NEG_INFINITY);
                     let mut gizmo_found = false;
                     let mut has_mode_selection =
-                        server_ctx.curr_map_tool_type == MapToolType::Selection;
-                    if server_ctx.curr_map_tool_type != MapToolType::Selection {
+                        server_ctx.shared.curr_map_tool_type == MapToolType::Selection;
+                    if server_ctx.shared.curr_map_tool_type != MapToolType::Selection {
                         for (_, vertex_index) in map
                             .selected_geometry_vertices
                             .iter()
@@ -1272,7 +1272,7 @@ impl ToolList {
                             gizmo_max.z = gizmo_max.z.max(world.z);
                             gizmo_found = true;
                             if matches!(
-                                server_ctx.curr_map_tool_type,
+                                server_ctx.shared.curr_map_tool_type,
                                 MapToolType::Vertex | MapToolType::Linedef
                             ) {
                                 has_mode_selection = true;
@@ -1299,7 +1299,7 @@ impl ToolList {
                                 gizmo_max.z = gizmo_max.z.max(world.z);
                                 gizmo_found = true;
                             }
-                            if server_ctx.curr_map_tool_type == MapToolType::Sector {
+                            if server_ctx.shared.curr_map_tool_type == MapToolType::Sector {
                                 has_mode_selection = true;
                             }
                         }
@@ -1311,7 +1311,7 @@ impl ToolList {
                     let axis_len = (base_overlay_size * 7.0).clamp(0.38, 1.75);
                     let move_handle_size = (base_overlay_size * 1.15).clamp(0.08, 0.22);
                     let resize_handle_size = (base_overlay_size * 0.95).clamp(0.07, 0.18);
-                    let draw_selection_gizmo = server_ctx.curr_map_tool_type
+                    let draw_selection_gizmo = server_ctx.shared.curr_map_tool_type
                         != MapToolType::Selection
                         || map.selected_geometry_objects.len() <= 1
                         || map
@@ -1319,12 +1319,12 @@ impl ToolList {
                             .first()
                             .is_some_and(|selected_id| *selected_id == object.id);
                     if selected && has_mode_selection && draw_selection_gizmo {
-                        let show_move_gizmo = server_ctx.curr_map_tool_type
+                        let show_move_gizmo = server_ctx.shared.curr_map_tool_type
                             != MapToolType::Selection
-                            || server_ctx.geometry_gizmo_op == GeometryGizmoOp::Move;
-                        let show_resize_gizmo = server_ctx.curr_map_tool_type
+                            || server_ctx.shared.geometry_gizmo_op == GeometryGizmoOp::Move;
+                        let show_resize_gizmo = server_ctx.shared.curr_map_tool_type
                             == MapToolType::Selection
-                            && server_ctx.geometry_gizmo_op == GeometryGizmoOp::Resize;
+                            && server_ctx.shared.geometry_gizmo_op == GeometryGizmoOp::Resize;
                         if show_move_gizmo {
                             for (axis_id, delta, color) in [
                                 (1, Vec3::new(axis_len, 0.0, 0.0), [0.86, 0.22, 0.22, 1.0]),
@@ -1405,7 +1405,7 @@ impl ToolList {
                     }
                 }
 
-                if server_ctx.curr_map_tool_type == MapToolType::Selection {
+                if server_ctx.shared.curr_map_tool_type == MapToolType::Selection {
                     let corners = [
                         Vec3::new(min.x, min.y, min.z),
                         Vec3::new(max.x, min.y, min.z),
@@ -1450,7 +1450,7 @@ impl ToolList {
                     }
                 }
 
-                if server_ctx.curr_map_tool_type == MapToolType::Vertex {
+                if server_ctx.shared.curr_map_tool_type == MapToolType::Vertex {
                     for (vertex_index, vertex) in object.vertices.iter().enumerate() {
                         let is_selected = map
                             .selected_geometry_vertices
@@ -1468,7 +1468,7 @@ impl ToolList {
                     }
                 }
 
-                if server_ctx.curr_map_tool_type == MapToolType::Linedef {
+                if server_ctx.shared.curr_map_tool_type == MapToolType::Linedef {
                     let mut edge_index = 0u32;
                     let mut surface_line_index = 0u32;
                     let mut drawn_geometry_vertices = FxHashSet::default();
@@ -1661,7 +1661,7 @@ impl ToolList {
                     }
                 }
 
-                if server_ctx.curr_map_tool_type == MapToolType::Sector {
+                if server_ctx.shared.curr_map_tool_type == MapToolType::Sector {
                     for (face_index, face) in object.faces.iter().enumerate() {
                         let is_selected = map
                             .selected_geometry_faces
@@ -1811,15 +1811,15 @@ impl ToolList {
                     );
                 };
 
-            if server_ctx.curr_map_tool_type == MapToolType::Vertex {
+            if server_ctx.shared.curr_map_tool_type == MapToolType::Vertex {
                 let detail_surface = server_ctx
-                    .active_detail_surface
+                    .shared.active_detail_surface
                     .as_ref()
-                    .or(server_ctx.hover_surface.as_ref())
-                    .or(server_ctx.editing_surface.as_ref())
+                    .or(server_ctx.shared.hover_surface.as_ref())
+                    .or(server_ctx.shared.editing_surface.as_ref())
                     .cloned();
-                let detail_vertex_mode = server_ctx.curr_map_tool_type == MapToolType::Vertex
-                    && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                let detail_vertex_mode = server_ctx.shared.curr_map_tool_type == MapToolType::Vertex
+                    && server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail
                     && detail_surface.is_some();
 
                 if detail_vertex_mode {
@@ -1831,7 +1831,7 @@ impl ToolList {
                             let mut pos = surface.uv_to_world(Vec2::new(v.x, -v.y)) + view_nudge;
                             pos += Vec3::zero();
                             let selected = profile_map.selected_vertices.contains(&v.id)
-                                || server_ctx.hover.0 == Some(v.id);
+                                || server_ctx.shared.hover.0 == Some(v.id);
                             push_vertex(GeoId::Vertex(v.id), pos, selected, scene);
                         }
                     }
@@ -1843,26 +1843,26 @@ impl ToolList {
                         let mut pos = Vec3::new(world_pos.x, world_pos.y, world_pos.z);
                         pos += view_nudge;
                         let selected = map.selected_vertices.contains(&v.id)
-                            || server_ctx.hover.0 == Some(v.id);
+                            || server_ctx.shared.hover.0 == Some(v.id);
 
                         push_vertex(GeoId::Vertex(v.id), pos, selected, scene);
                     }
                 }
             } else {
                 let detail_surface = server_ctx
-                    .active_detail_surface
+                    .shared.active_detail_surface
                     .as_ref()
-                    .or(server_ctx.hover_surface.as_ref())
-                    .or(server_ctx.editing_surface.as_ref())
+                    .or(server_ctx.shared.hover_surface.as_ref())
+                    .or(server_ctx.shared.editing_surface.as_ref())
                     .cloned();
-                let skip_world_linedef_overlay = server_ctx.curr_map_tool_type
+                let skip_world_linedef_overlay = server_ctx.shared.curr_map_tool_type
                     == MapToolType::Linedef
-                    && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                    && server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail
                     && detail_surface.is_some();
                 // Linedefs
-                if server_ctx.curr_map_tool_type == MapToolType::Linedef {
-                    if server_ctx.curr_map_tool_type == MapToolType::Linedef
-                        && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                if server_ctx.shared.curr_map_tool_type == MapToolType::Linedef {
+                    if server_ctx.shared.curr_map_tool_type == MapToolType::Linedef
+                        && server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail
                     {
                         if let Some(surface) = detail_surface.clone() {
                             if let Some(profile_id) = surface.profile
@@ -1893,7 +1893,7 @@ impl ToolList {
 
                                     let is_selected =
                                         profile_map.selected_linedefs.contains(&linedef.id);
-                                    let is_hovered = server_ctx.hover.1 == Some(linedef.id);
+                                    let is_hovered = server_ctx.shared.hover.1 == Some(linedef.id);
 
                                     push_line(
                                         GeoId::Linedef(linedef.id),
@@ -1912,7 +1912,7 @@ impl ToolList {
                     if !skip_world_linedef_overlay {
                         for linedef in &map.linedefs {
                             let is_selected = map.selected_linedefs.contains(&linedef.id);
-                            let is_hovered = server_ctx.hover.1 == Some(linedef.id);
+                            let is_hovered = server_ctx.shared.hover.1 == Some(linedef.id);
                             if !linedef.sector_ids.is_empty() {
                                 continue;
                             }
@@ -1965,20 +1965,20 @@ impl ToolList {
                 }
                 let mut edge_accum: HashMap<EdgeKey, EdgeInfo> = HashMap::new();
 
-                if server_ctx.curr_map_tool_type == MapToolType::Sector
-                    && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                if server_ctx.shared.curr_map_tool_type == MapToolType::Sector
+                    && server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail
                     && let Some(surface) = server_ctx
-                        .active_detail_surface
+                        .shared.active_detail_surface
                         .as_ref()
-                        .or(server_ctx.hover_surface.as_ref())
-                        .or(server_ctx.editing_surface.as_ref())
+                        .or(server_ctx.shared.hover_surface.as_ref())
+                        .or(server_ctx.shared.editing_surface.as_ref())
                         .cloned()
                     && let Some(profile_id) = surface.profile
                     && let Some(profile_map) = map.profiles.get(&profile_id)
                 {
                     for sector in &profile_map.sectors {
                         let sector_is_selected = profile_map.selected_sectors.contains(&sector.id);
-                        let sector_is_hovered = server_ctx.hover.2 == Some(sector.id);
+                        let sector_is_hovered = server_ctx.shared.hover.2 == Some(sector.id);
                         for &ld_id in &sector.linedefs {
                             let Some(linedef) = profile_map.find_linedef(ld_id) else {
                                 continue;
@@ -2008,10 +2008,10 @@ impl ToolList {
                     }
                 }
 
-                let skip_world_sector_overlay = server_ctx.curr_map_tool_type
+                let skip_world_sector_overlay = server_ctx.shared.curr_map_tool_type
                     == MapToolType::Sector
-                    && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
-                    && server_ctx.active_detail_surface.is_some();
+                    && server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail
+                    && server_ctx.shared.active_detail_surface.is_some();
 
                 for surface in map.surfaces.values() {
                     if skip_world_sector_overlay {
@@ -2022,9 +2022,9 @@ impl ToolList {
                         continue;
                     };
                     let sector_is_selected = map.selected_sectors.contains(&sector_id);
-                    let sector_is_hovered = server_ctx.hover.2 == Some(sector_id);
+                    let sector_is_hovered = server_ctx.shared.hover.2 == Some(sector_id);
 
-                    if sector.properties.contains("rect") && server_ctx.no_rect_geo_on_map {
+                    if sector.properties.contains("rect") && server_ctx.shared.no_rect_geo_on_map {
                         continue;
                     }
 
@@ -2042,12 +2042,12 @@ impl ToolList {
 
                                 let mut line_is_selected = false;
 
-                                if server_ctx.curr_map_tool_type == MapToolType::Linedef
-                                    || server_ctx.curr_map_tool_type == MapToolType::Selection
+                                if server_ctx.shared.curr_map_tool_type == MapToolType::Linedef
+                                    || server_ctx.shared.curr_map_tool_type == MapToolType::Selection
                                 {
                                     line_is_selected = map.selected_linedefs.contains(&ld_id)
-                                        || server_ctx.hover.1 == Some(ld_id);
-                                } else if server_ctx.curr_map_tool_type == MapToolType::Sector {
+                                        || server_ctx.shared.hover.1 == Some(ld_id);
+                                } else if server_ctx.shared.curr_map_tool_type == MapToolType::Sector {
                                     line_is_selected = sector_is_selected || sector_is_hovered;
                                 };
 
@@ -2063,7 +2063,7 @@ impl ToolList {
                                     .entry(key)
                                     .and_modify(|e| {
                                         e.selected |= line_is_selected;
-                                        e.hovered |= server_ctx.hover.1 == Some(ld_id);
+                                        e.hovered |= server_ctx.shared.hover.1 == Some(ld_id);
                                         e.a = a;
                                         e.b = b; // keep latest endpoints
                                     })
@@ -2071,7 +2071,7 @@ impl ToolList {
                                         a,
                                         b,
                                         selected: line_is_selected,
-                                        hovered: server_ctx.hover.1 == Some(ld_id),
+                                        hovered: server_ctx.shared.hover.1 == Some(ld_id),
                                         rep_ld_id: ld_id,
                                     });
                             }
@@ -2111,19 +2111,19 @@ impl ToolList {
     pub(crate) fn prepare_tool_preview_overlay_3d(
         &mut self,
         project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         _assets: &Assets,
         camera: &dyn D3Camera,
         scene: &mut rusterix::SceneHandler,
     ) {
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
             return;
         }
 
-        let map = if server_ctx.pc.is_prefab() {
+        let map = if server_ctx.shared.pc.is_prefab() {
             project.prefab_editor_map.as_ref()
         } else {
-            project.get_region_ctx(server_ctx).map(|region| &region.map)
+            project.get_region_ctx(&server_ctx.shared).map(|region| &region.map)
         };
         let Some(map) = map else { return; };
 
@@ -2139,8 +2139,8 @@ impl ToolList {
         let thickness = 0.15;
         let white = scene.white;
 
-        if server_ctx.curr_map_tool_type == MapToolType::Rect {
-            if let Some(terrain_id) = server_ctx.rect_terrain_id {
+        if server_ctx.shared.curr_map_tool_type == MapToolType::Rect {
+            if let Some(terrain_id) = server_ctx.shared.rect_terrain_id {
                 let config = TerrainConfig::for_map(map);
                 let corners = TerrainGenerator::tile_outline_world(map, terrain_id, &config);
                 let n = TerrainGenerator::tile_normal(map, terrain_id, &config);
@@ -2155,12 +2155,12 @@ impl ToolList {
                         100,
                     );
                 }
-            } else if let Some(sector_id) = server_ctx.rect_sector_id_3d {
+            } else if let Some(sector_id) = server_ctx.shared.rect_sector_id_3d {
                 let mut index = 0;
                 for surface in map.surfaces.values() {
                     if surface.sector_id == sector_id {
                         let corners =
-                            surface.tile_outline_world_local(server_ctx.rect_tile_id_3d, map);
+                            surface.tile_outline_world_local(server_ctx.shared.rect_tile_id_3d, map);
                         let n = surface.plane.normal;
                         for i in 0..4 {
                             scene.tool_overlay_3d.add_line_3d(
@@ -2176,7 +2176,7 @@ impl ToolList {
                         }
                     }
                 }
-            } else if let Some((object_id, face_index)) = server_ctx.rect_geometry_face_3d
+            } else if let Some((object_id, face_index)) = server_ctx.shared.rect_geometry_face_3d
                 && let Some(object) = map
                     .geometry_objects
                     .iter()
@@ -2231,7 +2231,7 @@ impl ToolList {
                             .fold(Vec2::broadcast(f32::NEG_INFINITY), |acc, uv| {
                                 Vec2::new(acc.x.max(uv.x), acc.y.max(uv.y))
                             });
-                        let tile = server_ctx.rect_tile_id_3d;
+                        let tile = server_ctx.shared.rect_tile_id_3d;
                         let tile_min = min_uv + Vec2::new(tile.0 as f32, tile.1 as f32);
                         let tile_max = Vec2::new(
                             (tile_min.x + 1.0).min(max_uv.x),
@@ -2265,11 +2265,11 @@ impl ToolList {
                     }
                 }
             }
-        } else if matches!(server_ctx.curr_map_tool_type, MapToolType::Linedef) {
+        } else if matches!(server_ctx.shared.curr_map_tool_type, MapToolType::Linedef) {
             if let Some(start) = map.curr_grid_pos_3d {
-                let target = server_ctx.hover_cursor_3d.or_else(|| {
-                    matches!(server_ctx.geo_hit, Some(GeoId::GeometryObject(_)))
-                        .then_some(server_ctx.geo_hit_pos)
+                let target = server_ctx.shared.hover_cursor_3d.or_else(|| {
+                    matches!(server_ctx.shared.geo_hit, Some(GeoId::GeometryObject(_)))
+                        .then_some(server_ctx.shared.geo_hit_pos)
                 });
                 if let Some(target) = target {
                     let color = [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0];
@@ -2282,7 +2282,7 @@ impl ToolList {
                     );
                 }
             }
-        } else if server_ctx.curr_map_tool_type == MapToolType::CollisionProbe {
+        } else if server_ctx.shared.curr_map_tool_type == MapToolType::CollisionProbe {
             let green = [74.0 / 255.0, 222.0 / 255.0, 128.0 / 255.0, 1.0];
             let yellow = [250.0 / 255.0, 204.0 / 255.0, 21.0 / 255.0, 1.0];
             let orange = [251.0 / 255.0, 146.0 / 255.0, 60.0 / 255.0, 1.0];
@@ -2428,9 +2428,9 @@ impl ToolList {
             };
 
             if let Some(result) = server_ctx
-                .collision_probe_result
+                .shared.collision_probe_result
                 .as_ref()
-                .or_else(|| server_ctx.collision_probe_results.last())
+                .or_else(|| server_ctx.shared.collision_probe_results.last())
             {
                 draw_result(scene, result, false);
             }

@@ -12,10 +12,10 @@ pub(super) struct NativeGameInput {
 impl Editor {
     pub(crate) fn native_game_input_owns_viewport(&self) -> bool {
         self.native_viewport.enabled
-            && self.server_ctx.game_input_mode
-            && !self.server_ctx.game_mode
-            && !self.server_ctx.text_game_mode
-            && self.server_ctx.pc.is_region()
+            && self.server_ctx.shared.game_input_mode
+            && !self.server_ctx.shared.game_mode
+            && !self.server_ctx.shared.text_game_mode
+            && self.server_ctx.shared.pc.is_region()
             && self.play_session.as_ref().is_some_and(|play| {
                 self.documents.active_id() == Some(play.document)
             })
@@ -26,7 +26,7 @@ impl Editor {
         let enabled = self.native_game_input_owns_viewport();
         // This is only an ephemeral compatibility routing claim, not document
         // data. Unsupported contexts keep their explicitly unmigrated adapter.
-        self.server_ctx.native_game_input = enabled;
+        self.server_ctx.shared.native_game_input = enabled;
         let frame = if enabled
             && self.native_viewport.window_focused != Some(false)
             && ui.dialog.is_none()
@@ -63,7 +63,7 @@ impl Editor {
             self.native_viewport.window_focused = Some(*focused);
         }
         self.sync_native_game_input(&mut session.ui, &session.context);
-        if !self.server_ctx.native_game_input {
+        if !self.server_ctx.shared.native_game_input {
             return None;
         }
         let view = session.ui.get_render_view("PolyView")?.id().clone();
@@ -188,6 +188,6 @@ impl Editor {
         Some((play.pump().session_id(), play.input.input_stats()))
     }
     pub(crate) fn native_game_input_claim_for_test(&self) -> bool {
-        self.server_ctx.native_game_input
+        self.server_ctx.shared.native_game_input
     }
 }

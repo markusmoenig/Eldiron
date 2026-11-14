@@ -142,7 +142,7 @@ impl CreatorTheme {
         self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) {
         let mut profile = crate::misc::FrameProfile::new();
         let theme: Box<dyn TheTheme> = match self {
@@ -482,7 +482,7 @@ pub struct Editor {
     #[cfg(feature = "native-render")]
     native_viewport: native_views::NativeViewport,
 
-    server_ctx: ServerContext,
+    server_ctx: CreatorContext,
 
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
@@ -4498,14 +4498,14 @@ impl Editor {
     }
 
     fn activate_edit_tile_meta_action(&mut self) {
-        if self.server_ctx.curr_tile_id.is_none() {
+        if self.server_ctx.shared.curr_tile_id.is_none() {
             return;
         }
 
         if let Some(action) = self.server_ctx.actions.read()
             .get_action_by_command_id("tile.edit_metadata")
         {
-            self.server_ctx.curr_action_id = Some(action.id().uuid);
+            self.server_ctx.shared.curr_action_id = Some(action.id().uuid);
         }
     }
 
@@ -4777,8 +4777,8 @@ impl Editor {
     }
 
     fn persist_active_region_view_state(&mut self) {
-        if let Some(region) = self.documents.project.get_region_mut(&self.server_ctx.curr_region) {
-            match self.server_ctx.editor_view_mode {
+        if let Some(region) = self.documents.project.get_region_mut(&self.server_ctx.shared.curr_region) {
+            match self.server_ctx.shared.editor_view_mode {
                 EditorViewMode::Iso => {
                     region.editing_position_iso_3d = Some(region.editing_position_3d);
                     region.editing_look_at_iso_3d = Some(region.editing_look_at_3d);
@@ -5407,7 +5407,7 @@ impl Editor {
                 .sync_base_render_settings(&self.documents.project.config);
             rusterix.client.set_server_time(self.documents.project.time);
             if rusterix.server.state == rusterix::ServerState::Running
-                && let Some(map) = self.documents.project.get_map(&self.server_ctx)
+                && let Some(map) = self.documents.project.get_map(&self.server_ctx.shared)
             {
                 rusterix.server.set_time(&map.id, self.documents.project.time);
             }
@@ -5416,15 +5416,15 @@ impl Editor {
         // Activation already published these assets. Do not compile the same
         // icon/model library again on the first redraw.
         self.procedural_appearance_revision = self.current_procedural_appearance_revision();
-        self.server_ctx.clear();
-        self.server_ctx.text_game_mode = self.server_ctx.tools.read().text_game_mode;
+        self.server_ctx.shared.clear();
+        self.server_ctx.shared.text_game_mode = self.server_ctx.tools.read().text_game_mode;
         self.text_game.reset();
         if let Some(first) = self.documents.project.regions.first() {
-            self.server_ctx.curr_region = first.id;
+            self.server_ctx.shared.curr_region = first.id;
         }
         let restored_view_index = self
             .documents.project
-            .get_region(&self.server_ctx.curr_region)
+            .get_region(&self.server_ctx.shared.curr_region)
             .map(|region| match region.map.camera {
                 MapCamera::TwoD => 0,
                 MapCamera::TwoDIso => 1,
@@ -5432,7 +5432,7 @@ impl Editor {
                 MapCamera::ThreeDFirstPerson => 4,
             })
             .unwrap_or(0);
-        self.server_ctx.editor_view_mode = EditorViewMode::from_toolbar_index(restored_view_index);
+        self.server_ctx.shared.editor_view_mode = EditorViewMode::from_toolbar_index(restored_view_index);
         let restored_camera_command_id = match restored_view_index {
             1 => "camera.2d_iso",
             3 => "camera.isometric",
@@ -5453,8 +5453,8 @@ impl Editor {
         {
             let mut actions = self.server_ctx.actions.write();
             if let Some(action) = actions.get_action_by_command_id_mut(restored_camera_command_id) {
-                self.server_ctx.curr_action_id = Some(action.id().uuid);
-                if let Some(map) = self.documents.project.get_map_mut(&self.server_ctx) {
+                self.server_ctx.shared.curr_action_id = Some(action.id().uuid);
+                if let Some(map) = self.documents.project.get_map_mut(&self.server_ctx.shared) {
                     action.load_params(map);
                     let _ = action.apply(map, ui, ctx, &mut self.server_ctx);
                 }
@@ -5492,7 +5492,7 @@ impl Editor {
         // Project activation is a hard scene boundary. Rebuild even when two
         // tabs were cloned from the same project and therefore reuse map UUIDs.
         crate::utils::editor_scene_full_rebuild(&self.documents.project, &self.server_ctx);
-        if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
+        if self.server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
             self.server_ctx.tools.write()
                 .update_geometry_overlay_3d(&mut self.documents.project, &mut self.server_ctx);
         }
@@ -5629,7 +5629,7 @@ impl Editor {
             .documents.project
             .regions
             .iter()
-            .find(|region| region.id == self.server_ctx.curr_region)
+            .find(|region| region.id == self.server_ctx.shared.curr_region)
             .map(|region| {
                 serde_json::json!({
                     "id": region.id.to_string(),
@@ -5737,7 +5737,7 @@ impl Editor {
         let default_map = Map::default();
         let map = self
             .documents.project
-            .get_map(&self.server_ctx)
+            .get_map(&self.server_ctx.shared)
             .unwrap_or(&default_map);
         let actions = self.server_ctx.actions.read();
         let entries: Vec<serde_json::Value> = actions
@@ -5765,7 +5765,7 @@ impl Editor {
                     "palette_slot": descriptor.group.palette_slot(),
                     "role": action.role().id(),
                     "applicable": applicable,
-                    "selected": self.server_ctx.curr_action_id == Some(action.id().uuid),
+                    "selected": self.server_ctx.shared.curr_action_id == Some(action.id().uuid),
                     "accelerator": action.accel().map(|accelerator| accelerator.description()),
                 }))
             })
@@ -6160,7 +6160,7 @@ impl Editor {
             self.documents.project
                 .regions
                 .iter()
-                .find(|region| region.id == self.server_ctx.curr_region)
+                .find(|region| region.id == self.server_ctx.shared.curr_region)
                 .or_else(|| self.documents.project.regions.first())
         };
 
@@ -6411,7 +6411,7 @@ impl Editor {
             self.documents.project
                 .regions
                 .iter()
-                .find(|region| region.id == self.server_ctx.curr_region)
+                .find(|region| region.id == self.server_ctx.shared.curr_region)
                 .or_else(|| self.documents.project.regions.first())
         };
 
@@ -7176,7 +7176,7 @@ impl Editor {
                 .documents.project
                 .regions
                 .iter()
-                .position(|region| region.id == self.server_ctx.curr_region)
+                .position(|region| region.id == self.server_ctx.shared.curr_region)
                 .or(Some(0))
                 .ok_or_else(|| "project has no regions".to_string())
                 .map(Some);
@@ -7852,7 +7852,7 @@ impl Editor {
         let config = &self.server_ctx.config;
         (1000
             / Self::presentation_fps(
-                self.server_ctx.game_mode,
+                self.server_ctx.shared.game_mode,
                 self.authoring_is_interacting(),
                 config.target_fps,
             )) as u64
@@ -7925,7 +7925,7 @@ impl TheTrait for Editor {
             #[cfg(feature = "native-render")]
             native_viewport: Default::default(),
 
-            server_ctx: ServerContext::default(),
+            server_ctx: CreatorContext::default(),
 
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
@@ -8022,7 +8022,7 @@ impl TheTrait for Editor {
 
     fn target_fps(&self) -> f64 {
         Self::presentation_fps(
-            self.server_ctx.game_mode,
+            self.server_ctx.shared.game_mode,
             self.authoring_is_interacting(),
             self.server_ctx.config.target_fps,
         ) as f64
@@ -8703,14 +8703,14 @@ impl TheTrait for Editor {
         if self.pending_text_game_runtime_flush {
             let is_running =
                 self.runtime_state() == rusterix::ServerState::Running;
-            if is_running && self.server_ctx.text_game_mode {
+            if is_running && self.server_ctx.shared.text_game_mode {
                 if let Some(session) = &mut self.play_session {
                     session.flush_command(&mut self.server_ctx.reference.write());
                 } else {
                     warmup_runtime(&mut self.server_ctx.reference.write(), &mut self.documents.project, 1);
                 }
 
-                if let Some(region) = self.documents.project.get_region_ctx(&self.server_ctx) {
+                if let Some(region) = self.documents.project.get_region_ctx(&self.server_ctx.shared) {
                     let region_id = region.map.id;
                     let (mut messages, mut says, mut choices) = if let Some(session) = &mut self.play_session {
                         let outputs = session.pump_mut().pending_events(&region_id).unwrap();
@@ -8774,9 +8774,9 @@ impl TheTrait for Editor {
                 }
                 SceneManagerResult::Chunk(chunk, togo, total, billboards) => {
                     if togo == 0 {
-                        self.server_ctx.background_progress = None;
+                        self.server_ctx.shared.background_progress = None;
                     } else {
-                        self.server_ctx.background_progress = Some(format!("{togo}/{total}"));
+                        self.server_ctx.shared.background_progress = Some(format!("{togo}/{total}"));
                     }
 
                     let mut rusterix = self.server_ctx.reference.write();
@@ -8832,7 +8832,7 @@ impl TheTrait for Editor {
         let tick_ms = self.server_ctx.config.game_tick_ms.max(1) as u64;
         let (mut redraw_update, tick_update) = self.update_tracker.update(redraw_ms, tick_ms);
 
-        self.server_ctx.play_state = self.runtime_state();
+        self.server_ctx.shared.play_state = self.runtime_state();
         // Handle queued UI events in the same update pass so input can trigger immediate redraw work.
         let mut pending_events = Vec::new();
         if let Some(receiver) = &mut self.event_receiver {
@@ -8855,7 +8855,7 @@ impl TheTrait for Editor {
         }
         Self::coalesce_polyview_hover_events(&mut pending_events);
         if !pending_events.is_empty() {
-            let only_3d_polyview_hover = self.server_ctx.editor_view_mode != EditorViewMode::D2
+            let only_3d_polyview_hover = self.server_ctx.shared.editor_view_mode != EditorViewMode::D2
                 && pending_events.iter().all(|event| {
                     matches!(
                         event,
@@ -8863,12 +8863,12 @@ impl TheTrait for Editor {
                             | TheEvent::RenderViewLostHover(id) if id.name == "PolyView"
                     )
                 });
-            let only_3d_geometry_drag = self.server_ctx.editor_view_mode != EditorViewMode::D2
+            let only_3d_geometry_drag = self.server_ctx.shared.editor_view_mode != EditorViewMode::D2
                 && matches!(
-                    self.server_ctx.curr_map_tool_type,
+                    self.server_ctx.shared.curr_map_tool_type,
                     MapToolType::Vertex | MapToolType::Linedef | MapToolType::Sector
                 )
-                && self.server_ctx.geometry_edit_mode != GeometryEditMode::Detail
+                && self.server_ctx.shared.geometry_edit_mode != GeometryEditMode::Detail
                 && pending_events.iter().all(|event| {
                     matches!(
                         event,
@@ -9005,13 +9005,13 @@ impl TheTrait for Editor {
                 let mut rusterix = self.server_ctx.reference.write();
                 let server_state = self.play_session.as_ref().map(|play| play.state(&rusterix.server)).unwrap_or(rusterix.server.state);
                 let is_running = server_state == rusterix::ServerState::Running;
-                let animate_editor = self.server_ctx.editor_view_mode == EditorViewMode::D2;
-                let preview_prefab_effects = self.server_ctx.pc.is_prefab()
-                    && self.server_ctx.curr_map_tool_type == MapToolType::Effects
-                    && self.server_ctx.editor_view_mode != EditorViewMode::D2;
+                let animate_editor = self.server_ctx.shared.editor_view_mode == EditorViewMode::D2;
+                let preview_prefab_effects = self.server_ctx.shared.pc.is_prefab()
+                    && self.server_ctx.shared.curr_map_tool_type == MapToolType::Effects
+                    && self.server_ctx.shared.editor_view_mode != EditorViewMode::D2;
                 if Self::should_advance_animation_frame(
                     server_state,
-                    self.server_ctx.editor_view_mode,
+                    self.server_ctx.shared.editor_view_mode,
                 ) {
                     rusterix.client.inc_animation_frame();
                 }
@@ -9034,7 +9034,7 @@ impl TheTrait for Editor {
             #[cfg(feature = "native-render")]
             self.tick_native_world_particles();
 
-            self.server_ctx.animation_counter = self.server_ctx.animation_counter.wrapping_add(1);
+            self.server_ctx.shared.animation_counter = self.server_ctx.shared.animation_counter.wrapping_add(1);
             // To update animated minimaps (only for docks that need it)
             if self.server_ctx.docks.read()
                 .current_dock_supports_minimap_animation()
@@ -9052,23 +9052,23 @@ impl TheTrait for Editor {
             // hidden SceneVM 2D/3D chunks here blocks every paint commit.
             // SceneManager updates are immediate; pending chunks remain available
             // when the artist switches to a camera that uses them.
-            let sprite_iso = !self.server_ctx.game_mode
-                && self.server_ctx.editor_view_mode == EditorViewMode::D2
-                && self.server_ctx.editing_surface.is_none()
+            let sprite_iso = !self.server_ctx.shared.game_mode
+                && self.server_ctx.shared.editor_view_mode == EditorViewMode::D2
+                && self.server_ctx.shared.editing_surface.is_none()
                 && self
                     .documents.project
-                    .get_map(&self.server_ctx)
+                    .get_map(&self.server_ctx.shared)
                     .is_some_and(|map| map.camera == MapCamera::TwoDIso);
             if !sprite_iso {
                 self.server_ctx.jobs.scene_mut().tick_batch(8);
             } else {
-                self.server_ctx.background_progress = None;
+                self.server_ctx.shared.background_progress = None;
             }
 
             profile.lap("scene_chunks");
             self.build_values.set(
                 "no_rect_geo",
-                Value::Bool(self.server_ctx.no_rect_geo_on_map),
+                Value::Bool(self.server_ctx.shared.no_rect_geo_on_map),
             );
 
             extract_build_values_from_config(&mut self.build_values, &self.server_ctx.config);
@@ -9078,10 +9078,10 @@ impl TheTrait for Editor {
             let mut choices = Vec::new();
             let is_running =
                 self.runtime_state() == rusterix::ServerState::Running;
-            let running_game_mode = is_running && self.server_ctx.game_mode;
+            let running_game_mode = is_running && self.server_ctx.shared.game_mode;
 
             #[cfg(feature = "native-render")]
-            let world_speech_region = self.server_ctx.pc.is_region()
+            let world_speech_region = self.server_ctx.shared.pc.is_region()
                 .then(|| self.native_world_map_id())
                 .flatten();
             // Native Play owns its GameSession; only the reference adapter
@@ -9091,8 +9091,8 @@ impl TheTrait for Editor {
                 let rusterix = &mut *runtime;
                 #[cfg(feature = "native-render")]
                 let native_game = self.native_viewport.enabled
-                    && self.server_ctx.game_mode
-                    && !self.server_ctx.text_game_mode
+                    && self.server_ctx.shared.game_mode
+                    && !self.server_ctx.shared.text_game_mode
                     && self.play_session.is_some();
                 #[cfg(not(feature = "native-render"))]
                 let native_game = false;
@@ -9197,7 +9197,7 @@ impl TheTrait for Editor {
                             let is_active_region = if running_game_mode {
                                 r.map.name == active_game_map
                             } else {
-                                r.id == self.server_ctx.curr_region
+                                r.id == self.server_ctx.shared.curr_region
                             };
 
                             if is_active_region {
@@ -9301,8 +9301,8 @@ impl TheTrait for Editor {
                 is_running,
             );
 
-            if is_running && self.server_ctx.text_game_mode {
-                if !self.server_ctx.game_mode {
+            if is_running && self.server_ctx.shared.text_game_mode {
+                if !self.server_ctx.shared.game_mode {
                     if !self.pending_game_messages.is_empty() {
                         messages = std::mem::take(&mut self.pending_game_messages);
                     }
@@ -9339,7 +9339,7 @@ impl TheTrait for Editor {
             // Draw the regular region canvas or the isolated Prefab canvas.
             // They intentionally have distinct widget identities so editor
             // state and visual content cannot leak between them.
-            let render_view_name = if self.server_ctx.pc.is_prefab() {
+            let render_view_name = if self.server_ctx.shared.pc.is_prefab() {
                 "PrefabView"
             } else {
                 "PolyView"
@@ -9354,8 +9354,8 @@ impl TheTrait for Editor {
                     // Text Play uses the native TextView in the visible stack.
                     // Its hidden PolyView must not render/read back a world.
                     || (self.native_viewport.enabled
-                        && self.server_ctx.game_mode
-                        && self.server_ctx.text_game_mode);
+                        && self.server_ctx.shared.game_mode
+                        && self.server_ctx.shared.text_game_mode);
             #[cfg(not(feature = "native-render"))]
             let native_display = false;
             if !crate::geometry_editor::is_visible(ui)
@@ -9368,7 +9368,7 @@ impl TheTrait for Editor {
                 buffer.resize(dim.width, dim.height);
 
                 {
-                    if let Some(region) = self.documents.project.get_region_mut(&self.server_ctx.curr_region)
+                    if let Some(region) = self.documents.project.get_region_mut(&self.server_ctx.shared.curr_region)
                     {
                         shared::iso_paint_terrain::sync(
                             &mut self.server_ctx.reference.write().assets,
@@ -9382,7 +9382,7 @@ impl TheTrait for Editor {
                     }
                     let prefab_paint_catalog = self.documents.project.block_prop_paint.clone();
                     // If we are drawing billboard vertices in the geometry overlay, update them.
-                    if !running_game_mode && self.server_ctx.editor_view_mode != EditorViewMode::D2
+                    if !running_game_mode && self.server_ctx.shared.editor_view_mode != EditorViewMode::D2
                     {
                         let mut tools = self.server_ctx.tools.write();
                         // `curr_map_tool_type` is also changed by docks/actions
@@ -9398,24 +9398,24 @@ impl TheTrait for Editor {
                     }
 
                     let rusterix = &mut self.server_ctx.reference.write();
-                    rusterix.client.builder_d2.draw_grid = self.server_ctx.show_editor_grid;
+                    rusterix.client.builder_d2.draw_grid = self.server_ctx.shared.show_editor_grid;
 
                     if running_game_mode {
                         rusterix.resize_client_surface((
                             dim.width.max(1) as u32,
                             dim.height.max(1) as u32,
                         ));
-                        let game_messages = if self.server_ctx.text_game_mode {
+                        let game_messages = if self.server_ctx.shared.text_game_mode {
                             Vec::new()
                         } else {
                             messages
                         };
-                        let game_says = if self.server_ctx.text_game_mode {
+                        let game_says = if self.server_ctx.shared.text_game_mode {
                             Vec::new()
                         } else {
                             says
                         };
-                        let game_choices = if self.server_ctx.text_game_mode {
+                        let game_choices = if self.server_ctx.shared.text_game_mode {
                             Vec::new()
                         } else {
                             choices
@@ -9516,13 +9516,13 @@ impl TheTrait for Editor {
                             .client
                             .insert_game_buffer(render_view.render_buffer_mut());
                     } else {
-                        if self.server_ctx.pc.is_prefab()
-                            && self.server_ctx.editor_view_mode != EditorViewMode::D2
+                        if self.server_ctx.shared.pc.is_prefab()
+                            && self.server_ctx.shared.editor_view_mode != EditorViewMode::D2
                         {
                             rusterix.client.set_camera_d3(Box::new(
                                 self.server_ctx.camera.orbit_camera.clone(),
                             ));
-                            let asset_id = match self.server_ctx.pc {
+                            let asset_id = match self.server_ctx.shared.pc {
                                 ProjectContext::Prefab(asset_id) => Some(asset_id),
                                 _ => None,
                             };
@@ -9532,7 +9532,7 @@ impl TheTrait for Editor {
                                 })
                                 .unwrap_or_default();
                             prefab_paint.selection_visible =
-                                self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint;
+                                self.server_ctx.shared.curr_map_tool_type == MapToolType::IsoPaint;
                             let has_prefab_selection = prefab_paint.selection_visible
                                 && prefab_paint.active_selection().is_some();
                             let has_prefab_paint = (prefab_paint.visible
@@ -9591,7 +9591,7 @@ impl TheTrait for Editor {
                                 rusterix.scene_handler.vm.set_active_vm(active_vm);
                                 self.iso_paint_render_cache = Default::default();
                             }
-                            if let Some(map) = self.documents.project.get_map(&self.server_ctx) {
+                            if let Some(map) = self.documents.project.get_map(&self.server_ctx.shared) {
                                 // The isolated Prefab scene has no running game
                                 // widget to build its dynamic layer. Build it
                                 // here so authored particles and lights are
@@ -9606,18 +9606,18 @@ impl TheTrait for Editor {
                                     true,
                                 );
                             }
-                        } else if self.server_ctx.editor_view_mode != EditorViewMode::D2
-                            && self.server_ctx.get_map_context() == MapContext::Region
+                        } else if self.server_ctx.shared.editor_view_mode != EditorViewMode::D2
+                            && self.server_ctx.shared.get_map_context() == MapContext::Region
                         {
                             let entity_item_selection_visible =
                                 self.server_ctx.tools.read().current_game_tool_is("tool.entity");
                             rusterix
                                 .set_entity_item_selection_visible(entity_item_selection_visible);
                             if let Some(region) =
-                                self.documents.project.get_region_ctx_mut(&mut self.server_ctx)
+                                self.documents.project.get_region_ctx_mut(&self.server_ctx.shared)
                             {
                                 let follow_player_firstp = is_running
-                                    && self.server_ctx.editor_view_mode == EditorViewMode::FirstP;
+                                    && self.server_ctx.shared.editor_view_mode == EditorViewMode::FirstP;
 
                                 if follow_player_firstp
                                     && let Some(player) =
@@ -9655,8 +9655,8 @@ impl TheTrait for Editor {
                                     &mut self.server_ctx.shared,
                                     rusterix,
                                 );
-                                if self.server_ctx.editor_view_mode == EditorViewMode::FirstP
-                                    && (self.server_ctx.editor_fly_nav_active
+                                if self.server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+                                    && (self.server_ctx.shared.editor_fly_nav_active
                                         || self.server_ctx.camera.move_action.is_some())
                                 {
                                     ctx.ui.redraw_all = true;
@@ -9682,7 +9682,7 @@ impl TheTrait for Editor {
                                     &prefab_paint_catalog,
                                 );
                                 combined_iso_paint.selection_visible =
-                                    self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint;
+                                    self.server_ctx.shared.curr_map_tool_type == MapToolType::IsoPaint;
                                 let has_iso_paint_selection = combined_iso_paint.selection_visible
                                     && combined_iso_paint.active_selection().is_some();
                                 let has_iso_paint = (combined_iso_paint.visible
@@ -9764,14 +9764,14 @@ impl TheTrait for Editor {
                                 let bake_rendering = bake.is_rendering();
                                 let bake_progress = bake.progress_text();
                                 if bake_progress.is_some()
-                                    || self.server_ctx.background_progress.as_deref().is_some_and(
+                                    || self.server_ctx.shared.background_progress.as_deref().is_some_and(
                                         |text| {
                                             text.starts_with("Bake")
                                                 || text.starts_with("Preparing orthographic bake")
                                         },
                                     )
                                 {
-                                    self.server_ctx.background_progress = bake_progress;
+                                    self.server_ctx.shared.background_progress = bake_progress;
                                 }
                                 if bake_rendering {
                                     ctx.ui.redraw_all = true;
@@ -9779,25 +9779,25 @@ impl TheTrait for Editor {
                             }
                         } else
                         // Draw the region map
-                        if self.server_ctx.get_map_context() == MapContext::Region
-                            && self.server_ctx.editing_surface.is_none()
+                        if self.server_ctx.shared.get_map_context() == MapContext::Region
+                            && self.server_ctx.shared.editing_surface.is_none()
                         {
                             if let Some(region) =
-                                self.documents.project.get_region(&self.server_ctx.curr_region)
+                                self.documents.project.get_region(&self.server_ctx.shared.curr_region)
                             {
                                 rusterix.client.set_clip_rect_d2(None);
                                 rusterix
                                     .client
-                                    .set_map_tool_type_d2(self.server_ctx.curr_map_tool_type);
-                                if let Some(hover_cursor) = self.server_ctx.hover_cursor {
+                                    .set_map_tool_type_d2(self.server_ctx.shared.curr_map_tool_type);
+                                if let Some(hover_cursor) = self.server_ctx.shared.hover_cursor {
                                     rusterix.client.set_map_hover_info_d2(
-                                        self.server_ctx.hover,
+                                        self.server_ctx.shared.hover,
                                         Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
                                     );
                                 } else {
                                     rusterix
                                         .client
-                                        .set_map_hover_info_d2(self.server_ctx.hover, None);
+                                        .set_map_hover_info_d2(self.server_ctx.shared.hover, None);
                                 }
 
                                 rusterix.client.builder_d2.show_entity_markers =
@@ -9805,13 +9805,13 @@ impl TheTrait for Editor {
 
                                 // let start_time = ctx.get_time();
 
-                                if let Some(clipboard) = &self.server_ctx.paste_clipboard {
+                                if let Some(clipboard) = &self.server_ctx.shared.paste_clipboard {
                                     // During a paste operation we use a merged map
 
                                     let mut map = self.play_session.as_ref()
                                         .map(|play| play.authoring_map(&region.map).into_owned())
                                         .unwrap_or_else(|| region.map.clone());
-                                    if let Some(hover) = self.server_ctx.hover_cursor {
+                                    if let Some(hover) = self.server_ctx.shared.hover_cursor {
                                         map.paste_at_position(clipboard, hover);
                                     }
 
@@ -9819,16 +9819,16 @@ impl TheTrait for Editor {
                                     rusterix.apply_entities_items(
                                         Vec2::new(dim.width as f32, dim.height as f32),
                                         &map,
-                                        &self.server_ctx.editing_surface,
+                                        &self.server_ctx.shared.editing_surface,
                                         false,
                                     );
-                                } else if let Some(map) = self.documents.project.get_map(&self.server_ctx) {
+                                } else if let Some(map) = self.documents.project.get_map(&self.server_ctx.shared) {
                                     let projected = self.play_session.as_ref().map(|play| play.authoring_map(map));
                                     let map = projected.as_deref().unwrap_or(map);
                                     rusterix.apply_entities_items(
                                         Vec2::new(dim.width as f32, dim.height as f32),
                                         map,
-                                        &self.server_ctx.editing_surface,
+                                        &self.server_ctx.shared.editing_surface,
                                         false,
                                     );
                                 }
@@ -9841,21 +9841,21 @@ impl TheTrait for Editor {
                                 //println!("{} ms", stop_time - start_time);
                             }
 
-                            if let Some(map) = self.documents.project.get_map(&self.server_ctx) {
+                            if let Some(map) = self.documents.project.get_map(&self.server_ctx.shared) {
                                 let projected = self.play_session.as_ref().map(|play| play.authoring_map(map));
                                 let map = projected.as_deref().unwrap_or(map);
-                                if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
+                                if self.server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                                     rusterix.scene_handler.settings.backend_2d =
                                         RendererBackend::Raster;
                                     rusterix.set_d2();
                                 }
                                 if is_running
-                                    && self.server_ctx.editor_view_mode == EditorViewMode::D2
+                                    && self.server_ctx.shared.editor_view_mode == EditorViewMode::D2
                                 {
                                     let animation_frame = rusterix.client.animation_frame;
                                     rusterix.build_dynamics_2d(map, animation_frame);
                                 }
-                                if self.server_ctx.editor_view_mode == EditorViewMode::D2
+                                if self.server_ctx.shared.editor_view_mode == EditorViewMode::D2
                                     && rusterix.scene_handler.vm.vm_layer_count() > 1
                                 {
                                     rusterix.scene_handler.vm.set_layer_enabled(1, true);
@@ -9868,32 +9868,32 @@ impl TheTrait for Editor {
                                 );
                                 profile.lap("scene_draw");
                             }
-                        } else if self.server_ctx.get_map_context() == MapContext::Region
-                            && self.server_ctx.editing_surface.is_some()
+                        } else if self.server_ctx.shared.get_map_context() == MapContext::Region
+                            && self.server_ctx.shared.editing_surface.is_some()
                         {
                             rusterix
                                 .client
-                                .set_map_tool_type_d2(self.server_ctx.curr_map_tool_type);
-                            if let Some(profile) = self.documents.project.get_map_mut(&self.server_ctx) {
+                                .set_map_tool_type_d2(self.server_ctx.shared.curr_map_tool_type);
+                            if let Some(profile) = self.documents.project.get_map_mut(&self.server_ctx.shared) {
                                 if rusterix.scene_handler.vm.vm_layer_count() > 1 {
                                     // Profile editor relies on 2D overlay guides.
                                     rusterix.scene_handler.vm.set_layer_enabled(1, true);
                                 }
-                                if let Some(hover_cursor) = self.server_ctx.hover_cursor {
+                                if let Some(hover_cursor) = self.server_ctx.shared.hover_cursor {
                                     rusterix.client.set_map_hover_info_d2(
-                                        self.server_ctx.hover,
+                                        self.server_ctx.shared.hover,
                                         Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
                                     );
                                 } else {
                                     rusterix
                                         .client
-                                        .set_map_hover_info_d2(self.server_ctx.hover, None);
+                                        .set_map_hover_info_d2(self.server_ctx.shared.hover, None);
                                 }
 
-                                if let Some(clipboard) = &self.server_ctx.paste_clipboard {
+                                if let Some(clipboard) = &self.server_ctx.shared.paste_clipboard {
                                     // During a paste operation we use a merged map
                                     let mut map = profile.clone();
-                                    if let Some(hover) = self.server_ctx.hover_cursor {
+                                    if let Some(hover) = self.server_ctx.shared.hover_cursor {
                                         map.paste_at_position(clipboard, hover);
                                     }
                                     rusterix.set_dirty();
@@ -9901,7 +9901,7 @@ impl TheTrait for Editor {
                                         Vec2::new(dim.width as f32, dim.height as f32),
                                         &map,
                                         &self.build_values,
-                                        &self.server_ctx.editing_surface,
+                                        &self.server_ctx.shared.editing_surface,
                                         true,
                                     );
                                     rusterix.draw_custom_d2(
@@ -9915,7 +9915,7 @@ impl TheTrait for Editor {
                                         Vec2::new(dim.width as f32, dim.height as f32),
                                         profile,
                                         &self.build_values,
-                                        &self.server_ctx.editing_surface,
+                                        &self.server_ctx.shared.editing_surface,
                                         true,
                                     );
                                     rusterix.draw_custom_d2(
@@ -9928,31 +9928,31 @@ impl TheTrait for Editor {
                             }
                         } else
                         // Draw the screen / character / item map
-                        if self.server_ctx.get_map_context() == MapContext::Character
-                            || self.server_ctx.get_map_context() == MapContext::Item
-                            || self.server_ctx.get_map_context() == MapContext::Screen
+                        if self.server_ctx.shared.get_map_context() == MapContext::Character
+                            || self.server_ctx.shared.get_map_context() == MapContext::Item
+                            || self.server_ctx.shared.get_map_context() == MapContext::Screen
                         {
                             rusterix
                                 .client
-                                .set_map_tool_type_d2(self.server_ctx.curr_map_tool_type);
-                            if let Some(map) = self.documents.project.get_map_mut(&self.server_ctx) {
+                                .set_map_tool_type_d2(self.server_ctx.shared.curr_map_tool_type);
+                            if let Some(map) = self.documents.project.get_map_mut(&self.server_ctx.shared) {
                                 if rusterix.scene_handler.vm.vm_layer_count() > 1 {
                                     // A screen's grid and widget bounds are the editing canvas,
                                     // and editing guides remain available in every 2D context.
                                     rusterix.scene_handler.vm.set_layer_enabled(1, true);
                                 }
-                                if let Some(hover_cursor) = self.server_ctx.hover_cursor {
+                                if let Some(hover_cursor) = self.server_ctx.shared.hover_cursor {
                                     rusterix.client.set_map_hover_info_d2(
-                                        self.server_ctx.hover,
+                                        self.server_ctx.shared.hover,
                                         Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
                                     );
                                 } else {
                                     rusterix
                                         .client
-                                        .set_map_hover_info_d2(self.server_ctx.hover, None);
+                                        .set_map_hover_info_d2(self.server_ctx.shared.hover, None);
                                 }
 
-                                if self.server_ctx.get_map_context() != MapContext::Screen {
+                                if self.server_ctx.shared.get_map_context() != MapContext::Screen {
                                     rusterix.client.builder_d2.set_clip_rect(Some(
                                         rusterix::Rect {
                                             x: -5.0,
@@ -9976,10 +9976,10 @@ impl TheTrait for Editor {
                                     ));
                                 }
 
-                                if let Some(clipboard) = &self.server_ctx.paste_clipboard {
+                                if let Some(clipboard) = &self.server_ctx.shared.paste_clipboard {
                                     // During a paste operation we use a merged map
                                     let mut map = map.clone();
-                                    if let Some(hover) = self.server_ctx.hover_cursor {
+                                    if let Some(hover) = self.server_ctx.shared.hover_cursor {
                                         map.paste_at_position(clipboard, hover);
                                     }
                                     rusterix.set_dirty();
@@ -9987,7 +9987,7 @@ impl TheTrait for Editor {
                                         Vec2::new(dim.width as f32, dim.height as f32),
                                         &map,
                                         &self.build_values,
-                                        &self.server_ctx.editing_surface,
+                                        &self.server_ctx.shared.editing_surface,
                                         true,
                                     );
                                     if rusterix.scene_handler.vm.vm_layer_count() > 1 {
@@ -10021,39 +10021,39 @@ impl TheTrait for Editor {
                         }
                     }
                 }
-                if !running_game_mode && self.server_ctx.editor_view_mode != EditorViewMode::D2 {
-                    let iso_paint = match self.server_ctx.pc {
+                if !running_game_mode && self.server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
+                    let iso_paint = match self.server_ctx.shared.pc {
                         ProjectContext::Prefab(asset_id) => {
                             self.documents.project.block_prop_paint.get(&asset_id).cloned()
                         }
-                        _ if self.server_ctx.get_map_context() == MapContext::Region => self
+                        _ if self.server_ctx.shared.get_map_context() == MapContext::Region => self
                             .documents.project
-                            .get_region(&self.server_ctx.curr_region)
+                            .get_region(&self.server_ctx.shared.curr_region)
                             .map(|region| region.iso_paint.clone()),
                         _ => None,
                     };
                     if let Some(iso_paint) = iso_paint {
                         let buffer = render_view.render_buffer_mut();
-                        if self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint {
+                        if self.server_ctx.shared.curr_map_tool_type == MapToolType::IsoPaint {
                             Self::draw_iso_paint_preview(
                                 buffer,
                                 &iso_paint,
-                                self.server_ctx.iso_paint_hover_screen,
-                                self.server_ctx.iso_paint_selection_rect,
+                                self.server_ctx.shared.iso_paint_hover_screen,
+                                self.server_ctx.shared.iso_paint_selection_rect,
                             );
                         }
                     }
                 }
-                if !self.server_ctx.game_mode {
-                    let map_for_hud = if self.server_ctx.get_map_context() == MapContext::Region
-                        && self.server_ctx.editor_view_mode != EditorViewMode::D2
-                        && self.server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                if !self.server_ctx.shared.game_mode {
+                    let map_for_hud = if self.server_ctx.shared.get_map_context() == MapContext::Region
+                        && self.server_ctx.shared.editor_view_mode != EditorViewMode::D2
+                        && self.server_ctx.shared.geometry_edit_mode == GeometryEditMode::Detail
                     {
                         self.documents.project
-                            .get_region_mut(&self.server_ctx.curr_region)
+                            .get_region_mut(&self.server_ctx.shared.curr_region)
                             .map(|region| &mut region.map)
                     } else {
-                        self.documents.project.get_map_mut(&self.server_ctx)
+                        self.documents.project.get_map_mut(&self.server_ctx.shared)
                     };
                     if let Some(map) = map_for_hud {
                         let reference = self.server_ctx.reference.read();
@@ -10150,7 +10150,7 @@ impl TheTrait for Editor {
                 redraw = true;
                 continue;
             }
-            if self.server_ctx.game_input_mode && !self.server_ctx.game_mode {
+            if self.server_ctx.shared.game_input_mode && !self.server_ctx.shared.game_mode {
                 // In game input mode send events to the game tool
                 if let Some(game_tool) = self.server_ctx.tools.write()
                     .get_game_tool_by_command_id("tool.game")
@@ -10164,11 +10164,11 @@ impl TheTrait for Editor {
                     );
                 }
             }
-            self.server_ctx.play_state = self.runtime_state();
+            self.server_ctx.shared.play_state = self.runtime_state();
             let inspection = self.play_session.as_ref()
                 .filter(|play| self.documents.active_id() == Some(play.document))
                 .and_then(|play| {
-                    play.inspect_region(&self.server_ctx.reference.read().server, self.server_ctx.curr_region)
+                    play.inspect_region(&self.server_ctx.reference.read().server, self.server_ctx.shared.curr_region)
                 });
             if self.sidebar.handle_event_with_runtime(
                 &event, ui, ctx, &mut self.documents.project, &mut self.server_ctx, inspection,
@@ -10220,11 +10220,11 @@ impl TheTrait for Editor {
                 TheEvent::Custom(id, value) => {
                     if id.name == TextGameState::ACTIVATE_EVENT {
                         if let TheValue::Text(input) = value
-                            && id.references == self.server_ctx.document_instance
-                            && self.server_ctx.text_game_mode
-                            && ((input == TextGameState::GAME_INPUT_ID && self.server_ctx.game_mode)
+                            && id.references == self.server_ctx.shared.document_instance
+                            && self.server_ctx.shared.text_game_mode
+                            && ((input == TextGameState::GAME_INPUT_ID && self.server_ctx.shared.game_mode)
                                 || (input == TextGameState::DOCK_INPUT_ID
-                                    && !self.server_ctx.game_mode
+                                    && !self.server_ctx.shared.game_mode
                                     && self.server_ctx.docks.read().dock == "Text Play"))
                             && ui.get_widget(&input).is_some_and(|widget| widget.id().uuid == id.uuid)
                         {
@@ -10243,12 +10243,12 @@ impl TheTrait for Editor {
                             };
 
                             if let Some(source) = picked {
-                                self.server_ctx.curr_tile_source = Some(source.clone());
-                                self.server_ctx.curr_tile_id = match source {
+                                self.server_ctx.shared.curr_tile_source = Some(source.clone());
+                                self.server_ctx.shared.curr_tile_id = match source {
                                     rusterix::TileSource::SingleTile(tile_id) => Some(tile_id),
                                 };
 
-                                if let Some(tile_id) = self.server_ctx.curr_tile_id {
+                                if let Some(tile_id) = self.server_ctx.shared.curr_tile_id {
                                     ctx.ui.send(TheEvent::Custom(
                                         TheId::named("Tile Picked"),
                                         TheValue::Id(tile_id),
@@ -10286,9 +10286,9 @@ impl TheTrait for Editor {
                     } else if id.name == "Render SceneManager Map"
                         || id.name == "Switch SceneManager Camera"
                     {
-                        if self.server_ctx.pc.is_region() {
-                            if self.server_ctx.editor_view_mode == EditorViewMode::D2
-                                && self.server_ctx.profile_view.is_some()
+                        if self.server_ctx.shared.pc.is_region() {
+                            if self.server_ctx.shared.editor_view_mode == EditorViewMode::D2
+                                && self.server_ctx.shared.profile_view.is_some()
                             {
                             } else {
                                 if id.name == "Switch SceneManager Camera" {
@@ -10304,7 +10304,7 @@ impl TheTrait for Editor {
                                         &self.server_ctx,
                                     );
                                 }
-                                if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                if self.server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
                                     self.server_ctx.tools.write().update_geometry_overlay_3d(
                                         &mut self.documents.project,
                                         &mut self.server_ctx,
@@ -10319,15 +10319,15 @@ impl TheTrait for Editor {
                         let mut rusterix = self.server_ctx.reference.write();
                         self.build_values.set(
                             "no_rect_geo",
-                            rusterix::Value::Bool(self.server_ctx.no_rect_geo_on_map),
+                            rusterix::Value::Bool(self.server_ctx.shared.no_rect_geo_on_map),
                         );
                         self.build_values.set(
                             "editing_slice",
-                            rusterix::Value::Float(self.server_ctx.editing_slice),
+                            rusterix::Value::Float(self.server_ctx.shared.editing_slice),
                         );
                         self.build_values.set(
                             "editing_slice_height",
-                            rusterix::Value::Float(self.server_ctx.editing_slice_height),
+                            rusterix::Value::Float(self.server_ctx.shared.editing_slice_height),
                         );
                         rusterix
                             .client
@@ -10341,11 +10341,11 @@ impl TheTrait for Editor {
                     if name == "Delete Character Instance ?" {
                         if role == TheDialogButtonRole::Delete {
                             if let Some(region) =
-                                self.documents.project.get_region_mut(&self.server_ctx.curr_region)
+                                self.documents.project.get_region_mut(&self.server_ctx.shared.curr_region)
                             {
                                 let character_id = uuid;
                                 if region.characters.shift_remove(&character_id).is_some() {
-                                    self.server_ctx.curr_region_content = ContentContext::Unknown;
+                                    self.server_ctx.shared.curr_region_content = ContentContext::Unknown;
                                     region.map.selected_entity_item = None;
                                     redraw = true;
 
@@ -10366,11 +10366,11 @@ impl TheTrait for Editor {
                     } else if name == "Delete Item Instance ?" {
                         if role == TheDialogButtonRole::Delete {
                             if let Some(region) =
-                                self.documents.project.get_region_mut(&self.server_ctx.curr_region)
+                                self.documents.project.get_region_mut(&self.server_ctx.shared.curr_region)
                             {
                                 let item_id = uuid;
                                 if region.items.shift_remove(&item_id).is_some() {
-                                    self.server_ctx.curr_region_content = ContentContext::Unknown;
+                                    self.server_ctx.shared.curr_region_content = ContentContext::Unknown;
                                     redraw = true;
 
                                     // Remove from the content list
@@ -10443,14 +10443,14 @@ impl TheTrait for Editor {
                     let mut support_surface_sample: Option<
                         crate::tools::entity::SupportSurfaceSample,
                     > = None;
-                    let use_3d_hit = self.server_ctx.editor_view_mode != EditorViewMode::D2;
+                    let use_3d_hit = self.server_ctx.shared.editor_view_mode != EditorViewMode::D2;
                     let placement_clearance = if drop.id.name.starts_with("Character") {
                         2.0
                     } else {
                         1.0
                     };
 
-                    if let Some(map) = self.documents.project.get_map(&self.server_ctx) {
+                    if let Some(map) = self.documents.project.get_map(&self.server_ctx.shared) {
                         if use_3d_hit && let Some(render_view) = ui.get_render_view("PolyView") {
                             let dim = *render_view.dim();
                             let screen_uv = [
@@ -10586,7 +10586,7 @@ impl TheTrait for Editor {
                                     placement_reference_y = Some(raw.1.y);
                                 }
                             } else {
-                                grid_pos = self.server_ctx.local_to_map_cell(
+                                grid_pos = self.server_ctx.shared.local_to_map_cell(
                                     Vec2::new(dim.width as f32, dim.height as f32),
                                     Vec2::new(location.x as f32, location.y as f32),
                                     map,
@@ -10596,7 +10596,7 @@ impl TheTrait for Editor {
                             }
                         } else if let Some(render_view) = ui.get_render_view("PolyView") {
                             let dim = *render_view.dim();
-                            grid_pos = self.server_ctx.local_to_map_cell(
+                            grid_pos = self.server_ctx.shared.local_to_map_cell(
                                 Vec2::new(dim.width as f32, dim.height as f32),
                                 Vec2::new(location.x as f32, location.y as f32),
                                 map,
@@ -10666,7 +10666,7 @@ impl TheTrait for Editor {
                         instance.name = name.clone();
 
                         let atom = ProjectUndoAtom::AddRegionCharacterInstance(
-                            self.server_ctx.curr_region,
+                            self.server_ctx.shared.curr_region,
                             instance,
                         );
                         atom.redo(&mut self.documents.project, ui, ctx, &mut self.server_ctx);
@@ -10686,13 +10686,13 @@ impl TheTrait for Editor {
                         let item_instance_id = instance.id;
 
                         let atom = ProjectUndoAtom::AddRegionItemInstance(
-                            self.server_ctx.curr_region,
+                            self.server_ctx.shared.curr_region,
                             instance,
                         );
                         atom.redo(&mut self.documents.project, ui, ctx, &mut self.server_ctx);
                         let placement = if support_surface_sample.is_some() {
                             self.documents.project
-                                .get_map_mut(&self.server_ctx)
+                                .get_map_mut(&self.server_ctx.shared)
                                 .map(|map| {
                                     crate::tools::entity::EntityTool::commit_item_surface_placement(
                                         map,
@@ -10823,19 +10823,19 @@ impl TheTrait for Editor {
                         redraw = true;
                     } else if id.name == "GameInput" {
                         #[cfg(feature = "native-render")]
-                        if self.server_ctx.game_input_mode != (state == TheWidgetState::Clicked) {
+                        if self.server_ctx.shared.game_input_mode != (state == TheWidgetState::Clicked) {
                             self.cancel_native_play_input(ui);
                             self.cancel_native_world_gesture(ui, ctx);
                             self.invalidate_native_world_viewport(ui);
                             let camera = &mut self.server_ctx.camera;
                             camera.move_action = None;
                             camera.reset_mouse_tracking();
-                            self.server_ctx.editor_fly_nav_active = false;
+                            self.server_ctx.shared.editor_fly_nav_active = false;
                         }
-                        self.server_ctx.game_input_mode = state == TheWidgetState::Clicked;
+                        self.server_ctx.shared.game_input_mode = state == TheWidgetState::Clicked;
                         #[cfg(feature = "native-render")]
                         {
-                            self.server_ctx.native_game_input = self.native_game_input_owns_viewport();
+                            self.server_ctx.shared.native_game_input = self.native_game_input_owns_viewport();
                         }
                     } else if matches!(
                         id.name.as_str(),
@@ -11164,7 +11164,7 @@ impl TheTrait for Editor {
                         }
                         // Stop suspends routing without deselecting the user's
                         // toolbar preference. Restore it for each run/resume.
-                        self.server_ctx.game_input_mode = ui
+                        self.server_ctx.shared.game_input_mode = ui
                             .get_widget("GameInput")
                             .is_some_and(|button| button.state() == TheWidgetState::Clicked);
                         let state = self.runtime_state();
@@ -11172,7 +11172,7 @@ impl TheTrait for Editor {
                             self.pending_game_messages.clear();
                             self.pending_game_choices.clear();
                             self.text_game.reset();
-                            if self.server_ctx.text_game_mode {
+                            if self.server_ctx.shared.text_game_mode {
                                 self.text_game.sync_output(ui, ctx);
                             }
                             if let Some(session) = &mut self.play_session {
@@ -11186,7 +11186,7 @@ impl TheTrait for Editor {
                                 self.pending_game_messages.clear();
                                 self.pending_game_choices.clear();
                                 self.text_game.reset();
-                                if self.server_ctx.text_game_mode {
+                                if self.server_ctx.shared.text_game_mode {
                                     self.text_game.sync_output(ui, ctx);
                                 }
                                 if self.native_runtime_host() {
@@ -11313,9 +11313,9 @@ impl TheTrait for Editor {
                         // stale pointer or key action. That changes the editor
                         // camera every redraw and therefore defeats the entire
                         // 3D dynamics cache after Stop.
-                        self.server_ctx.editor_fly_nav_active = false;
-                        self.server_ctx.editor_fly_nav_mouse_down = false;
-                        self.server_ctx.editor_fly_nav_space_down = false;
+                        self.server_ctx.shared.editor_fly_nav_active = false;
+                        self.server_ctx.shared.editor_fly_nav_mouse_down = false;
+                        self.server_ctx.shared.editor_fly_nav_space_down = false;
                         {
                             let edit_camera = &mut self.server_ctx.camera;
                             edit_camera.move_action = None;
@@ -11325,7 +11325,7 @@ impl TheTrait for Editor {
                         ui.set_widget_value("InfoView", ctx, TheValue::Text("".into()));
                         // Canonical Play owns every runtime map; stopping drops that
                         // projection. Current authored edits remain in Documents.
-                        self.server_ctx.game_input_mode = false;
+                        self.server_ctx.shared.game_input_mode = false;
                         ctx.set_cursor_visible(true);
                         #[cfg(feature = "native-render")]
                         let rebuild_reference = !self.native_viewport.enabled;
@@ -11536,9 +11536,9 @@ impl TheTrait for Editor {
 
                             let active_server = self.play_session.as_mut().map(|play| play.server_mut(&mut rusterix.server));
                             if let Some(server) = active_server {
-                                if let Some(map) = self.documents.project.get_map(&self.server_ctx) { server.set_time(&map.id, time); }
+                                if let Some(map) = self.documents.project.get_map(&self.server_ctx.shared) { server.set_time(&map.id, time); }
                             } else if rusterix.server.state != rusterix::ServerState::Off {
-                                if let Some(map) = self.documents.project.get_map(&self.server_ctx) {
+                                if let Some(map) = self.documents.project.get_map(&self.server_ctx.shared) {
                                     rusterix.server.set_time(&map.id, time);
                                 }
                             }
@@ -11571,7 +11571,7 @@ impl TheTrait for Editor {
         if sync_geometry_recipes {
             let (changed, _) = shared::geometry_recipe::synchronize(&mut self.documents.project);
             if changed {
-                if let ProjectContext::Prefab(id) = self.server_ctx.pc {
+                if let ProjectContext::Prefab(id) = self.server_ctx.shared.pc {
                     let _ = crate::block_props::sync_prefab_editor(&mut self.documents.project, id);
                 }
                 crate::utils::editor_scene_full_rebuild(&self.documents.project, &self.server_ctx);
@@ -11758,33 +11758,33 @@ impl TheTrait for Editor {
             ctx.ui.redraw_all = true;
             return true;
         }
-        if self.server_ctx.game_input_mode
-            || self.server_ctx.editor_view_mode == EditorViewMode::D2
-            || self.server_ctx.curr_map_tool_type == MapToolType::Game
+        if self.server_ctx.shared.game_input_mode
+            || self.server_ctx.shared.editor_view_mode == EditorViewMode::D2
+            || self.server_ctx.shared.curr_map_tool_type == MapToolType::Game
         {
             return false;
         }
 
-        let Some(region) = self.documents.project.get_region_mut(&self.server_ctx.curr_region) else {
+        let Some(region) = self.documents.project.get_region_mut(&self.server_ctx.shared.curr_region) else {
             return false;
         };
 
         let delta = Vec2::new(delta_x, delta_y);
         let mut handled = false;
-        if self.server_ctx.editor_view_mode == EditorViewMode::FirstP
-            && self.server_ctx.editor_fly_nav_active
-            && self.server_ctx.editor_fly_nav_mouse_down
+        if self.server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
+            && self.server_ctx.shared.editor_fly_nav_active
+            && self.server_ctx.shared.editor_fly_nav_mouse_down
         {
             self.server_ctx.camera
                 .mouse_delta_firstp(region, delta);
             handled = true;
-        } else if self.server_ctx.editor_view_mode == EditorViewMode::Orbit {
+        } else if self.server_ctx.shared.editor_view_mode == EditorViewMode::Orbit {
             self.server_ctx.camera.mouse_delta_orbit(delta);
             handled = true;
-        } else if self.server_ctx.editor_view_mode == EditorViewMode::Iso {
+        } else if self.server_ctx.shared.editor_view_mode == EditorViewMode::Iso {
             self.server_ctx.camera.pan_3d_by_delta_f32(
                 region,
-                &self.server_ctx,
+                &self.server_ctx.shared,
                 delta,
                 Vec2::new(ctx.width as i32, ctx.height as i32),
             );
@@ -12069,7 +12069,7 @@ mod tests {
                 "Activation must preserve the saved palette"
             );
         }
-        editor.server_ctx.editor_view_mode = EditorViewMode::D2;
+        editor.server_ctx.shared.editor_view_mode = EditorViewMode::D2;
         {
             let mut tools = editor.server_ctx.tools.write();
             let command = if std::env::var_os("ELDIRON_BENCH_SECTOR").is_some() {
@@ -12199,7 +12199,7 @@ mod tests {
                     );
                 }
                 assert_eq!(
-                    editor.server_ctx.editor_view_mode,
+                    editor.server_ctx.shared.editor_view_mode,
                     EditorViewMode::from_toolbar_index(target as i32)
                 );
                 println!(
@@ -12221,7 +12221,7 @@ mod tests {
                 let dim = *ui.get_render_view("PolyView").unwrap().dim();
                 Vec2::new(dim.width as f32, dim.height as f32)
             };
-            editor.server_ctx.rect_compose_mode = false;
+            editor.server_ctx.shared.rect_compose_mode = false;
             for (i, alias) in [
                 "MZ Iso / grass",
                 "Woodland / Winding Earth Path",
@@ -12239,11 +12239,11 @@ mod tests {
                 else {
                     continue;
                 };
-                editor.server_ctx.curr_tile_id = Some(id);
-                editor.server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
+                editor.server_ctx.shared.curr_tile_id = Some(id);
+                editor.server_ctx.shared.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
                 let map = &mut editor.documents.project.regions[0].map;
                 let world = Vec2::new(12.5 - i as f32, 17.5);
-                editor.server_ctx.center_map_at_grid_pos(size, world, map);
+                editor.server_ctx.shared.center_map_at_grid_pos(size, world, map);
                 let h = rusterix::chunkbuilder::terrain_surface::TerrainSurface::from_map(map)
                     .and_then(|s| s.height_at(world))
                     .unwrap_or(0.);
@@ -12579,7 +12579,7 @@ mod tests {
                         region.map.grid_size = 24. + i as f32 * 0.3;
                     }
                 }
-                editor.server_ctx.hover_cursor = Some(Vec2::new(12. + i as f32 * 0.1, 12.));
+                editor.server_ctx.shared.hover_cursor = Some(Vec2::new(12. + i as f32 * 0.1, 12.));
                 editor.update_tracker = crate::misc::UpdateTracker::new();
                 if mode == "props_scroll" {
                     let dim = *ui

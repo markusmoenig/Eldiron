@@ -68,8 +68,8 @@ pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
 
     pub use shared::prelude::*;
-    // Transitional controller spelling; the owner is now Creator-specific.
-    pub use crate::creator_context::{CreatorActions, CreatorDocks, CreatorTools, CreatorContext, CreatorContext as ServerContext, CreatorHistory, CreatorJobs, CreatorReference};
+    // Creator-owned services are separate from the shared CPU context.
+    pub use crate::creator_context::{CreatorActions, CreatorDocks, CreatorTools, CreatorContext, CreatorHistory, CreatorJobs, CreatorReference};
     pub use std::sync::{LazyLock, RwLock};
     pub use theframework::prelude::*;
 

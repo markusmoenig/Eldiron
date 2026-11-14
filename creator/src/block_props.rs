@@ -42,14 +42,14 @@ pub struct MadeUniqueBlockProp {
 /// every other instance keep their authored materials.
 pub fn apply_surface_source_to_selected_prefab_instances(
     project: &mut Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     source: &crate::utils::SurfaceApplySource,
     slot_index: i32,
 ) -> bool {
     let source = match source {
         crate::utils::SurfaceApplySource::Direct(source) => source.clone(),
     };
-    let Some(map) = project.get_map(server_ctx) else {
+    let Some(map) = project.get_map(&server_ctx.shared) else {
         return false;
     };
     let selected = map
@@ -84,7 +84,7 @@ pub fn apply_surface_source_to_selected_prefab_instances(
     let override_key = rusterix::block_prop_material_override_key(slot_label);
 
     let mut changed = false;
-    let Some(map) = project.get_map_mut(server_ctx) else {
+    let Some(map) = project.get_map_mut(&server_ctx.shared) else {
         return false;
     };
     for instance in &mut map.block_prop_instances {
@@ -105,10 +105,10 @@ pub fn apply_surface_source_to_selected_prefab_instances(
 /// omitted; ordinary slots simply return to their asset default.
 pub fn clear_material_slot_on_selected_prefab_instances(
     project: &mut Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     slot_index: i32,
 ) -> bool {
-    let Some(map) = project.get_map(server_ctx) else {
+    let Some(map) = project.get_map(&server_ctx.shared) else {
         return false;
     };
     let selected = map
@@ -150,7 +150,7 @@ pub fn clear_material_slot_on_selected_prefab_instances(
     });
     let override_key = rusterix::block_prop_material_override_key(slot_label);
 
-    let Some(map) = project.get_map_mut(server_ctx) else {
+    let Some(map) = project.get_map_mut(&server_ctx.shared) else {
         return false;
     };
     let mut changed = false;
@@ -1864,25 +1864,25 @@ pub fn duplicate_block_prop_asset(
 /// the placement surface when instantiated.
 pub fn create_authored_block_prop(
     project: &mut Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     name: impl Into<String>,
     mode: BlockPropCreateMode,
 ) -> Result<CreatedBlockProp, String> {
     let mut map = project
-        .get_map(server_ctx)
+        .get_map(&server_ctx.shared)
         .cloned()
         .ok_or_else(|| fl!("error_prefab_needs_editable_map"))?;
     let selected: FxHashSet<Uuid> = map.selected_geometry_objects.iter().copied().collect();
     if mode == BlockPropCreateMode::ReplaceSelection
-        && !server_ctx.pc.is_prefab()
-        && server_ctx.get_map_context() == MapContext::Region
+        && !server_ctx.shared.pc.is_prefab()
+        && server_ctx.shared.get_map_context() == MapContext::Region
     {
         let painted_ids = project
-            .get_region_ctx(server_ctx)
+            .get_region_ctx(&server_ctx.shared)
             .map(|region| selected_geometry_paint_ids(&region.iso_paint, &selected))
             .unwrap_or_default();
         let paint_remap = stabilize_selected_geometry_paint(&mut map, &selected, &painted_ids);
-        if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+        if let Some(region) = project.get_region_ctx_mut(&server_ctx.shared) {
             remap_selected_geometry_paint(&mut region.iso_paint, &selected, &paint_remap);
         }
     }
@@ -1904,9 +1904,9 @@ pub fn create_authored_block_prop(
     project.block_props.insert(asset_id, asset);
 
     let instance_id = if mode == BlockPropCreateMode::ReplaceSelection {
-        if !server_ctx.pc.is_prefab()
-            && server_ctx.get_map_context() == MapContext::Region
-            && let Some(region) = project.get_region_ctx_mut(server_ctx)
+        if !server_ctx.shared.pc.is_prefab()
+            && server_ctx.shared.get_map_context() == MapContext::Region
+            && let Some(region) = project.get_region_ctx_mut(&server_ctx.shared)
         {
             let prefab_paint = take_geometry_object_paint(&mut region.iso_paint, &selected);
             project.block_prop_paint.insert(asset_id, prefab_paint);
@@ -1927,7 +1927,7 @@ pub fn create_authored_block_prop(
     };
 
     let target_map = project
-        .get_map_mut(server_ctx)
+        .get_map_mut(&server_ctx.shared)
         .ok_or_else(|| fl!("error_prefab_map_changed_create"))?;
     *target_map = map;
 
@@ -1943,11 +1943,11 @@ pub fn create_authored_block_prop(
 /// their part and face references belong to the previous source geometry.
 pub fn update_authored_block_prop(
     project: &mut Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
     asset_id: Uuid,
 ) -> Result<usize, String> {
     let map = project
-        .get_map(server_ctx)
+        .get_map(&server_ctx.shared)
         .ok_or_else(|| fl!("error_prefab_needs_editable_map"))?;
     let source_objects = selected_geometry(map);
     if source_objects.is_empty() {
@@ -1974,11 +1974,11 @@ pub fn update_authored_block_prop(
 /// redirects only that instance to the new asset UUID.
 pub fn make_selected_block_prop_unique(
     project: &mut Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Result<MadeUniqueBlockProp, String> {
     let (instance_id, source_asset_id) = {
         let map = project
-            .get_map(server_ctx)
+            .get_map(&server_ctx.shared)
             .ok_or_else(|| fl!("error_prefab_needs_editable_map"))?;
         if map.selected_block_prop_instances.len() != 1 {
             return Err(fl!("error_prefab_select_one_instance"));
@@ -2008,7 +2008,7 @@ pub fn make_selected_block_prop_unique(
     }
 
     let map = project
-        .get_map_mut(server_ctx)
+        .get_map_mut(&server_ctx.shared)
         .ok_or_else(|| fl!("error_prefab_map_changed_duplicate"))?;
     let instance = map
         .block_prop_instances
@@ -2036,10 +2036,10 @@ pub fn make_selected_block_prop_unique(
 /// assets.
 pub fn unpack_selected_block_props(
     project: &mut Project,
-    server_ctx: &ServerContext,
+    server_ctx: &CreatorContext,
 ) -> Result<usize, String> {
     let mut map = project
-        .get_map(server_ctx)
+        .get_map(&server_ctx.shared)
         .cloned()
         .ok_or_else(|| fl!("error_prefab_needs_editable_map"))?;
     if map.selected_block_prop_instances.is_empty() {
@@ -2081,7 +2081,7 @@ pub fn unpack_selected_block_props(
     map.geometry_objects.extend(unpacked);
 
     let target_map = project
-        .get_map_mut(server_ctx)
+        .get_map_mut(&server_ctx.shared)
         .ok_or_else(|| fl!("error_prefab_map_changed_unpack"))?;
     *target_map = map;
     Ok(count)
@@ -2126,7 +2126,7 @@ pub fn delete_unused_block_prop(project: &mut Project, asset_id: Uuid) -> Result
 mod tests {
     use super::*;
 
-    fn project_with_selected_box() -> (Project, ServerContext, Uuid) {
+    fn project_with_selected_box() -> (Project, CreatorContext, Uuid) {
         let mut project = Project::default();
         let mut region = Region::default();
         let region_id = region.id;
@@ -2141,10 +2141,10 @@ mod tests {
         region.map.selected_geometry_objects.push(object_id);
         project.regions.push(region);
 
-        let mut server_ctx = ServerContext::default();
-        server_ctx.curr_region = region_id;
-        server_ctx.pc = ProjectContext::Region(region_id);
-        server_ctx.editor_view_mode = EditorViewMode::Orbit;
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.curr_region = region_id;
+        server_ctx.shared.pc = ProjectContext::Region(region_id);
+        server_ctx.shared.editor_view_mode = EditorViewMode::Orbit;
         (project, server_ctx, object_id)
     }
 
@@ -2202,9 +2202,9 @@ mod tests {
             .extend([instance, untouched_instance]);
         project.block_props.insert(asset_id, asset);
         project.regions = vec![region];
-        let mut server_ctx = ServerContext::default();
-        server_ctx.curr_region = region_id;
-        server_ctx.pc = ProjectContext::Region(region_id);
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.curr_region = region_id;
+        server_ctx.shared.pc = ProjectContext::Region(region_id);
         let source =
             crate::utils::SurfaceApplySource::Direct(rusterix::PixelSource::PaletteIndex(7));
 
@@ -2263,9 +2263,9 @@ mod tests {
             .extend([selected, untouched]);
         project.block_props.insert(asset_id, asset);
         project.regions = vec![region];
-        let mut server_ctx = ServerContext::default();
-        server_ctx.curr_region = region_id;
-        server_ctx.pc = ProjectContext::Region(region_id);
+        let mut server_ctx = CreatorContext::default();
+        server_ctx.shared.curr_region = region_id;
+        server_ctx.shared.pc = ProjectContext::Region(region_id);
         let trim_key = rusterix::block_prop_material_override_key("TRIM");
 
         assert!(clear_material_slot_on_selected_prefab_instances(
@@ -2352,7 +2352,7 @@ mod tests {
         )
         .unwrap();
 
-        let map = project.get_map(&server_ctx).unwrap();
+        let map = project.get_map(&server_ctx.shared).unwrap();
         assert!(
             map.geometry_objects
                 .iter()
@@ -2410,7 +2410,7 @@ mod tests {
         let (mut project, server_ctx, object_id) = project_with_selected_box();
         let (paint_world, legacy_paint_geo, legacy_paint_uv, painted_face_id) = {
             let object = project
-                .get_map(&server_ctx)
+                .get_map(&server_ctx.shared)
                 .unwrap()
                 .geometry_objects
                 .iter()
@@ -2444,7 +2444,7 @@ mod tests {
             Vec3::new(11.0, 1.0, 11.0),
         );
         let other_object_id = other_object.id;
-        let region = project.get_region_ctx_mut(&server_ctx).unwrap();
+        let region = project.get_region_ctx_mut(&server_ctx.shared).unwrap();
         region.map.geometry_objects.push(other_object);
 
         let selected_stroke = region.iso_paint.begin_stroke(
@@ -2521,7 +2521,7 @@ mod tests {
                 .all(|chunk| chunk.owner == IsoPaintOwner::GeometryObject(object_id))
         );
 
-        let region_paint = &project.get_region_ctx(&server_ctx).unwrap().iso_paint;
+        let region_paint = &project.get_region_ctx(&server_ctx.shared).unwrap().iso_paint;
         assert!(region_paint.stroke_first_owner(selected_stroke).is_none());
         assert_eq!(
             region_paint.stroke_first_owner(other_stroke),
@@ -2552,7 +2552,7 @@ mod tests {
         )
         .unwrap();
 
-        let map = project.get_map(&server_ctx).unwrap();
+        let map = project.get_map(&server_ctx.shared).unwrap();
         assert!(
             map.geometry_objects
                 .iter()
@@ -2578,7 +2578,7 @@ mod tests {
         );
         second.ensure_face_paint_data();
         let second_id = second.id;
-        let map = project.get_map_mut(&server_ctx).unwrap();
+        let map = project.get_map_mut(&server_ctx.shared).unwrap();
         map.geometry_objects.push(second);
         map.selected_geometry_objects.push(second_id);
 
@@ -2846,7 +2846,7 @@ mod tests {
         let instance_id = instance.id;
         instance.world_transform[3][0] = 20.0;
         project
-            .get_map_mut(&server_ctx)
+            .get_map_mut(&server_ctx.shared)
             .unwrap()
             .block_prop_instances
             .push(instance);
@@ -2855,7 +2855,7 @@ mod tests {
             update_authored_block_prop(&mut project, &server_ctx, created.asset_id).unwrap();
         assert_eq!(count, 1);
         assert!(project.block_props.contains_key(&created.asset_id));
-        let map = project.get_map(&server_ctx).unwrap();
+        let map = project.get_map(&server_ctx.shared).unwrap();
         assert_eq!(map.block_prop_instances[0].id, instance_id);
         assert_eq!(map.block_prop_instances[0].asset_id, created.asset_id);
     }
@@ -2874,13 +2874,13 @@ mod tests {
         let mut second = rusterix::BlockPropInstance::new(created.asset_id);
         let second_instance_id = second.id;
         second.world_transform[3][0] = 20.0;
-        let map = project.get_map_mut(&server_ctx).unwrap();
+        let map = project.get_map_mut(&server_ctx.shared).unwrap();
         map.block_prop_instances.push(second);
         map.selected_block_prop_instances = vec![first_instance_id];
 
         let unique = make_selected_block_prop_unique(&mut project, &server_ctx).unwrap();
         assert_ne!(unique.unique_asset_id, created.asset_id);
-        let map = project.get_map(&server_ctx).unwrap();
+        let map = project.get_map(&server_ctx.shared).unwrap();
         assert_eq!(
             map.block_prop_instances
                 .iter()
@@ -2900,7 +2900,7 @@ mod tests {
 
         let unpacked = unpack_selected_block_props(&mut project, &server_ctx).unwrap();
         assert_eq!(unpacked, 1);
-        let map = project.get_map(&server_ctx).unwrap();
+        let map = project.get_map(&server_ctx.shared).unwrap();
         assert!(
             map.block_prop_instances
                 .iter()
@@ -2927,7 +2927,7 @@ mod tests {
 
         let mut instance_ids = Vec::new();
         {
-            let map = project.get_map_mut(&server_ctx).unwrap();
+            let map = project.get_map_mut(&server_ctx.shared).unwrap();
             for x in [0.0, 10.0, 20.0] {
                 let mut instance = rusterix::BlockPropInstance::new(created.asset_id);
                 instance.world_transform[3][0] = x;
@@ -2945,7 +2945,7 @@ mod tests {
         }
 
         update_authored_block_prop(&mut project, &server_ctx, created.asset_id).unwrap();
-        let map = project.get_map(&server_ctx).unwrap();
+        let map = project.get_map(&server_ctx.shared).unwrap();
         let resolved =
             rusterix::resolve_block_prop_geometry(&map.block_prop_instances, &project.block_props);
         assert_eq!(resolved.geometry_objects.len(), 3);
@@ -2961,11 +2961,11 @@ mod tests {
         }
 
         project
-            .get_map_mut(&server_ctx)
+            .get_map_mut(&server_ctx.shared)
             .unwrap()
             .selected_block_prop_instances = vec![instance_ids[1]];
         unpack_selected_block_props(&mut project, &server_ctx).unwrap();
-        let map = project.get_map(&server_ctx).unwrap();
+        let map = project.get_map(&server_ctx.shared).unwrap();
         assert_eq!(map.block_prop_instances.len(), 2);
         assert_eq!(map.block_prop_instances[0].id, instance_ids[0]);
         assert_eq!(map.block_prop_instances[1].id, instance_ids[2]);

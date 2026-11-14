@@ -17,11 +17,11 @@ pub(crate) struct Source {
     pub composition: Option<shared::material_composition::MapMaterialBinding>,
 }
 impl Source {
-    pub fn read(map: &Map, server: &ServerContext) -> Self {
+    pub fn read(map: &Map, server: &CreatorContext) -> Self {
         Self {
             map: map.id,
             camera: map.camera,
-            compose: server.rect_compose_mode,
+            compose: server.shared.rect_compose_mode,
             yaw: map
                 .properties
                 .get_float_default("iso_brush_yaw", 0.)
@@ -35,8 +35,8 @@ impl Source {
                 .get_float_default("iso_step_height", 0.25)
                 .to_bits(),
             pick_height: map.properties.get_bool_default("iso_pick_height", false),
-            view: server.editor_view_mode,
-            composition: server.rect_composition_target.clone(),
+            view: server.shared.editor_view_mode,
+            composition: server.shared.rect_composition_target.clone(),
         }
     }
 }

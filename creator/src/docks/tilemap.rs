@@ -149,10 +149,10 @@ impl Dock for TilemapDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
-        if let Some(id) = server_ctx.pc.id() {
-            if server_ctx.pc.is_tilemap() {
+        if let Some(id) = server_ctx.shared.pc.id() {
+            if server_ctx.shared.pc.is_tilemap() {
                 if let Some(tilemap) = project.get_tilemap(id) {
                     self.set_tilemap(tilemap, ui, ctx);
                 }
@@ -174,7 +174,7 @@ impl Dock for TilemapDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _server_ctx: &mut ServerContext,
+        _server_ctx: &mut CreatorContext,
     ) -> bool {
         let mut redraw = false;
 
@@ -335,7 +335,7 @@ impl Dock for TilemapDock {
         &self,
         size: Vec2<i32>,
         _project: &Project,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         sources: &mut crate::minimap::native::Sources,
     ) -> Option<
         std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
@@ -350,7 +350,7 @@ impl Dock for TilemapDock {
         buffer: &mut TheRGBABuffer,
         _project: &Project,
         ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> bool {
         if let Some(texture) = self.preview_texture(server_ctx) {
             buffer.fill(BLACK);
@@ -408,13 +408,13 @@ impl TilemapDock {
         dock
     }
 
-    fn preview_texture(&self, server_ctx: &ServerContext) -> Option<&rusterix::Texture> {
+    fn preview_texture(&self, server_ctx: &CreatorContext) -> Option<&rusterix::Texture> {
         let tile = self.preview_tile.as_ref()?;
         if tile.textures.is_empty() {
             return None;
         }
         tile.textures
-            .get(tile.frame_index(server_ctx.animation_counter))
+            .get(tile.frame_index(server_ctx.shared.animation_counter))
     }
 
     fn sync_used(&self, project: &Project, ui: &mut TheUI) {

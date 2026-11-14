@@ -89,7 +89,7 @@ impl Tool for RectTool {
     fn overlay_hud(&mut self) -> Option<&mut Hud> {
         Some(&mut self.hud)
     }
-    fn hud_selected_id(&self, map: &Map, _server: &ServerContext) -> Option<u32> {
+    fn hud_selected_id(&self, map: &Map, _server: &CreatorContext) -> Option<u32> {
         map.selected_linedefs.first().copied()
     }
     fn prepare_overlay(&mut self, input: ToolOverlayInputs<'_>) -> Option<ToolOverlayFrame> {
@@ -111,7 +111,7 @@ impl Tool for RectTool {
         frame: &ToolOverlayFrame,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         frame.hud_input_current(&self.hud, target, map, server)
             && frame.rect_current(
@@ -126,7 +126,7 @@ impl Tool for RectTool {
         frame: &ToolOverlayFrame,
         target: ToolOverlayTarget,
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> bool {
         frame.hud_command_source_current(&self.hud, target, map, server)
             && frame.rect_current(
@@ -140,15 +140,15 @@ impl Tool for RectTool {
         &mut self,
         action: super::rect_overlay::Action,
         map: &mut Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> Option<Vec<TheEvent>> {
         use super::rect_overlay::Action;
         let mut events = vec![];
         match action {
             Action::Compose(compose) => {
                 self.reset_stroke();
-                server.rect_compose_mode = compose;
-                server.rect_composition_target = None;
+                server.shared.rect_compose_mode = compose;
+                server.shared.rect_composition_target = None;
                 events.push(TheEvent::Custom(
                     TheId::named("Map Selection Changed"),
                     TheValue::Empty,
@@ -192,7 +192,7 @@ impl Tool for RectTool {
         receipts: &[theframework::paint::FrameReceipt],
         target: ToolOverlayTarget,
         map: &Map,
-        server: &mut ServerContext,
+        server: &mut CreatorContext,
     ) -> bool {
         let source = super::rect_overlay::Source::read(map, server);
         let hud = frame.presented_hud(self, receipts, target, map, server);
@@ -218,14 +218,14 @@ impl Tool for RectTool {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         match tool_event {
             Activate => {
-                server_ctx.curr_map_tool_type = MapToolType::Rect;
-                server_ctx.rect_composition_target = None;
+                server_ctx.shared.curr_map_tool_type = MapToolType::Rect;
+                server_ctx.shared.rect_composition_target = None;
 
-                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
                     region.map.selected_vertices.clear();
                     region.map.selected_linedefs.clear();
                     region.map.selected_sectors.clear();
@@ -236,11 +236,11 @@ impl Tool for RectTool {
                 return true;
             }
             DeActivate => {
-                server_ctx.rect_composition_target = None;
-                server_ctx.curr_map_tool_type = MapToolType::General;
-                server_ctx.hover_cursor = None;
+                server_ctx.shared.rect_composition_target = None;
+                server_ctx.shared.curr_map_tool_type = MapToolType::General;
+                server_ctx.shared.hover_cursor = None;
                 self.reset_stroke();
-                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                if let Some(region) = project.get_region_mut(&server_ctx.shared.curr_region) {
                     region.map.clear_temp();
                 }
                 return true;
@@ -257,7 +257,7 @@ impl Tool for RectTool {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> Option<ProjectUndoAtom> {
         let mut undo_atom: Option<ProjectUndoAtom> = None;
 
@@ -266,14 +266,14 @@ impl Tool for RectTool {
             ui: &mut TheUI,
             _ctx: &mut TheContext,
             map: &mut Map,
-            server_ctx: &mut ServerContext,
+            server_ctx: &mut CreatorContext,
         ) -> Option<[Vec2<f32>; 4]> {
             let mut hovered_vertices: Option<[Vec2<f32>; 4]> = None;
 
             if let Some(render_view) = ui.get_render_view("PolyView") {
                 let dim = *render_view.dim();
-                server_ctx.hover = (None, None, None);
-                let cp = server_ctx.local_to_map_cell(
+                server_ctx.shared.hover = (None, None, None);
+                let cp = server_ctx.shared.local_to_map_cell(
                     Vec2::new(dim.width as f32, dim.height as f32),
                     Vec2::new(coord.x as f32, coord.y as f32),
                     map,
@@ -287,11 +287,11 @@ impl Tool for RectTool {
                     cp + Vec2::new(step, step),
                     cp + Vec2::new(step, 0.0),
                 ]);
-                server_ctx.hover_cursor = Some(cp);
+                server_ctx.shared.hover_cursor = Some(cp);
                 if RectTool::terrain_edit_plane(map) {
-                    server_ctx.rect_terrain_id = Some((cp.x.floor() as i32, cp.y.floor() as i32));
+                    server_ctx.shared.rect_terrain_id = Some((cp.x.floor() as i32, cp.y.floor() as i32));
                 } else {
-                    server_ctx.rect_terrain_id = None;
+                    server_ctx.shared.rect_terrain_id = None;
                 }
             }
 
@@ -359,8 +359,8 @@ impl Tool for RectTool {
                 {
                     self.reset_stroke();
                     self.hud_control_active = true;
-                    server_ctx.rect_compose_mode = index == 1;
-                    server_ctx.rect_composition_target = None;
+                    server_ctx.shared.rect_compose_mode = index == 1;
+                    server_ctx.shared.rect_composition_target = None;
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Map Selection Changed"),
                         TheValue::Empty,
@@ -385,15 +385,15 @@ impl Tool for RectTool {
                     return None;
                 }
 
-                if server_ctx.pc.is_region() && server_ctx.rect_compose_mode && !ui.alt {
+                if server_ctx.shared.pc.is_region() && server_ctx.shared.rect_compose_mode && !ui.alt {
                     self.reset_stroke();
-                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                         self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
                     } else {
                         self.compute_3d_tile(coord, map, ui, server_ctx);
                     }
-                    server_ctx.rect_composition_target = Self::composition_target(map, server_ctx);
-                    if let Some(binding) = &server_ctx.rect_composition_target {
+                    server_ctx.shared.rect_composition_target = Self::composition_target(map, server_ctx);
+                    if let Some(binding) = &server_ctx.shared.rect_composition_target {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named(crate::procedural_material::map_composition::OPEN),
                             TheValue::Text(serde_json::to_string(binding).unwrap()),
@@ -414,7 +414,7 @@ impl Tool for RectTool {
 
                 self.processed.clear();
                 if ui.alt {
-                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                         self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
                     } else {
                         self.compute_3d_tile(coord, map, ui, server_ctx);
@@ -429,14 +429,14 @@ impl Tool for RectTool {
                     return None;
                 }
 
-                if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                     let source = get_source(ui, server_ctx);
                     let use_terrain_paint = Self::uses_terrain_paint(
                         map,
                         source.as_ref(),
                         &server_ctx.reference.read().assets,
                     );
-                    if let Some(cp) = server_ctx.hover_cursor {
+                    if let Some(cp) = server_ctx.shared.hover_cursor {
                         self.begin_stroke_if_needed(map);
                         let k = if use_terrain_paint {
                             Vec2::new(cp.x.floor() as i32, cp.y.floor() as i32)
@@ -449,7 +449,7 @@ impl Tool for RectTool {
                         }
                         if let Some(work_map) = self.stroke_work_map.as_mut() {
                             let changed = if use_terrain_paint {
-                                server_ctx.rect_terrain_id = Some((k.x, k.y));
+                                server_ctx.shared.rect_terrain_id = Some((k.x, k.y));
                                 Self::apply_3d_paint_at_current_target(work_map, ui, server_ctx)
                                     .is_some()
                             } else {
@@ -509,8 +509,8 @@ impl Tool for RectTool {
                 if self.hud_control_active {
                     return None;
                 }
-                if server_ctx.pc.is_region() && server_ctx.rect_compose_mode && !ui.alt {
-                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                if server_ctx.shared.pc.is_region() && server_ctx.shared.rect_compose_mode && !ui.alt {
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                         self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
                     } else {
                         self.compute_3d_tile(coord, map, ui, server_ctx);
@@ -523,14 +523,14 @@ impl Tool for RectTool {
                 }
                 if ui.alt {
                     self.reset_stroke();
-                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                         self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
                     } else {
                         self.compute_3d_tile(coord, map, ui, server_ctx);
                     }
                     return None;
                 }
-                if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                     let source = get_source(ui, server_ctx);
                     let use_terrain_paint = Self::uses_terrain_paint(
                         map,
@@ -538,7 +538,7 @@ impl Tool for RectTool {
                         &server_ctx.reference.read().assets,
                     );
                     self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
-                    if let Some(cp) = server_ctx.hover_cursor {
+                    if let Some(cp) = server_ctx.shared.hover_cursor {
                         self.begin_stroke_if_needed(map);
                         let k = if use_terrain_paint {
                             Vec2::new(cp.x.floor() as i32, cp.y.floor() as i32)
@@ -574,7 +574,7 @@ impl Tool for RectTool {
                                     continue;
                                 }
                                 let changed = if use_terrain_paint {
-                                    server_ctx.rect_terrain_id = Some((cell.x, cell.y));
+                                    server_ctx.shared.rect_terrain_id = Some((cell.x, cell.y));
                                     Self::apply_3d_paint_at_current_target(work_map, ui, server_ctx)
                                         .is_some()
                                 } else {
@@ -643,7 +643,7 @@ impl Tool for RectTool {
                         && let (Some(prev), Some(new_map)) =
                             (self.stroke_prev_map.take(), self.stroke_work_map.take())
                     {
-                        let has_persistent_change = server_ctx.editor_view_mode
+                        let has_persistent_change = server_ctx.shared.editor_view_mode
                             != EditorViewMode::D2
                             || crate::toollist::ToolList::changed_d2_rect_paint_chunks(
                                 &prev, &new_map,
@@ -659,7 +659,7 @@ impl Tool for RectTool {
                             );
                             *map = new_map;
                             undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                server_ctx.pc,
+                                server_ctx.shared.pc,
                                 Box::new(prev),
                                 Box::new(map.clone()),
                             ));
@@ -669,7 +669,7 @@ impl Tool for RectTool {
                 }
             }
             MapHover(coord) => {
-                if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
                     self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
                 } else {
                     self.compute_3d_tile(coord, map, ui, server_ctx);
@@ -678,7 +678,7 @@ impl Tool for RectTool {
             MapDelete => {}
             MapEscape => {
                 map.properties.set("iso_pick_height", Value::Bool(false));
-                server_ctx.rect_composition_target = None;
+                server_ctx.shared.rect_composition_target = None;
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Map Selection Changed"),
                     TheValue::Empty,
@@ -696,10 +696,10 @@ impl Tool for RectTool {
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
         ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
         assets: &Assets,
     ) {
-        if server_ctx.editor_view_mode == EditorViewMode::D2
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2
             && let Some((top_left, bottom_right)) = map.curr_rectangle
         {
             let screen_size = Vec2::new(buffer.dim().width as f32, buffer.dim().height as f32);
@@ -713,7 +713,7 @@ impl Tool for RectTool {
                 } else {
                     edit_height
                 };
-                if let Some(rusterix::TileSource::SingleTile(id)) = server_ctx.curr_tile_source {
+                if let Some(rusterix::TileSource::SingleTile(id)) = server_ctx.shared.curr_tile_source {
                     if let Some(tile) = assets.tiles.get(&id) {
                         rusterix::isometric::draw_tile_preview(
                             buffer,
@@ -766,7 +766,7 @@ impl Tool for RectTool {
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         project: &mut Project,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) -> bool {
         let redraw = false;
         #[allow(clippy::single_match)]
@@ -777,7 +777,7 @@ impl Tool for RectTool {
                     let source = crate::utils::get_source(_ui, server_ctx).map(Value::Source);
 
                     if let Some(source) = source {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
+                        if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                             let _prev = map.clone();
 
                             for linedef_id in map.selected_linedefs.clone() {
@@ -799,7 +799,7 @@ impl Tool for RectTool {
                         }
                     }
                 } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
+                    if let Some(map) = project.get_map_mut(&server_ctx.shared) {
                         let _prev = map.clone();
 
                         for linedef_id in map.selected_linedefs.clone() {
@@ -872,11 +872,11 @@ mod tests {
                 let mut view = TheRenderView::new(TheId::named("PolyView"));
                 view.set_dim(TheDim::sized(width as i32, 400), &mut ctx);
                 ui.canvas.set_widget(view);
-                let mut server = ServerContext::default();
-                server.pc = ProjectContext::Region(Uuid::new_v4());
-                server.editor_view_mode = EditorViewMode::D2;
-                server.curr_map_tool_type = MapToolType::Rect;
-                server.curr_tile_source = Some(TileSource::SingleTile(Uuid::new_v4()));
+                let mut server = CreatorContext::default();
+                server.shared.pc = ProjectContext::Region(Uuid::new_v4());
+                server.shared.editor_view_mode = EditorViewMode::D2;
+                server.shared.curr_map_tool_type = MapToolType::Rect;
+                server.shared.curr_tile_source = Some(TileSource::SingleTile(Uuid::new_v4()));
                 let mut tool = RectTool::new();
                 let mut buffer = TheRGBABuffer::new(TheDim::sized(width as i32, 400));
                 tool.draw_composition_controls(&mut buffer, &map, &mut ctx, &server);
@@ -930,7 +930,7 @@ mod tests {
     }
     #[test]
     fn smooth_terrain_brush_preserves_rigid_iso_parts_and_explicit_levels() {
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let mut map = Map::default();
         map.camera = MapCamera::TwoDIso;
         map.properties.set("terrain_enabled", Value::Bool(true));
@@ -983,8 +983,8 @@ mod tests {
         );
         assert!(!map.properties.contains("tiles"));
 
-        server.editor_view_mode = EditorViewMode::D2;
-        server.hover_cursor = Some(Vec2::new(2., 3.));
+        server.shared.editor_view_mode = EditorViewMode::D2;
+        server.shared.hover_cursor = Some(Vec2::new(2., 3.));
         assert!(matches!(
             RectTool::composition_target(&map, &server).unwrap().surface,
             shared::material_composition::CompositionSurface::RectTile { .. }
@@ -1003,7 +1003,7 @@ mod tests {
     #[test]
     #[ignore = "native editor paint publication and undo use SceneVM's Metal context"]
     fn iso_ui_controls_and_real_paint_strokes_build_stairs_with_undo() {
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         let mut p = Project::default();
         let map = &mut p.regions[0].map;
         *map = Map::default();
@@ -1022,9 +1022,9 @@ mod tests {
         view.set_dim(TheDim::sized(1000, 700), &mut ctx);
         ui.canvas.set_widget(view);
 
-        server.curr_region = p.regions[0].id;
-        server.pc = ProjectContext::Region(server.curr_region);
-        server.editor_view_mode = EditorViewMode::D2;
+        server.shared.curr_region = p.regions[0].id;
+        server.shared.pc = ProjectContext::Region(server.shared.curr_region);
+        server.shared.editor_view_mode = EditorViewMode::D2;
         let mut picker = <crate::docks::tiles::TilesDock as Dock>::new();
         let mut picker_ui = TheUI::new();
         picker_ui.canvas = picker.setup(&mut ctx);
@@ -1046,7 +1046,7 @@ mod tests {
             &mut p,
             &mut server,
         );
-        assert_eq!(server.curr_tile_id, Some(recipe));
+        assert_eq!(server.shared.curr_tile_id, Some(recipe));
         for (id, value) in [
             ("Iso Placement Walkable", TheValue::Bool(true)),
             ("Iso Placement Stack", TheValue::Bool(true)),
@@ -1116,8 +1116,8 @@ mod tests {
         map.changed = map.changed.wrapping_add(1);
         server.reference.write()
             .set_tiles_for_maps(p.tiles.clone(), false, [&*map]);
-        server.curr_tile_id = Some(ground_id);
-        server.curr_tile_source = Some(TileSource::SingleTile(ground_id));
+        server.shared.curr_tile_id = Some(ground_id);
+        server.shared.curr_tile_source = Some(TileSource::SingleTile(ground_id));
         let click =
             shared::context::ServerContext::map_grid_to_local(Vec2::new(1000., 700.), Vec2::new(2.5, 6.5), map)
                 .map(|v| v.round() as i32);
@@ -1300,7 +1300,7 @@ mod tests {
     }
     #[test]
     fn compose_click_selects_one_2d_painted_tile_and_drag_does_not_paint() {
-        let mut server = ServerContext::default();
+        let mut server = CreatorContext::default();
         use shared::material_composition::CompositionSurface;
         let mut map = Map::default();
         let source = PixelSource::TileId(Uuid::new_v4());
@@ -1316,10 +1316,10 @@ mod tests {
         view.set_dim(TheDim::new(0, 0, 400, 400), &mut ctx);
         ui.canvas.set_widget(view);
 
-        server.pc = ProjectContext::Region(Uuid::new_v4());
-        server.curr_map_tool_type = MapToolType::Rect;
-        server.rect_compose_mode = true;
-        server.editor_view_mode = EditorViewMode::D2;
+        server.shared.pc = ProjectContext::Region(Uuid::new_v4());
+        server.shared.curr_map_tool_type = MapToolType::Rect;
+        server.shared.rect_compose_mode = true;
+        server.shared.editor_view_mode = EditorViewMode::D2;
         let mut tool = RectTool::new();
         let screen = |p| {
             let p = shared::context::ServerContext::map_grid_to_local(Vec2::new(400., 400.), p, &map);
@@ -1337,7 +1337,7 @@ mod tests {
             )
             .is_none()
         );
-        let binding = server.rect_composition_target.clone().unwrap();
+        let binding = server.shared.rect_composition_target.clone().unwrap();
         assert_eq!(
             binding.surface,
             CompositionSurface::RectTile { sector: first }
@@ -1357,7 +1357,7 @@ mod tests {
             &mut map,
             &mut server,
         );
-        assert_eq!(server.rect_composition_target, Some(binding));
+        assert_eq!(server.shared.rect_composition_target, Some(binding));
         assert_eq!(serde_json::to_string(&map.sectors).unwrap(), before);
         assert!(!tool.stroke_active);
         tool.map_event(
@@ -1368,12 +1368,12 @@ mod tests {
             &mut server,
         );
         assert_ne!(
-            server.rect_composition_target.as_ref().unwrap().surface,
+            server.shared.rect_composition_target.as_ref().unwrap().surface,
             CompositionSurface::RectTile { sector: first }
         );
         // A mode-button drag must never leak through into Paint mode.
         tool.hud_control_active = true;
-        server.rect_compose_mode = false;
+        server.shared.rect_compose_mode = false;
         tool.map_event(
             MapDragged(first_click),
             &mut ui,
@@ -1392,10 +1392,10 @@ mod tests {
         let object = rusterix::GeometryObject::box_("Wall", Vec3::zero(), Vec3::new(4., 3., 1.));
         let object_id = object.id;
         map.geometry_objects.push(object);
-        let mut server = ServerContext::default();
-        server.editor_view_mode = EditorViewMode::FirstP;
-        server.rect_geometry_face_3d = Some((object_id, 0));
-        server.rect_tile_id_3d = (-2, 1);
+        let mut server = CreatorContext::default();
+        server.shared.editor_view_mode = EditorViewMode::FirstP;
+        server.shared.rect_geometry_face_3d = Some((object_id, 0));
+        server.shared.rect_tile_id_3d = (-2, 1);
         assert_eq!(
             RectTool::composition_target(&map, &server).unwrap().surface,
             CompositionSurface::GeometryTile {
@@ -1404,7 +1404,7 @@ mod tests {
                 cell: [-2, 1]
             }
         );
-        server.rect_tile_id_3d = (-1, 1);
+        server.shared.rect_tile_id_3d = (-1, 1);
         assert_eq!(
             RectTool::composition_target(&map, &server).unwrap().surface,
             CompositionSurface::GeometryTile {
@@ -1414,9 +1414,9 @@ mod tests {
             }
         );
         map.sectors.push(rusterix::Sector::new(9, vec![]));
-        server.rect_geometry_face_3d = None;
-        server.rect_sector_id_3d = Some(9);
-        server.rect_tile_id_3d = (2, 3);
+        server.shared.rect_geometry_face_3d = None;
+        server.shared.rect_sector_id_3d = Some(9);
+        server.shared.rect_tile_id_3d = (2, 3);
         assert_eq!(
             RectTool::composition_target(&map, &server).unwrap().surface,
             CompositionSurface::SectorTile {
@@ -1425,11 +1425,11 @@ mod tests {
             }
         );
         map.properties.set("terrain_enabled", Value::Bool(true));
-        server.editor_view_mode = EditorViewMode::D2;
-        server.hover_cursor = Some(Vec2::new(-2., 5.));
+        server.shared.editor_view_mode = EditorViewMode::D2;
+        server.shared.hover_cursor = Some(Vec2::new(-2., 5.));
         let d2 = RectTool::composition_target(&map, &server).unwrap();
-        server.editor_view_mode = EditorViewMode::FirstP;
-        server.rect_terrain_id = Some((-2, 5));
+        server.shared.editor_view_mode = EditorViewMode::FirstP;
+        server.shared.rect_terrain_id = Some((-2, 5));
         assert_eq!(d2, RectTool::composition_target(&map, &server).unwrap());
     }
 }
@@ -1465,11 +1465,11 @@ impl RectTool {
     /// and the eyedropper; hover never changes the clicked editing target.
     fn composition_target(
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) -> Option<shared::material_composition::MapMaterialBinding> {
         use shared::material_composition::{CompositionSurface, MapMaterialBinding};
-        let surface = if server.editor_view_mode == EditorViewMode::D2 {
-            let cursor = server.hover_cursor?;
+        let surface = if server.shared.editor_view_mode == EditorViewMode::D2 {
+            let cursor = server.shared.hover_cursor?;
             let cell = [cursor.x.floor() as i32, cursor.y.floor() as i32];
             if Self::terrain_edit_plane(map) {
                 CompositionSurface::TerrainTile { cell }
@@ -1478,9 +1478,9 @@ impl RectTool {
                     sector: Self::rect_sector_at(map, cell)?,
                 }
             }
-        } else if let Some((x, y)) = server.rect_terrain_id {
+        } else if let Some((x, y)) = server.shared.rect_terrain_id {
             CompositionSurface::TerrainTile { cell: [x, y] }
-        } else if let Some((object, face)) = server.rect_geometry_face_3d {
+        } else if let Some((object, face)) = server.shared.rect_geometry_face_3d {
             map.geometry_objects
                 .iter()
                 .find(|o| o.id == object)?
@@ -1489,13 +1489,13 @@ impl RectTool {
             CompositionSurface::GeometryTile {
                 object,
                 face,
-                cell: [server.rect_tile_id_3d.0, server.rect_tile_id_3d.1],
+                cell: [server.shared.rect_tile_id_3d.0, server.shared.rect_tile_id_3d.1],
             }
-        } else if let Some(sector) = server.rect_sector_id_3d {
+        } else if let Some(sector) = server.shared.rect_sector_id_3d {
             map.find_sector(sector)?;
             CompositionSurface::SectorTile {
                 sector,
-                cell: [server.rect_tile_id_3d.0, server.rect_tile_id_3d.1],
+                cell: [server.shared.rect_tile_id_3d.0, server.shared.rect_tile_id_3d.1],
             }
         } else {
             return None;
@@ -1581,7 +1581,7 @@ impl RectTool {
         let mut commands = crate::editor_overlay::EditorOverlay::new(input.target.size);
         let map = input.hud.map;
         self.overlay_sources.begin();
-        if input.hud.server.editor_view_mode == EditorViewMode::D2
+        if input.hud.server.shared.editor_view_mode == EditorViewMode::D2
             && let Some((a, b)) = map.curr_rectangle
         {
             if map.camera == MapCamera::TwoDIso {
@@ -1595,7 +1595,7 @@ impl RectTool {
                     edit_height
                 };
                 if let Some(rusterix::TileSource::SingleTile(id)) =
-                    input.hud.server.curr_tile_source
+                    input.hud.server.shared.curr_tile_source
                     && let Some(tile) = input.hud.assets.tiles.get(&id)
                     && let Some(sprite) = rusterix::isometric::tile_preview_sprite(
                         tile,
@@ -1639,14 +1639,14 @@ impl RectTool {
     }
     fn prepare_native_highlight(
         map: &Map,
-        server: &ServerContext,
+        server: &CreatorContext,
         size: (usize, usize),
     ) -> crate::editor_overlay::EditorOverlay {
         let mut commands = crate::editor_overlay::EditorOverlay::new(size);
-        if server.editor_view_mode == EditorViewMode::D2 && server.rect_compose_mode {
+        if server.shared.editor_view_mode == EditorViewMode::D2 && server.shared.rect_compose_mode {
             use shared::material_composition::CompositionSurface;
             let bounds = server
-                .rect_composition_target
+                .shared.rect_composition_target
                 .as_ref()
                 .filter(|b| b.map == map.id)
                 .and_then(|binding| match binding.surface {
@@ -1675,11 +1675,11 @@ impl RectTool {
         buffer: &mut TheRGBABuffer,
         map: &Map,
         ctx: &mut TheContext,
-        server: &ServerContext,
+        server: &CreatorContext,
     ) {
         self.composition_mode_rects.clear();
         self.rotation_rects.clear();
-        if buffer.dim().width < 188 || buffer.dim().height < 54 || !server.pc.is_region() {
+        if buffer.dim().width < 188 || buffer.dim().height < 54 || !server.shared.pc.is_region() {
             return;
         }
         let stride = buffer.stride();
@@ -1688,7 +1688,7 @@ impl RectTool {
             .enumerate()
         {
             let rect = TheDim::rect(x, 26, width, 22);
-            let selected = server.rect_compose_mode == (index == 1);
+            let selected = server.shared.rect_compose_mode == (index == 1);
             ctx.draw.rect(
                 buffer.pixels_mut(),
                 &rect.to_buffer_utuple(),
@@ -1769,10 +1769,10 @@ impl RectTool {
                 TheVerticalAlign::Center,
             );
         }
-        if server.editor_view_mode == EditorViewMode::D2 && server.rect_compose_mode {
+        if server.shared.editor_view_mode == EditorViewMode::D2 && server.shared.rect_compose_mode {
             use shared::material_composition::CompositionSurface;
             let bounds = server
-                .rect_composition_target
+                .shared.rect_composition_target
                 .as_ref()
                 .filter(|b| b.map == map.id)
                 .and_then(|binding| match binding.surface {
@@ -2076,36 +2076,36 @@ impl RectTool {
 
     fn sample_source_at_current_target(
         map: &Map,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> Option<TileSource> {
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
             if Self::terrain_edit_plane(map) {
                 return server_ctx
-                    .rect_terrain_id
+                    .shared.rect_terrain_id
                     .and_then(|key| Self::sample_terrain_source(map, key));
             }
 
-            return server_ctx.hover_cursor.and_then(|cp| {
+            return server_ctx.shared.hover_cursor.and_then(|cp| {
                 let cell = Vec2::new(cp.x.floor() as i32, cp.y.floor() as i32);
                 Self::sample_sector_source_at_cell(map, cell)
             });
         }
 
-        if let Some(key) = server_ctx.rect_terrain_id {
+        if let Some(key) = server_ctx.shared.rect_terrain_id {
             return Self::sample_terrain_source(map, key);
         }
 
-        if let Some(sector_id) = server_ctx.rect_sector_id_3d {
-            return Self::sample_sector_override_source(map, sector_id, server_ctx.rect_tile_id_3d);
+        if let Some(sector_id) = server_ctx.shared.rect_sector_id_3d {
+            return Self::sample_sector_override_source(map, sector_id, server_ctx.shared.rect_tile_id_3d);
         }
 
-        if let Some((object_id, face_index)) = server_ctx.rect_geometry_face_3d {
+        if let Some((object_id, face_index)) = server_ctx.shared.rect_geometry_face_3d {
             let object = map
                 .geometry_objects
                 .iter()
                 .find(|object| object.id == object_id)?;
             let face = object.faces.get(face_index)?;
-            if let Some(source) = face.tiles.get(&server_ctx.rect_tile_id_3d) {
+            if let Some(source) = face.tiles.get(&server_ctx.shared.rect_tile_id_3d) {
                 return Self::tile_source_from_pixel_source(source);
             }
             return face
@@ -2339,14 +2339,14 @@ impl RectTool {
         added
     }
 
-    fn live_stroke_dirty_chunks(work_map: &Map, server_ctx: &ServerContext) -> Vec<(i32, i32)> {
-        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+    fn live_stroke_dirty_chunks(work_map: &Map, server_ctx: &CreatorContext) -> Vec<(i32, i32)> {
+        if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
             let cell = server_ctx
-                .rect_terrain_id
+                .shared.rect_terrain_id
                 .map(|(x, y)| Vec2::new(x, y))
                 .or_else(|| {
                     server_ctx
-                        .hover_cursor
+                        .shared.hover_cursor
                         .map(|cursor| Vec2::new(cursor.x.floor() as i32, cursor.y.floor() as i32))
                 });
             return cell
@@ -2359,13 +2359,13 @@ impl RectTool {
         }
 
         let mut dirty_chunks = Vec::new();
-        if let Some((x, z)) = server_ctx.rect_terrain_id {
+        if let Some((x, z)) = server_ctx.shared.rect_terrain_id {
             let chunk_size = 32;
             dirty_chunks.push((
                 x.div_euclid(chunk_size) * chunk_size,
                 z.div_euclid(chunk_size) * chunk_size,
             ));
-        } else if let Some((object_id, _)) = server_ctx.rect_geometry_face_3d {
+        } else if let Some((object_id, _)) = server_ctx.shared.rect_geometry_face_3d {
             let rusterix = server_ctx.reference.read();
             dirty_chunks.extend(
                 rusterix
@@ -2373,7 +2373,7 @@ impl RectTool {
                     .build_index
                     .chunks_for_owner(scenevm::GeoId::GeometryObject(object_id)),
             );
-        } else if let Some(sector_id) = server_ctx.rect_sector_id_3d
+        } else if let Some(sector_id) = server_ctx.shared.rect_sector_id_3d
             && let Some(sector) = work_map.find_sector(sector_id)
         {
             {
@@ -2388,7 +2388,7 @@ impl RectTool {
             if !Self::add_surface_tile_dirty_chunks(
                 work_map,
                 sector_id,
-                server_ctx.rect_tile_id_3d,
+                server_ctx.shared.rect_tile_id_3d,
                 &mut dirty_chunks,
             ) {
                 Self::add_bbox_dirty_chunks(sector.bounding_box(work_map), &mut dirty_chunks);
@@ -2418,7 +2418,7 @@ impl RectTool {
 
     fn sync_live_stroke_throttled(
         work_map: &Map,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
         last_live_scene_sync_at: &mut Option<Instant>,
         stroke_dirty_chunks: &mut FxHashSet<(i32, i32)>,
         force: bool,
@@ -2487,16 +2487,16 @@ impl RectTool {
         out
     }
 
-    fn current_3d_paint_key(server_ctx: &ServerContext) -> Option<RectPaintKey> {
-        if let Some((x, z)) = server_ctx.rect_terrain_id {
+    fn current_3d_paint_key(server_ctx: &CreatorContext) -> Option<RectPaintKey> {
+        if let Some((x, z)) = server_ctx.shared.rect_terrain_id {
             return Some(RectPaintKey::Terrain(x, z));
         }
-        if let Some((object_id, face_index)) = server_ctx.rect_geometry_face_3d {
-            let (x, y) = server_ctx.rect_tile_id_3d;
+        if let Some((object_id, face_index)) = server_ctx.shared.rect_geometry_face_3d {
+            let (x, y) = server_ctx.shared.rect_tile_id_3d;
             return Some(RectPaintKey::Geometry(object_id, face_index, x, y));
         }
-        if let Some(sector_id) = server_ctx.rect_sector_id_3d {
-            let (x, y) = server_ctx.rect_tile_id_3d;
+        if let Some(sector_id) = server_ctx.shared.rect_sector_id_3d {
+            let (x, y) = server_ctx.shared.rect_tile_id_3d;
             return Some(RectPaintKey::Sector(sector_id, x, y));
         }
         None
@@ -2505,11 +2505,11 @@ impl RectTool {
     fn apply_3d_paint_at_current_target(
         map: &mut Map,
         ui: &mut TheUI,
-        server_ctx: &ServerContext,
+        server_ctx: &CreatorContext,
     ) -> Option<Vec2<i32>> {
         let source = crate::utils::get_source(ui, server_ctx);
 
-        if let Some((x, z)) = server_ctx.rect_terrain_id {
+        if let Some((x, z)) = server_ctx.shared.rect_terrain_id {
             let mut tiles = match map.properties.get("tiles") {
                 Some(Value::TileOverrides(existing)) => existing.clone(),
                 _ => FxHashMap::default(),
@@ -2526,11 +2526,11 @@ impl RectTool {
                 tiles.remove(&(x, z));
                 blend_tiles.remove(&(x, z));
             } else if let Some(source) = source.clone() {
-                if server_ctx.rect_blend_preset == VertexBlendPreset::Solid {
+                if server_ctx.shared.rect_blend_preset == VertexBlendPreset::Solid {
                     tiles.insert((x, z), source);
                     blend_tiles.remove(&(x, z));
                 } else {
-                    blend_tiles.insert((x, z), (server_ctx.rect_blend_preset, source));
+                    blend_tiles.insert((x, z), (server_ctx.shared.rect_blend_preset, source));
                     tiles.remove(&(x, z));
                 }
             } else {
@@ -2556,8 +2556,8 @@ impl RectTool {
             return Some(Vec2::new(x, z));
         }
 
-        if let Some((object_id, face_index)) = server_ctx.rect_geometry_face_3d {
-            let key = server_ctx.rect_tile_id_3d;
+        if let Some((object_id, face_index)) = server_ctx.shared.rect_geometry_face_3d {
+            let key = server_ctx.shared.rect_tile_id_3d;
             let object = map
                 .geometry_objects
                 .iter_mut()
@@ -2578,10 +2578,10 @@ impl RectTool {
             return Some(Vec2::new(key.0, key.1));
         }
 
-        if let Some(sector_id) = server_ctx.rect_sector_id_3d
+        if let Some(sector_id) = server_ctx.shared.rect_sector_id_3d
             && let Some(sector) = map.find_sector_mut(sector_id)
         {
-            let key = Vec2::new(server_ctx.rect_tile_id_3d.0, server_ctx.rect_tile_id_3d.1);
+            let key = Vec2::new(server_ctx.shared.rect_tile_id_3d.0, server_ctx.shared.rect_tile_id_3d.1);
 
             let mut tiles = match sector.properties.get("tiles") {
                 Some(Value::TileOverrides(existing)) => existing.clone(),
@@ -2595,18 +2595,18 @@ impl RectTool {
             let previous_blend_tiles = blend_tiles.clone();
 
             if ui.shift {
-                tiles.remove(&server_ctx.rect_tile_id_3d);
-                blend_tiles.remove(&server_ctx.rect_tile_id_3d);
+                tiles.remove(&server_ctx.shared.rect_tile_id_3d);
+                blend_tiles.remove(&server_ctx.shared.rect_tile_id_3d);
             } else if let Some(source) = source {
-                if server_ctx.rect_blend_preset == VertexBlendPreset::Solid {
-                    tiles.insert(server_ctx.rect_tile_id_3d, source);
-                    blend_tiles.remove(&server_ctx.rect_tile_id_3d);
+                if server_ctx.shared.rect_blend_preset == VertexBlendPreset::Solid {
+                    tiles.insert(server_ctx.shared.rect_tile_id_3d, source);
+                    blend_tiles.remove(&server_ctx.shared.rect_tile_id_3d);
                 } else {
                     blend_tiles.insert(
-                        server_ctx.rect_tile_id_3d,
-                        (server_ctx.rect_blend_preset, source),
+                        server_ctx.shared.rect_tile_id_3d,
+                        (server_ctx.shared.rect_blend_preset, source),
                     );
-                    tiles.remove(&server_ctx.rect_tile_id_3d);
+                    tiles.remove(&server_ctx.shared.rect_tile_id_3d);
                 }
             } else {
                 return None;
@@ -2640,7 +2640,7 @@ impl RectTool {
         coord: Vec2<i32>,
         map: &Map,
         ui: &mut TheUI,
-        server_ctx: &mut ServerContext,
+        server_ctx: &mut CreatorContext,
     ) {
         if let Some(render_view) = ui.get_render_view("PolyView") {
             let dim = *render_view.dim();
@@ -2661,7 +2661,7 @@ impl RectTool {
             };
 
             let mut found = false;
-            server_ctx.rect_geometry_face_3d = None;
+            server_ctx.shared.rect_geometry_face_3d = None;
 
             if let Some((scenevm::GeoId::Sector(id), world_hit, _)) = rc {
                 let mut best: Option<((i32, i32), f32)> = None;
@@ -2693,8 +2693,8 @@ impl RectTool {
                 }
 
                 if let Some((tile, _)) = best {
-                    server_ctx.rect_tile_id_3d = tile;
-                    server_ctx.rect_sector_id_3d = Some(id);
+                    server_ctx.shared.rect_tile_id_3d = tile;
+                    server_ctx.shared.rect_sector_id_3d = Some(id);
                     found = true;
                 }
             }
@@ -2704,23 +2704,23 @@ impl RectTool {
                 && let Some((face_index, tile)) =
                     Self::geometry_face_target_at_world(map, id, world_hit)
             {
-                server_ctx.rect_tile_id_3d = tile;
-                server_ctx.rect_geometry_face_3d = Some((id, face_index));
-                server_ctx.rect_sector_id_3d = None;
-                server_ctx.rect_terrain_id = None;
+                server_ctx.shared.rect_tile_id_3d = tile;
+                server_ctx.shared.rect_geometry_face_3d = Some((id, face_index));
+                server_ctx.shared.rect_sector_id_3d = None;
+                server_ctx.shared.rect_terrain_id = None;
                 found = true;
             }
 
             if let Some((scenevm::GeoId::Terrain(x, z), _, _)) = rc {
-                server_ctx.rect_terrain_id = Some((x, z));
-                server_ctx.rect_geometry_face_3d = None;
+                server_ctx.shared.rect_terrain_id = Some((x, z));
+                server_ctx.shared.rect_geometry_face_3d = None;
             } else {
-                server_ctx.rect_terrain_id = None;
+                server_ctx.shared.rect_terrain_id = None;
             }
 
             if !found {
-                server_ctx.rect_sector_id_3d = None;
-                server_ctx.rect_geometry_face_3d = None;
+                server_ctx.shared.rect_sector_id_3d = None;
+                server_ctx.shared.rect_geometry_face_3d = None;
             }
         }
     }

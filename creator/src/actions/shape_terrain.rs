@@ -158,7 +158,7 @@ pub fn apply(node: &TheNodeUI, props: &mut ValueContainer, kind: Kind) -> bool {
     changed
 }
 
-pub fn enable(map: &mut Map, server: &ServerContext) {
+pub fn enable(map: &mut Map, server: &CreatorContext) {
     map.properties.set("terrain_enabled", Value::Bool(true));
     let subdivisions = map
         .properties
@@ -171,7 +171,7 @@ pub fn enable(map: &mut Map, server: &ServerContext) {
     }
     if !map.properties.contains("default_terrain_tile") {
         let source = server
-            .curr_tile_id
+            .shared.curr_tile_id
             .filter(|id| {
                 let runtime = server.reference.read();
                 runtime.assets.tiles.get(id).is_some_and(|tile| {
@@ -193,7 +193,7 @@ mod tests {
     use crate::actions::{Action, edit_linedef::EditLinedef, edit_sector::EditSector};
     use rusterix::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 
-    fn set(action: &mut dyn Action, id: &str, value: TheValue, server: &mut ServerContext) {
+    fn set(action: &mut dyn Action, id: &str, value: TheValue, server: &mut CreatorContext) {
         action.handle_event(
             &TheEvent::ValueChanged(TheId::named(id), value),
             &mut Project::default(),
@@ -213,8 +213,8 @@ mod tests {
         let id = map.create_linedef_manual(a, b);
         map.clear_temp();
         map.selected_linedefs = vec![id];
-        let mut server = ServerContext::default();
-        server.pc = ProjectContext::Region(Uuid::new_v4());
+        let mut server = CreatorContext::default();
+        server.shared.pc = ProjectContext::Region(Uuid::new_v4());
         let mut action = EditLinedef::new();
         action.load_params(&map);
         for (id, value) in [
@@ -281,8 +281,8 @@ mod tests {
         let id = map.close_polygon_manual().unwrap();
         map.selected_sectors = vec![id];
         map.properties.set("iso_edit_height", Value::Float(0.25));
-        let mut server = ServerContext::default();
-        server.pc = ProjectContext::Region(Uuid::new_v4());
+        let mut server = CreatorContext::default();
+        server.shared.pc = ProjectContext::Region(Uuid::new_v4());
         let mut action = EditSector::new();
         action.load_params(&map);
         set(
