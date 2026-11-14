@@ -13743,3 +13743,61 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   original billboard sources, preserving the shipped sprite/placement convention.
   Full UI invalidation/deadline scheduling and remaining canonical ownership/
   adapters remain separate implementation work, followed by consolidated tests.
+
+## Virtual native stamp rasters and live source publication (2026-11-15)
+
+- Previous goal turn is progress:f936110a saved original-region display caching
+  and composition. Concurrent networking-mmo-concept.md remains untouched.
+- Extracted the shipped stamp kernels from the large iso_paint_render module
+  into stamp_raster/procedural.rs. One Target contract supports the existing CPU
+  reference buffer and native virtual targets; all original drawing coordinates,
+  recipe/noise inputs, alpha blend order and inverse source-image sampling stay
+  shared. Reference/offscreen full-raster APIs remain explicit CPU consumers.
+- Native stamp generation now uses an exact coverage-bounds pass and a second
+  pass storing only pixels selected by the existing<=256px sprite convention.
+  Integer inversion of floor(sample*crop/output) preserves that convention.
+  Coverage metadata is constant-size; sample storage is at most256*256*4bytes,
+  plus one equally bounded material-mask scratch image. No native temporary
+  allocation scales with the original canvas area. Original crop coordinates,
+  anchor, world size/offset, ordered instances and emission flags are retained.
+- Removed genuine original-raster-area/scratch admission from native preparation.
+  Invalid/nonfinite dimensions are explicit coordinate errors, not a reference
+  adapter handoff. The64MiB distinct sprite/instance payload adapter remains;
+  changing the limit is not its retirement. Updated the existing deferred CPU/
+  native GPU fixtures to expect valid large-stamp admission and cancellation.
+- Canonical native Creator live Region/Prefab stamp publication now calls the
+  typed upload_native_sources_cached path, using bounded rasterization and exact
+  sprite interning. It no longer routes through camera/overlay compatibility
+  arguments or the full original stamp canvas. Native bake prep retains its
+  cooperative two-stamp source owner. Unchanged cached sources do not rebuild;
+  the reference uploader keeps its separate full-raster comparison path.
+- Release compilation PASS18.09s for all four applications after kernel/target
+  extraction; browser Creator release PASS16.25s. Live native integration then
+  release-compiled all four applications PASS17.22s. Logs:
+  /private/tmp/eldiron-stamp-virtual-raster-release{,-web,-live}.log.
+  Final shared release compilation PASS27.82s after avoiding native-only sprite
+  hashing in the reference path. Final browser release compilation PASS16.34s; logs:
+  /private/tmp/eldiron-stamp-virtual-raster-release-shared-final.log and
+  /private/tmp/eldiron-stamp-virtual-raster-release-web-final.log.
+  No functional/GPU/performance test batch ran.
+- Remaining: truly distinct billboard originals need paging through the private
+  producer's complete lookup/residency protocol rather than one combined organic
+  pixel SSBO. SceneVM currently rebuilds/concatenates the organic word payload
+  for compute metadata; retain stable CPU/GPU descriptions as that path is
+  converted. Native large procedural/image recipe evaluation and live changed-
+  source preparation still need responsiveness/worker policy closure; bounded
+  scratch does not prove bounded elapsed work. Current project/paint wire format
+  is unchanged. Exact pixel/material/placement parity, cancellation and actual
+  large-stamp/browser behavior await the consolidated validation phase.
+- Other port work stays active: full UI invalidation/deadline scheduling,
+  remaining canonical producers/ownership/adapters and platform integration.
+  Full M0-M9 acceptance, memory and matched release performance remain open.
+
+- Source-paging dependency identified: reuse the existing complete paint-key
+  lookup/first-missing-slot receipt and two-plane residency instead of adding a
+  ninth compute storage binding. Native stamp originals should become retained
+  recipe/crop descriptors with lazy64px page production, and SceneVM should pack
+  billboard extents/source identities instead of all original sprite pixels.
+  This avoids replacing the old GPU payload limit with unbounded derived CPU
+  sprite/page copies. The new virtual target is the prerequisite for sampling
+  only a requested sprite page while retaining its original256px convention.

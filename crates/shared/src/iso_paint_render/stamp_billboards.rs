@@ -52,27 +52,71 @@ pub(super) fn stamp_billboard(
         }
     }
 
+    let sprite = OrganicBillboardSprite {
+        width: sprite_width as u32,
+        height: sprite_height as u32,
+        rgba,
+    };
+    let instance = placement(
+        stamp,
+        world,
+        camera,
+        height,
+        [min_x as i32, min_y as i32],
+        [max_x as i32, max_y as i32],
+        anchor,
+    );
+    Some((sprite, instance))
+}
+
+pub(super) fn bounded_stamp_billboard(
+    stamp: &IsoPaintStamp,
+    world: [f32; 3],
+    camera: Camera3D,
+    height: u32,
+) -> Result<Option<(OrganicBillboardSprite, OrganicBillboardInstance)>, StampBillboardError> {
+    let Some(raster) =
+        super::stamp_raster::native_sprite(stamp).map_err(StampBillboardError::RasterDimensions)?
+    else {
+        return Ok(None);
+    };
+    let instance = placement(
+        stamp,
+        world,
+        camera,
+        height,
+        raster.min,
+        raster.max,
+        raster.anchor,
+    );
+    Ok(Some((raster.sprite, instance)))
+}
+
+fn placement(
+    stamp: &IsoPaintStamp,
+    world: [f32; 3],
+    camera: Camera3D,
+    height: u32,
+    min: [i32; 2],
+    max: [i32; 2],
+    anchor: [i32; 2],
+) -> OrganicBillboardInstance {
     let authored_height = stamp
         .viewport_size
         .map(|size| size[1])
         .filter(|height| *height > 0)
         .unwrap_or(height.max(1) as i32) as f32;
     let world_per_pixel = 2.0 * stamp.camera_scale.unwrap_or(6.0).max(0.001) / authored_height;
-    let crop_center_x = (min_x as f32 + max_x as f32) * 0.5;
-    let crop_center_y = (min_y as f32 + max_y as f32) * 0.5;
+    let crop_center_x = (min[0] as f32 + max[0] as f32) * 0.5;
+    let crop_center_y = (min[1] as f32 + max[1] as f32) * 0.5;
     let offset_x = (crop_center_x - anchor[0] as f32) * world_per_pixel;
     let offset_y = (crop_center_y - anchor[1] as f32) * world_per_pixel;
     let anchor_world = Vec3::new(world[0], world[1], world[2]);
     let center = anchor_world + camera.right * offset_x - camera.up * offset_y;
-    let sprite = scenevm::OrganicBillboardSprite {
-        width: sprite_width as u32,
-        height: sprite_height as u32,
-        rgba,
-    };
     let instance = scenevm::OrganicBillboardInstance {
         center: [center.x, center.y, center.z],
-        width: crop_width as f32 * world_per_pixel,
-        height: crop_height as f32 * world_per_pixel,
+        width: (max[0] - min[0] + 1) as f32 * world_per_pixel,
+        height: (max[1] - min[1] + 1) as f32 * world_per_pixel,
         sprite_index: 0,
         // The HDR billboard pass also needs the recipe's emission channel.
         flags: 1
@@ -93,13 +137,13 @@ pub(super) fn stamp_billboard(
                 .round() as u32)
                 << 8),
     };
-    Some((sprite, instance))
+    instance
 }
 
 #[derive(Clone, Debug)]
 pub enum StampBillboardError {
     SourceBudget { bytes: u64, limit: u64 },
-    RasterBudget { bytes: u64, limit: u64 },
+    RasterDimensions(String),
     Incomplete,
 }
 impl std::fmt::Display for StampBillboardError {
@@ -109,10 +153,7 @@ impl std::fmt::Display for StampBillboardError {
                 f,
                 "Stamp originals require {bytes} bytes; source limit is {limit}"
             ),
-            Self::RasterBudget { bytes, limit } => write!(
-                f,
-                "Stamp original raster requires {bytes} bytes; scratch limit is {limit}"
-            ),
+            Self::RasterDimensions(error) => f.write_str(error),
             Self::Incomplete => f.write_str("Stamp source preparation is incomplete"),
         }
     }
@@ -186,7 +227,7 @@ impl StampBillboardPreparation {
         }
     }
     /// At most `items` chunks/stamps are visited; no partial GPU publication.
-    /// Per-stamp procedural scratch is admitted separately before allocation.
+    /// Native virtual-raster scratch is independent of the original canvas area.
     pub fn advance(&mut self, vm: &SceneVM, items: usize) -> Result<bool, StampBillboardError> {
         self.advance_with(items, |stamp| match (stamp.paint_geo, stamp.surface_uv) {
             (Some(geo), Some(uv)) => vm
@@ -228,22 +269,8 @@ impl StampBillboardPreparation {
         let Some(world) = world else {
             return Ok(());
         };
-        // Same native bounds as iso_paint_native_stamp_raster, checked before
-        // integer arithmetic or allocation. Oversized scratch remains an
-        // explicit adapter case rather than stalling/overflowing this producer.
-        let size = stamp.size.max(0.01);
-        let side = (size * 24.).ceil().max(16.) as f64 + 4.;
-        let above = (size * 34.).ceil().max(24.) as f64 + 4.;
-        let below = (size * 14.).ceil().max(12.) as f64 + 4.;
-        let scratch = ((side * 2. + 1.) * (above + below + 1.) * 4.) as u64;
-        const SCRATCH: u64 = 16 * 1024 * 1024;
-        if scratch > SCRATCH {
-            return Err(StampBillboardError::RasterBudget {
-                bytes: scratch,
-                limit: SCRATCH,
-            });
-        }
-        let Some((sprite, mut instance)) = stamp_billboard(&stamp, world, self.camera, self.height)
+        let Some((sprite, mut instance)) =
+            bounded_stamp_billboard(&stamp, world, self.camera, self.height)?
         else {
             return Ok(());
         };

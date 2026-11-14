@@ -371,8 +371,8 @@ impl Editor {
                         .map_err(|error| error.to_string())
                 })();
                 if job.paint.as_ref().is_some_and(|paint| paint.above_budget()) {
-                    // Admission uses actual unique sprite/instance storage and
-                    // per-raster scratch, not a worst-case count of all stamps.
+                    // Only genuine distinct sprite/instance storage still
+                    // uses this adapter. Virtual raster scratch is bounded.
                     // No GPU bake sample was started or published during prep.
                     jobs.legacy = Some(job.key.clone());
                     jobs.active = None;

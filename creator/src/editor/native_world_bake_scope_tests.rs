@@ -487,8 +487,8 @@ fn run_hidden_linked_paint(large: bool, oversized: bool, stamps: bool) {
 }
 
 #[test]
-#[ignore = "native GPU context; bounded scratch adapter handoff without original production"]
-fn oversized_stamp_scratch_handoff_preserves_request_without_partial_publication() {
+#[ignore = "native GPU context; virtual stamp raster admission and cancellation"]
+fn oversized_stamp_raster_enters_native_owner_without_partial_publication() {
     use shared::iso_paint::IsoPaintPoint;
     let gpu = futures::executor::block_on(renderkit::GpuContext::headless()).unwrap();
     let images = ImageRegistry::new(gpu.clone());
@@ -519,18 +519,12 @@ fn oversized_stamp_scratch_handoff_preserves_request_without_partial_publication
     for _ in 0..128 {
         editor.update_native_bake(&mut ui, &mut ctx);
         editor.prepare_native_bake(&mut ctx, &images);
-        if editor.native_viewport.world.bake_jobs.legacy.is_some() {
+        if editor.native_viewport.world.bake_jobs.active.as_ref().is_some_and(|job| job.gpu.is_some()) {
             break;
         }
     }
-    assert!(editor.native_viewport.world.bake_jobs.active.is_none());
-    assert!(
-        editor
-            .native_viewport
-            .world
-            .bake_jobs
-            .uses_adapter(editor.documents.active_id(), request)
-    );
+    assert!(editor.native_viewport.world.bake_jobs.active.as_ref().is_some_and(|job| job.gpu.is_some()));
+    assert!(!editor.native_viewport.world.bake_jobs.uses_adapter(editor.documents.active_id(), request));
     assert_eq!(editor.server_ctx.bake.read().active_request(), request);
     assert_eq!(gpu.transfers().readback_bytes, before.readback_bytes);
     assert_eq!(editor.documents.project.regions[0].iso_paint, authored);

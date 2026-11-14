@@ -544,8 +544,7 @@ impl Preparation {
                 Ok(false) => return Ok(None),
                 Ok(true) => (),
                 Err(
-                    StampBillboardError::SourceBudget { .. }
-                    | StampBillboardError::RasterBudget { .. },
+                    StampBillboardError::SourceBudget { .. },
                 ) => {
                     self.0 = State::AboveBudget;
                     return Ok(None);

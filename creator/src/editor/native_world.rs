@@ -1257,33 +1257,18 @@ impl Editor {
                         Some(map),
                         paste_ignored.as_deref(),
                     );
-                    let (paint_owner, paint_context, mut paint) =
-                        if let ProjectContext::Prefab(id) = self.server_ctx.shared.pc {
-                            (
-                                id,
-                                2,
-                                self.documents
-                                    .project
-                                    .block_prop_paint
-                                    .get(&id)
-                                    .cloned()
-                                    .unwrap_or_default(),
-                            )
-                        } else {
-                            let region = self
-                                .documents
-                                .project
-                                .get_region_ctx(&self.server_ctx.shared)
-                                .ok_or("native 3D region removed")?;
-                            let mut paint = region.iso_paint.clone();
-                            crate::block_props::merge_prefab_paint_for_map(
-                                &mut paint,
-                                map,
-                                &assets.block_props,
-                                &self.documents.project.block_prop_paint,
-                            );
-                            (region.id, 0, paint)
-                        };
+                    let mut paint = if let ProjectContext::Prefab(id) = self.server_ctx.shared.pc {
+                        self.documents.project.block_prop_paint.get(&id).cloned().unwrap_or_default()
+                    } else {
+                        let region = self.documents.project.get_region_ctx(&self.server_ctx.shared)
+                            .ok_or("native 3D region removed")?;
+                        let mut paint = region.iso_paint.clone();
+                        crate::block_props::merge_prefab_paint_for_map(
+                            &mut paint, map, &assets.block_props,
+                            &self.documents.project.block_prop_paint,
+                        );
+                        paint
+                    };
                     paint.selection_visible =
                         self.server_ctx.shared.curr_map_tool_type == MapToolType::IsoPaint;
                     let has_paint = (paint.visible
@@ -1296,22 +1281,13 @@ impl Editor {
                         scene.vm.execute(scenevm::Atom::SetCamera3D {
                             camera: camera_frame,
                         });
-                        IsoPaintRenderer::upload_overlay_cached(
+                        IsoPaintRenderer::upload_native_sources_cached(
                             &mut gpu.paint,
-                            paint_owner,
-                            paint_context,
                             &mut paint,
                             &mut scene.vm,
                             camera_frame,
-                            camera.view_matrix_for_surface(
-                                binding.size.0 as f32,
-                                binding.size.1 as f32,
-                            ),
-                            camera.projection_matrix(binding.size.0 as f32, binding.size.1 as f32),
-                            binding.size.0 as u32,
-                            binding.size.1 as u32,
-                            Some(camera.scale()),
-                        );
+                            (binding.size.0 as u32, binding.size.1 as u32),
+                        )?;
                     } else {
                         scene.vm.execute(scenevm::Atom::ClearRaster3DPaintOverlay);
                         scene.vm.execute(scenevm::Atom::ClearPaintBillboards);

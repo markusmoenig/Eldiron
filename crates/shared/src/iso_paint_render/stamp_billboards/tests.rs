@@ -53,7 +53,7 @@ fn identical_original_sprites_share_storage_without_merging_ordered_placements()
     assert_eq!(serde_json::to_vec(&layer).unwrap(), before);
 }
 #[test]
-fn budget_and_scratch_failures_never_publish_a_partial_original_set() {
+fn budget_and_invalid_dimensions_never_publish_a_partial_original_set() {
     let camera = Camera3D::iso();
     let mut small = StampBillboardPreparation::new(source(2), camera, 128, 33);
     assert!(small.advance_with(4, |s| s.world).is_err());
@@ -68,7 +68,7 @@ fn budget_and_scratch_failures_never_publish_a_partial_original_set() {
     let mut job = StampBillboardPreparation::new(huge, camera, 128, 1024 * 1024);
     assert!(matches!(
         job.advance_with(4, |s| s.world),
-        Err(StampBillboardError::RasterBudget { .. })
+        Err(StampBillboardError::RasterDimensions(..))
     ));
     assert!(job.advance_with(4, |s| s.world).is_err());
     assert!(job.finish().is_err());
