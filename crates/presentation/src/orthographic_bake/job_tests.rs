@@ -66,24 +66,18 @@ fn missing_paint_dependencies_never_publish_or_capture_an_original_sample() {
         unreachable!()
     };
     let mut prepared = scene(&context, &assets, &chunk);
-    let empty = scenevm::Raster3DSurfacePaintEntry {
-        geo: [0; 4],
-        uv_origin: [0; 2],
-        uv_size: [0; 2],
-        atlas_rect: [0; 4],
-    };
-    let mut entries = vec![empty; 2];
-    let slot = geo
-        .into_iter()
-        .chain([0, 0])
-        .fold(2166136261u32, |h, value| (h ^ value).wrapping_mul(16777619)) as usize
-        & 1;
-    entries[slot] = scenevm::Raster3DSurfacePaintEntry {
-        geo,
-        uv_origin: [0; 2],
-        uv_size: [64; 2],
-        atlas_rect: [0; 4],
-    };
+    let mut paint = shared::iso_paint::IsoPaintLayer::default();
+    paint.baked_chunks.insert(
+        "receiver".into(),
+        shared::iso_paint::IsoPaintBakedChunk::new(
+            shared::iso_paint::IsoPaintOwner::Sector(1),
+            geo,
+            [0; 2],
+        ),
+    );
+    let source = shared::surface_paint::pages::PaintPageIndex::from_layer(&paint, 1024).unwrap();
+    let slot = source.slot(geo, [0; 2]).unwrap() as usize;
+    let entries = source.unloaded_entries().to_vec();
     prepared
         .vm
         .set_raster3d_surface_paint(1, 1, vec![0; 4], vec![0; 4], entries, Vec::new());
@@ -131,13 +125,7 @@ fn missing_paint_dependencies_never_publish_or_capture_an_original_sample() {
     wall.paint_uvs = vec![[0.5; 2]; wall.vertices.len()];
     indirect_chunk.add_3d(wall);
     let mut prepared = scene(&context, &assets, &indirect_chunk);
-    let mut entries = vec![empty; 2];
-    entries[slot] = scenevm::Raster3DSurfacePaintEntry {
-        geo,
-        uv_origin: [0; 2],
-        uv_size: [64; 2],
-        atlas_rect: [0; 4],
-    };
+    let entries = source.unloaded_entries().to_vec();
     prepared.vm.set_raster3d_surface_paint(
         1,
         1,

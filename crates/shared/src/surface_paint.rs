@@ -1,5 +1,6 @@
 //! CPU-only publication of persistent 3D surface paint. Editable UV chunks remain
 //! the serialized source; atlas pixels/lookup metadata are disposable display assets.
+pub mod pages;
 use crate::iso_paint::{
     ISO_PAINT_BAKED_CHUNK_SIZE, IsoPaintBakedChunk, IsoPaintLayer, IsoPaintOwner,
 };

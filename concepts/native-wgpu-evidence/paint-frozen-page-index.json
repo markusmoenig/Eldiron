@@ -1,0 +1,57 @@
+{
+  "date": "2026-11-14",
+  "scope": "Complete frozen current-paint authored-key index with original shared planes and derived resident lookup metadata. Production upload/replay integration pending.",
+  "large_source_fixture": {
+    "pages": 4097,
+    "logical_original_plane_bytes": 134250496,
+    "gpu_lookup_entries": 16384,
+    "gpu_lookup_bytes": 786432,
+    "selected_resident_pages": 2,
+    "shared_source_planes": true,
+    "full_atlas_allocated": false,
+    "note": "Fixture deliberately aliases immutable planes; logical bytes are not unique retained CPU bytes. Lookup byte count excludes CPU source descriptors/slot mapping, auxiliary headers and other GPU metadata."
+  },
+  "contracts": [
+    "Same half-full FNV/source-slot layout as the existing current paint table.",
+    "Negative aligned UV origins supported; absent keys differ from unloaded authored keys.",
+    "All authored keys survive eviction. Selected resident placements must be unique, aligned and in bounds.",
+    "Malformed dimensions/alignment, duplicate keys and metadata budget violations fail without source publication.",
+    "Original shared pixels and alpha/instance geometry classification survive author edits, document drop and eviction.",
+    "Invisible/old experimental paint ignored without mutating or replaying original layers.",
+    "Caller-supplied entry-table budget checked before allocation; reserve auxiliary prefix/organic data separately."
+  ],
+  "verification": [
+    {
+      "check": "CPU-only source/index contracts",
+      "cases": 6,
+      "seconds": 0.44
+    },
+    {
+      "check": "Actual native GPU primary/indirect/unused publication gate using index-produced source slots",
+      "cases": 1,
+      "seconds": 1.24
+    },
+    {
+      "check": "Isolated CPU-only shared wasm check",
+      "seconds": 9.95
+    },
+    {
+      "check": "Isolated wasm normal dependency tree",
+      "excludes": [
+        "WGPU",
+        "Winit",
+        "TheFramework UI",
+        "fontdue",
+        "dialogs",
+        "Pixels"
+      ]
+    }
+  ],
+  "pending": [
+    "Bounded GPU resident pages and uploads.",
+    "Source-index receipt resolution, deterministic replay and valid sample-history restoration.",
+    "Dispatch subdivision for working sets exceeding resident capacity.",
+    "Production frozen Snapshot integration and oversized-source adapter retirement.",
+    "Remaining M0-M9 application/platform/release-performance acceptance."
+  ]
+}

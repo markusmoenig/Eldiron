@@ -13100,3 +13100,50 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   stays untouched and unstaged. No physical window/platform/performance gate
   promoted and no M0-M9 completion claim; next implement bounded authored-key
   source/residency and deterministic replay, preserving these publication gates.
+
+
+## 2026-11-14 — Frozen complete authored paint-key index (active)
+
+- Previous checkpoint661cb4f4 verified compute dependency publication barriers
+  and metadata cancellation on both native GPU and browser WebGPU. Tracked
+  source was clean; concurrent networking concept remains untracked/untouched.
+- New CPU-only shared::surface_paint::pages::PaintPageIndex retains all current
+  visible authored64x64UV keys with the existing half-full FNV table/slots. Pixel
+  planes retain SharedBytes backing; no camera culling, whole atlas packing,
+  history replay, source-pixel hashes or GPU initialization. Old experimental
+  versions and invisible paint produce an empty index without modifying sources.
+- Complete lookup metadata is checked against a caller-supplied byte limit and
+  addressable range before allocation. Original logical payload size is exposed
+  separately from table bytes and is not misrepresented as unique/extra memory.
+  Resident metadata derives selected64x64rects only, rejecting invalid/duplicate
+  source slots and unaligned/overlapping/out-of-bounds placements. Eviction
+  preserves every original key/source slot. Malformed plane dimensions, UV
+  alignment and ambiguous duplicate keys fail explicitly without partial output.
+- Initial CPU tests PASS5/0.44s, including4097original pages (>128MiB logical
+  payload) indexed with786,432bytes of GPU lookup metadata and shared original
+  plane pointers. Selected2-page metadata does not drop other authored keys.
+  Tests assert original frozen bytes survive actual author edits/document drop.
+  GPU primary/indirect publication fixture now consumes this real CPU index,
+  replacing manually constructed slots; PASS1/1.24s. Log:
+  /private/tmp/eldiron-paint-page-index-publication-gpu.log.
+- Collecting final transparency/instance classification and isolated wasm CPU
+  checks. This index is not yet wired into production resident uploads/replay;
+  existing whole-source64MiB guards/adapters remain. Next connect bounded GPU
+  page slots and fault resolution without advancing deterministic samples or
+  corrupting previously valid accumulation/history.
+
+- Final CPU index suite PASS6/0.44s, including original alpha-material and
+  instance-owner classification while every page is unloaded/evicted. Isolated
+  CPU-only shared wasm compile PASS9.95s; normal dependency tree contains no
+  WGPU/Winit/TheFramework UI/fontdue/dialogs/Pixels. No manifests/lockfiles or
+  serialized types changed. Only a local API-doc clarification after checks.
+- Exact4097-page GPU entry table is768KiB(786,432bytes), excluding CPU metadata,
+  auxiliary headers/organic data and shared original backing. Caller must reserve
+  those auxiliary bytes separately from its storage binding limit. No total
+  process/driver memory guarantee asserted. Repeated original planes are an
+  intentionally small fixture, not a claim of processing128MiB unique pixels.
+- Durable evidence:concepts/native-wgpu-evidence/paint-frozen-page-index.json.
+  Logs:/private/tmp/eldiron-paint-page-index-{source-cpu,publication-gpu,
+  wasm-cpu,wasm-cpu-tree}.log. All handles terminal; source index remains a
+  prerequisite only. Continue bounded resident upload and deterministic replay;
+  no old paint-version compatibility, source guard increase or adapter retirement.
