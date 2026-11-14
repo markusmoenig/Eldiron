@@ -11203,3 +11203,46 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   publication ownership with its frozen layout-independent scope and invalid-
   scope retirement; then linked Prefab source coverage, CPU source/cache budgets,
   paging and all remaining full-plan gates. Goal stays active, not complete.
+
+
+## 2026-11-14 — Layout-independent bake publication scope (active)
+
+- Painted regional checkpoint830aa41f. Full M0–M9 Goal active.
+- Existing active jobs now lend their frozen sampling viewport when PolyView
+  becomes zero-sized or disappears. CPU source advancement, source/paint/config/
+  document validation and completed publication no longer depend on a drawable
+  world widget. Initial requests still wait for valid sampling dimensions.
+- If a completed native result has genuinely lost its document/map/mode scope,
+  retire the controller publication together with its job; it cannot remain an
+  unowned pending asset for a later compatibility caller to consume.
+- Added focused owner/controller handoff oracle: zero/missing world widget must
+  publish through history/dirty state; changed map, removed region, copied
+  document with same map IDs, and non-ISO mode must retire an already-completed
+  result. Uses an explicitly injected context but no world rendering/capture;
+  real GPU producer/channel/loss proof remains the existing separate integration.
+  Build collecting; no new layout-owner acceptance claimed yet. Concurrent
+  networking concept remains untouched. Other full-plan gates remain open.
+
+- Layout-owner build PASS35.50s and wasm Creator library PASS12.76s. Initial
+  native test filter selected0tests (module is editor::native_views::world,
+  not editor::native_world); inspected the test registry and reran its exact
+  registered path. Zero selected tests is NOT acceptance. Actual oracle
+  collecting in /private/tmp/eldiron-bake-layout-scope-actual.log.
+
+- Actual registered layout-owner oracle PASS1/8.89s, exercising6states with
+  one injected device and no GPU color readback/capture: zero/missing widget
+  publishes through the normal history+dirty path; changed source, removed
+  region, copied document reusing map IDs and non-ISO scope discard completed
+  updates without authoring/history mutation. Pending publication is consumed
+  exactly once or retired, with no unowned result left in the controller.
+  Wasm Creator library PASS12.76s; test build35.50s. This proves owner/controller
+  handoff; it does not claim a new full native/browser/Swift workflow matrix for
+  the layout branch. Prior real painted producer/lifecycle evidence is830aa41f.
+- Layout-scope checkpoint ready. Full M0–M9 Goal remains active. Next actual
+  workflow coverage: hidden world with real GPU work and linked Prefab paint;
+  then remove full authoring-layer clones from paint input preparation and
+  implement paged original bake source residency/decoding. Keep atlas/target/
+  source budgets, core/runtime extraction, canonical Creator retirement,
+  release p50/p95/p99/input/startup/memory and physical platform acceptance open.
+  Source-only images/captures remain explicit CPU assets; do not substitute
+  passing handoff fixtures for those still-unverified full-plan deliverables.

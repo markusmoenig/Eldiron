@@ -68,6 +68,7 @@ impl Editor {
         &self,
         ui: &mut TheUI,
         request: (Uuid, Uuid),
+        sampling_viewport: Option<(u32, u32)>,
     ) -> Option<(Key, scenevm::Camera3D, (u32, u32))> {
         if !self.native_viewport.enabled
             || self.server_ctx.pc.is_prefab()
@@ -84,11 +85,13 @@ impl Editor {
         if region.map.id != request.0 {
             return None;
         }
-        let dim = *ui.get_render_view("PolyView")?.dim();
-        if dim.width <= 0 || dim.height <= 0 {
-            return None;
-        }
-        let viewport = (dim.width as u32, dim.height as u32);
+        let viewport = ui
+            .get_render_view("PolyView")
+            .and_then(|view| {
+                let dim = view.dim();
+                (dim.width > 0 && dim.height > 0).then_some((dim.width as u32, dim.height as u32))
+            })
+            .or(sampling_viewport)?;
         let camera = self
             .native_world_camera()?
             .as_scenevm_camera_for_surface(viewport.0 as f32, viewport.1 as f32);
@@ -154,11 +157,21 @@ impl Editor {
                 .as_ref()
                 .map(|job| (job.key.source.map, job.key.request))
         });
-        let candidate = identity.and_then(|request| self.native_bake_key(ui, request));
+        // Once requested, asset sampling belongs to the job. A hidden/rebuilt
+        // world widget cannot revoke its source validation or publication scope.
+        let sampling_viewport = jobs.active.as_ref().map(|job| job.viewport);
+        let candidate =
+            identity.and_then(|request| self.native_bake_key(ui, request, sampling_viewport));
         let Some((key, camera, viewport)) = candidate else {
             // Reconciliation has already retired invalid map/camera/Play work.
             // A zero-size layout can resume the same request without GPU work.
             if request.is_none() {
+                if jobs.active.is_some() {
+                    // This is an invalid document/map/mode, not missing layout:
+                    // a completed native result must never remain unowned.
+                    *self.server_ctx.bake.write() = rusterix::OrthographicBakeController::default();
+                    self.server_ctx.background_progress = None;
+                }
                 jobs.active = None;
                 jobs.legacy = None;
             }
@@ -372,3 +385,7 @@ impl Editor {
         self.native_viewport.world.bake_jobs = jobs;
     }
 }
+
+#[cfg(test)]
+#[path = "native_world_bake_scope_tests.rs"]
+mod scope_tests;
