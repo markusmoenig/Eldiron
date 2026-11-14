@@ -1270,7 +1270,7 @@ mod acceptance {
             project.migrate_default_ruleset();
             project.sync_ruleset_items().unwrap();
             crate::procedural_material::starters::install(&mut project).unwrap();
-            shared::rusterix_utils::insert_content_into_maps(&mut project);
+            shared::runtime_assets::insert_content_into_maps(&mut project);
             let preset = |label: &str| {
                 project
                     .tiles

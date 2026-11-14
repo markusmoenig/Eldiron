@@ -208,7 +208,7 @@ its height. Generated projects and previews stay under ignored `generated/`.
 ## Native Eldiron project
 
 ```sh
-cargo run -p eldiron-shared --example mz_iso_project -- generated/mz-iso2d-native
+cargo run -p eldiron-presentation --example mz_iso_project -- generated/mz-iso2d-native
 cargo run -p eldiron-creator -- generated/mz-iso2d-native/MZIso2D.eldiron
 ```
 
@@ -274,7 +274,7 @@ Grid click paths also use eight directions and reject blocked diagonal corners.
 Generate the grid variant with:
 
 ```sh
-cargo run -p eldiron-shared --example mz_iso_project -- generated/mz-iso2d-grid --grid
+cargo run -p eldiron-presentation --example mz_iso_project -- generated/mz-iso2d-grid --grid
 ```
 
 Existing projects reuse compatible bundled material bakes on load. Prepared material
@@ -285,7 +285,7 @@ the camera moves; editing, zoom, material changes and animation invalidate it.
 A reproducible CPU profile (including camera scrolling) is available with:
 
 ```sh
-ELDIRON_PROFILE_STARTUP=1 cargo run -p eldiron-shared --example mz_iso_profile -- generated/mz-iso2d-native/MZIso2D.eldiron
+ELDIRON_PROFILE_STARTUP=1 cargo run -p eldiron-presentation --example mz_iso_profile -- generated/mz-iso2d-native/MZIso2D.eldiron
 ```
 
 Local debug measurements for the original smaller clearing: project decode/cache validation about

@@ -1,11 +1,11 @@
 //! Assemble a starter from PNG assets imported and saved through Creator's UI.
 //! This example does not read PNG files or configure sprite import metadata.
-//! cargo run -p eldiron-shared --release --example kenney_iso_starter -- imported.eldiron output.eldiron [preview-dir]
-use eldiron_shared::{
+//! cargo run -p eldiron-presentation --release --example kenney_iso_starter -- imported.eldiron output.eldiron [preview-dir]
+use eldiron_presentation::project_bridge as rusterix_utils;
+use shared::{
     character::Character,
     project::Project,
     project_io::{decode_project, encode_project},
-    rusterix_utils,
     screen::Screen,
 };
 use rusterix::{

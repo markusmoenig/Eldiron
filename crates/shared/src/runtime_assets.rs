@@ -798,7 +798,8 @@ mod procedural_appearance_tests {
     }
 }
 
-pub(crate) fn insert_bundled_ruleset_avatars(
+/// Insert bundled CPU avatar source data before project-specific overrides.
+pub fn insert_bundled_ruleset_avatars(
     assets: &mut rusterix::server::assets::Assets,
     project: &Project,
 ) {
@@ -812,7 +813,8 @@ pub(crate) fn insert_bundled_ruleset_avatars(
     }
 }
 
-pub(crate) fn insert_bundled_ruleset_textures(
+/// Insert bundled CPU textures fitted to the project palette.
+pub fn insert_bundled_ruleset_textures(
     assets: &mut rusterix::server::assets::Assets,
     project: &Project,
 ) {

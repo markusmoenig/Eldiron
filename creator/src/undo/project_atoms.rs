@@ -504,7 +504,7 @@ impl ProjectUndoAtom {
             ProjectEdit(_, old, new) => {
                 *project = (*old.clone()).clone();
                 refresh_region_tree_diff(ui, new, project);
-                shared::rusterix_utils::insert_content_into_maps(project);
+                shared::runtime_assets::insert_content_into_maps(project);
                 crate::utils::editor_scene_full_rebuild(project, server_ctx);
                 update_region(ctx, &server_ctx.reference);
                 Self::refresh_prefab_editor_after_project_restore(ctx, server_ctx);
@@ -603,7 +603,7 @@ impl ProjectUndoAtom {
                             gen_region_tree_items(region_node, region);
                         }
                     }
-                    shared::rusterix_utils::insert_content_into_maps(project);
+                    shared::runtime_assets::insert_content_into_maps(project);
                 }
             }
             MoveRegionCharacterInstance(region_id, instance_id, from, _to) => {
@@ -657,7 +657,7 @@ impl ProjectUndoAtom {
                             gen_region_tree_items(region_node, region);
                         }
                     }
-                    shared::rusterix_utils::insert_content_into_maps(project);
+                    shared::runtime_assets::insert_content_into_maps(project);
                 }
             }
             MoveRegionItemInstance(
@@ -1233,7 +1233,7 @@ impl ProjectUndoAtom {
             ProjectEdit(_, old, new) => {
                 *project = (*new.clone()).clone();
                 refresh_region_tree_diff(ui, old, project);
-                shared::rusterix_utils::insert_content_into_maps(project);
+                shared::runtime_assets::insert_content_into_maps(project);
                 crate::utils::editor_scene_full_rebuild(project, server_ctx);
                 update_region(ctx, &server_ctx.reference);
                 Self::refresh_prefab_editor_after_project_restore(ctx, server_ctx);
@@ -1317,7 +1317,7 @@ impl ProjectUndoAtom {
                             gen_region_tree_items(region_node, region);
                         }
                     }
-                    shared::rusterix_utils::insert_content_into_maps(project);
+                    shared::runtime_assets::insert_content_into_maps(project);
                 }
             }
             MoveRegionCharacterInstance(region_id, instance_id, _from, to) => {
@@ -1371,7 +1371,7 @@ impl ProjectUndoAtom {
                             gen_region_tree_items(region_node, region);
                         }
                     }
-                    shared::rusterix_utils::insert_content_into_maps(project);
+                    shared::runtime_assets::insert_content_into_maps(project);
                 }
             }
             MoveRegionItemInstance(

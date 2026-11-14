@@ -1,9 +1,7 @@
 //! Reproducible Hideout2D material experiment. Never modifies the reference project.
+use eldiron_presentation::project_bridge::*;
 use rusterix::{PlayerCamera, Rusterix, client::widget::game::GameWidget};
-use shared::{
-    project_io::decode_project,
-    rusterix_utils::{insert_content_into_maps, sync_editor_visual_assets},
-};
+use shared::project_io::decode_project;
 use theframework::prelude::*;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();

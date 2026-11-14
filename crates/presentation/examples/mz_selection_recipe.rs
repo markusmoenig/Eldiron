@@ -1,6 +1,6 @@
 //! Exercise one MZ selection recipe in a map and a linked Prefab, with native previews.
-//! cargo run -p eldiron-shared --example mz_selection_recipe -- /tmp/mz-selection
-use eldiron_shared::{
+//! cargo run -p eldiron-presentation --example mz_selection_recipe -- /tmp/mz-selection
+use shared::{
     geometry_recipe::{self, Binding},
     project::Project,
     project_io::encode_project,

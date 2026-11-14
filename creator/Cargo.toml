@@ -42,7 +42,7 @@ web-time = "1.1.0"
 eldiron-runtime = { path = "../crates/runtime" }
 theframework-core = { path = "../crates/theframework-core" }
 renderkit = { path = "../crates/renderkit", optional = true }
-eldiron-presentation = { path = "../crates/presentation", optional = true }
+eldiron-presentation = { path = "../crates/presentation" }
 denrim-materials.workspace = true
 wgpu = "29.0.3"
 half = "2"
@@ -122,7 +122,7 @@ reference-cpu = ["theframework/winit_app"]
 browser-host = ["native-render", "theframework/platform-winit"]
 native-ui = ["theframework/ui-paint"]
 native-host = ["native-render", "theframework/platform-winit", "theframework/desktop-dialogs"]
-native-render = ["native-ui", "theframework/render-wgpu", "dep:renderkit", "dep:eldiron-presentation"]
+native-render = ["native-ui", "theframework/render-wgpu", "dep:renderkit"]
 log = ["theframework/log"]
 self-update = ["dep:self_update"]
 staticlib = ["native-render", "theframework/desktop-dialogs"]

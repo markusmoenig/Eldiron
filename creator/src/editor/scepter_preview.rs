@@ -139,9 +139,9 @@ impl PreviewService {
         if !iso_errors.is_empty() {
             return Err(iso_errors.join("; "));
         }
-        shared::rusterix_utils::insert_content_into_maps(&mut project);
-        let _ = shared::rusterix_utils::setup_client(runtime, &mut project);
-        shared::rusterix_utils::sync_display_templates(&mut runtime.assets, &project, false);
+        shared::runtime_assets::insert_content_into_maps(&mut project);
+        let _ = eldiron_presentation::project_bridge::setup_client(runtime, &mut project);
+        shared::runtime_assets::sync_display_templates(&mut runtime.assets, &project, false);
         runtime.scene_handler.preview_character_setup = true;
         runtime.scene_handler.set_timings(
             project.target_fps as f32,

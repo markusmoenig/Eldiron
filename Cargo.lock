@@ -1238,6 +1238,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 name = "eldiron-character-generator"
 version = "0.96.0"
 dependencies = [
+ "eldiron-presentation",
  "eldiron-ruleset",
  "eldiron-shared",
  "image",
@@ -1256,6 +1257,7 @@ version = "0.96.0"
 dependencies = [
  "console_error_panic_hook",
  "eldiron-client-wgpu",
+ "eldiron-presentation",
  "eldiron-shared",
  "fontdue",
  "instant",
@@ -1379,8 +1381,10 @@ name = "eldiron-presentation"
 version = "0.96.0"
 dependencies = [
  "bytemuck",
+ "denrim-materials",
  "eldiron-runtime",
  "eldiron-shared",
+ "fontdue",
  "futures",
  "png 0.18.0",
  "renderkit",
@@ -1392,6 +1396,8 @@ dependencies = [
  "theframework-core",
  "toml 0.9.11+spec-1.1.0",
  "unicode-segmentation",
+ "vek",
+ "zip",
 ]
 
 [[package]]
@@ -1426,7 +1432,6 @@ dependencies = [
  "earcutr",
  "eldiron-ruleset",
  "flate2",
- "fontdue",
  "indexmap",
  "line_drawing",
  "noiselib",

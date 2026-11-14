@@ -1,12 +1,13 @@
 //! Generate a native Eldiron MZ sprite test project, with editable source recipes.
-//! cargo run -p eldiron-shared --example mz_iso_project -- generated/mz-iso2d-native
+//! cargo run -p eldiron-presentation --example mz_iso_project -- generated/mz-iso2d-native
+use eldiron_presentation::project_bridge as rusterix_utils;
 use denrim_materials::geometry::{Document, Operation};
-use eldiron_shared::{
+use shared::{
     character::Character,
     isometric::{self, Bake},
     project::Project,
     project_io::{decode_project, encode_project},
-    rulesets, rusterix_utils,
+    rulesets,
     screen::Screen,
 };
 use rusterix::{
@@ -114,7 +115,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let defaults = decode_project(include_bytes!(
         "../../../creator/embedded/materials/default-bakes.eldiron"
     ))?;
-    eldiron_shared::ruleset_materials::seed_bakes(&mut project, &defaults)?;
+    shared::ruleset_materials::seed_bakes(&mut project, &defaults)?;
     project.name = "MZ Isometric Heights".into();
     project.time.hours = 12;
     project.config = r#"[game]
@@ -195,17 +196,17 @@ source = "official"
     add("path", materials["path"], true, 0., None, false);
     drop(add);
     for (name, source) in [
-        ("wall", include_str!("iso_2d/wall.mzgeometry.json")),
-        ("corner", include_str!("iso_2d/corner.mzgeometry.json")),
-        ("doorway", include_str!("iso_2d/doorway.mzgeometry.json")),
-        ("tree", include_str!("iso_2d/tree.mzgeometry.json")),
+        ("wall", include_str!("../../shared/examples/iso_2d/wall.mzgeometry.json")),
+        ("corner", include_str!("../../shared/examples/iso_2d/corner.mzgeometry.json")),
+        ("doorway", include_str!("../../shared/examples/iso_2d/doorway.mzgeometry.json")),
+        ("tree", include_str!("../../shared/examples/iso_2d/tree.mzgeometry.json")),
         (
             "stone-step",
-            include_str!("iso_2d/stone-step.mzgeometry.json"),
+            include_str!("../../shared/examples/iso_2d/stone-step.mzgeometry.json"),
         ),
         (
             "grass-step",
-            include_str!("iso_2d/grass-step.mzgeometry.json"),
+            include_str!("../../shared/examples/iso_2d/grass-step.mzgeometry.json"),
         ),
     ] {
         let recipe = Uuid::new_v4();

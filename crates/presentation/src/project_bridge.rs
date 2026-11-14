@@ -1,11 +1,13 @@
-//! Compatibility adapters for the legacy Rusterix presentation owner.
-use crate::prelude::*;
-use crate::runtime_assets::{insert_bundled_ruleset_avatars, insert_bundled_ruleset_textures};
-pub use crate::runtime_assets::{
+//! Project-to-graphical-owner setup. CPU project/runtime preparation stays in
+//! shared::runtime_assets. The start/warmup helpers are explicit reference-host
+//! adapters; canonical hosts advance GameSession rather than calling them.
+use rusterix::{Command, Rusterix};
+use shared::prelude::*;
+use shared::runtime_assets::{insert_bundled_ruleset_avatars, insert_bundled_ruleset_textures};
+pub use shared::runtime_assets::{
     insert_content_into_maps, insert_content_into_maps_mode, insert_procedural_ruleset_icons,
     prepare_live_rules, sync_display_templates, sync_procedural_avatar_assets,
 };
-use rusterix::{Command, Rusterix};
 
 pub fn start_server(
     rusterix: &mut Rusterix,
@@ -17,7 +19,7 @@ pub fn start_server(
         .values()
         .map(|b| b.signature)
         .collect::<Vec<_>>();
-    crate::runtime_assets::start_server(
+    shared::runtime_assets::start_server(
         &mut rusterix.server,
         &mut rusterix.assets,
         project,
@@ -38,7 +40,7 @@ pub fn start_server(
 }
 
 pub fn sync_item_icon_assets(rusterix: &mut Rusterix, project: &Project) {
-    crate::runtime_assets::sync_item_icons(&mut rusterix.assets, project);
+    shared::runtime_assets::sync_item_icons(&mut rusterix.assets, project);
     rusterix.set_overlay_dirty();
 }
 
@@ -105,8 +107,10 @@ pub fn setup_client_sources(rusterix: &mut Rusterix, project: &mut Project) -> V
     rusterix.assets.terrain_paint.clear();
     rusterix.assets.surface_paint.clear();
     for region in &mut project.regions {
-        crate::iso_paint_terrain::sync(&mut rusterix.assets, region.map.id, &mut region.iso_paint);
-        if let Err(error) = crate::surface_paint::sync(&mut rusterix.assets, region.map.id, &mut region.iso_paint) {
+        shared::iso_paint_terrain::sync(&mut rusterix.assets, region.map.id, &mut region.iso_paint);
+        if let Err(error) =
+            shared::surface_paint::sync(&mut rusterix.assets, region.map.id, &mut region.iso_paint)
+        {
             eprintln!("{error}");
         }
     }
@@ -118,12 +122,11 @@ pub fn setup_client_sources(rusterix: &mut Rusterix, project: &mut Project) -> V
     });
     rusterix.assets.read_rules_metadata();
     rusterix.assets.locales_src =
-        crate::rulesets::resolve_project_locales(&project.config, &project.locales).unwrap_or_else(
-            |err| {
+        shared::rulesets::resolve_project_locales(&project.config, &project.locales)
+            .unwrap_or_else(|err| {
                 eprintln!("Ruleset locale resolution error: {}", err);
                 project.locales.clone()
-            },
-        );
+            });
     rusterix.assets.audio_fx_src = project.audio_fx.clone();
     rusterix.assets.authoring_src = project.authoring.clone();
     rusterix.assets.region_sources.clear();
@@ -176,7 +179,7 @@ pub fn setup_client_sources(rusterix: &mut Rusterix, project: &mut Project) -> V
     sync_item_icon_assets(rusterix, project);
     sync_procedural_avatar_assets(&mut rusterix.assets, project);
     rusterix.assets.fonts.clear();
-    crate::runtime_assets::sync_audio_sources(&mut rusterix.assets, project);
+    shared::runtime_assets::sync_audio_sources(&mut rusterix.assets, project);
     for (_, asset) in project.assets.iter() {
         if let AssetBuffer::Font(bytes) = &asset.buffer {
             if let Ok(font) =
@@ -189,5 +192,7 @@ pub fn setup_client_sources(rusterix: &mut Rusterix, project: &mut Project) -> V
     // Client setup can swap maps/widgets while keeping SceneVM alive.
     // Invalidate dynamic caches so first game frame always reuploads lights/dynamics.
     rusterix.scene_handler.mark_dynamics_dirty();
-    rusterix.client.setup(&mut rusterix.assets, &mut rusterix.scene_handler)
+    rusterix
+        .client
+        .setup(&mut rusterix.assets, &mut rusterix.scene_handler)
 }

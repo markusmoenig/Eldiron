@@ -1,11 +1,9 @@
 //! Render the ruleset MZ humanoid through Creator's actual GameWidget scene paths.
 //! cargo run -p eldiron-creator --example appearance_scene -- <project> <output-dir>
+use eldiron_presentation::project_bridge::*;
 use rusterix::client::widget::game::GameWidget;
 use rusterix::{D3Camera, D3IsoCamera, Entity, Item, PlayerCamera, Rusterix, Value};
-use shared::{
-    project_io::decode_project,
-    rusterix_utils::{setup_client, start_server, warmup_runtime},
-};
+use shared::project_io::decode_project;
 use theframework::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

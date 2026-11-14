@@ -204,8 +204,8 @@ fn appearance_roundtrip_preview_and_ui_snapshots() {
             .values()
             .map(|i| (i.name.clone(), (i.source.clone(), i.data.clone())))
             .collect();
-        shared::rusterix_utils::sync_item_icon_assets(&mut runtime, &p);
-        shared::rusterix_utils::sync_procedural_avatar_assets(&mut runtime.assets, &p);
+        eldiron_presentation::project_bridge::sync_item_icon_assets(&mut runtime, &p);
+        shared::runtime_assets::sync_procedural_avatar_assets(&mut runtime.assets, &p);
     }
     let mut tree = TheTreeLayout::new(TheId::named("Appearance Review Tree"));
     tree.limiter_mut().set_max_width(300);
@@ -459,7 +459,7 @@ fn appearance_roundtrip_preview_and_ui_snapshots() {
     p.palette.colors.swap(20, 45);
     {
         let mut runtime = reference.write();
-        shared::rusterix_utils::sync_procedural_avatar_assets(&mut runtime.assets, &p);
+        shared::runtime_assets::sync_procedural_avatar_assets(&mut runtime.assets, &p);
         host.snapshot = Some(Arc::new(runtime.assets.clone()));
     }
     let after = host.request(&p, (320, 320), [0, 0, 0, 255]).unwrap();

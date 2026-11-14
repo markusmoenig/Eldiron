@@ -69,7 +69,7 @@ impl CreatorPlaySession {
         // It never receives the authoritative Server and cannot advance it.
         bridge.assets = game.assets.clone();
         bridge.set_block_props(game.project.block_props.clone());
-        let mut commands = shared::rusterix_utils::setup_client_sources(bridge, &mut game.project);
+        let mut commands = eldiron_presentation::project_bridge::setup_client_sources(bridge, &mut game.project);
         if quick_start {
             commands.extend(bridge.start_with_entity_defaults());
         }

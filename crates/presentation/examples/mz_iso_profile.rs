@@ -1,5 +1,6 @@
 //! End-to-end iso timings, including GPU uploads and readback with --gpu.
-use eldiron_shared::{isometric, project_io, rusterix_utils};
+use eldiron_presentation::project_bridge as rusterix_utils;
+use shared::{isometric, project_io};
 use rusterix::Assets;
 use std::time::Instant;
 use theframework_core::prelude::*;
@@ -49,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let defaults = project_io::decode_project(include_bytes!(
         "../../../creator/embedded/materials/default-bakes.eldiron"
     ))?;
-    eldiron_shared::ruleset_materials::seed_bakes(&mut project, &defaults)?;
+    shared::ruleset_materials::seed_bakes(&mut project, &defaults)?;
     eprintln!("seed persisted material bakes: {:.2?}", start.elapsed());
     let start = Instant::now();
     assert!(isometric::synchronize(&mut project).is_empty());

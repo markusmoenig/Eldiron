@@ -1,3 +1,4 @@
+use eldiron_presentation::project_bridge::*;
 use crate::Embedded;
 use crate::prelude::*;
 use instant::{Duration, Instant};
@@ -6,7 +7,6 @@ use rusterix::{EntityAction, Rusterix, Value};
 use shared::{
     iso_paint_render::{IsoPaintRenderCache, IsoPaintRenderer},
     project::Project,
-    rusterix_utils::*,
 };
 use std::path::PathBuf;
 use std::str::FromStr;

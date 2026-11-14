@@ -5,6 +5,8 @@ edition.workspace = true
 license.workspace = true
 description = "Shared scene views and graphical game presentation for Eldiron hosts."
 [dependencies]
+shared = {package="eldiron-shared",path="../shared",default-features=false}
+fontdue = "0.9.3"
 bytemuck = { version = "1.24", features = ["derive"] }
 eldiron-runtime = {path="../runtime"}
 toml = "0.9"
@@ -16,8 +18,10 @@ rustc-hash = "2"
 unicode-segmentation = "1.12"
 theframework = {path="../theframework",default-features=false,features=["text"]}
 [dev-dependencies]
+denrim-materials = { path = "../materialz", features = ["integration"] }
+vek = "0.17"
+zip = { version = "6.0", default-features = false, features = ["deflate-flate2"] }
 serde_json = "1"
-shared = {package="eldiron-shared",path="../shared",default-features=false}
 futures = "0.3"
 png = "0.18"
 theframework = {path="../theframework",default-features=false,features=["render-wgpu"]}

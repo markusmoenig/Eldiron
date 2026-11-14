@@ -2,8 +2,9 @@
 //! unending_night <scene> <hud-project> <destination> [ignored-review-directory]
 //! unending_night --review <project> <ignored-review-directory>
 //! unending_night --tidy-areas <project>
-use eldiron_shared::{
-    project::Project, project_io, ruleset_materials, rusterix_utils, screen::Screen,
+use eldiron_presentation::project_bridge as rusterix_utils;
+use shared::{
+    project::Project, project_io, ruleset_materials, screen::Screen,
 };
 use rusterix::{Rusterix, Tile, Value};
 use std::{collections::HashMap, io::Read, path::Path};
@@ -106,7 +107,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "use",
     ];
     let mut collection =
-        eldiron_shared::project::TileCollectionAsset::new("Unending Night / UI".into());
+        shared::project::TileCollectionAsset::new("Unending Night / UI".into());
     collection.description =
         "Editable MZ navigation icons and the modular HUD's nine-slice artwork".into();
     let collection_id = collection.id;
@@ -115,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (1..=6)
             .map(|n| Uuid::parse_str(&format!("b6517950-b060-4af5-8bbb-{n:012}")).unwrap())
             .chain(icons.iter().map(|name| {
-                eldiron_shared::rulesets::material_asset_id(&format!("icon/{name}/on"))
+                shared::rulesets::material_asset_id(&format!("icon/{name}/on"))
             }))
             .enumerate()
     {

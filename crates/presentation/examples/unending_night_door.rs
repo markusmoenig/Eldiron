@@ -1,5 +1,6 @@
 //! Install/review the inn's ordinary MZ Item. Generated captures stay under generated/.
-use eldiron_shared::{entity_graph, project::Project, project_io, rusterix_utils};
+use eldiron_presentation::project_bridge as rusterix_utils;
+use shared::{entity_graph, project::Project, project_io};
 use rusterix::{Entity, Item, Value};
 use serde_json::json;
 use std::{path::Path, sync::Arc};
@@ -16,7 +17,7 @@ fn id(s: &str) -> Uuid {
 }
 
 fn install(p: &mut Project) -> Result<(), Box<dyn std::error::Error>> {
-    let official = eldiron_shared::rulesets::latest_official_ruleset().parse::<toml::Table>()?;
+    let official = shared::rulesets::latest_official_ruleset().parse::<toml::Table>()?;
     p.rules_document.checkpoint();
     p.rules_document.edit(|rules| {
         let intents = rules
@@ -66,7 +67,7 @@ fn install(p: &mut Project) -> Result<(), Box<dyn std::error::Error>> {
         .cloned()
         .collect::<Vec<_>>();
     let iron =
-        eldiron_shared::palette::closest(&TheColor::from_hex("#393e47"), &colors).unwrap() as u16;
+        shared::palette::closest(&TheColor::from_hex("#393e47"), &colors).unwrap() as u16;
     if let denrim_materials::geometry::Operation::Material { palette, .. } =
         &mut doc.rows[0].tiles[0].op
     {
@@ -117,7 +118,7 @@ fn install(p: &mut Project) -> Result<(), Box<dyn std::error::Error>> {
         denrim_materials::geometry::Document::load(&serde_json::to_string(&frame_doc)?)?;
     p.procedural_appearances.insert(binding, frame_doc.save()?);
     p.isometric_bakes.get_mut(&frame).unwrap().signature = 0;
-    let mut template = eldiron_shared::item::Item::new();
+    let mut template = shared::item::Item::new();
     template.id = id(DOOR);
     template.name = "Inn Door".into();
     template.data = format!(
@@ -137,7 +138,7 @@ description = "A stout oak door reinforced with iron bands."
 "#
     );
     p.items.insert(template.id, template);
-    let mut door = eldiron_shared::item::Item::new();
+    let mut door = shared::item::Item::new();
     door.id = id(INSTANCE);
     door.name = "Inn Door".into();
     door.item_id = id(DOOR);
@@ -167,14 +168,14 @@ description = "A stout oak door reinforced with iron bands."
     p.procedural_appearances.insert(id(KEY_RECIPE), serde_json::to_string_pretty(&json!({
         "version":1,"id":"inn-key","label":"Inn / Brass key","rows":key_rows,"output":"output","grip":null
     }))?);
-    let mut key = eldiron_shared::item::Item::new();
+    let mut key = shared::item::Item::new();
     key.id = id(KEY);
     key.name = "Inn Key".into();
     key.data = format!(
         "[attributes]\nvisible = true\nstatic = false\nblocking = false\nappearance_geometry = \"{KEY_RECIPE}\"\ndescription = \"The brass key for the inn door.\"\n"
     );
     p.items.insert(key.id, key);
-    let mut key = eldiron_shared::item::Item::new();
+    let mut key = shared::item::Item::new();
     key.id = id(KEY_INSTANCE);
     key.name = "Inn Key".into();
     key.item_id = id(KEY);
@@ -216,7 +217,7 @@ description = "A stout oak door reinforced with iron bands."
     }
     p.sync_ruleset_items()?;
     entity_graph::synchronize(p)?;
-    let errors = eldiron_shared::isometric::synchronize(p);
+    let errors = shared::isometric::synchronize(p);
     if !errors.is_empty() {
         return Err(format!("Door frame: {errors:?}").into());
     }

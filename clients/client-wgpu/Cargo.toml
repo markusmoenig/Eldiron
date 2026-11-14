@@ -21,7 +21,7 @@ crate-type = ["rlib", "staticlib"]
 [features]
 default = ["native-window"]
 legacy-reference = ["scenevm/windowing"]
-native-player = ["dep:eldiron-presentation", "dep:theframework", "dep:renderkit"]
+native-player = ["dep:theframework", "dep:renderkit"]
 native-window = ["native-player", "theframework/platform-winit"]
 
 [[example]]
@@ -29,7 +29,7 @@ name = "native_player"
 required-features = ["native-window"]
 
 [dependencies]
-eldiron-presentation = {path="../../crates/presentation", optional=true}
+eldiron-presentation = {path="../../crates/presentation"}
 theframework = {path="../../crates/theframework", default-features=false, features=["render-wgpu"], optional=true}
 renderkit = {path="../../crates/renderkit", optional=true}
 eldiron-runtime = { path = "../../crates/runtime" }

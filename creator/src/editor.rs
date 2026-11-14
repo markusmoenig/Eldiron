@@ -42,7 +42,7 @@ use shared::iso_paint_brush::{self, IsoPaintBrushSample};
 use shared::iso_paint_render::{
     IsoPaintRenderCache as SharedIsoPaintRenderCache, IsoPaintRenderer,
 };
-use shared::rusterix_utils::*;
+use eldiron_presentation::project_bridge::*;
 use std::collections::HashSet;
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
@@ -7491,7 +7491,7 @@ impl Editor {
             ),
             ctx,
         );
-        shared::rusterix_utils::insert_content_into_maps(&mut self.documents.project);
+        shared::runtime_assets::insert_content_into_maps(&mut self.documents.project);
         update_region(ctx, &self.server_ctx.reference);
 
         serde_json::json!({
@@ -7834,7 +7834,7 @@ impl Editor {
             ),
             ctx,
         );
-        shared::rusterix_utils::insert_content_into_maps(&mut self.documents.project);
+        shared::runtime_assets::insert_content_into_maps(&mut self.documents.project);
         update_region(ctx, &self.server_ctx.reference);
 
         serde_json::json!({
@@ -11587,9 +11587,9 @@ impl TheTrait for Editor {
         if appearance_revision != self.procedural_appearance_revision {
             self.procedural_appearance_revision = appearance_revision;
             let mut runtime = self.server_ctx.reference.write();
-            shared::rusterix_utils::sync_item_icon_assets(&mut runtime, &self.documents.project);
+            eldiron_presentation::project_bridge::sync_item_icon_assets(&mut runtime, &self.documents.project);
             profile.lap("appearance_icons");
-            shared::rusterix_utils::sync_procedural_avatar_assets(
+            shared::runtime_assets::sync_procedural_avatar_assets(
                 &mut runtime.assets,
                 &self.documents.project,
             );
@@ -12750,7 +12750,7 @@ mod tests {
             let bytes = shared::project_io::encode_project(&project).unwrap();
             let mut project = Editor::load_project_from_bytes(&bytes).unwrap();
             shared::entity_graph::synchronize(&mut project).unwrap();
-            shared::rusterix_utils::insert_content_into_maps(&mut project);
+            shared::runtime_assets::insert_content_into_maps(&mut project);
             let region = &project.regions[0];
             assert_eq!(region.map.camera, map_camera);
             assert_eq!(region.map.entities.len(), 1);
@@ -12847,7 +12847,7 @@ mod tests {
             (ProjectDimension::ThreeD, PlayerCamera::D3Iso),
         ] {
             let mut project = Editor::new_project(dimension);
-            shared::rusterix_utils::insert_content_into_maps(&mut project);
+            shared::runtime_assets::insert_content_into_maps(&mut project);
             let mut runtime = Rusterix::new_without_audio();
             // The client registers the authored player through its normal startup command.
             for character in project.characters.values() {
@@ -12856,7 +12856,7 @@ mod tests {
                     (character.source.clone(), character.data.clone()),
                 );
             }
-            let commands = shared::rusterix_utils::setup_client(&mut runtime, &mut project);
+            let commands = eldiron_presentation::project_bridge::setup_client(&mut runtime, &mut project);
             assert_eq!(
                 commands.len(),
                 1,

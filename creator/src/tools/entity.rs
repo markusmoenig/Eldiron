@@ -588,7 +588,7 @@ impl EntityTool {
             region_node.set_open(true);
         }
 
-        shared::rusterix_utils::insert_content_into_maps(project);
+        shared::runtime_assets::insert_content_into_maps(project);
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Map Selection Changed"),
             TheValue::Empty,
@@ -622,7 +622,7 @@ impl EntityTool {
             region_node.set_open(true);
         }
 
-        shared::rusterix_utils::insert_content_into_maps(project);
+        shared::runtime_assets::insert_content_into_maps(project);
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Map Selection Changed"),
             TheValue::Empty,

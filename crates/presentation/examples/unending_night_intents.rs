@@ -1,5 +1,6 @@
 //! Repair editable input bindings and door cutaway, verifying mouse release and shortcuts.
-use eldiron_shared::{entity_graph, project::Project, project_io, rusterix_utils};
+use eldiron_presentation::project_bridge as rusterix_utils;
+use shared::{entity_graph, project::Project, project_io};
 use rusterix::{EntityAction, Value};
 use std::{path::Path, time::Duration};
 use theframework_core::prelude::*;

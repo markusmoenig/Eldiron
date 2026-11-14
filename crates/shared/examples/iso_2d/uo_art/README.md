@@ -56,7 +56,7 @@ Reference images are stored only in the ignored local review directory.
 From the repository root on a native development machine:
 
 ```sh
-cargo run -p eldiron-shared --example mz_iso_project -- generated/mz-iso2d-native
+cargo run -p eldiron-presentation --example mz_iso_project -- generated/mz-iso2d-native
 cargo test -p eldiron-creator --release --lib build_uo_art_study -- --ignored --nocapture
 cargo build --release -p eldiron-creator
 ./target/release/eldiron-creator test_projects/UnendingNight.eldiron
@@ -169,7 +169,7 @@ so translucent roof patterns cannot obscure furnishings or actors.
 ## GPU profiling
 
 ```sh
-cargo run --release -p eldiron-shared --features graphics --example mz_iso_profile -- test_projects/UnendingNight.eldiron --gpu --size 1280x900 --walking
+cargo run --release -p eldiron-presentation --features graphics --example mz_iso_profile -- test_projects/UnendingNight.eldiron --gpu --size 1280x900 --walking
 ```
 
 The timed frames include tile assembly, geometry and light upload, triangle shadow maps,
@@ -205,7 +205,7 @@ remains independent. The camera starts wider in daylight, and its 3D anchor face
 the examples.
 
 ```sh
-cargo run -p eldiron-shared --release --example shape_terrain -- \
+cargo run -p eldiron-presentation --release --example shape_terrain -- \
   test_projects/UnendingNight.eldiron generated/unending-night/shape-terrain --review
 ```
 

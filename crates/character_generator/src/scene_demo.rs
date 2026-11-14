@@ -1,4 +1,5 @@
 //! An opt-in native live-scene harness, using Eldiron's actual GameWidget/SceneVM path.
+use eldiron_presentation::project_bridge::*;
 use character_generator::{
     Catalog, GenerationOptions, Motion, StylePreset, eldiron::SceneVmCharacter,
 };
@@ -6,10 +7,7 @@ use rusterix::client::widget::game::GameWidget;
 use rusterix::{D3Camera, D3IsoCamera, Map, PlayerCamera, Rusterix};
 use scenevm::prelude::Vec3;
 use scenevm::{Atom, GeoId, RenderMode, SceneVM, SceneVMApp, SceneVMRenderCtx};
-use shared::{
-    project_io::decode_project,
-    rusterix_utils::{setup_client, start_server, warmup_runtime},
-};
+use shared::project_io::decode_project;
 use std::{path::PathBuf, time::Instant};
 use theframework::prelude::{TheDim, TheRGBABuffer};
 

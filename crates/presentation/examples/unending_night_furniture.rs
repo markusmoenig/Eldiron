@@ -1,5 +1,6 @@
 //! Add editable inn furniture and exercise ordinary Use intents. Outputs go under generated/.
-use eldiron_shared::{project::Project, project_io, rusterix_utils};
+use eldiron_presentation::project_bridge as rusterix_utils;
+use shared::{project::Project, project_io};
 use rusterix::EntityAction;
 use serde_json::Value as Json;
 use std::{path::Path, time::Duration};
@@ -70,7 +71,7 @@ fn install(p: &mut Project) -> Result<(), Box<dyn std::error::Error>> {
             "An oak bench beside the inn courtyard.",
         ),
     ] {
-        let mut item = eldiron_shared::item::Item::new();
+        let mut item = shared::item::Item::new();
         item.id = id(uuid);
         item.item_id = Uuid::nil(); // Placement-owned furniture does not clutter the global Items list.
         item.name = name.into();
@@ -108,7 +109,7 @@ fn install(p: &mut Project) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     p.regions[0].map.changed += 1;
-    eldiron_shared::entity_graph::synchronize(p)?;
+    shared::entity_graph::synchronize(p)?;
     rusterix_utils::insert_content_into_maps(p);
     Ok(())
 }

@@ -1,7 +1,7 @@
 //! Review every MZ item model against its inventory icon and equipped accessories.
 //! cargo run -p eldiron-creator --example ruleset_models -- <output-dir> [palette-size]
 use rusterix::{Assets, Entity, Item, Value, procedural_avatar::Runtime};
-use shared::{project::Project, ruleset_materials, rulesets, rusterix_utils};
+use shared::{project::Project, ruleset_materials, rulesets};
 use theframework::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -15,8 +15,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     project.sync_ruleset_items()?;
     let mut assets = Assets::default();
-    rusterix_utils::insert_procedural_ruleset_icons(&mut assets, &project);
-    rusterix_utils::sync_procedural_avatar_assets(&mut assets, &project);
+    shared::runtime_assets::insert_procedural_ruleset_icons(&mut assets, &project);
+    shared::runtime_assets::sync_procedural_avatar_assets(&mut assets, &project);
     let templates =
         rulesets::ruleset_item_templates_from_source(rulesets::latest_official_ruleset())?;
     let mut entries = Vec::new();

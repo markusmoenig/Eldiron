@@ -1118,16 +1118,16 @@ fn build_native_demo(playground: bool) {
     // Exercise the actual server's click and keyboard paths, not just the height
     // sampler. The character traverses the painted winding route both ways.
     let mut running = project.clone();
-    shared::rusterix_utils::insert_content_into_maps(&mut running);
+    shared::runtime_assets::insert_content_into_maps(&mut running);
     let mut runtime = rusterix::Rusterix::new_without_audio();
     runtime.set_tiles_for_maps(running.tiles.clone(), false, [&running.regions[0].map]);
-    shared::rusterix_utils::start_server(&mut runtime, &mut running, false).unwrap();
-    shared::rusterix_utils::sync_display_templates(&mut runtime.assets, &running, false);
-    let commands = shared::rusterix_utils::setup_client(&mut runtime, &mut running);
+    eldiron_presentation::project_bridge::start_server(&mut runtime, &mut running, false).unwrap();
+    shared::runtime_assets::sync_display_templates(&mut runtime.assets, &running, false);
+    let commands = eldiron_presentation::project_bridge::setup_client(&mut runtime, &mut running);
     runtime.server.process_client_commands(commands);
     fn tick(runtime: &mut rusterix::Rusterix, p: &mut Project) {
         std::thread::sleep(std::time::Duration::from_millis(10));
-        shared::rusterix_utils::warmup_runtime(runtime, p, 1);
+        eldiron_presentation::project_bridge::warmup_runtime(runtime, p, 1);
     }
     for _ in 0..30 {
         tick(&mut runtime, &mut running);

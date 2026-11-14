@@ -708,7 +708,7 @@ pub(super) fn stage(
         results.push(apply.map_err(|e| format!("Operation {index}: {e}"))?);
     }
     shared::entity_graph::synchronize(&mut next)?;
-    shared::rusterix_utils::insert_content_into_maps(&mut next);
+    shared::runtime_assets::insert_content_into_maps(&mut next);
     // Rebuild all dependants after all operations, permitting forward references
     // and nested compositions. Builder rejects cycles and missing source assets.
     let errors = composition::prepare_project(&mut next);

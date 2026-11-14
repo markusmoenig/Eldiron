@@ -16,6 +16,7 @@ name = "eldiron-client"
 path = "src/main.rs"
 
 [dependencies]
+eldiron-presentation = { path = "../../crates/presentation", optional = true }
 theframework = { workspace = true }
 scenevm_unified_app = {package="eldiron-client-wgpu",path="../client-wgpu",version="0.96.0",default-features=false,features=["native-window"]}
 rusterix.workspace = true
@@ -43,7 +44,7 @@ instant = { version = "0.1", features = ["wasm-bindgen"] }
 # crate-type = ["staticlib"]
 
 [features]
-legacy-reference = ["theframework/winit_app", "theframework/ui"]
+legacy-reference = ["dep:eldiron-presentation", "theframework/winit_app", "theframework/ui"]
 log = ["theframework/log"]
 
 [[bin]]

@@ -63,7 +63,7 @@ cargo test -p eldiron-shared --lib geometry_recipe::tests --offline
 cargo test -p eldiron-creator --lib actions::mz_recipe::tests --offline
 cargo test -p eldiron-creator --lib actionlist::tests::every_registered_action_has_unique_stable_command_metadata --offline
 cargo test -p rusterix --lib map::block_prop::tests --offline
-cargo run -p eldiron-shared --example mz_selection_recipe -- /tmp/mz-selection
+cargo run -p eldiron-presentation --example mz_selection_recipe -- /tmp/mz-selection
 ```
 
 The last command needs a native GPU for PNG captures. Set

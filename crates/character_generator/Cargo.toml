@@ -14,6 +14,7 @@ name = "character-generator"
 path = "src/main.rs"
 
 [dependencies]
+eldiron-presentation = { path = "../presentation", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.9"
@@ -34,7 +35,7 @@ required-features = ["scene-demo"]
 
 [features]
 default = []
-scene-demo = ["eldiron", "dep:shared", "shared/graphics", "scenevm/gpu", "scenevm/windowing"]
+scene-demo = ["dep:eldiron-presentation", "eldiron", "dep:shared", "shared/graphics", "scenevm/gpu", "scenevm/windowing"]
 eldiron = ["dep:rusterix", "dep:scenevm", "dep:eldiron-ruleset", "dep:uuid"]
 
 [[bin]]

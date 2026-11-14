@@ -12492,3 +12492,67 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Layer/history reuse subtask verified; cache counters cover explicit pooled
   textures, not VMGpu depth/MSAA/other buffers or driver/global hard budgets.
   Full Goal remains active; physical/platform/performance gates unchanged.
+
+
+## 2026-11-14 — Graphical project bridges leave shared (active)
+
+- Layer/history target checkpoint a031e698 verified. Next M4/M6 boundary: move
+  graphical project setup and temporary legacy-facade startup bridges out of
+  shared into presentation::project_bridge. CPU runtime_assets stays below the
+  presentation/runtime boundary; pure CPU callers use it directly.
+- Moving nine graphical/offscreen examples with their implementation owner;
+  shared example asset files remain at their existing paths for Creator/source
+  users. Updating current invocation docs. Shared no longer directly depends on
+  fontdue or imports the Rusterix aggregate. No project schema/algorithm changes
+  intended; dependency/check/session/assembled-application evidence pending.
+- start_server/warmup_runtime/sync_live_rules remain explicit reference-facade
+  adapters in the outward crate, not an extra canonical session clock. Remaining
+  aggregate ownership/controller extraction and adapter retirement stay open.
+
+- Presentation all-targets (including nine moved examples) PASS13.63s. Initial
+  Creator all-targets found three remaining example imports; corrected their
+  imports and the character demo's inner-doc placement. Final Creator all-targets
+  PASS0.71s; both reference client consumers PASS13.31s; reference-only Creator
+  PASS27.35s and opt-in character scene demo PASS15.29s. Remaining checks pending.
+- Source/dependency boundary tool PASS24isolated configurations plus a new shared
+  source-import guard. All7moved setup bodies compare equal modulo namespace/
+  whitespace/trailing commas; Cargo.lock package/version/source/checksum sets
+  identical, only dependency ownership lists changed. Audit
+  /private/tmp/eldiron-project-bridge-relocation-audit.json. Fontdue parsing stays
+  in the outward graphical bridge for reference APIs; native painting still
+  uses Swash. This is not a claim that graphics no longer compiles fontdue.
+
+- Final isolated shared CPU library PASS7.73s; wasm Creator PASS12.90s; no-Winit
+  staticlib PASS12.75s. Every check queue handle is terminal. New full native
+  Creator assembly and current browser release are the meaningful integration
+  checkpoint for the combined scene/layer/cache and outward project bridge
+  work; source will remain frozen while compiling. No unchanged broad engine/
+  CPU golden suites are repeated. Reference/offscreen adapters remain explicit.
+
+- Full current assembled native Creator PASS1/252.65s from fresh executable
+  e502618c6ca5dd21. Source-hash manifest covers953Rust source files in Creator
+  and all changed/shared render/runtime crates, unchanged through build and run.
+  /private/tmp/eldiron-project-bridge-{native-build,native-assembly,
+  integration-result}.log/json. The complete existing persisted/painted/custom
+  views, dialogs/documents, DPI/source and runtime checks passed together.
+- Current browser release/package PASS56.01s/99,254,486bytes. Real3DStarter
+  loaded and device-recovered; Play ran8ticks, replacement generation2->3kept
+  the same CPU session/document and advanced to9ticks; Stop removed runtime
+  without marking authored content dirty. RootCPU/Canvas2D/ordinary color
+  readback/GPU/browser errors0throughout. Logs /private/tmp/eldiron-project-
+  bridge-browser-{bootstrap,play,save-proof}.log.
+- Initial after-Play save probe incorrectly expected a second picker despite
+  Creator retaining its save handle. Actual cached-handle save succeeded: task
+  OPFS file mtime advanced3.26safter the pre-Play copy. Read that existing local
+  handle and compared both archives: identical1,448,879bytes, bothZIPentries
+  byte-identical, entire archive SHA256equal. No transient Play state reached
+  authored content. Comparison durable at concepts/native-wgpu-evidence/
+  project-bridge-save-comparison.json; recovered/stopped150%DPR screenshot
+  visually inspected and saved as browser-project-bridge-after-play-150.png.
+- All build/browser/test handles terminal; git diff --check clean. Serialized
+  schema, source assets and package versions unchanged. Shared graphical-owner
+  imports0, shared rusterix_utils module0, direct shared fontdue dependency0.
+  The new outward bridge retains7reference/graphical setup functions; aggregate
+  Client/controller extraction, reference adapter retirement, active/in-flight/
+  driver resource budgets, codec workers and final performance/platform gates
+  remain open. Full M0–M9 Goal active; concurrent networking concept untouched.

@@ -1213,7 +1213,7 @@ impl Action for BuildProcedural {
                 ctx,
             );
         }
-        shared::rusterix_utils::insert_content_into_maps(project);
+        shared::runtime_assets::insert_content_into_maps(project);
         crate::utils::editor_scene_full_rebuild(project, server_ctx);
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Minimap"),

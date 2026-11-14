@@ -36,7 +36,7 @@ pub(crate) fn sync_live_rules(
     reference: &CreatorReference,
 ) -> Result<(), String> {
     if let Some(mut runtime) = reference.existing_mut() {
-        shared::rusterix_utils::sync_live_rules(&mut runtime, project)?;
+        eldiron_presentation::project_bridge::sync_live_rules(&mut runtime, project)?;
     } else {
         project.rules_source()?;
     }

@@ -384,7 +384,7 @@ pub fn resolved_item_default_icon_frames_for_state(
             }
         }
     }
-    shared::rusterix_utils::insert_procedural_ruleset_icons(&mut default_assets, project);
+    shared::runtime_assets::insert_procedural_ruleset_icons(&mut default_assets, project);
 
     let mut runtime_item = rusterix::Item::default();
     rusterix::server::data::apply_item_data(&mut runtime_item, &item.data);
@@ -984,7 +984,7 @@ pub fn refresh_palette_runtime(project: &Project, jobs: &CreatorJobs, reference:
     let (tile_list, tile_indices) = {
         let mut rusterix = reference.write();
         rusterix.assets.palette = project.palette.clone();
-        shared::rusterix_utils::sync_item_icon_assets(&mut rusterix, project);
+        eldiron_presentation::project_bridge::sync_item_icon_assets(&mut rusterix, project);
         rusterix.assets.palette_materials = palette_material_values(project);
         rusterix.assets.palette_material_ids = palette_material_ids(project);
         rusterix.set_tiles(project.tiles.clone(), true);

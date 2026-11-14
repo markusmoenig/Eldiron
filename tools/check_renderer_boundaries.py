@@ -36,7 +36,19 @@ def check(package, forbidden, features=None, no_widget_ui=False, forbidden_featu
     print(f"{package}{' [' + features + ']' if features else ''}{' (' + target + ')' if target else ''}: boundary passed")
 
 
+def check_shared_graphical_owner_imports():
+    # Project data may use CPU engine types; graphical aggregate setup belongs
+    # outward in presentation even when graphics features are unified.
+    for path in (ROOT / "crates/shared/src").rglob("*.rs"):
+        source = path.read_text()
+        imports = re.findall(r"\buse\s+rusterix::[^;]+;", source)
+        if any(re.search(r"\b(?:Rusterix|Client)\b", item) for item in imports) or re.search(r"\brusterix::(?:Rusterix|Client)\b", source):
+            raise RuntimeError(f"{path.relative_to(ROOT)}: graphical aggregate must live in presentation")
+    print("shared source: no graphical aggregate imports")
+
+
 def main():
+    check_shared_graphical_owner_imports()
     check("theframework-core", CPU_ONLY)
     check("eldiron-ruleset", CPU_ONLY)
     check("scenevm", CPU_ONLY, features="")

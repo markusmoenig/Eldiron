@@ -1,6 +1,6 @@
 //! Add editable terrain examples to the maintained project and capture/measure them.
-//! cargo run -p eldiron-shared --release --example shape_terrain -- <project> <ignored-dir> [--review]
-use eldiron_shared::{project::Project, project_io};
+//! cargo run -p eldiron-presentation --release --example shape_terrain -- <project> <ignored-dir> [--review]
+use shared::{project::Project, project_io};
 use rusterix::chunkbuilder::{
     geometry_object_builder::GeometryObjectBuilder, terrain_surface::TerrainSurface,
 };

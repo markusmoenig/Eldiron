@@ -2199,7 +2199,7 @@ mod terrain_tests {
         assert_eq!(stamps(&reopened.regions[0]), original);
         let mut runtime = rusterix::Rusterix::new_without_audio();
         runtime.set_tiles_for_maps(reopened.tiles.clone(), false, [&reopened.regions[0].map]);
-        shared::rusterix_utils::setup_client(&mut runtime, &mut reopened);
+        eldiron_presentation::project_bridge::setup_client(&mut runtime, &mut reopened);
         let mut game = rusterix::client::widget::game::GameWidget::new();
         game.set_camera_mode(rusterix::PlayerCamera::D2Iso);
         game.grid_size = 64.;
@@ -2422,7 +2422,7 @@ mod terrain_tests {
         assert_eq!(reopened.regions[0].iso_paint.baked_chunks, painted);
         let mut runtime = rusterix::Rusterix::new_without_audio();
         runtime.set_tiles_for_maps(reopened.tiles.clone(), false, [&reopened.regions[0].map]);
-        shared::rusterix_utils::setup_client(&mut runtime, &mut reopened);
+        eldiron_presentation::project_bridge::setup_client(&mut runtime, &mut reopened);
         assert!(
             runtime
                 .assets

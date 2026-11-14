@@ -1200,7 +1200,7 @@ impl Sidebar {
                 if id.name == "Item Icon Frames Changed"
                     || (id.name == "Editing Texture Updated" && editing_item_icon)
                 {
-                    shared::rusterix_utils::sync_item_icon_assets(
+                    eldiron_presentation::project_bridge::sync_item_icon_assets(
                         &mut server_ctx.reference.write(),
                         project,
                     );
