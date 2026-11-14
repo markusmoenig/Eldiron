@@ -3,12 +3,16 @@ use crate::prelude::*;
 use super::TheThemeColors;
 
 pub struct TheDarkTheme {
+    paint_cache_id: Uuid,
     temp_color: RGBA,
     colors: FxHashMap<TheThemeColors, RGBA>,
 }
 
 /// Implements TheDarkTheme
 impl TheTheme for TheDarkTheme {
+    fn paint_cache_key(&self) -> Option<Uuid> {
+        Some(self.paint_cache_id)
+    }
     fn new() -> Self
     where
         Self: Sized,
@@ -200,6 +204,7 @@ impl TheTheme for TheDarkTheme {
         colors.insert(TreeViewNodePlusMinus, [227, 227, 227, 255]);
 
         Self {
+            paint_cache_id: Uuid::new_v4(),
             temp_color: BLACK,
             colors,
         }

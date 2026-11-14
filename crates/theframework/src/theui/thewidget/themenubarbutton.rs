@@ -2,6 +2,8 @@ use crate::prelude::*;
 use crate::theui::thewidget::thebuttonchrome::draw_button_chrome;
 
 pub struct TheMenubarButton {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
     limiter: TheSizeLimiter,
     state: TheWidgetState,
@@ -19,7 +21,21 @@ pub struct TheMenubarButton {
     is_dirty: bool,
 }
 
+impl TheMenubarButton {
+    fn invalidate_retained_paint(&mut self) {
+        self.is_dirty = true;
+        #[cfg(feature = "text")]
+        {
+            self.paint_revision = Uuid::new_v4();
+        }
+    }
+}
+
 impl TheWidget for TheMenubarButton {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        Some(self.paint_revision)
+    }
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -82,6 +98,8 @@ impl TheWidget for TheMenubarButton {
         limiter.set_max_size(Vec2::new(35, 35));
 
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
             state: TheWidgetState::None,
@@ -208,8 +226,10 @@ impl TheWidget for TheMenubarButton {
     }
 
     fn set_state(&mut self, state: TheWidgetState) {
-        self.state = state;
-        self.is_dirty = true;
+        if self.state != state {
+            self.state = state;
+            self.is_dirty = true;
+        }
     }
 
     fn supports_hover(&mut self) -> bool {
@@ -328,17 +348,33 @@ pub trait TheMenubarButtonTrait {
 
 impl TheMenubarButtonTrait for TheMenubarButton {
     fn set_fixed_size(&mut self, size: Vec2<i32>) {
+        if self.fixed_size == Some(size) {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.fixed_size = Some(size);
         self.is_dirty = true;
     }
     fn set_icon_name(&mut self, text: String) {
+        if self.icon_name == text {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.icon_name = text;
         self.is_dirty = true;
     }
     fn set_icon_offset(&mut self, offset: Vec2<i32>) {
+        if self.icon_offset == offset {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.icon_offset = offset;
     }
     fn set_has_state(&mut self, has_state: bool) {
+        if self.has_state == has_state {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.has_state = has_state;
     }
 }

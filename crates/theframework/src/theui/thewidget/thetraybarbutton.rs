@@ -2,6 +2,8 @@ use crate::prelude::*;
 use crate::theui::thewidget::thebuttonchrome::draw_button_chrome;
 
 pub struct TheTraybarButton {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
     limiter: TheSizeLimiter,
     state: TheWidgetState,
@@ -27,7 +29,21 @@ pub struct TheTraybarButton {
     is_toggle: bool,
 }
 
+impl TheTraybarButton {
+    fn invalidate_retained_paint(&mut self) {
+        self.is_dirty = true;
+        #[cfg(feature = "text")]
+        {
+            self.paint_revision = Uuid::new_v4();
+        }
+    }
+}
+
 impl TheWidget for TheTraybarButton {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        (self.text.len() <= 256).then_some(self.paint_revision)
+    }
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -128,6 +144,8 @@ impl TheWidget for TheTraybarButton {
         limiter.set_max_size(Vec2::new(20, 20));
 
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
             state: TheWidgetState::None,
@@ -279,8 +297,10 @@ impl TheWidget for TheTraybarButton {
     }
 
     fn set_state(&mut self, state: TheWidgetState) {
-        self.state = state;
-        self.is_dirty = true;
+        if self.state != state {
+            self.state = state;
+            self.is_dirty = true;
+        }
     }
 
     fn supports_hover(&mut self) -> bool {
@@ -412,8 +432,7 @@ impl TheWidget for TheTraybarButton {
 
     fn set_value(&mut self, value: TheValue) {
         if let TheValue::Text(text) = value {
-            self.text = text;
-            self.is_dirty = true;
+            self.set_text(text);
         }
     }
 
@@ -434,24 +453,52 @@ pub trait TheTraybarButtonTrait {
 
 impl TheTraybarButtonTrait for TheTraybarButton {
     fn set_icon_name(&mut self, text: String) {
+        if self.icon_name == text {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.icon_name = text;
     }
     fn set_icon(&mut self, icon: TheRGBABuffer) {
+        if self.icon.as_ref() == Some(&icon) {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.icon = Some(icon);
     }
     fn set_icon_offset(&mut self, offset: Vec2<i32>) {
+        if self.icon_offset == offset {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.icon_offset = offset;
     }
     fn set_text(&mut self, text: String) {
+        if self.text == text {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.text = text;
     }
     fn set_fixed_size(&mut self, fixed_size: bool) {
+        if self.fixed_size == fixed_size {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.fixed_size = fixed_size;
     }
     fn set_is_toggle(&mut self, is_toggle: bool) {
+        if self.is_toggle == is_toggle {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.is_toggle = is_toggle;
     }
     fn set_custom_color(&mut self, color: Option<TheColor>) {
+        if self.custom_color == color {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.custom_color = color;
     }
 }

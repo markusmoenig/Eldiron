@@ -86,6 +86,21 @@ impl TheUI {
         let mut list = PaintList::default();
         let theme_owner = self.style.theme();
         let theme = theme_owner.as_mut();
+        let frame_key = theme
+            .paint_cache_key()
+            .zip(images.retained_domain())
+            .map(|(theme, images)| super::retained_paint::FrameKey {
+                theme,
+                fonts: ctx.text.font_stamp(),
+                images,
+                density: [ctx.scale_factor.to_bits(), ctx.ui_render_scale.to_bits()],
+                icons: ctx.ui.icon_revision,
+            });
+        let retained_frame = super::retained_paint::RetainedPaint::begin(
+            &ctx.ui.retained_paint,
+            frame_key,
+            ctx.ui.redraw_all,
+        );
         let mut p = WidgetPainter {
             list: &mut list,
             text: &mut ctx.text,
@@ -231,6 +246,8 @@ impl TheUI {
         if let Some(menu) = &self.context_menu {
             menu.paint_commands(&mut p)?;
         }
+        drop(p);
+        drop(retained_frame);
         ctx.ui.redraw_all = false;
         self.is_dirty = false;
         list.validate().map_err(|e| UiPaintError(e.into()))?;

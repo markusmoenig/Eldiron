@@ -155,6 +155,14 @@ pub enum TheWidgetState {
 /// TheWidget trait defines the asbtract functionality of a widget.
 #[allow(unused)]
 pub trait TheWidget: Send {
+    /// Opt in only when painting has no presentation/input side effects. The
+    /// identity must change whenever displayed content changes. Geometry,
+    /// interaction, font/theme/resource domains are checked by the UI cache.
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        None
+    }
+
     #[cfg(feature = "text")]
     fn prepare_paint(&mut self, _ctx: &mut TheContext, _theme: &dyn TheTheme) {}
 

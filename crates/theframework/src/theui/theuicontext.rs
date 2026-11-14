@@ -31,6 +31,10 @@ pub struct FileRequest {
     pub kind: FileRequestKind,
 }
 pub struct TheUIContext {
+    #[cfg(feature = "text")]
+    pub(super) retained_paint: std::cell::RefCell<super::retained_paint::RetainedPaint>,
+    #[cfg(feature = "text")]
+    pub(super) icon_revision: u64,
     /// The active platform host services these requests; foreign Apple hosts can
     /// use native document pickers and complete with FileRequesterResult.
     pub file_requests: std::collections::VecDeque<FileRequest>,
@@ -134,6 +138,10 @@ impl TheUIContext {
         }
 
         Self {
+            #[cfg(feature = "text")]
+            retained_paint: Default::default(),
+            #[cfg(feature = "text")]
+            icon_revision: 0,
             command_paint: false,
             image_clipboard: std::collections::VecDeque::new(),
             #[cfg(feature = "text")]
@@ -173,6 +181,11 @@ impl TheUIContext {
         }
     }
 
+    #[cfg(feature = "text")]
+    pub fn retained_paint_stats(&self) -> super::paint::RetainedPaintStats {
+        self.retained_paint.borrow().stats()
+    }
+
     /// Set the given id as disabled.
     pub fn set_disabled(&mut self, id: &str) {
         self.disabled_ids.insert(id.to_string());
@@ -198,6 +211,10 @@ impl TheUIContext {
         let version = self.icon_versions.entry(name.clone()).or_default();
         *version = version.checked_add(1).expect("icon source version exhausted");
         self.icons.insert(name, icon);
+        #[cfg(feature = "text")]
+        {
+            self.icon_revision = self.icon_revision.checked_add(1).expect("icon revision exhausted");
+        }
         self.redraw_all = true;
     }
 

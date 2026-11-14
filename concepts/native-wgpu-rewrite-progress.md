@@ -13605,3 +13605,76 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Evidence:concepts/native-wgpu-evidence/original-region-decode.json; logs listed
   there. Native display guard is NOT removed: page cache, worker/transfer and
   original-coordinate GPU composition must be integrated before its retirement.
+
+## Current implementation priorities and user steering (2026-11-15)
+
+- User reports the native application is slower across the application. This is
+  unresolved acceptance feedback, not a passed performance gate. All subsequent
+  application runs and performance comparisons must use release builds. Earlier
+  debug startup timings cannot serve as release baselines.
+- User explicitly prioritizes finishing the port before the consolidated tests.
+  Continue implementation and release compilation; defer broad functional,
+  platform and performance suites until the assembled implementation checkpoint.
+- Current concrete implementation gaps: retained UI commands with independent
+  layout/paint/resource/scene invalidation; original saved-tile region cache,
+  worker delivery and original-coordinate GPU composition; genuinely over-budget
+  distinct stamp/scratch handling; remaining uncommon canonical producers and
+  adapter/ownership retirement. Audit actual shipped workflows before adding
+  features that the reference implementation did not support.
+- Explicit Framework web/Apple platform selectors and canonical package consumers
+  are implemented locally. Prior checks passed in
+  /private/tmp/eldiron-explicit-platform-{boundaries,apple,web}.log; these precede
+  the release-only instruction. They do not establish physical platform parity.
+- Correction to historical locked-console entries: fresh Winit native_gpu_window
+  and canonical Creator smoke runs each acknowledged THREE actual physical
+  surface presentations and exited successfully. Logs:
+  /private/tmp/eldiron-acceptance-current-winit-surface.log and
+  /private/tmp/eldiron-acceptance-canonical-creator-smoke.log. Both were debug runs
+  before the release-only instruction. The old zero-presentation lock blocker is
+  historical; full interactive/platform acceptance remains outstanding.
+- Native computer-use app selection stalled for approximately9h52. It was a
+  stalled tool call, not a pending permission or user question. That route has
+  ended; avoid repeating it and continue with bounded implementation tools.
+- Roughly80% previously reported was an informal implementation estimate, not a
+  measured M0-M9 acceptance percentage. No full milestone is declared complete.
+  Keep concurrent untracked networking-mmo-concept.md untouched.
+
+## Retained static UI commands and explicit platform selectors (2026-11-15)
+
+- Added an application-context-owned, backend-neutral command cache for audited
+  static controls: toolbar/menu/tray buttons, ordinary short labels and two
+  separator families. Layout and input-transform preparation still executes;
+  scene/graph/editor views and presentation receipt producers stay dynamic.
+  This implements the first retained-control slice of section4.3; it does not
+  claim full typed invalidation, all widget retention or scheduling acceptance.
+- Cache keys separate control content/instance identity, exact geometry, widget
+  state, focus/keyboard focus/hover/overlay/disabled state, theme identity, font
+  owner/revision, physical/UI density, icon revisions and image-registry domain.
+  Builtin theme palette setters retire their identity; custom themes/sinks do
+  not cache unless they explicitly implement the retention contract. Every
+  reused image handle is validated; the existing assembled-frame resource
+  pinning remains authoritative. Content setters now invalidate and ignore
+  identical-value updates; per-control paint side effects are not replayed.
+- Limit512controls/256commands per control/16,384commands total; retained text
+  controls accept at most256UTF8bytes. Unused entries retire after each frame,
+  including early errors, and a scoped frame guard disables reuse outside an
+  active TheUI paint. RetainedPaintStats exposes per-frame reuse/recording and
+  retained command counts for the later integrated acceptance run. These limits
+  are not a measured process-memory budget or a claimed speedup.
+- Framework now explicitly exposes platform-web (shared Winit web adapter) and
+  platform-apple (foreign-layer renderer, no Winit/Pixels). Canonical Creator,
+  player, browser packaging and Apple consumer select those features. The Apple
+  facade check now builds optimized Rust/Swift and links the release archive;
+  the browser packaging helper also runs in release mode.
+- Release compilation PASS for all four canonical applications51.18s and final
+  refined controls29.84s; browser Creator release compilation PASS51.32s. Logs:
+  /private/tmp/eldiron-retained-controls-release-{check,final,web}.log.
+  No new functional/GPU/performance test batch or debug app run was performed.
+  Apple feature-only release compilation PASS31.82s; log:
+  /private/tmp/eldiron-retained-controls-release-apple.log. No full platform gate
+  or physical wrapper acceptance is inferred. Current serialization unchanged.
+- Remaining implementation priority: complete UI invalidation/retention and
+  deadline scheduling; wire bounded original saved-tile regions through source
+  cache/worker/GPU composition; retire genuine oversized stamp/scratch and other
+  required canonical adapters. Then run consolidated workflow/platform/resource
+  checks and matched release CPU/native performance acceptance. Goal active.

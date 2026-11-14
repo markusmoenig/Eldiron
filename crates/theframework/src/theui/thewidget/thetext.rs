@@ -1,6 +1,8 @@
 use crate::prelude::*;
 
 pub struct TheText {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
 
     limiter: TheSizeLimiter,
@@ -16,7 +18,21 @@ pub struct TheText {
     is_dirty: bool,
 }
 
+impl TheText {
+    fn invalidate_retained_paint(&mut self) {
+        self.is_dirty = true;
+        #[cfg(feature = "text")]
+        {
+            self.paint_revision = Uuid::new_v4();
+        }
+    }
+}
+
 impl TheWidget for TheText {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        (self.text.len() <= 256).then_some(self.paint_revision)
+    }
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -47,6 +63,8 @@ impl TheWidget for TheText {
         limiter.set_max_height(21);
 
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
 
@@ -188,22 +206,42 @@ pub trait TheTextTrait {
 
 impl TheTextTrait for TheText {
     fn set_text(&mut self, text: String) {
+        if self.text == text {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.text = text;
         self.is_dirty = true;
     }
     fn set_text_size(&mut self, text_size: f32) {
+        if self.text_size == text_size {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.text_size = text_size;
         self.is_dirty = true;
     }
     fn set_text_color(&mut self, color: RGBA) {
+        if self.text_color == Some(color) {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.text_color = Some(color);
         self.is_dirty = true;
     }
     fn set_vertical_offset(&mut self, offset: i32) {
+        if self.vertical_offset == offset {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.vertical_offset = offset;
         self.is_dirty = true;
     }
     fn set_fixed_size_text(&mut self, fixed_size_text: String) {
+        if self.fixed_size_text == fixed_size_text {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.fixed_size_text = fixed_size_text;
         self.is_dirty = true;
     }

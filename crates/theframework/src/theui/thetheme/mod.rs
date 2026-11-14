@@ -13,6 +13,12 @@ pub mod prelude {
 /// TheTheme defines all colors and other attributes of a theme.
 #[allow(unused)]
 pub trait TheTheme: Send {
+    /// Immutable palette identity, replaced on any semantic theme mutation.
+    /// Custom themes repaint until they explicitly provide this contract.
+    fn paint_cache_key(&self) -> Option<Uuid> {
+        None
+    }
+
     fn new() -> Self
     where
         Self: Sized;

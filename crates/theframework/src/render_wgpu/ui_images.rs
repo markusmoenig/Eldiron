@@ -317,6 +317,13 @@ impl UiImageCache {
     }
 }
 impl UiImageResources for UiImages {
+    fn retained_domain(&self) -> Option<u64> {
+        Some(self.registry.owner_id())
+    }
+    fn retained_images_valid(&self, commands: &PaintList) -> bool {
+        commands.image_handles().all(|handle| self.registry.get(handle).is_some())
+    }
+
     fn asset(
         &mut self,
         key: &str,
@@ -353,6 +360,13 @@ impl UiFrameImages<'_> {
     }
 }
 impl UiImageResources for UiFrameImages<'_> {
+    fn retained_domain(&self) -> Option<u64> {
+        Some(self.registry.owner_id())
+    }
+    fn retained_images_valid(&self, commands: &PaintList) -> bool {
+        commands.image_handles().all(|handle| self.registry.get(handle).is_some())
+    }
+
     fn asset(
         &mut self,
         key: &str,

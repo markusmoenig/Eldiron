@@ -3,6 +3,7 @@
 use crate::paint::Rect;
 use crate::{paint::*, prelude::*, text::TextSystem};
 use std::sync::Arc;
+pub use super::retained_paint::RetainedPaintStats;
 #[derive(Debug)]
 pub struct UiPaintError(pub String);
 impl std::fmt::Display for UiPaintError {
@@ -15,6 +16,15 @@ pub type UiPaintResult = Result<(), UiPaintError>;
 /// Backend service for source images. Paint producers never own a GPU registry,
 /// device, texture, surface or destination pixel storage.
 pub trait UiImageResources {
+    /// A resource domain must validate cached handles before command reuse.
+    /// Custom/reference sinks keep retention disabled by default.
+    fn retained_domain(&self) -> Option<u64> {
+        None
+    }
+    fn retained_images_valid(&self, _commands: &PaintList) -> bool {
+        false
+    }
+
     fn image(
         &mut self,
         key: &str,
@@ -93,7 +103,41 @@ impl WidgetPainter<'_> {
             widget.set_needs_redraw(false);
             return Ok(());
         }
-        widget.paint(self)
+        use super::retained_paint::ControlKey;
+        let key = widget
+            .retained_paint_revision()
+            .filter(|_| self.ui.retained_paint.borrow().active())
+            .map(|content| ControlKey {
+                content,
+                dim: *widget.dim(),
+                state: widget.state(),
+                interaction: [
+                    widget.id().equals(&self.ui.focus),
+                    widget.id().equals(&self.ui.keyboard_focus),
+                    widget.id().equals(&self.ui.hover),
+                    widget.id().equals(&self.ui.overlay),
+                    self.ui.is_disabled(&widget.id().name),
+                ],
+            });
+        if let Some(key) = &key
+            && !widget.needs_redraw()
+            && self.ui.retained_paint.borrow_mut().reuse(
+                widget.id().uuid, key, self.images, self.list,
+            )
+        {
+            return Ok(());
+        }
+        let start = self.list.ops.len();
+        widget.paint(self)?;
+        if let Some(key) = key {
+            let commands = PaintList {
+                ops: self.list.ops[start..].to_vec(),
+            };
+            self.ui.retained_paint.borrow_mut().store(
+                widget.id().uuid, key, commands,
+            );
+        }
+        Ok(())
     }
 
     pub fn icon(&mut self, name: &str, rect: Rect) -> UiPaintResult {

@@ -5,6 +5,7 @@ use crate::prelude::*;
 /// It inherits unmigrated component roles from `TheDarkTheme`, allowing PNG-backed widgets to be
 /// converted independently while the theme remains usable throughout the transition.
 pub struct TheBlackBlueTheme {
+    paint_cache_id: Uuid,
     base: TheDarkTheme,
     overrides: FxHashMap<TheThemeColors, RGBA>,
     palette_overrides: FxHashMap<(TheThemePalettes, usize), RGBA>,
@@ -13,15 +14,24 @@ pub struct TheBlackBlueTheme {
 
 impl TheBlackBlueTheme {
     pub fn set_color(&mut self, role: TheThemeColors, color: RGBA) {
-        self.overrides.insert(role, color);
+        if self.overrides.get(&role) != Some(&color) {
+            self.overrides.insert(role, color);
+            self.paint_cache_id = Uuid::new_v4();
+        }
     }
 
     pub fn set_palette_color(&mut self, palette: TheThemePalettes, index: usize, color: RGBA) {
-        self.palette_overrides.insert((palette, index), color);
+        if self.palette_overrides.get(&(palette, index)) != Some(&color) {
+            self.palette_overrides.insert((palette, index), color);
+            self.paint_cache_id = Uuid::new_v4();
+        }
     }
 }
 
 impl TheTheme for TheBlackBlueTheme {
+    fn paint_cache_key(&self) -> Option<Uuid> {
+        Some(self.paint_cache_id)
+    }
     fn new() -> Self
     where
         Self: Sized,
@@ -155,6 +165,7 @@ impl TheTheme for TheBlackBlueTheme {
         }
 
         Self {
+            paint_cache_id: Uuid::new_v4(),
             base: TheDarkTheme::new(),
             overrides,
             palette_overrides: FxHashMap::default(),

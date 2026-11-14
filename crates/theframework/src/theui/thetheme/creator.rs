@@ -153,6 +153,7 @@ const ROLES: &[TheThemeColors] = &[
 ];
 
 struct CreatorPalette {
+    paint_cache_id: Uuid,
     palette_base: TheBlackBlueTheme,
     colors: FxHashMap<TheThemeColors, RGBA>,
     temp: RGBA,
@@ -294,6 +295,7 @@ impl CreatorPalette {
             colors.insert(role, color);
         }
         Self {
+            paint_cache_id: Uuid::new_v4(),
             palette_base: base,
             colors,
             temp: BLACK,
@@ -343,6 +345,9 @@ pub struct TheLightTheme(CreatorPalette);
 macro_rules! impl_theme {
     ($ty:ident, $light:expr) => {
         impl TheTheme for $ty {
+            fn paint_cache_key(&self) -> Option<Uuid> {
+                Some(self.0.paint_cache_id)
+            }
             fn new() -> Self {
                 Self(CreatorPalette::new($light))
             }

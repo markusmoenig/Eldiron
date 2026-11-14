@@ -1,6 +1,8 @@
 use crate::prelude::*;
 
 pub struct TheToolbarButton {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
     limiter: TheSizeLimiter,
     state: TheWidgetState,
@@ -15,7 +17,21 @@ pub struct TheToolbarButton {
     is_dirty: bool,
 }
 
+impl TheToolbarButton {
+    fn invalidate_retained_paint(&mut self) {
+        self.is_dirty = true;
+        #[cfg(feature = "text")]
+        {
+            self.paint_revision = Uuid::new_v4();
+        }
+    }
+}
+
 impl TheWidget for TheToolbarButton {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        (self.text.len() <= 256).then_some(self.paint_revision)
+    }
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -67,6 +83,8 @@ impl TheWidget for TheToolbarButton {
         limiter.set_max_size(Vec2::new(20, 20));
 
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
             state: TheWidgetState::None,
@@ -156,8 +174,10 @@ impl TheWidget for TheToolbarButton {
     }
 
     fn set_state(&mut self, state: TheWidgetState) {
-        self.state = state;
-        self.is_dirty = true;
+        if self.state != state {
+            self.state = state;
+            self.is_dirty = true;
+        }
     }
 
     fn supports_hover(&mut self) -> bool {
@@ -294,12 +314,24 @@ pub trait TheToolbarButtonTrait {
 
 impl TheToolbarButtonTrait for TheToolbarButton {
     fn set_icon_name(&mut self, text: String) {
+        if self.icon_name == text {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.icon_name = text;
     }
     fn set_icon_offset(&mut self, offset: Vec2<i32>) {
+        if self.icon_offset == offset {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.icon_offset = offset;
     }
     fn set_text(&mut self, text: String) {
+        if self.text == text {
+            return;
+        }
+        self.invalidate_retained_paint();
         self.text = text;
     }
 }
