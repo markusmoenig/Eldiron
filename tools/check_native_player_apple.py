@@ -33,8 +33,8 @@ def main():
     # Match the checked-in Xcode deployment target for native C build scripts
     # too; otherwise they can silently inherit this host's newer OS minimum.
     os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "26.1")
-    run("rust", ["cargo", "rustc", "--offline", "-p", "eldiron-client-wgpu",
-                 "--no-default-features", "--features", "native-player", "--lib",
+    run("rust", ["cargo", "rustc", "--release", "--locked", "--offline", "-p", "eldiron-client-wgpu",
+                 "--no-default-features", "--features", "native-apple", "--lib",
                  "--", "--print", "native-static-libs"])
     log = (OUTPUT / "rust.log").read_text()
     match = re.search(r"native-static-libs: (.+)", log)
@@ -43,7 +43,7 @@ def main():
     # The compatibility facade must retain every existing exported ABI name.
     reference = (ROOT / "clients/client-wgpu/src/apple_reference.rs").read_text()
     expected = set(re.findall(r'pub unsafe extern "C" fn ([a-z_]+)', reference))
-    archive = TARGET / "debug/libscenevm_unified_app.a"
+    archive = TARGET / "release/libscenevm_unified_app.a"
     members = subprocess.check_output(["ar", "-t", str(archive)], text=True).splitlines()
     application = [name for name in members
                    if name.startswith("scenevm_unified_app-") and name.endswith(".o")]
@@ -83,11 +83,11 @@ def main():
                     "-target", "arm64-apple-ios26.1-simulator", *map(str, sources),
                     str(ROOT / "Xcode/Client/Tests/NativeUIKitTextClientCheck.swift")])
     executable = OUTPUT / "NativePlayerHostCheck"
-    run("swift", ["xcrun", "swiftc", *swift_flags, "-target",
+    run("swift", ["xcrun", "swiftc", "-O", *swift_flags, "-target",
                   f"{platform.machine()}-apple-macosx26.1", *map(str, sources),
                   str(ROOT / "Xcode/Client/Tests/NativePlayerHostCheck.swift"),
                   str(ROOT / "Xcode/Client/Tests/NativeTextClientCheck.swift"),
-                  "-L", str(TARGET / "debug"), "-lscenevm_unified_app",
+                  "-L", str(TARGET / "release"), "-lscenevm_unified_app",
                   *shlex.split(match.group(1)), "-o", str(executable)])
     run("host", [str(executable), str(ROOT / "test_projects/3DStarter.eldiron")], timeout=90)
     print(f"All detached-layer Swift checks passed: {OUTPUT}")

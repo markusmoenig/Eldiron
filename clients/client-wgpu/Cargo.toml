@@ -23,6 +23,8 @@ default = ["native-window"]
 legacy-reference = ["scenevm/windowing"]
 native-player = ["dep:theframework", "dep:renderkit"]
 native-window = ["native-player", "theframework/platform-winit"]
+native-web = ["native-window", "theframework/platform-web"]
+native-apple = ["native-player", "theframework/platform-apple"]
 
 [[example]]
 name = "native_player"

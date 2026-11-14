@@ -32,10 +32,10 @@ def main():
     else:
         binary = "eldiron-client-wgpu"
         package = "eldiron-client-wgpu"
-        features = "native-window"
+        features = "native-web"
     cargo("build", ["-p", package, "--bin", binary, "--no-default-features", "--features", features, "--release", "--target", "wasm32-unknown-unknown"])
     for name in ["eldiron-bake-codec-worker", binary]:
-        cargo("run", ["-p", "run-wasm", "--bin", "eldiron-package-web", "--", str(target / "wasm32-unknown-unknown/release" / (name + ".wasm")), str(output)])
+        cargo("run", ["--release", "-p", "run-wasm", "--bin", "eldiron-package-web", "--", str(target / "wasm32-unknown-unknown/release" / (name + ".wasm")), str(output)])
     shutil.copyfile(ROOT / "web/eldiron-bake-codec-worker-bootstrap.js", output / "eldiron-bake-codec-worker-bootstrap.js")
     (output / "index.html").write_text('''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Eldiron WebGPU</title></head><body><script type="module">import('./''' + binary + '''.js').then(m=>m.default()).catch(error=>{document.documentElement.dataset.eldironState='error';document.body.textContent=String(error);console.error(error);});</script></body></html>''')
     print("Packaged", args.application, "and CPU codec worker into", output)

@@ -95,6 +95,10 @@ web-sys = { version = "0.3", features = ["Gpu", "GpuTextureFormat", "Clipboard",
 
 [features]
 platform-winit = ["dep:winit", "render-wgpu"]
+# Browser RAF/canvas hosting uses Winit's web adapter on the same GPU host.
+platform-web = ["platform-winit"]
+# Swift supplies CAMetalLayer/lifecycle; this host never selects Winit/Pixels.
+platform-apple = ["render-wgpu"]
 ui-paint = ["ui", "text"]
 paint = []
 text = ["paint", "dep:parley", "dep:swash"]

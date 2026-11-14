@@ -10,7 +10,7 @@ The static library remains `libscenevm_unified_app.a`; the established
 foreign-host build explicitly excludes Winit:
 
 ```bash
-MACOSX_DEPLOYMENT_TARGET=26.1 cargo build --release -p eldiron-client-wgpu --lib --no-default-features --features native-player --target aarch64-apple-darwin
+MACOSX_DEPLOYMENT_TARGET=26.1 cargo build --release -p eldiron-client-wgpu --lib --no-default-features --features native-apple --target aarch64-apple-darwin
 ```
 
 For iOS device/simulator, use `aarch64-apple-ios` / `aarch64-apple-ios-sim`
