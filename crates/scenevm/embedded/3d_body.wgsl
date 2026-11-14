@@ -220,6 +220,13 @@ fn sample_surface_paint_nearest(paint_coord: vec2<f32>, paint_geo: vec4<u32>) ->
         if (all(entry.geo == paint_geo) && all(entry.uv_origin == origin)) {
             let local = vec2<u32>(paint_px - entry.uv_origin);
             if (all(local < entry.uv_size)) {
+                // A key present in the complete source index but without a
+                // resident rectangle is not an unpainted surface. The producer
+                // must resolve this dependency before publishing the sample.
+                if (entry.atlas_rect.z == 0u || entry.atlas_rect.w == 0u) {
+                    atomicMin(&compute3d_aux.first_missing_paint, index);
+                    return empty;
+                }
                 let atlas_px = vec2<i32>(entry.atlas_rect.xy + local);
                 return SurfacePaintSample(
                     textureLoad(paint_color_tex, atlas_px, 0),

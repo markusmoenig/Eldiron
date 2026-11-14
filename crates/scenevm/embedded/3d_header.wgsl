@@ -45,8 +45,10 @@ struct SurfacePaintEntry {
 };
 // Paint-entry metadata and organic billboard data share one storage buffer so Compute3D stays
 // within the eight-storage-buffer limit exposed by baseline Metal/WebGPU adapters.
-struct Compute3DAuxData { data: array<u32> };
-@group(0) @binding(18) var<storage, read> compute3d_aux: Compute3DAuxData;
+// Only the status prefix is atomic; metadata keeps ordinary u32 reads. This
+// avoids adding a ninth storage binding or making every metadata load atomic.
+struct Compute3DAuxData { first_missing_paint: atomic<u32>, data: array<u32> };
+@group(0) @binding(18) var<storage, read_write> compute3d_aux: Compute3DAuxData;
 
 struct LightWGSL {
   header:   vec4<u32>,  // [light_type, emitting, _, _]

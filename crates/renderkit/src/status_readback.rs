@@ -12,9 +12,13 @@ pub struct StatusReadback {
     finished: bool,
 }
 impl StatusReadback {
+    /// Takes ownership of exclusive staging; cancelling destroys that buffer.
     /// Call only after submitting the encoder that writes this status buffer.
     /// Device polling remains owned by the application host; this never waits.
     pub fn map(context: &GpuContext, buffer: wgpu::Buffer) -> Result<Self> {
+        if context.is_lost() {
+            return Err(RenderError("status readback device is lost".into()));
+        }
         if buffer.size() != 4 || !buffer.usage().contains(wgpu::BufferUsages::MAP_READ) {
             return Err(RenderError(
                 "status readback requires a four-byte MAP_READ buffer".into(),
@@ -33,6 +37,9 @@ impl StatusReadback {
         })
     }
     pub fn try_finish(&mut self, context: &GpuContext) -> Result<Option<u32>> {
+        if context.is_lost() {
+            return Err(RenderError("status readback device is lost".into()));
+        }
         if self.finished {
             return Err(RenderError("status readback already consumed".into()));
         }
@@ -63,7 +70,9 @@ impl StatusReadback {
 impl Drop for StatusReadback {
     fn drop(&mut self) {
         if !self.finished {
-            self.buffer.unmap();
+            // destroy is idempotent after device loss; unmapping an already
+            // destroyed buffer is a validation error on native wgpu.
+            self.buffer.destroy();
         }
     }
 }

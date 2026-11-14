@@ -13019,3 +13019,84 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   counters/ping-pong history or publish any original channel; replays need the
   same deterministic seed and prior valid sample. No such replay is implemented
   or claimed passed by this source-ownership checkpoint.
+
+
+## 2026-11-14 — Compute paint dependency feedback (active)
+
+- Previous goal turn: progress, checkpoint64422670 verified wire-compatible
+  copy-on-write original paint/snapshot/terrain sources. Rechecked clean source
+  checkout with concurrent networking concept still untouched; no live handles.
+- Added a single atomic first-missing-entry prefix to compute3d_aux binding18,
+  preserving its ordinary u32 metadata payload and relative offsets. Only
+  compute binding18 becomes writable; no ninth binding, raster/vertex layout or
+  optional GPU feature added. Full resident UV reads retain existing math. A
+  matching authored key with a zero resident rectangle records a deterministic
+  atomic minimum; absent/unpainted keys remain empty without reporting a miss.
+- New producer-owned four-byte PaintPageReadback uses the existing async status
+  mailbox, generation guards and separate metadata counters. Current full
+  resident sources perform no metadata capture. The bake job checks a sparse
+  pass receipt before any original color readback/preview/sample publication.
+  Until resident page loading/replay is wired, a real miss explicitly fails and
+  retires private work instead of publishing incomplete paint. Existing large
+  source guards remain; this does not claim paging/adapter retirement.
+- Initial actual GPU publication gate PASS1/4.90s: primary authored miss reports
+  its correct entry with exactly4status bytes,0original readback/capture and no
+  preview/persisted update; next advance is Retired. Now checking indirect-only
+  off-screen wall hits, unused authored-key Ready behavior and metadata device
+  loss (including completed-but-unconsumed mailboxes). Validation/integration
+  collecting; no shader/full platform completion claim.
+
+- Expanded actual GPU dependency routes now PASS: primary miss, primary-hidden
+  enclosure reached only by indirect transport, same-allocation next-pass fault
+  reset, and unused authored-key Ready followed by complete original tile.
+  Primary-only auxiliary output proves every dispatch pixel hits the opaque
+  receiver and reports Ready before progressive transport reports its missing
+  enclosure. Faulted jobs perform exactly4metadata bytes and no original
+  color/depth capture or preview/persisted publication, then retire.
+- Earlier off-screen fixtures were RED (Ok(Sample), not a false pass). Temporary
+  shader probes established indirect transport executes but secondary rays miss
+  for the Z-facing fixture; source build_onb selects Z even when N is parallel
+  to Z, producing a degenerate tangent. Changed only test view azimuth90->0 and
+  kept geometric normals; current renderer math is unchanged. Removed all
+  probes. Track this pre-existing axis-normal transport defect separately; it
+  is not evidence that arbitrary indirect dependencies are safe to cull.
+- Full orthographic_bake actual GPU suite PASS8/13.39s: current original beauty,
+  albedo, material and normal parity stays <=1byte; existing source residency,
+  incremental updates, retained tiles, depth, dynamic occlusion and retirement
+  continue to pass. Log:/private/tmp/eldiron-paint-feedback-bake-suite-gpu.log.
+- Metadata device-loss test initially RED: dropping an already completed mailbox
+  after device.destroy called unmap on a destroyed buffer. StatusReadback now
+  rejects lost devices before mapping/reading and cancels exclusive staging by
+  idempotent destroy. Actual lifecycle test PASS1/0.22s, including in-flight,
+  completed-unconsumed, replacement-generation and lost-device cancellation;
+  metadata remains separate from color/depth counters. Log:
+  /private/tmp/eldiron-paint-fault-status-destroy-gpu.log.
+- Source index/residency/replay/subdivision remains pending. This checkpoint
+  introduces a verified publication barrier, not a completed paged producer;
+  no large source adapter, source guard, old-version exclusion or serialized
+  current paint contract was removed. Creator/browser integration collecting.
+
+- Actual Creator hidden-world linked Prefab current-paint five-channel bake and
+  pending catalog-edit retirement PASS1/4.39s. Canonical native player compile
+  PASS14.10s; isolated browser player compile PASS15.25s. Canonical release
+  Creator+CPU-worker package PASS(worker25.88s,Creator81s). No dependency/lock
+  changes. No repeated unchanged full native assembly for this shader batch;
+  actual bake suite plus application producer integration cover changed paths.
+- Browser complete current Compute3D cs_main compiles with baseline8storage
+  buffers. Actual appended entry calls the unchanged production paint sampler
+  using the new payload layout: missing=>correct1, unused=>MAX,resident=>MAX,
+  each4bytes. No shader/validation errors. Reproducible task-owned browser
+  harness:tools/verify_browser_paint_feedback.mjs. This is sampler/metadata
+  execution, not a claim of full Rust bake-job/indirect browser acceptance.
+- Fresh release Creator existing54-tile original source, dedicated worker,
+  warmed caches, resize-return and device-loss generation1->2 PASS with clean
+  unchanged document and0Canvas2D/normal color copies/GPU errors. Separate
+  asset captures remain21,504bytes before loss; no presentation capture.
+  Recovered scene comparison1,254,250RGBApixels exact baseline. Recovered
+  application's actual device also passes shader/receipt harness above.
+- Durable evidence:concepts/native-wgpu-evidence/paint-compute-dependency-feedback.json.
+  All build/test/browser handles terminal. Current-paint serialization preserved;
+  old experimental paint versions remain excluded. Concurrent networking concept
+  stays untouched and unstaged. No physical window/platform/performance gate
+  promoted and no M0-M9 completion claim; next implement bounded authored-key
+  source/residency and deterministic replay, preserving these publication gates.

@@ -6,6 +6,7 @@ use renderkit::ReadbackTicket;
 use rusterix::editor_view::{EditorView3D, EditorViewFrame};
 use rusterix::{OrthographicBakeController, OrthographicBakeWork, SceneHandler};
 use scenevm::{
+    paint_feedback::{PaintPageReadback, PaintPageStatus},
     render_output::SceneRenderTarget,
     surface_output::{SurfaceDepthCapture, SurfaceSelection},
 };
@@ -27,6 +28,12 @@ enum Channel {
     Depth,
 }
 enum Pending {
+    Paint {
+        work: OrthographicBakeWork,
+        channel: Channel,
+        image: Arc<GpuImage>,
+        status: PaintPageReadback,
+    },
     Color {
         work: OrthographicBakeWork,
         channel: Channel,
@@ -179,13 +186,43 @@ impl OrthographicBakeJob {
             .map_err(RenderError)?;
         if let Some(mut pending) = self.pending.take() {
             let work = match &pending {
-                Pending::Color { work, .. } | Pending::Depth { work, .. } => *work,
+                Pending::Paint { work, .. }
+                | Pending::Color { work, .. }
+                | Pending::Depth { work, .. } => *work,
             };
             if !bake.work_is_current(&work) {
                 self.cancel();
                 return Ok(BakeAdvance::Retired);
             }
             match &mut pending {
+                Pending::Paint {
+                    channel,
+                    image,
+                    status,
+                    ..
+                } => {
+                    match status.try_finish(&self.context)? {
+                        None => self.pending = Some(pending),
+                        Some(PaintPageStatus::Ready) => {
+                            self.pending = Some(Pending::Color {
+                                work,
+                                channel: *channel,
+                                ticket: ReadbackTicket::capture_asset(
+                                    &self.context,
+                                    image.clone(),
+                                )?,
+                            });
+                        }
+                        Some(PaintPageStatus::MissingEntry(index)) => {
+                            // Residency/replay is added separately. Never turn
+                            // an unresolved authored source into empty paint or
+                            // advance the sample/history/publication clock.
+                            return Err(RenderError(format!(
+                                "Bake paint entry {index} is not resident; sample withheld"
+                            )));
+                        }
+                    }
+                }
                 Pending::Color {
                     channel, ticket, ..
                 } => {
@@ -301,11 +338,22 @@ impl OrthographicBakeJob {
             Some(if beauty { work.sample } else { 0 }),
             channel_index,
         )?;
-        self.pending = Some(Pending::Color {
-            work,
-            channel,
-            ticket: ReadbackTicket::capture_asset(&self.context, image)?,
-        });
+        self.pending = Some(
+            if let Some(status) = self.scene.vm.vm.capture_paint_page_status(&self.context)? {
+                Pending::Paint {
+                    work,
+                    channel,
+                    image,
+                    status,
+                }
+            } else {
+                Pending::Color {
+                    work,
+                    channel,
+                    ticket: ReadbackTicket::capture_asset(&self.context, image)?,
+                }
+            },
+        );
         Ok(BakeAdvance::Pending)
     }
     fn render(

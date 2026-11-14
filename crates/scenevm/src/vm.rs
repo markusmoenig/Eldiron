@@ -5658,12 +5658,14 @@ impl VM {
             .unwrap_or(std::slice::from_ref(&dummy_surface_entry));
         let organic_words = self.build_organic_billboard_words();
 
-        // Header: surface offset/count, organic offset/count. All offsets are u32 words.
+        // Atomic status prefix, followed by the unchanged metadata header.
+        // Header offsets are relative to the WGSL data array after the prefix.
         let surface_offset = 4u32;
         let surface_words: &[u32] = bytemuck::cast_slice(surface_entries);
         let organic_offset = surface_offset + surface_words.len() as u32;
-        let mut words = Vec::with_capacity(4 + surface_words.len() + organic_words.len());
+        let mut words = Vec::with_capacity(5 + surface_words.len() + organic_words.len());
         words.extend_from_slice(&[
+            u32::MAX,
             surface_offset,
             surface_entries.len() as u32,
             organic_offset,
@@ -5680,13 +5682,53 @@ impl VM {
                 &wgpu::util::BufferInitDescriptor {
                     label: Some("vm-compute3d-aux"),
                     contents: bytes,
-                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                    usage: wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::COPY_DST
+                        | wgpu::BufferUsages::COPY_SRC,
                 },
             ));
             g.compute3d_aux_ssbo_size = byte_len;
         } else if let Some(buffer) = g.compute3d_aux_ssbo.as_ref() {
             queue.write_buffer(buffer, 0, bytes);
         }
+    }
+
+    /// Capture the last submitted compute pass's dependency prefix only when
+    /// the authored key table contains unloaded pages. Full resident sources
+    /// perform no metadata readback. The requesting job owns the receipt.
+    pub fn capture_paint_page_status(
+        &self,
+        context: &renderkit::GpuContext,
+    ) -> renderkit::Result<Option<crate::paint_feedback::PaintPageReadback>> {
+        if context.is_lost() || self.gpu_domain != Some(context.generation()) {
+            return Err(renderkit::RenderError(
+                "paint status belongs to a different or lost device".into(),
+            ));
+        }
+        if self.render_mode != RenderMode::Compute3D {
+            return Err(renderkit::RenderError(
+                "paint status requires Compute3D".into(),
+            ));
+        }
+        let Some(paint) = &self.raster3d_surface_paint else {
+            return Ok(None);
+        };
+        if !paint.entries.iter().any(|entry| {
+            entry.uv_size.iter().all(|size| *size > 0)
+                && (entry.atlas_rect[2] == 0 || entry.atlas_rect[3] == 0)
+        }) {
+            return Ok(None);
+        }
+        let buffer = self
+            .gpu
+            .as_ref()
+            .and_then(|gpu| gpu.compute3d_aux_ssbo.as_ref())
+            .ok_or_else(|| {
+                renderkit::RenderError("paint status requires a submitted compute pass".into())
+            })?;
+        let count = u32::try_from(paint.entries.len())
+            .map_err(|_| renderkit::RenderError("paint source index exceeds u32 range".into()))?;
+        crate::paint_feedback::PaintPageReadback::capture(context, buffer, count).map(Some)
     }
 
     /// Create a VM with a fixed-size atlas (atlas_w x atlas_h).
@@ -7297,7 +7339,7 @@ impl VM {
                     binding: 18,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },

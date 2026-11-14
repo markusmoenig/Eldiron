@@ -59,4 +59,22 @@ fn status_words_are_async_cancellable_isolated_and_counted_separately_from_color
     });
     assert!(StatusReadback::map(&gpu, invalid).is_err());
     assert_eq!(gpu.transfers(), counters);
+    // Even a completed mailbox must not access an invalidated mapped buffer.
+    let mut lost = submitted(&gpu, 5);
+    finish(&gpu);
+    gpu.device.destroy();
+    for _ in 0..100 {
+        let _ = gpu.poll();
+        if gpu.is_lost() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(gpu.is_lost());
+    assert!(
+        lost.try_finish(&gpu)
+            .unwrap_err()
+            .to_string()
+            .contains("lost")
+    );
 }

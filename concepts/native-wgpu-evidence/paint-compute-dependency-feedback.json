@@ -1,0 +1,603 @@
+{
+  "date": "2026-11-14",
+  "scope": "Compute-only missing authored-paint dependency prefix and asynchronous original-sample publication barrier. Resident page loading/replay is not implemented.",
+  "protocol": {
+    "status_bytes": 4,
+    "sentinel": 4294967295,
+    "storage_binding": 18,
+    "storage_buffers": 8,
+    "metadata": "Ordinary u32 payload after atomic prefix; offsets remain relative to payload; no serialized project/current-paint schema changes.",
+    "ready": "No traced authored page missing; absent/unpainted keys do not fault.",
+    "missing": "Deterministic atomic minimum source-table slot. Job cancels private work before original capture, preview/sample advancement or persistence.",
+    "full_resident": "No status readback requested."
+  },
+  "native": {
+    "bake_gpu_cases": 8,
+    "bake_gpu_seconds": 13.39,
+    "primary_and_indirect_missing_and_unused_ready": true,
+    "next_dispatch_fault_reset": true,
+    "unresolved_original_readback_bytes": 0,
+    "original_channel_max_byte_delta": 1,
+    "linked_prefab_bake_and_catalog_retirement_cases": 1,
+    "linked_prefab_bake_seconds": 4.39,
+    "metadata_lifecycle_cases": 1,
+    "metadata_lifecycle_seconds": 0.22,
+    "player_host_check_seconds": 14.1
+  },
+  "browser": {
+    "release_package": "Creator plus isolated CPU-only codec worker PASS",
+    "worker_build_seconds": 25.88,
+    "creator_build_seconds": 81,
+    "player_check_seconds": 15.25,
+    "shader_and_sampler_receipts_on_recovered_application_device": {
+      "messages": [],
+      "error": null,
+      "maxStorageBuffersPerShaderStage": 8,
+      "receipts": [
+        {
+          "name": "missing",
+          "expected": 1,
+          "actual": 1,
+          "bytes": 4
+        },
+        {
+          "name": "unused",
+          "expected": 4294967295,
+          "actual": 4294967295,
+          "bytes": 4
+        },
+        {
+          "name": "resident",
+          "expected": 4294967295,
+          "actual": 4294967295,
+          "bytes": 4
+        }
+      ]
+    },
+    "application": {
+      "initial": {
+        "state": "editing",
+        "frames": 68,
+        "generation": 1,
+        "document": "fe052a84-bd55-40cf-aed8-45bcf7e744f5",
+        "dirty": "false",
+        "root": "0",
+        "readback": "21504",
+        "assetReadback": "21504",
+        "canvas": [
+          [
+            2400,
+            1287
+          ]
+        ],
+        "resources": {
+          "immutable": {
+            "allocations": 533,
+            "byte_limit": 134217728,
+            "cpu_bytes": 180148,
+            "entries": 533,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 180148,
+            "hits": 93664,
+            "uploaded_bytes": 180148
+          },
+          "targets": {
+            "allocations": 18,
+            "byte_limit": 536870912,
+            "bytes": 231864604,
+            "entries": 18,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 962
+          },
+          "working": {
+            "allocations": 1,
+            "byte_limit": 134217728,
+            "bytes": 2520364,
+            "entries": 1,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 3
+          }
+        },
+        "errors": [],
+        "gpu_errors": [],
+        "canvas2d": 0,
+        "presentation_color_copies": 0
+      },
+      "warm": {
+        "before": {
+          "state": "editing",
+          "frames": 80,
+          "generation": 1,
+          "document": "fe052a84-bd55-40cf-aed8-45bcf7e744f5",
+          "dirty": "false",
+          "root": "0",
+          "readback": "21504",
+          "assetReadback": "21504",
+          "canvas": [
+            [
+              2400,
+              1287
+            ]
+          ],
+          "resources": {
+            "immutable": {
+              "allocations": 583,
+              "byte_limit": 134217728,
+              "cpu_bytes": 198908,
+              "entries": 583,
+              "entry_limit": 16384,
+              "evictions": 0,
+              "gpu_bytes": 198908,
+              "hits": 112286,
+              "uploaded_bytes": 198908
+            },
+            "targets": {
+              "allocations": 18,
+              "byte_limit": 536870912,
+              "bytes": 231864604,
+              "entries": 18,
+              "entry_limit": 64,
+              "evictions": 0,
+              "hits": 1130
+            },
+            "working": {
+              "allocations": 1,
+              "byte_limit": 134217728,
+              "bytes": 2520364,
+              "entries": 1,
+              "entry_limit": 64,
+              "evictions": 0,
+              "hits": 3
+            }
+          },
+          "errors": [],
+          "gpu_errors": [],
+          "canvas2d": 0,
+          "presentation_color_copies": 0
+        },
+        "after": {
+          "state": "editing",
+          "frames": 112,
+          "generation": 1,
+          "document": "fe052a84-bd55-40cf-aed8-45bcf7e744f5",
+          "dirty": "false",
+          "root": "0",
+          "readback": "21504",
+          "assetReadback": "21504",
+          "canvas": [
+            [
+              2400,
+              1287
+            ]
+          ],
+          "resources": {
+            "immutable": {
+              "allocations": 583,
+              "byte_limit": 134217728,
+              "cpu_bytes": 198908,
+              "entries": 583,
+              "entry_limit": 16384,
+              "evictions": 0,
+              "gpu_bytes": 198908,
+              "hits": 162078,
+              "uploaded_bytes": 198908
+            },
+            "targets": {
+              "allocations": 18,
+              "byte_limit": 536870912,
+              "bytes": 231864604,
+              "entries": 18,
+              "entry_limit": 64,
+              "evictions": 0,
+              "hits": 1578
+            },
+            "working": {
+              "allocations": 1,
+              "byte_limit": 134217728,
+              "bytes": 2520364,
+              "entries": 1,
+              "entry_limit": 64,
+              "evictions": 0,
+              "hits": 3
+            }
+          },
+          "errors": [],
+          "gpu_errors": [],
+          "canvas2d": 0,
+          "presentation_color_copies": 0
+        }
+      },
+      "resized": {
+        "state": "editing",
+        "frames": 178,
+        "generation": 1,
+        "document": "fe052a84-bd55-40cf-aed8-45bcf7e744f5",
+        "dirty": "false",
+        "root": "0",
+        "readback": "21504",
+        "assetReadback": "21504",
+        "canvas": [
+          [
+            2424,
+            1287
+          ]
+        ],
+        "resources": {
+          "immutable": {
+            "allocations": 913,
+            "byte_limit": 134217728,
+            "cpu_bytes": 291708,
+            "entries": 913,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 291708,
+            "hits": 254681,
+            "uploaded_bytes": 291708
+          },
+          "targets": {
+            "allocations": 32,
+            "byte_limit": 536870912,
+            "bytes": 466128468,
+            "entries": 32,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 2496
+          },
+          "working": {
+            "allocations": 2,
+            "byte_limit": 134217728,
+            "bytes": 5075224,
+            "entries": 2,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 3
+          }
+        },
+        "errors": [],
+        "gpu_errors": [],
+        "canvas2d": 0,
+        "presentation_color_copies": 0
+      },
+      "resize-warm": {
+        "before": {
+          "state": "editing",
+          "frames": 190,
+          "generation": 1,
+          "document": "fe052a84-bd55-40cf-aed8-45bcf7e744f5",
+          "dirty": "false",
+          "root": "0",
+          "readback": "21504",
+          "assetReadback": "21504",
+          "canvas": [
+            [
+              2424,
+              1287
+            ]
+          ],
+          "resources": {
+            "immutable": {
+              "allocations": 932,
+              "byte_limit": 134217728,
+              "cpu_bytes": 294908,
+              "entries": 932,
+              "entry_limit": 16384,
+              "evictions": 0,
+              "gpu_bytes": 294908,
+              "hits": 273334,
+              "uploaded_bytes": 294908
+            },
+            "targets": {
+              "allocations": 32,
+              "byte_limit": 536870912,
+              "bytes": 466128468,
+              "entries": 32,
+              "entry_limit": 64,
+              "evictions": 0,
+              "hits": 2664
+            },
+            "working": {
+              "allocations": 2,
+              "byte_limit": 134217728,
+              "bytes": 5075224,
+              "entries": 2,
+              "entry_limit": 64,
+              "evictions": 0,
+              "hits": 3
+            }
+          },
+          "errors": [],
+          "gpu_errors": [],
+          "canvas2d": 0,
+          "presentation_color_copies": 0
+        },
+        "after": {
+          "state": "editing",
+          "frames": 222,
+          "generation": 1,
+          "document": "fe052a84-bd55-40cf-aed8-45bcf7e744f5",
+          "dirty": "false",
+          "root": "0",
+          "readback": "21504",
+          "assetReadback": "21504",
+          "canvas": [
+            [
+              2424,
+              1287
+            ]
+          ],
+          "resources": {
+            "immutable": {
+              "allocations": 932,
+              "byte_limit": 134217728,
+              "cpu_bytes": 294908,
+              "entries": 932,
+              "entry_limit": 16384,
+              "evictions": 0,
+              "gpu_bytes": 294908,
+              "hits": 323126,
+              "uploaded_bytes": 294908
+            },
+            "targets": {
+              "allocations": 32,
+              "byte_limit": 536870912,
+              "bytes": 466128468,
+              "entries": 32,
+              "entry_limit": 64,
+              "evictions": 0,
+              "hits": 3112
+            },
+            "working": {
+              "allocations": 2,
+              "byte_limit": 134217728,
+              "bytes": 5075224,
+              "entries": 2,
+              "entry_limit": 64,
+              "evictions": 0,
+              "hits": 3
+            }
+          },
+          "errors": [],
+          "gpu_errors": [],
+          "canvas2d": 0,
+          "presentation_color_copies": 0
+        }
+      },
+      "restored-cached-size": {
+        "state": "editing",
+        "frames": 288,
+        "generation": 1,
+        "document": "fe052a84-bd55-40cf-aed8-45bcf7e744f5",
+        "dirty": "false",
+        "root": "0",
+        "readback": "21504",
+        "assetReadback": "21504",
+        "canvas": [
+          [
+            2400,
+            1287
+          ]
+        ],
+        "resources": {
+          "immutable": {
+            "allocations": 932,
+            "byte_limit": 134217728,
+            "cpu_bytes": 294908,
+            "entries": 932,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 294908,
+            "hits": 416059,
+            "uploaded_bytes": 294908
+          },
+          "targets": {
+            "allocations": 32,
+            "byte_limit": 536870912,
+            "bytes": 466128468,
+            "entries": 32,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 4044
+          },
+          "working": {
+            "allocations": 2,
+            "byte_limit": 134217728,
+            "bytes": 5075224,
+            "entries": 2,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 4
+          }
+        },
+        "errors": [],
+        "gpu_errors": [],
+        "canvas2d": 0,
+        "presentation_color_copies": 0
+      },
+      "recovered": {
+        "state": "editing",
+        "frames": 354,
+        "generation": 2,
+        "document": "fe052a84-bd55-40cf-aed8-45bcf7e744f5",
+        "dirty": "false",
+        "root": "0",
+        "readback": "0",
+        "assetReadback": "0",
+        "canvas": [
+          [
+            2400,
+            1287
+          ]
+        ],
+        "resources": {
+          "immutable": {
+            "allocations": 533,
+            "byte_limit": 134217728,
+            "cpu_bytes": 180148,
+            "entries": 533,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 180148,
+            "hits": 90848,
+            "uploaded_bytes": 180148
+          },
+          "targets": {
+            "allocations": 18,
+            "byte_limit": 536870912,
+            "bytes": 231864604,
+            "entries": 18,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 904
+          },
+          "working": {
+            "allocations": 1,
+            "byte_limit": 134217728,
+            "bytes": 2520364,
+            "entries": 1,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 0
+          }
+        },
+        "errors": [],
+        "gpu_errors": [],
+        "canvas2d": 0,
+        "presentation_color_copies": 0
+      },
+      "recovered-warm": {
+        "before": {
+          "state": "editing",
+          "frames": 366,
+          "generation": 2,
+          "document": "fe052a84-bd55-40cf-aed8-45bcf7e744f5",
+          "dirty": "false",
+          "root": "0",
+          "readback": "0",
+          "assetReadback": "0",
+          "canvas": [
+            [
+              2400,
+              1287
+            ]
+          ],
+          "resources": {
+            "immutable": {
+              "allocations": 583,
+              "byte_limit": 134217728,
+              "cpu_bytes": 198908,
+              "entries": 583,
+              "entry_limit": 16384,
+              "evictions": 0,
+              "gpu_bytes": 198908,
+              "hits": 109470,
+              "uploaded_bytes": 198908
+            },
+            "targets": {
+              "allocations": 18,
+              "byte_limit": 536870912,
+              "bytes": 231864604,
+              "entries": 18,
+              "entry_limit": 64,
+              "evictions": 0,
+              "hits": 1072
+            },
+            "working": {
+              "allocations": 1,
+              "byte_limit": 134217728,
+              "bytes": 2520364,
+              "entries": 1,
+              "entry_limit": 64,
+              "evictions": 0,
+              "hits": 0
+            }
+          },
+          "errors": [],
+          "gpu_errors": [],
+          "canvas2d": 0,
+          "presentation_color_copies": 0
+        },
+        "after": {
+          "state": "editing",
+          "frames": 398,
+          "generation": 2,
+          "document": "fe052a84-bd55-40cf-aed8-45bcf7e744f5",
+          "dirty": "false",
+          "root": "0",
+          "readback": "0",
+          "assetReadback": "0",
+          "canvas": [
+            [
+              2400,
+              1287
+            ]
+          ],
+          "resources": {
+            "immutable": {
+              "allocations": 583,
+              "byte_limit": 134217728,
+              "cpu_bytes": 198908,
+              "entries": 583,
+              "entry_limit": 16384,
+              "evictions": 0,
+              "gpu_bytes": 198908,
+              "hits": 159262,
+              "uploaded_bytes": 198908
+            },
+            "targets": {
+              "allocations": 18,
+              "byte_limit": 536870912,
+              "bytes": 231864604,
+              "entries": 18,
+              "entry_limit": 64,
+              "evictions": 0,
+              "hits": 1520
+            },
+            "working": {
+              "allocations": 1,
+              "byte_limit": 134217728,
+              "bytes": 2520364,
+              "entries": 1,
+              "entry_limit": 64,
+              "evictions": 0,
+              "hits": 0
+            }
+          },
+          "errors": [],
+          "gpu_errors": [],
+          "canvas2d": 0,
+          "presentation_color_copies": 0
+        }
+      }
+    },
+    "recovered_scene_comparison": {
+      "baseline": "browser-target-pool-150.png",
+      "crop": [
+        80,
+        170,
+        1810,
+        895
+      ],
+      "pixels": 1254250,
+      "max_rgba_delta": 0
+    }
+  },
+  "red_and_resolution": [
+    "Completed but unconsumed metadata buffer dropped after device loss panicked on unmap. Reject lost reads and cancel exclusive staging with idempotent destroy; lifecycle GPU test passed.",
+    "Original Z-facing enclosure fixture reported Ready. Temporary probes established indirect path execution without secondary geometry hits. Existing build_onb chooses Z parallel to the fixture normal; changed test to X-facing and retained renderer math. No probes remain."
+  ],
+  "shader_sha256": {
+    "3d_header.wgsl": "b5bbb79e2a34a6d3a9730de658a653abc9fe4600201b3460eafb1c8e37f872c5",
+    "3d_body.wgsl": "3b24fb57c62c139a57e4110c551adb50ad1b206ef8ebaec2024eea89c3fdd3ac"
+  },
+  "limits": [
+    "Browser direct harness compiles full cs_main and dispatches appended actual paint sampler receipt entry; it is not the full Rust bake job or indirect-transport browser acceptance.",
+    "Browser application check uses existing 54 visible original bake tiles and tests warm reuse/resize-return/device loss, no new bake generation.",
+    "Bounded source key index/resident pages/deterministic replay/dispatch subdivision and oversized-source adapter retirement remain pending.",
+    "Retained pool bounds do not bound all active/inflight/codec/driver memory.",
+    "Physical native windows, input and remaining target platforms/release performance remain unverified.",
+    "Pre-existing axis-normal tangent-basis transport defect is recorded separately; no renderer numerical patch here."
+  ]
+}
