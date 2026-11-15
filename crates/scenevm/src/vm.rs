@@ -10,6 +10,8 @@ const DEFAULT_PAINT_MATERIAL_PIXEL: [u8; 4] = [254, 0, 0, 0];
 mod entity_pixels;
 mod geometry_storage;
 use geometry_storage::{GeometryStorage, Kind as GeometryBufferKind};
+mod paint_surface_index;
+pub use paint_surface_index::{PaintSurfaceIndex, PaintSurfaceIndexBuilder, PaintSurfaceIndexSource, PaintSurfaceLookup};
 #[cfg(not(target_arch = "wasm32"))]
 mod irradiance;
 mod raster3d;
@@ -3714,7 +3716,10 @@ pub struct VM {
     pub(crate) gpu_domain: Option<u64>,
     // Explicit host-owned cache domain; raw-device reference renderers leave it absent.
     pub(crate) target_context: Option<std::sync::Arc<renderkit::GpuContext>>,
+    /// Direct geometry edits must call mark_all_geometry_dirty before using a
+    /// retained renderer/query owner. Atom edits invalidate those owners.
     pub chunks_map: FxHashMap<Uuid, Chunk>,
+    paint_surface_generation: Arc<()>,
     pub current_chunk: Option<Uuid>,
 
     pub animation_counter: usize,
@@ -5179,6 +5184,7 @@ impl VM {
 
     #[inline]
     pub fn mark_all_geometry_dirty(&mut self) {
+        self.paint_surface_generation = Arc::new(());
         self.invalidate_organic_source();
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -5631,6 +5637,7 @@ impl VM {
             gpu_domain: None,
             target_context: None,
             chunks_map: FxHashMap::default(),
+            paint_surface_generation: Arc::new(()),
             current_chunk: None,
             animation_counter: 0,
             render_mode: RenderMode::Compute2D,
@@ -5783,6 +5790,25 @@ impl VM {
 
     /// Interpret one instruction.
     pub fn execute(&mut self, atom: Atom) {
+        match &atom {
+            Atom::AddPoly { .. } | Atom::AddPoly3D { .. } | Atom::AddLine3D { .. }
+            | Atom::AddLineStrip2D { .. } | Atom::AddLineStrip2Dpx { .. }
+            | Atom::NewChunk { .. } | Atom::AddChunk { .. } | Atom::RemoveChunk { .. }
+            | Atom::RemoveChunkAt { .. } | Atom::Clear | Atom::ClearGeometry => {
+                // Even inserting an unrelated chunk can change hash iteration
+                // order, which defines first-match surface resolution.
+                self.paint_surface_generation = Arc::new(());
+            }
+            Atom::SetCurrentChunk { id } if !self.chunks_map.contains_key(id) => {
+                self.paint_surface_generation = Arc::new(());
+            }
+            Atom::SetTransform3D(transform)
+                if transform.into_col_array().map(f32::to_bits)
+                    != self.transform3d.into_col_array().map(f32::to_bits) => {
+                self.paint_surface_generation = Arc::new(());
+            }
+            _ => (),
+        }
         match atom {
             Atom::SetGeoVisible { id, visible } => {
                 let mut dirty_2d = false;

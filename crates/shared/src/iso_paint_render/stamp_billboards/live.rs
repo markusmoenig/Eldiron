@@ -5,6 +5,8 @@ use super::*;
 use std::sync::Arc;
 mod capture;
 pub use capture::StampRequestCapture;
+mod placements;
+pub use placements::StampPlacementOwner;
 
 #[derive(Clone, Default)]
 pub struct StampSpriteRequest {
@@ -307,6 +309,17 @@ pub struct StampUploadKey {
     source: Uuid,
     instances: Vec<[u32; 7]>,
 }
+fn instance_key(i: &OrganicBillboardInstance) -> [u32; 7] {
+    [
+        i.center[0].to_bits(),
+        i.center[1].to_bits(),
+        i.center[2].to_bits(),
+        i.width.to_bits(),
+        i.height.to_bits(),
+        i.sprite_index,
+        i.flags,
+    ]
+}
 /// Upload camera-independent pixels only for a new source. Placements retain
 /// authored order and update independently, with exact float-bit cache keys.
 pub fn upload_sprite_set(
@@ -323,20 +336,7 @@ pub fn upload_sprite_set(
         let instances = set.instances(layer, vm, camera, height)?;
         let key = StampUploadKey {
             source: set.id(),
-            instances: instances
-                .iter()
-                .map(|i| {
-                    [
-                        i.center[0].to_bits(),
-                        i.center[1].to_bits(),
-                        i.center[2].to_bits(),
-                        i.width.to_bits(),
-                        i.height.to_bits(),
-                        i.sprite_index,
-                        i.flags,
-                    ]
-                })
-                .collect(),
+            instances: instances.iter().map(instance_key).collect(),
         };
         if uploaded.as_ref() == Some(&key) {
             return Ok(false);

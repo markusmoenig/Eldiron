@@ -266,7 +266,6 @@ struct WorldGpu {
     guides: rusterix::scenebuilder::d2preview::D2PreviewBuilder,
     guide_scene: rusterix::Scene,
     paint_ready: bool,
-    stamp_uploaded: Option<stamps::UploadKey>,
     stamps_ready: bool,
     icons: GpuIcons,
     images: UiImageCache,
@@ -291,7 +290,6 @@ impl WorldGpu {
             guides: Default::default(),
             guide_scene: Default::default(),
             paint_ready: true,
-            stamp_uploaded: None,
             stamps_ready: true,
             icons: GpuIcons::new(images.context().clone(), 16 * 1024 * 1024, 512)
                 .map_err(|e| e.to_string())?,
@@ -1161,17 +1159,10 @@ impl Editor {
             gpu.guides = Default::default();
             gpu.guide_scene = Default::default();
             gpu.paint_ready = true;
-            gpu.stamp_uploaded = None;
             gpu.stamps_ready = true;
         }
         if binding.mode == EditorViewMode::D2 || binding.custom.is_some() {
-            if gpu.stamp_uploaded.take().is_some() {
-                let vm = &mut gpu.scenes.scene_mut(gpu.view).map_err(|e| e.to_string())?.vm;
-                let active = vm.active_vm_index();
-                vm.set_active_vm(0);
-                vm.execute(scenevm::Atom::ClearPaintBillboards);
-                vm.set_active_vm(active);
-            }
+            gpu.scenes.set_stamp_paint(gpu.view, None).map_err(|e| e.to_string())?;
             gpu.stamps_ready = true;
         }
         // CPU-only bridge inputs: no legacy VM is borrowed, swapped or rendered.
@@ -1280,6 +1271,7 @@ impl Editor {
             gpu.scenes.set_surface_paint_source(gpu.view, None).map_err(|e| e.to_string())?;
         }
         let continue_private = (gpu.scenes.private_paint_frame_pending(gpu.view).map_err(|e| e.to_string())?
+            || gpu.scenes.stamp_placement_pending(gpu.view).map_err(|e| e.to_string())?
             || gpu.stamps_ready && gpu.paint_ready
                 && !gpu.scenes.scene_sources_ready(gpu.view).map_err(|e| e.to_string())?)
             && gpu.scene_key.as_ref().is_some_and(|old| key.same_private_scope(old))
@@ -1362,18 +1354,15 @@ impl Editor {
                             camera: camera_frame,
                         });
                         if let Some(sprites) = world.stamps.request(paint)? {
-                            stamps::upload(&sprites, paint, &mut scene.vm, camera_frame,
-                                binding.size.1 as u32, &mut gpu.stamp_uploaded)?;
-                            gpu.stamps_ready = true;
+                            gpu.scenes.set_stamp_paint(gpu.view, Some((paint, &sprites)))
+                                .map_err(|e| e.to_string())?;
                         } else {
-                            gpu.stamps_ready = false;
+                            gpu.scenes.defer_stamp_paint(gpu.view).map_err(|e| e.to_string())?;
                         }
                     } else {
                         scene.vm.execute(scenevm::Atom::ClearRaster3DPaintOverlay);
-                        scene.vm.execute(scenevm::Atom::ClearPaintBillboards);
                         gpu.paint_ready = true;
-                        gpu.stamp_uploaded = None;
-                        gpu.stamps_ready = true;
+                        gpu.scenes.set_stamp_paint(gpu.view, None).map_err(|e| e.to_string())?;
                         world.stamps.clear();
                     }
                     rusterix::editor_view::EditorViewFrame::D3(
@@ -1455,8 +1444,10 @@ impl Editor {
             gpu.scene_key = Some(key);
             gpu.scene_source = Some(source.clone());
         } else if continue_private {
+            gpu.scenes.prepare_scene_source_uploads(gpu.view).map_err(|e| e.to_string())?;
             gpu.scenes.render(gpu.view, map.changed as u64, images.registry).map_err(|e| e.to_string())?;
         }
+        gpu.stamps_ready = gpu.scenes.stamp_paint_ready(gpu.view).map_err(|e| e.to_string())?;
         gpu.paint_ready &= gpu.scenes.surface_paint_ready(gpu.view).map_err(|e| e.to_string())?;
         gpu.paint_ready &= gpu.scenes.scene_sources_ready(gpu.view).map_err(|e| e.to_string())?;
         let output = match gpu.scenes.output(gpu.view) {

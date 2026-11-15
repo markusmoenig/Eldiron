@@ -8,15 +8,17 @@ use std::sync::Arc;
 use theframework_core::Uuid;
 mod editor;
 mod owner;
-use owner::SceneOwner;
 pub(crate) use owner::GamePaintScope;
+use owner::SceneOwner;
 mod isometric;
 mod picking;
-mod surface_paint;
 mod stamp_paint;
+mod surface_paint;
 pub use surface_paint::SurfacePaintStats;
 mod surface_output;
-pub use picking::{EditorPaintCapture, EditorPaintPick, EditorPick, EditorSurfacePick, ViewPick, ViewPickHit};
+pub use picking::{
+    EditorPaintCapture, EditorPaintPick, EditorPick, EditorSurfacePick, ViewPick, ViewPickHit,
+};
 
 /// Stable application/controller identity, independent of window/device lifetime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -56,7 +58,7 @@ struct SceneView {
     surface_paint_ready: bool,
     stamp_paint_ready: bool,
     scene_sources_ready: bool,
-    stamp_uploaded: Option<shared::iso_paint_render::stamp_billboards::StampUploadKey>,
+    stamp_placements: Option<shared::iso_paint_render::stamp_billboards::StampPlacementOwner>,
     isometric: bool,
     isometric_renderer: Option<crate::isometric::IsometricSceneRenderer>,
     isometric_frame: Option<crate::isometric::IsometricPreparedFrame>,
@@ -69,6 +71,13 @@ struct SceneView {
     game_scope: Option<GamePaintScope>,
 }
 impl SceneView {
+    fn invalidate_stamp_packet(&mut self) {
+        // GamePaintScope already describes this incoming immutable stamp
+        // source. Revoke the packet without forgetting its frozen pose guard.
+        let scope = self.game_scope.take();
+        self.invalidate_request();
+        self.game_scope = scope;
+    }
     /// Revoke the frozen request identity while preserving reusable immutable
     /// CPU packets. The next source preparation still validates current inputs.
     fn invalidate_request(&mut self) {
@@ -151,7 +160,7 @@ impl SceneViews {
                 surface_paint_ready: true,
                 stamp_paint_ready: true,
                 scene_sources_ready: true,
-                stamp_uploaded: None,
+                stamp_placements: None,
                 isometric: false,
                 isometric_renderer: None,
                 isometric_frame: None,

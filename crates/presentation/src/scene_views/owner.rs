@@ -177,6 +177,10 @@ impl SceneViews {
         let same_scope = view.game_scope.as_ref() == Some(scope);
         if !same_scope {
             view.scene.cancel();
+            if let Some(owner) = &mut view.stamp_placements {
+                owner.cancel_pending();
+                view.stamp_paint_ready = false;
+            }
             // Placement changes invalidate their own cursor. Retain unchanged
             // CPU pixel preparation across camera updates instead of restarting it.
             view.pending_content_revision = None;
@@ -184,6 +188,10 @@ impl SceneViews {
         }
         Ok(same_scope
             && (view.scene.pending()
+                || view
+                    .stamp_placements
+                    .as_ref()
+                    .is_some_and(|owner| owner.pending())
                 || !view.scene_sources_ready && view.surface_paint_ready && view.stamp_paint_ready))
     }
     pub(crate) fn set_game_paint_scope(&mut self, id: ViewId, scope: GamePaintScope) -> Result<()> {

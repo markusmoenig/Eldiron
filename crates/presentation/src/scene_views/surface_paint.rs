@@ -437,6 +437,7 @@ impl SceneViews {
                 view.size.0 > 0
                     && view.size.1 > 0
                     && (view.scene.pending()
+                        || view.stamp_placements.as_ref().is_some_and(|owner| owner.pending())
                         || view.scene.preparation.is_some()
                         || (!view.surface_paint_ready
                             && view

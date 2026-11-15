@@ -15989,3 +15989,58 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   wasm release check PASS16.39s:
   /private/tmp/eldiron-stamp-capture-release-wasm.log. All handles terminal. This
   completes the capture checkpoint only; proceed directly to view-owned placement.
+
+
+## View-owned stamp placement (2026-11-15, implementation in progress)
+
+- Added vm/paint_surface_index.rs: immutable transformed triangle coordinates,
+  preserved original chunk/group/poly/triangle first-match policy and UV tolerance.
+  Cooperative builder rejects changed geometry generations; canonical filtered
+  indices retain only surfaces referenced by the frozen stamp source. Original
+  geometry Atom changes and mark_all_geometry_dirty revoke generations; direct
+  public geometry edits must use the existing dirty notification contract.
+- Added stamp_billboards/live/placements.rs: frozen original SharedVec handles,
+  artwork and camera basis, cooperative referenced-surface gathering/indexing,
+  per-triangle lookup and ordered placements. Exact float-bit upload-key matching
+  is accumulated during placement instead of a second unbounded comparison.
+  New generations discard partial coordinates, and no partial packet is published.
+- Creator and player now share SceneViews' placement owner. Private-source/game
+  scopes retain the frozen pose while placement is pending; changed incoming
+  game scopes retire the old cursor. Host pending flags include that owner.
+  Creator's direct synchronous upload wrapper/duplicate upload key are removed.
+- Placement now shares SourceUploadBudget's application-frame CPU deadline and
+  preparation timing diagnostics. Local4096-item/2ms checks remain, with initial
+  chunk/group descriptor capture and indivisible original recipe operations still
+  limitations. Final VM Atom validation/publication still walks the completed
+  instance vector; that publication boundary needs a follow-up ownership audit.
+- Initial Creator/player native release check PASS27.52s:
+  /private/tmp/eldiron-stamp-placement-release-native-initial.log. Surface-index
+  exact lookup/order, quota and stale-generation CPU release contract PASS0.00s
+  (build6.90s): /private/tmp/eldiron-stamp-placement-release-index.log.
+- Initial follow-up CPU build failed with an undefined vm in cancel_pending;
+  the stale-index check was moved into request. Corrected focused CPU release
+  contract PASS0.02s (build24.34s):
+  /private/tmp/eldiron-stamp-placement-release-owner-fixed.log. Covers8193 ordered
+  anchored/fallback placements, source freeze, item quota, transform restart,
+  complete exact keys, unchanged upload reuse and empty replacement.
+- Focused common GPU view release contract PASS0.10s (build1m12s):
+  /private/tmp/eldiron-stamp-placement-release-view.log. Complete output retains
+  first requested revision, current source/pose scope survives multi-frame work,
+  changed scope and explicit cancellation retire old placement, complete output
+  remains intact, CPU target stays absent, preparation diagnostics include work.
+- Indices now drop unreferenced/retired geometry: an empty anchor set clears the
+  index; a changed exact referenced-surface set rebuilds only the current subset.
+  Native/browser final release checks and a focused final CPU quota/eviction
+  check follow before committing. Broad workflow/performance tests stay deferred.
+
+- Final canonical four-application native release check PASS28.20s:
+  /private/tmp/eldiron-stamp-placement-release-native.log. Actual Creator browser-
+  host wasm release check PASS26.88s:
+  /private/tmp/eldiron-stamp-placement-release-wasm.log. Final focused CPU contract
+  including exhausted shared-quota admission and empty-anchor index retirement
+  PASS0.01s (build1m05s):
+  /private/tmp/eldiron-stamp-placement-release-owner-final.log. All handles terminal.
+  Continue directly to validated immutable billboard publication so the finished
+  instance vector is moved into the VM without a second synchronous whole scan.
+  M0-M9/full acceptance remain unfinished; no measured speedup or total-memory
+  cap is claimed. This is a local implementation checkpoint, not a stopping gate.

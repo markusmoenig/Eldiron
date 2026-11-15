@@ -32,6 +32,21 @@ impl Default for SourceUploadBudget {
     }
 }
 impl SourceUploadBudget {
+    /// Share the application-frame CPU deadline with metadata/placement owners
+    /// outside SceneVM. One admitted unit must be a bounded recipe/triangle step.
+    pub fn try_prepare_cpu_step(&mut self) -> bool {
+        if self.available_cpu_words() == 0 {
+            return false;
+        }
+        self.record_cpu_step();
+        true
+    }
+    pub fn prepare_cpu<R>(&mut self, prepare: impl FnOnce(&mut Self) -> R) -> R {
+        let started = instant::Instant::now();
+        let result = prepare(self);
+        self.record_preparation(started.elapsed().as_nanos().min(u64::MAX as u128) as u64);
+        result
+    }
     /// CPU wall time inside cooperative preparation, including driver queueing;
     /// this is not GPU execution time or total application-frame CPU time.
     pub fn preparation_cpu_ns(&self) -> u64 {

@@ -262,8 +262,6 @@ impl Drop for Work {
     }
 }
 
-pub(super) use shared::iso_paint_render::stamp_billboards::StampUploadKey as UploadKey;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -310,20 +308,6 @@ mod tests {
         assert!(hidden.sprites().is_empty());
         assert!(owner.capture.is_none());
     }
-}
-
-pub(super) fn upload(
-    set: &StampSpriteSet,
-    layer: &IsoPaintLayer,
-    vm: &mut scenevm::SceneVM,
-    camera: scenevm::Camera3D,
-    height: u32,
-    uploaded: &mut Option<UploadKey>,
-) -> Result<(), String> {
-    shared::iso_paint_render::stamp_billboards::upload_sprite_set(
-        set, layer, vm, camera, height, uploaded,
-    )
-    .map(|_| ())
 }
 
 impl Editor {

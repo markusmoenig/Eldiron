@@ -5,8 +5,8 @@ mod live;
 use crate::iso_paint::{IsoPaintChunk, IsoPaintLayer, IsoPaintStamp};
 pub use catalog::{StampCatalog, StampCatalogBuilder};
 pub use live::{
-    StampRequestCapture, StampSpritePreparation, StampSpriteRequest, StampSpriteSet,
-    StampUploadKey, upload_sprite_set,
+    StampPlacementOwner, StampRequestCapture, StampSpritePreparation, StampSpriteRequest,
+    StampSpriteSet, StampUploadKey, upload_sprite_set,
 };
 use scenevm::{OrganicBillboardInstance, OrganicBillboardSprite};
 
