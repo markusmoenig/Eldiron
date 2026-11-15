@@ -17,6 +17,7 @@ pub enum RasterPaintAdvance {
     Complete,
 }
 enum Phase {
+    Prepare,
     Draw,
     Receipt {
         status: PaintPageReadback,
@@ -101,12 +102,12 @@ impl RasterPaintFrame {
             revision,
             current,
             waiting: Vec::new(),
-            phase: Phase::Draw,
+            phase: Phase::Prepare,
             subdivisions: 0,
             final_history: None,
         }
     }
-    /// At most one page upload and one base attempt or composition per call. A
+    /// At most one page upload/base attempt and one final composition per call. A
     /// metadata receipt must complete before any resident slot is replaced.
     pub fn advance(&mut self) -> Result<RasterPaintAdvance> {
         self.advance_with_source_budget(usize::MAX)
@@ -115,16 +116,59 @@ impl RasterPaintFrame {
         &mut self,
         available_bytes: usize,
     ) -> Result<RasterPaintAdvance> {
+        self.advance_with_budgets(
+            available_bytes,
+            &mut scenevm::source_upload::SourceUploadBudget::default(),
+        )
+    }
+    /// Host preparation may visit pending owners in a fair order before draw.
+    pub(crate) fn prepare_sources(
+        &mut self,
+        budget: &mut scenevm::source_upload::SourceUploadBudget,
+    ) -> Result<bool> {
         if let Phase::Failed(error) = &self.phase {
             return Err(RenderError(error.clone()));
         }
-        let result = self.advance_inner(available_bytes);
+        if self.context.is_lost() {
+            let error = "private source preparation device was lost";
+            self.phase = Phase::Failed(error.into());
+            return Err(RenderError(error.into()));
+        }
+        if !matches!(self.phase, Phase::Prepare) {
+            return Ok(true);
+        }
+        match self.scene.vm.prepare_source_uploads(budget) {
+            Ok(ready) => {
+                if ready {
+                    self.phase = Phase::Draw;
+                }
+                Ok(ready)
+            }
+            Err(error) => {
+                self.phase = Phase::Failed(error.to_string());
+                Err(error)
+            }
+        }
+    }
+    pub(crate) fn advance_with_budgets(
+        &mut self,
+        available_bytes: usize,
+        source_budget: &mut scenevm::source_upload::SourceUploadBudget,
+    ) -> Result<RasterPaintAdvance> {
+        if let Phase::Failed(error) = &self.phase {
+            return Err(RenderError(error.clone()));
+        }
+        let result = self.advance_inner(available_bytes, source_budget);
         if let Err(error) = &result {
             self.phase = Phase::Failed(error.to_string());
         }
         result
     }
-    fn advance_inner(&mut self, available_bytes: usize) -> Result<RasterPaintAdvance> {
+    fn advance_inner(
+        &mut self,
+        available_bytes: usize,
+        source_budget: &mut scenevm::source_upload::SourceUploadBudget,
+    ) -> Result<RasterPaintAdvance> {
         if self.context.is_lost() {
             return Err(RenderError("private raster frame device was lost".into()));
         }
@@ -133,6 +177,15 @@ impl RasterPaintFrame {
         for _ in 0..4 {
             let phase = std::mem::replace(&mut self.phase, Phase::Draw);
             match phase {
+                Phase::Prepare => {
+                    // Installing the private binding may replace compute aux
+                    // metadata after ordinary view preparation. Stage that exact
+                    // frozen packet before allowing a draw/reference uploader.
+                    self.phase = Phase::Prepare;
+                    if !self.prepare_sources(source_budget)? {
+                        return Ok(RasterPaintAdvance::Pending);
+                    }
+                }
                 Phase::Draw => {
                     self.scene
                         .vm
@@ -156,6 +209,9 @@ impl RasterPaintFrame {
                         };
                     } else {
                         self.finish_region(history)?;
+                        if matches!(self.phase, Phase::Compose) {
+                            continue;
+                        }
                     }
                     return Ok(RasterPaintAdvance::Pending);
                 }
@@ -292,6 +348,9 @@ impl RasterPaintFrame {
         } else {
             None
         };
+        if output.is_none() {
+            self.scene.vm.cancel_source_uploads();
+        }
         (self.scene, self.target, self.pages, output)
     }
     pub fn residency_usage(&self) -> PaintResidencyUsage {

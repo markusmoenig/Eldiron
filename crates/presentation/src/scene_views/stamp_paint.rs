@@ -21,7 +21,10 @@ impl SceneViews {
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
         if view.scene.pending() {
-            return Ok(true);
+            let ready = view.scene.prepare_sources(&mut self.source_upload_budget)?;
+            view.scene_sources_ready = ready;
+            view.dirty |= !ready;
+            return Ok(ready);
         }
         if view.isometric || view.size.0 == 0 || view.size.1 == 0 {
             view.scene.vm.cancel_source_uploads();

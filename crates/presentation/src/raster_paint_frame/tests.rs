@@ -113,6 +113,61 @@ fn pressure_fixture(mode: RenderMode) {
             .any(|pixel| pixel != &expected[..4]),
         "reference geometry must contribute pixels"
     );
+    // A fully resident private source needs no fault receipt. Initial private
+    // auxiliary preparation still obeys the host budget before that first draw.
+    let mut complete = RasterPaintFrame::new(
+        context.clone(),
+        scene(),
+        SceneRenderTarget::new(context.clone(), size.0, size.1).unwrap(),
+        resident,
+        2,
+    )
+    .unwrap();
+    let mut busy = scene();
+    busy.vm.execute(Atom::SetRenderMode(RenderMode::Raster3D));
+    busy.vm.execute(Atom::SetOrganicBillboards {
+        sprites: vec![scenevm::OrganicBillboardSprite {
+            width: 1,
+            height: 1,
+            rgba: vec![255; 4].into(),
+        }],
+        instances: vec![
+            scenevm::OrganicBillboardInstance {
+                center: [100., 0., 0.],
+                width: 1.,
+                height: 1.,
+                sprite_index: 0,
+                flags: 0,
+            };
+            20_000
+        ],
+    });
+    let mut budget = scenevm::source_upload::SourceUploadBudget::default();
+    assert!(!busy.vm.prepare_source_uploads(&mut budget).unwrap());
+    let status_before = context.transfers().status_readback_bytes;
+    assert_eq!(
+        complete
+            .advance_with_budgets(usize::MAX, &mut budget)
+            .unwrap(),
+        RasterPaintAdvance::Pending
+    );
+    assert!(matches!(complete.phase, Phase::Prepare));
+    assert!(complete.output().is_none());
+    assert_eq!(context.transfers().status_readback_bytes, status_before);
+    assert_eq!(complete.advance().unwrap(), RasterPaintAdvance::Complete);
+    assert_eq!(
+        context.transfers().status_readback_bytes,
+        status_before,
+        "complete original residency must not wait for a redundant fault receipt"
+    );
+    assert_eq!(
+        expected,
+        finish(
+            &context,
+            ReadbackTicket::capture(&context, complete.output().unwrap().image.clone()).unwrap()
+        )
+    );
+    let (_, _, resident, _) = complete.into_completed().unwrap();
     if mode == RenderMode::Compute3D {
         // Cancel before consuming a dependency receipt. The restored scene must
         // still expose its previous valid history image, never the failed front.

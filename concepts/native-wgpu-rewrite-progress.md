@@ -57,7 +57,7 @@ behavior is ready to verify.
 ## Next work
 
 1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,18 retained standard control families, static collection/property-layout contributions and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
-2. Close live source residency, catalogue capture and remaining UV/player source policy. Cooperative shared GPU page uploads, staged UV validation/shared lookup buffers, unchanged-page GPU reuse and live world/player billboard buffer uploads are connected below; source allocation/large instance metadata/capture scheduling and working-set residency remain open. Live organic pixel packing now has a shared cooperative owner in the latest checkpoint; integrated acceptance remains open. Player UV pages share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection now has an owned page publication below. Player stamp CPU publication/controller ownership is checkpointed with standalone native/browser release compilation; consolidated runtime acceptance remains. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
+2. Finish remaining source preparation and resource policy. Canonical large live UV residency, frozen Raster3D/Compute3D replay, shared alpha/page/selection/stamp catalogues, cooperative instance packets and pooled source allocation ownership are connected in the latest checkpoints. Private-frame auxiliary preparation now joins the host source budget; integration checks below cover its completed source path and pressure. First changed-recipe/source descriptor capture, prefab merge capture, synchronous placement production and aggregate CPU/GPU allocation/transfer policy still need audit/measurement. Complete remaining canonical ownership/adapters, then batch the consolidated workflow/resource/performance acceptance. Preserve shipped current paint behavior and serialization without adding obsolete experimental compatibility.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
 ## Blockers
@@ -15419,3 +15419,59 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   /private/tmp/eldiron-stamp-catalogue-release-cpu.log. All compiler handles
   terminal; diff whitespace check passes. Continue directly with private-frame
   auxiliary preparation under the shared host source budget.
+
+
+## Private-frame source preparation and complete residency (2026-11-15)
+
+- Frozen private frames now stage auxiliary/organic metadata after installing their
+  exact paint binding and before any draw. This closes the discovered synchronous
+  compute auxiliary rebuild after the earlier ordinary-view preparation. Live
+  SceneViews passes its existing shared SourceUploadBudget through the owner;
+  player rotating preparation visits also advance pending private owners, so the
+  work is not restricted to fixed render order. Explicit private/bake advance
+  uses a fresh bounded instance/source budget per call and the same kernel.
+- Cancelled frames discard pending source packets across their layers. Explicit
+  scene/size/source replacement resets preparation ownership before preparing the
+  next pose. Editor particle clock ticks cannot mutate/cancel a frozen scene;
+  the next clock tick still observes elapsed time under its existing pause cap.
+  Lost-device private preparation fails closed rather than reporting readiness.
+- Validated bindings count original nonempty keys cooperatively. A private table
+  tracks whether every original key is resident under its existing update lock.
+  Complete residency uses the resident shader path and skips redundant four-byte
+  fault receipts; its final draw can compose once in that same advance. Partial
+  residency retains the conservative dependency/replay protocol. This is not a
+  measured whole-application throughput or latency result.
+- Initial canonical four-application release compile PASS27.51s:
+  /private/tmp/eldiron-private-source-phase-release.log. The focused private-frame
+  run exposed a stale PaintPageIndexBuilder::finish iterator-exhaustion check
+  left after switching to retained maps; a first scripted correction missed the
+  actual condition and the run repeated the same failure. Corrected the explicit
+  cursor/length condition before continuing. Failure evidence:
+  /private/tmp/eldiron-private-source-phase-release-frame-guard-failed.log.
+- Corrected focused Raster3D/Compute3D private-frame checks PASS2/2,0.19s
+  (release build28.22s):
+  /private/tmp/eldiron-private-source-phase-release-frame.log. They now also check
+  that exhausted host CPU preparation withholds the initial draw, fully resident
+  frames finish without status readback, and original pixels/history/pressure/
+  cancellation remain correct. Removed a machine-speed-dependent minimum packed-
+  byte assertion; the observable pending phase tests the actual budget contract.
+- Canonical translucent live SceneViews check PASS0.16s (release build8.89s):
+  /private/tmp/eldiron-private-source-phase-release-view.log. Frozen revisions,
+  final picking, host scheduling, source retirement, plane cap and original pixels
+  still pass. Final native/wasm feature compilation remains. Broad section8
+  functional/platform/resource/performance acceptance stays deferred/unverified.
+
+- Final canonical four-application native release compile PASS16.64s and actual
+  wasm Creator browser target release compile PASS27.72s:
+  /private/tmp/eldiron-private-source-phase-release-final.log,
+  /private/tmp/eldiron-private-source-phase-release-wasm.log. Apple simulator
+  staticlib release feature-boundary compilation is in flight; it is not a
+  physical/mobile presentation check. Continue source/document/request lifetime
+  audit after this coherent checkpoint, not a request for user approval.
+
+- Apple aarch64-apple-ios-sim Creator staticlib release feature-boundary compile
+  PASS43.33s: /private/tmp/eldiron-private-source-phase-release-ios.log. All
+  compiler/test handles terminal; diff whitespace check passes. Physical/mobile
+  workflows are still outstanding. Next lifetime audit found game frozen-scope
+  keys need the static map/source revisions as well as identity/camera/stamps;
+  retain temporal pose updates separately and invalidate actual source edits.

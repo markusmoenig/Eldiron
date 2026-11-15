@@ -168,7 +168,7 @@ impl PaintPageIndexBuilder {
             return Err(error);
         }
         if self.index.entries.len() != self.table_len
-            || self.chunks.len() != 0
+            || self.chunk_cursor != self.chunks.len()
             || self.owners.len() != 0
         {
             return Err("Paint source preparation is incomplete".into());

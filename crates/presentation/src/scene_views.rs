@@ -170,6 +170,7 @@ impl SceneViews {
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
         view.dirty = true;
         view.game_scope = None;
+        view.scene_sources_ready = true;
         view.pending_content_revision = None;
         view.isometric_frame = None;
         Ok(&mut view.scene)
@@ -198,6 +199,7 @@ impl SceneViews {
         }
         view.scene.cancel();
         view.game_scope = None;
+        view.scene_sources_ready = true;
         view.pending_content_revision = None;
         view.scene.vm.cancel_source_uploads();
         let replace_target = if view.isometric {
@@ -297,7 +299,7 @@ impl SceneViews {
                 view.scene.start(self.context.clone(), revision)?;
             }
             let before = view.scene.residency_usage().unwrap();
-            let result = view.scene.advance(self.surface_paint.available_frame_bytes());
+            let result = view.scene.advance(self.surface_paint.available_frame_bytes(), &mut self.source_upload_budget);
             let after = view.scene.residency_usage().unwrap();
             self.surface_paint.record_residency_uploads(before, after);
             let Some(output) = result? else { return Ok(None); };

@@ -16,6 +16,7 @@ pub struct PaintPageBinding {
     pub(crate) entries: PaintEntryStorage,
     pub(crate) alpha_geo_ids: Arc<FxHashSet<GeoId>>,
     pub(crate) has_missing: bool,
+    pub(super) source_count: usize,
     pub(crate) raster_entries: Option<wgpu::Buffer>,
     raster_lease: Option<renderkit::WorkingBufferLease>,
     pub(crate) resident_table: Option<Arc<super::residency::ResidentTable>>,
@@ -110,6 +111,7 @@ impl PaintPageBindingPreparation {
                 entries,
                 alpha_geo_ids,
                 has_missing: false,
+                source_count: 0,
                 raster_entries: None,
                 raster_lease: None,
                 resident_table: None,
@@ -160,6 +162,7 @@ impl PaintPageBindingPreparation {
                 self.failure = Some(error.into());
                 return Err(RenderError(error.into()));
             }
+            binding.source_count += 1;
         }
         let remaining = units.saturating_sub(end - self.cursor);
         self.cursor = end;
@@ -274,6 +277,16 @@ impl PaintPageBindingPreparation {
     }
 }
 impl PaintPageBinding {
+    pub(crate) fn needs_feedback(&self) -> bool {
+        self.has_missing
+            && self.resident_table.as_ref().is_none_or(|table| {
+                table
+                    .update
+                    .lock()
+                    .map(|update| update.missing)
+                    .unwrap_or(true)
+            })
+    }
     /// Copy unchanged source planes to a private replacement on this device.
     /// This queues GPU work and performs no CPU image transfer or readback.
     pub fn copy_planes_into(

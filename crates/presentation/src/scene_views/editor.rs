@@ -40,6 +40,11 @@ impl SceneViews {
             .views
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
+        // ParticleClock observes elapsed wall time at its next tick. Mutating
+        // the owned scene here would cancel its frozen source/frame request.
+        if view.scene.pending() {
+            return Ok(());
+        }
         if two_d {
             view.scene.tick_particle_clock_2d();
         } else {

@@ -12,6 +12,7 @@ pub(crate) struct ResidentTable {
 }
 pub(crate) struct TableUpdate {
     pub revision: u64,
+    pub missing: bool,
     pub rectangles: [Option<u32>; 2],
 }
 /// A binding retains allocation lifetime, not a snapshot of resident pixels or
@@ -101,6 +102,7 @@ impl PaintResidencyTablePreparation {
             buffer: binding.raster_entries.as_ref().unwrap().clone(),
             update: Mutex::new(TableUpdate {
                 revision: 0,
+                missing: binding.source_count > 0,
                 rectangles: [None; 2],
             }),
         });
@@ -200,6 +202,7 @@ impl PaintResidencyTable {
         self.residents.insert(source, origin);
         self.origins.insert(origin, source);
         self.uploaded_bytes += 16;
+        update.missing = self.residents.len() < self.binding.source_count;
         update.revision = revision;
         update.rectangles = [evicted, Some(source)];
         Ok(())

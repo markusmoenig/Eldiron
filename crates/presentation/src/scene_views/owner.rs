@@ -91,12 +91,27 @@ impl SceneOwner {
         ));
         Ok(())
     }
-    pub fn advance(&mut self, available_bytes: usize) -> Result<Option<SceneOutput>> {
+    pub fn prepare_sources(
+        &mut self,
+        budget: &mut scenevm::source_upload::SourceUploadBudget,
+    ) -> Result<bool> {
+        self.frame
+            .as_mut()
+            .ok_or_else(|| RenderError("private scene frame missing".into()))?
+            .prepare_sources(budget)
+    }
+    pub fn advance(
+        &mut self,
+        available_bytes: usize,
+        source_budget: &mut scenevm::source_upload::SourceUploadBudget,
+    ) -> Result<Option<SceneOutput>> {
         let frame = self
             .frame
             .as_mut()
             .ok_or_else(|| RenderError("private scene frame missing".into()))?;
-        if frame.advance_with_source_budget(available_bytes)? == RasterPaintAdvance::Pending {
+        if frame.advance_with_budgets(available_bytes, source_budget)?
+            == RasterPaintAdvance::Pending
+        {
             return Ok(None);
         }
         let (scene, target, pages, output) = self.frame.take().unwrap().into_parts();

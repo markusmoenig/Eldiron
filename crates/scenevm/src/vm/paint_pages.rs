@@ -89,7 +89,7 @@ impl VM {
                     })
                 })
             },
-            |binding| binding.has_missing,
+            |binding| binding.needs_feedback(),
         )
     }
     pub(super) fn prepare_raster_paint_feedback(
