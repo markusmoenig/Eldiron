@@ -15,8 +15,11 @@ pub enum SurfaceSelection {
 /// camera, preserving the existing CPU surface query's depth convention.
 /// Views lease their textures across resize/recovery; a later same-size query
 /// reuses the producer target, just like the ordinary scene-output contract.
+/// Retain this output through submission of its consumers. Raw view/texture
+/// clones alone cannot pin pooled storage after the scene retires.
 #[derive(Clone)]
 pub struct SurfaceOutput {
+    pub(crate) _target_leases: Option<[renderkit::TargetLease; 2]>,
     pub(crate) world_texture: wgpu::Texture,
     pub(crate) metadata_texture: wgpu::Texture,
     pub(crate) world: wgpu::TextureView,

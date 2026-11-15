@@ -50,7 +50,6 @@ use vek::{Mat3, Mat4, Vec2, Vec3, Vec4};
 /// Particle simulation remains intact when this limit is reached, allowing an
 /// effect to recover cleanly as other particles expire or emitters disappear.
 pub const MAX_DYNAMIC_PARTICLE_BILLBOARDS: usize = 8_192;
-use wgpu::util::DeviceExt;
 
 // --- Scene-wide acceleration structure (BVH over all 3D geometry) ---
 #[derive(Debug, Clone, Default)]
@@ -641,6 +640,7 @@ pub struct VMGpu {
     pub line3d_raster_count: u32,
     pub line3d_raster_capacity: u64,
     pub paint_surface_vbuf: Option<wgpu::Buffer>,
+    paint_surface_vbuf_lease: Option<renderkit::WorkingBufferLease>,
     pub paint_surface_vbuf_capacity: u64,
     pub paint_surface_vertex_count: u32,
     pub shadow_sampler_compare: Option<wgpu::Sampler>,
@@ -704,6 +704,7 @@ pub struct VMGpu {
     pub paint_surface_readback: Option<wgpu::Buffer>,
     pub paint_surface_readback_size: u64,
     pub paint_surface_tex_size: (u32, u32),
+    paint_surface_targets: Option<[renderkit::TargetLease; 3]>,
     // --- Scene-wide uniform grid buffers (3D)
     pub grid_hdr: Option<wgpu::Buffer>,
     pub grid_data: Option<wgpu::Buffer>,
@@ -6791,6 +6792,7 @@ impl VM {
             line3d_raster_count: 0,
             line3d_raster_capacity: 0,
             paint_surface_vbuf: None,
+            paint_surface_vbuf_lease: None,
             paint_surface_vbuf_capacity: 0,
             paint_surface_vertex_count: 0,
             shadow_sampler_compare: None,
@@ -6852,6 +6854,7 @@ impl VM {
             paint_surface_readback: None,
             paint_surface_readback_size: 0,
             paint_surface_tex_size: (0, 0),
+            paint_surface_targets: None,
             grid_hdr: None,
             grid_data: None,
             sdf_data_ssbo: None,
@@ -13143,64 +13146,6 @@ impl VM {
         g.raster3d_paint_surface_pipeline = Some(pipeline);
         g.u_paint_surface_bg = None;
         Ok(())
-    }
-
-    fn ensure_paint_surface_targets(&mut self, device: &wgpu::Device, fb_w: u32, fb_h: u32) {
-        let g = self.gpu.as_mut().unwrap();
-        if g.paint_surface_tex_size == (fb_w, fb_h)
-            && g.paint_surface_world_tex.is_some()
-            && g.paint_surface_meta_tex.is_some()
-            && g.paint_surface_depth_tex.is_some()
-        {
-            return;
-        }
-
-        let color_desc = |label: &'static str| wgpu::TextureDescriptor {
-            label: Some(label),
-            size: wgpu::Extent3d {
-                width: fb_w,
-                height: fb_h,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::COPY_SRC
-                | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        };
-        let world = device.create_texture(&color_desc("vm-paint-surface-world"));
-        let meta = device.create_texture(&color_desc("vm-paint-surface-meta"));
-        let depth = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("vm-paint-surface-depth"),
-            size: wgpu::Extent3d {
-                width: fb_w,
-                height: fb_h,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        });
-        g.paint_surface_world_view =
-            Some(world.create_view(&wgpu::TextureViewDescriptor::default()));
-        g.paint_surface_normal_view = None;
-        g.paint_surface_meta_view = Some(meta.create_view(&wgpu::TextureViewDescriptor::default()));
-        g.paint_surface_depth_view =
-            Some(depth.create_view(&wgpu::TextureViewDescriptor::default()));
-        g.paint_surface_world_tex = Some(world);
-        g.paint_surface_normal_tex = None;
-        g.paint_surface_meta_tex = Some(meta);
-        g.paint_surface_depth_tex = Some(depth);
-        // Capture storage is allocated only by an explicit CPU query.
-        g.paint_surface_readback = None;
-        g.paint_surface_readback_size = 0;
-        g.paint_surface_tex_size = (fb_w, fb_h);
     }
 
     fn paint_surface_vertices(

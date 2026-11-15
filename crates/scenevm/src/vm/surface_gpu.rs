@@ -2,6 +2,7 @@
 use super::*;
 use crate::surface_output::{SurfaceOutput, SurfaceSelection};
 use renderkit::{GpuContext, RenderError, Result};
+mod targets;
 
 impl VM {
     pub(super) fn encode_surface_gpu(
@@ -14,26 +15,43 @@ impl VM {
         dynamic_only: bool,
     ) -> Option<()> {
         self.ensure_paint_surface_pipeline(device).ok()?;
-        self.ensure_paint_surface_targets(device, fb_w, fb_h);
+        self.ensure_paint_surface_targets(device, fb_w, fb_h).ok()?;
 
         let vertices = self.paint_surface_vertices(include_dynamic, dynamic_only);
+        let count = u32::try_from(vertices.len()).ok()?;
+        let context = self.target_context.as_ref();
         let g = self.gpu.as_mut()?;
         if !vertices.is_empty() {
             let vertex_bytes = std::mem::size_of_val(vertices.as_slice()) as u64;
             if g.paint_surface_vbuf.is_none() || g.paint_surface_vbuf_capacity < vertex_bytes {
-                g.paint_surface_vbuf = Some(device.create_buffer_init(
-                    &wgpu::util::BufferInitDescriptor {
-                        label: Some("vm-paint-surface-verts"),
-                        contents: bytemuck::cast_slice(&vertices),
+                if let Some(context) = context {
+                    let lease = context
+                        .acquire_working_buffer(renderkit::WorkingBufferDescriptor {
+                            bytes: vertex_bytes,
+                            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                        })
+                        .ok()?;
+                    g.paint_surface_vbuf = Some(lease.buffer().clone());
+                    g.paint_surface_vbuf_lease = Some(lease);
+                } else {
+                    // Explicit reference owners have no injected device pool.
+                    g.paint_surface_vbuf = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("reference-paint-surface-verts"),
+                        size: vertex_bytes,
                         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                    },
-                ));
+                        mapped_at_creation: false,
+                    }));
+                    g.paint_surface_vbuf_lease = None;
+                }
                 g.paint_surface_vbuf_capacity = vertex_bytes;
-            } else if let Some(buffer) = g.paint_surface_vbuf.as_ref() {
-                queue.write_buffer(buffer, 0, bytemuck::cast_slice(&vertices));
             }
+            queue.write_buffer(
+                g.paint_surface_vbuf.as_ref()?,
+                0,
+                bytemuck::cast_slice(&vertices),
+            );
         }
-        g.paint_surface_vertex_count = vertices.len() as u32;
+        g.paint_surface_vertex_count = count;
 
         let c = self.camera3d;
         let u = PaintSurfaceUniforms {
@@ -152,6 +170,10 @@ impl VM {
                 + std::mem::size_of::<PaintSurfaceUniforms>() as u64,
         );
         Ok(SurfaceOutput {
+            _target_leases: gpu
+                .paint_surface_targets
+                .as_ref()
+                .map(|targets| [targets[0].clone(), targets[1].clone()]),
             world_texture: gpu.paint_surface_world_tex.as_ref().unwrap().clone(),
             metadata_texture: gpu.paint_surface_meta_tex.as_ref().unwrap().clone(),
             world: gpu.paint_surface_world_view.as_ref().unwrap().clone(),

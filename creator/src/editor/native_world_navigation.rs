@@ -256,6 +256,7 @@ impl Editor {
                     "context": format!("{:?}", frame.binding.context),
                     "map": frame.binding.map,
                     "ready": frame.ready,
+                    "waiting_cpu_sources": frame.waiting_cpu_sources,
                     "custom": frame.binding.custom.is_some(),
                     "baked": frame.baked,
                 })),

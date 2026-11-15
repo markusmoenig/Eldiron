@@ -15567,3 +15567,41 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   diff whitespace check passes. Continue directly with pooled surface-query
   allocations and output/capture lifetime leases, preserving its existing
   same-size producer-reuse contract and explicit-only CPU capture.
+
+
+## Pooled surface-query output and vertex ownership (2026-11-15)
+
+- Extracted query target allocation from vm.rs into vm/surface_gpu/targets.rs.
+  Canonical injected queries now retain device-pool leases for world, metadata
+  and depth attachments, plus a working-buffer lease for query vertices. Each
+  query still clears its entire attachments and uses the same geometry/shader.
+  Vertex count conversion now rejects overflow instead of truncating it.
+- SurfaceOutput retains world/metadata target leases, including through cloned
+  explicit depth-capture tickets. Resize or scene retirement cannot make pooled
+  storage available to unrelated producers until those outputs retire. The depth
+  attachment belongs only to the current producer. Existing same-size query reuse
+  and capture-before-later-query submission contracts are unchanged. Explicit
+  noninjected reference owners retain their separate dedicated allocation path.
+- Initial canonical four-application release compile PASS23.70s:
+  /private/tmp/eldiron-surface-query-owner-release.log. Focused release Metal
+  surface output/resize/retirement contract PASS0.08s (build6.34s):
+  /private/tmp/eldiron-surface-query-owner-release-contract.log. It verifies three
+  pooled targets/one vertex buffer, warm reuse without allocations, no readback
+  before explicit capture, intact depth after resize/scene drop and unrelated
+  writes, and exact owned-byte/lease release after cache/output retirement.
+- The focused build exposed a now-unused inherited DeviceExt import; removed it.
+  Existing inspection also exposes whether a presented world is waiting on CPU
+  sources, distinguishing that from an empty GPU upload queue. Final native/wasm
+  feature compilation remains; full workflow/resource/performance acceptance is
+  still deferred. Continue auditing large raw query/preview/source allocations
+  and remaining canonical ownership/adapters rather than marking Goal complete.
+
+- Final canonical native release compile PASS23.67s:
+  /private/tmp/eldiron-surface-query-owner-release-final.log. Actual wasm Creator
+  browser-host release compile passes (see
+  /private/tmp/eldiron-surface-query-owner-release-wasm.log). An initial command
+  used the nonexistent `browser` feature and failed before compilation; corrected
+  to `browser-host`. All build/test handles terminal, diff whitespace clean.
+  Next: explicit paint-coordinate capture staging remains scene-retained and
+  outside the shared capture queue. Give that storage request ownership and
+  reserve padded bytes before allocation/submission; keep explicit CPU fallback.
