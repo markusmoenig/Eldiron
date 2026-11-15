@@ -24,6 +24,9 @@ impl SceneViews {
         assets: &Assets,
         editor: bool,
     ) -> Result<()> {
+        if editor {
+            self.apply_game_surface_paint(id, None)?;
+        }
         let scene = self.scene_mut(id)?;
         configure_scene_assets(scene, assets, editor)
     }
@@ -54,7 +57,12 @@ impl SceneViews {
                 scene,
             )
             .map_err(RenderError)?;
-        self.apply_game_surface_paint(id, input.assets.surface_paint.get(&input.map.id))?;
+        let paint = if rusterix::client::screen_model::is_2d_camera(&widget.camera) {
+            None
+        } else {
+            input.assets.surface_paint.get(&input.map.id)
+        };
+        self.apply_game_surface_paint(id, paint)?;
         // Player/map synchronization can change the camera during preparation.
         self.select_game_mode(id, widget.camera.is_isometric_2d(), images)?;
         if widget.camera.is_isometric_2d() {

@@ -5,7 +5,7 @@ use crate::iso_paint::{
     ISO_PAINT_BAKED_CHUNK_SIZE, IsoPaintBakedChunk, IsoPaintLayer, IsoPaintOwner,
 };
 use indexmap::IndexMap;
-use rusterix::surface_paint::SurfacePaint;
+use rusterix::surface_paint::{SurfacePaint, SurfacePaintPage};
 use std::{
     collections::HashSet,
     hash::{Hash, Hasher},
@@ -45,33 +45,63 @@ pub fn sync(
         Builder::iso_paint_owner_geo_id(owner).hash(&mut hash);
     }
     let key = hash.finish();
+    let source = Builder::surface_paint_pages(layer, key)?;
+    // Hashes accelerate equality; they do not replace the exact source check.
     if assets
         .surface_paint
         .get(&map)
-        .is_some_and(|old| old.key == key)
+        .is_some_and(|old| old.as_ref() == &source)
     {
         return Ok(false);
     }
-    let Some((width, height, color_rgba, material_rgba, entries)) =
-        Builder::build_surface_paint_atlas(&layer.baked_chunks)
-    else {
-        return Ok(false);
-    };
-    let source = SurfacePaint {
-        key,
-        width,
-        height,
-        color_rgba,
-        material_rgba,
-        entries,
-        alpha_geo_ids: Builder::surface_paint_alpha_geo_ids(layer),
-    };
     assets.surface_paint.insert(map, Arc::new(source));
     Ok(true)
 }
 
 pub(crate) struct Builder;
 impl Builder {
+    fn surface_paint_pages(layer: &IsoPaintLayer, key: u64) -> Result<SurfacePaint, String> {
+        let count = layer.baked_chunks.len();
+        let columns = (count as f32).sqrt().ceil().max(1.0) as usize;
+        let rows = count.div_ceil(columns);
+        let dimension = |cells: usize| {
+            cells
+                .checked_mul(ISO_PAINT_BAKED_CHUNK_SIZE as usize)
+                .and_then(|v| u32::try_from(v).ok())
+                .ok_or("Surface paint dimensions exceed u32")
+        };
+        let mut pages = Vec::with_capacity(count);
+        let mut entries = Vec::with_capacity(count);
+        for (index, chunk) in layer.baked_chunks.values().enumerate() {
+            let origin = [dimension(index % columns)?, dimension(index / columns)?];
+            pages.push(SurfacePaintPage {
+                atlas_origin: origin,
+                color_rgba: chunk.color_rgba.clone(),
+                material_rgba: chunk.material_rgba.clone(),
+            });
+            entries.push(scenevm::Raster3DSurfacePaintEntry {
+                geo: chunk.paint_geo,
+                uv_origin: chunk.origin,
+                uv_size: [ISO_PAINT_BAKED_CHUNK_SIZE as u32; 2],
+                atlas_rect: [
+                    origin[0],
+                    origin[1],
+                    ISO_PAINT_BAKED_CHUNK_SIZE as u32,
+                    ISO_PAINT_BAKED_CHUNK_SIZE as u32,
+                ],
+            });
+        }
+        let source = SurfacePaint {
+            key,
+            width: dimension(columns)?,
+            height: dimension(rows)?,
+            pages,
+            entries: Self::surface_paint_entry_table(entries).into(),
+            alpha_geo_ids: Self::surface_paint_alpha_geo_ids(layer),
+        };
+        source.validate()?;
+        Ok(source)
+    }
     pub(crate) fn surface_paint_entry_hash(geo: [u32; 4], origin: [i32; 2]) -> u32 {
         let mut hash = 2_166_136_261_u32;
         for value in geo.into_iter().chain(origin.map(|value| value as u32)) {

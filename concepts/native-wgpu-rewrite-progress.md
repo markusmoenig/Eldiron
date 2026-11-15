@@ -55,7 +55,7 @@ behavior is ready to verify.
 ## Next work
 
 1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,18 retained standard control families, static collection/property-layout contributions and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
-2. Close live source residency, catalogue capture and remaining UV/player source policy. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
+2. Close live source residency, catalogue capture and remaining UV/player source policy. Player UV pages now share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection and player stamp publication still need ownership integration. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
 ## Blockers
@@ -14320,3 +14320,55 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Browser Creator release compilation PASS29.97s:
   /private/tmp/eldiron-collection-visible-scopes-release-web.log. Both compiler
   handles terminal; no new runtime/platform acceptance inferred.
+
+## Shared authored player paint pages and GPU bindings (2026-11-15)
+
+- Continued from 31f9a874 into the canonical player paint ownership gap. CPU
+  SurfacePaint publication now retains shared original 64x64 RGBA/material pages
+  and an Arc key table, instead of stitching two atlas-sized Vecs. Original
+  current baked planes remain immutable through SharedBytes copy-on-write;
+  project/paint serialization is unchanged. CPU publication still makes current
+  paint authoritative before snapshotting and does not replay old experiments.
+- Publication compares exact source pages/lookup/alpha metadata after its key,
+  avoiding hash-only source equality. Added CPU page/table dimension, overlap,
+  alignment and absent-page validation without a graphics dependency.
+- SceneViews now owns one immutable GPU atlas/binding per exact CPU source Arc
+  on its injected device. Original pages upload directly to their atlas origins;
+  no complete CPU atlas or per-view pixel copy is created. Independent views
+  of the same source share the binding through the existing PaintPageBinding
+  contract. Source descriptors survive device replacement in CPU Assets; a new
+  SceneViews/device reconstructs its own GPU resources. No shader/layout change.
+- Map/source changes, view removal, clear and editor-mode configuration retire
+  bindings no longer referenced by a view. Retained CPU Arc identity prevents
+  pointer reuse collisions; GPU creation/installation checks device/lost-domain
+  validity. Two-dimensional cameras do not allocate/retain unused 3D UV atlases.
+- Added current logical CPU-page/GPU-plane byte counts, uploaded page counts and
+  cross-view binding reuse counts for consolidated resource/transfer checks.
+  These do not include driver/inflight/retired allocations or establish a peak
+  memory bound. GPU source textures are still full logical atlases; bounded live
+  residency and cooperative upload scheduling remain implementation gaps.
+- Initial canonical four-application release compilation PASS26.38s; isolated
+  shared --no-default-features CPU release PASS9.89s; browser Creator release
+  PASS26.01s. Logs:/private/tmp/eldiron-player-shared-paint-pages-release.log,
+  /private/tmp/eldiron-player-shared-paint-pages-release-cpu.log and
+  /private/tmp/eldiron-player-shared-paint-pages-release-web.log. Final native
+  release compilation after mode/retirement refinements is pending.
+- No broad functional/GPU/performance suite run per user steering. Consolidated
+  acceptance must verify original/reference pixels and alpha routing, shared
+  multi-view upload counters, source edit/removal/map/mode transitions, device
+  recovery and actual CPU/GPU/retired memory. Existing painted-browser evidence
+  predates this source handoff and does not verify it.
+- Remaining explicit atlas builder callers: the reference helper plus Creator's
+  live upload_surface_paint_cached path still stitch changed UV/selection sources.
+  Move canonical Creator UV publication to an owned page source (preserving
+  selection composition) and complete live source residency/player stamps.
+  Collection metadata scans, remaining ownership/adapters and full platform/
+  resource/release performance gates also remain open. Full M0-M9 Goal active.
+- Final canonical four-application release compilation after retirement/mode
+  refinements PASS13.54s:/private/tmp/eldiron-player-shared-paint-pages-release-final.log.
+  All compiler handles terminal. git diff --check passes; no runtime/visual/
+  platform/performance gate inferred. Next precise integration is Creator's
+  publish_native_world_paint_sources/update phase in native_world.rs, replacing
+  the native3D upload_surface_paint_cached call with a retained page publication
+  and preserving its transient selection composition. GPU residency limits and
+  cooperative bulk source scheduling remain distinct open requirements.

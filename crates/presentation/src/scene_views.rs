@@ -10,6 +10,7 @@ mod editor;
 mod isometric;
 mod picking;
 mod surface_paint;
+pub use surface_paint::SurfacePaintStats;
 mod surface_output;
 pub use picking::{EditorPaintCapture, EditorPaintPick, EditorPick, EditorSurfacePick, ViewPick, ViewPickHit};
 
@@ -66,6 +67,7 @@ pub struct SceneViews {
     registry_owner: u64,
     atlas: SharedAtlas,
     views: FxHashMap<ViewId, SceneView>,
+    surface_paint: surface_paint::Sources,
 }
 impl SceneViews {
     pub fn new(images: &ImageRegistry, atlas: SharedAtlas) -> Self {
@@ -74,6 +76,7 @@ impl SceneViews {
             registry_owner: images.owner_id(),
             atlas,
             views: FxHashMap::default(),
+            surface_paint: Default::default(),
         }
     }
     pub fn context(&self) -> &Arc<GpuContext> {
@@ -307,6 +310,7 @@ impl SceneViews {
             if let Some(output) = view.output {
                 images.remove(output.image);
             }
+            self.retire_unused_surface_paint();
             Ok(true)
         } else {
             Ok(false)
@@ -320,6 +324,7 @@ impl SceneViews {
                 images.remove(output.image);
             }
         }
+        self.retire_unused_surface_paint();
         Ok(())
     }
     pub fn has_cpu_target_storage(&self, id: ViewId) -> Result<bool> {
