@@ -16144,3 +16144,46 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   publication must invalidate cached binding groups when textures change. Existing
   raw-device/reference helpers remain explicit. Also classify the remaining fixed
   pipeline uniforms/sentinels separately from variable source allocations.
+
+
+## Context-owned immutable atlas GPU sources (2026-11-15)
+
+- Added atlas/source_gpu.rs and Texture::prepare_gpu_storage. Canonical atlas
+  upload acquires complete color/material mip-chain target leases before replacing
+  either source plane. Each changed publication writes all sampled subresources;
+  existing mip generation/filtering/material format remain unchanged. Unchanged
+  sources allocate/upload nothing. Same-device mip pipelines survive publications.
+- Added AtlasGpuSnapshot: original textures plus both allocation leases. All six
+  VM render-path atlas binding sites now retain that snapshot on VMGpu, including
+  private moved scenes, and reset stale cached bindings when source storage
+  changes. Replaced atlas storage cannot return to the pool while a consumer pins
+  it. Source uploads now join actual transfer accounting and live/peak target bytes.
+- Dirty atlas data publishes into a new complete pair instead of overwriting a
+  retained source. Explicit raw-device reference update helpers detach from pooled
+  storage before writing, preserving canonical consumer snapshots. New allocation
+  failures propagate through VM rendering rather than publishing a partial pair.
+  Current project/paint schema and WGPU version remain unchanged.
+- Initial Creator/player native release check PASS26.63s:
+  /private/tmp/eldiron-atlas-source-owner-release-native-initial.log. Focused
+  release Metal atlas contract PASS0.08s (build6.02s):
+  /private/tmp/eldiron-atlas-source-owner-release-gpu-final.log. Covers exact mip
+  bytes, warm no-op, old/new color/material pixels, zero-cache eviction/unrelated
+  writes, atomic second-plane failure, raw reference updates, device replacement
+  and final live bytes0. Initial fixture errors (nonexistent active_bytes field,
+  then sRGB image descriptor for an Unorm atlas) were corrected; implementation
+  storage/format policy was not relaxed. Logs:
+  /private/tmp/eldiron-atlas-source-owner-release-gpu{,-fixed}.log.
+- Existing focused VM raster/compute geometry/table/attachment release contracts
+  PASS3/3 in0.15s (build6.66s):
+  /private/tmp/eldiron-atlas-source-owner-release-vm-outputs.log. Actual visible
+  output, SDF empty/growth policy, 1x/4x/1x attachment reuse, independent views,
+  old outputs, resize and final owned bytes remain correct. Final canonical
+  four-application native release check PASS26.06s:
+  /private/tmp/eldiron-atlas-source-owner-release-native.log. Actual Creator
+  browser-host wasm release check PASS23.13s:
+  /private/tmp/eldiron-atlas-source-owner-release-wasm.log. All handles terminal;
+  broad suites remain deferred. Continue resource ownership/classification.
+- This adds owned-source visibility, not a hard total-driver/queue-memory cap.
+  Existing source revision/cancellation scopes still control which immutable atlas
+  publication a private frame is permitted to request; leases preserve storage
+  lifetime and cannot replace those logical scope guards.

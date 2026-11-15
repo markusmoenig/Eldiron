@@ -5,6 +5,10 @@ use rustc_hash::FxHashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 mod planes;
+#[cfg(feature = "gpu")]
+mod source_gpu;
+#[cfg(feature = "gpu")]
+pub(crate) use source_gpu::AtlasGpuSnapshot;
 
 const ATLAS_FRAME_PADDING: u32 = 4;
 const SEMANTIC_MATERIAL_MARKER: u8 = 0xFE;
@@ -395,6 +399,13 @@ impl SharedAtlas {
             || guard.atlas.gpu.as_ref().is_none_or(|g|g.device!=*device)
             || guard.atlas_material.gpu.as_ref().is_none_or(|g|g.device!=*device)
         {
+            // A raw-device reference update cannot overwrite storage pinned by
+            // a canonical consumer's immutable pooled source snapshot.
+            if guard.atlas.gpu.as_ref().is_some_and(|gpu| gpu.target_lease.is_some())
+                || guard.atlas_material.gpu.as_ref().is_some_and(|gpu| gpu.target_lease.is_some()) {
+                guard.atlas.gpu = None;
+                guard.atlas_material.gpu = None;
+            }
             guard.atlas.upload_to_gpu_with(device, queue);
             guard.atlas_material.upload_to_gpu_with(device, queue);
             guard.atlas_dirty = false;
@@ -412,6 +423,11 @@ impl SharedAtlas {
     ) {
         self.ensure_built();
         let mut guard = self.inner.lock().unwrap();
+        if guard.atlas_dirty && (guard.atlas.gpu.as_ref().is_some_and(|gpu| gpu.target_lease.is_some())
+            || guard.atlas_material.gpu.as_ref().is_some_and(|gpu| gpu.target_lease.is_some())) {
+            guard.atlas.gpu = None;
+            guard.atlas_material.gpu = None;
+        }
         let changed = guard
             .atlas
             .gpu

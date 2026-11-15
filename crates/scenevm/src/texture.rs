@@ -124,6 +124,49 @@ impl Texture {
         }
     }
 
+    /// Allocate a source mip chain in the context storage domain. The producer
+    /// writes every sampled subresource before publishing it.
+    #[cfg(feature = "gpu")]
+    pub(crate) fn prepare_gpu_storage(
+        &self,
+        context: &renderkit::GpuContext,
+    ) -> renderkit::Result<TextureGPU> {
+        let mut descriptor = renderkit::TargetDescriptor::color(
+            self.width,
+            self.height,
+            wgpu::TextureFormat::Rgba8Unorm,
+        );
+        descriptor.mip_levels = mip_level_count(self.width, self.height);
+        descriptor.usage |= wgpu::TextureUsages::STORAGE_BINDING;
+        let lease = context.acquire_target(descriptor)?;
+        let texture = lease.texture().clone();
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("scenevm source mip0"),
+            mip_level_count: Some(1),
+            ..Default::default()
+        });
+        let mip_pipeline = self
+            .gpu
+            .as_ref()
+            .filter(|gpu| {
+                gpu.context_generation == Some(context.generation()) && gpu.device == context.device
+            })
+            .and_then(|gpu| gpu.mip_pipeline.clone());
+        Ok(TextureGPU {
+            device: context.device.clone(),
+            context_generation: Some(context.generation()),
+            target_lease: Some(lease),
+            mip_pipeline,
+            texture,
+            view,
+            readback: None,
+            padded_bytes_per_row: (self.width * 4).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+                * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT,
+            #[cfg(target_arch = "wasm32")]
+            map_ready: None,
+        })
+    }
+
     /// GPU-only output storage, preserving the legacy mip/storage contract.
     #[cfg(feature = "gpu")]
     pub(crate) fn pooled_render_target(context: &renderkit::GpuContext, width: u32, height: u32) -> renderkit::Result<Self> {

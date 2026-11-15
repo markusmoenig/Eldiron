@@ -577,6 +577,7 @@ pub struct VMGpu {
     pub atlas_bgl: wgpu::BindGroupLayout,
     pub globals_bg: Option<wgpu::BindGroup>,
     pub atlas_bg: Option<wgpu::BindGroup>,
+    atlas_sources: Option<crate::atlas::AtlasGpuSnapshot>,
     pub vbuf: Option<wgpu::Buffer>,
     pub ibuf: Option<wgpu::Buffer>,
     pub index_count: u32,
@@ -6757,6 +6758,7 @@ impl VM {
             atlas_bgl,
             globals_bg: None,
             atlas_bg: None,
+            atlas_sources: None,
             vbuf: None,
             ibuf: None,
             index_count: 0,
@@ -6918,13 +6920,35 @@ impl VM {
     }
 
     /// Upload the CPU atlas to GPU (creates GPU resources if needed).
-    pub fn upload_atlas_to_gpu_with(&self, device: &wgpu::Device, queue: &wgpu::Queue) {
+    pub fn upload_atlas_to_gpu_with(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> crate::SceneVMResult<()> {
         self.build_atlas();
-        if let Some(generation) = self.gpu_domain {
+        if let Some(context) = &self.target_context {
+            self.shared_atlas.upload_to_gpu_with_context(context)
+                .map_err(|error| crate::SceneVMError::InvalidOperation(format!("atlas source allocation: {error}")))?;
+        } else if let Some(generation) = self.gpu_domain {
             self.shared_atlas.upload_to_gpu_in_domain(device, queue, generation);
         } else {
             self.shared_atlas.upload_to_gpu_with(device, queue);
         }
+        Ok(())
+    }
+
+    fn retain_atlas_texture_views(&mut self) -> crate::SceneVMResult<(wgpu::TextureView, wgpu::TextureView)> {
+        let source = self.shared_atlas.retained_texture_views()
+            .ok_or_else(|| crate::SceneVMError::InvalidOperation("atlas GPU resources missing".into()))?;
+        let views = source.views();
+        let gpu = self.gpu.as_mut()
+            .ok_or_else(|| crate::SceneVMError::InvalidOperation("atlas consumer GPU missing".into()))?;
+        if gpu.atlas_sources.as_ref().is_none_or(|old| !old.same_storage(&source)) {
+            gpu.u2d_bg = None;
+            gpu.u3d_bg = None;
+            gpu.u_sdf_bg = None;
+            gpu.u_raster2d_bg = None;
+            gpu.u_raster3d_bg = None;
+            gpu.u_raster3d_shadow_bg = None;
+        }
+        gpu.atlas_sources = Some(source);
+        Ok(views)
     }
 
     /// Download the atlas from GPU into CPU memory; blocks on native, schedules on wasm.
@@ -10351,11 +10375,8 @@ impl VM {
         }
 
         self.upload_scene_data_ssbo(device, queue)?;
-        self.upload_atlas_to_gpu_with(device, queue);
-        let (atlas_view, atlas_mat_view) = self
-            .shared_atlas
-            .texture_views()
-            .expect("atlas GPU resources missing");
+        self.upload_atlas_to_gpu_with(device, queue)?;
+        let (atlas_view, atlas_mat_view) = self.retain_atlas_texture_views()?;
 
         let m = self.transform2d;
         let m_inv = mat3_inverse_f32(&m).unwrap_or(Mat3::<f32>::identity());
@@ -10643,11 +10664,8 @@ impl VM {
         if let Some(g) = self.gpu.as_ref() {
             queue.write_buffer(g.u2d_buf.as_ref().unwrap(), 0, bytemuck::bytes_of(&u));
         }
-        self.upload_atlas_to_gpu_with(device, queue);
-        let (atlas_tex_view, atlas_mat_tex_view) = self
-            .shared_atlas
-            .texture_views()
-            .expect("atlas GPU resources missing");
+        self.upload_atlas_to_gpu_with(device, queue)?;
+        let (atlas_tex_view, atlas_mat_tex_view) = self.retain_atlas_texture_views()?;
 
         let fb_dims = (fb_w, fb_h);
         let mut geometry_changed = false;
@@ -10948,11 +10966,8 @@ impl VM {
             queue.write_buffer(g.u3d_buf.as_ref().unwrap(), 0, bytemuck::bytes_of(&u));
         }
 
-        self.upload_atlas_to_gpu_with(device, queue);
-        let (_atlas_tex_view, _atlas_mat_tex_view) = self
-            .shared_atlas
-            .texture_views()
-            .expect("atlas GPU resources missing");
+        self.upload_atlas_to_gpu_with(device, queue)?;
+        let (_atlas_tex_view, _atlas_mat_tex_view) = self.retain_atlas_texture_views()?;
 
         self.upload_scene_data_ssbo(device, queue)?;
 
@@ -11284,10 +11299,7 @@ impl VM {
             ));
         }
 
-        let (atlas_view, atlas_mat_view) = self
-            .shared_atlas
-            .texture_views()
-            .expect("atlas GPU resources missing");
+        let (atlas_view, atlas_mat_view) = self.retain_atlas_texture_views()?;
 
         // Build the bind group
         {
@@ -11903,13 +11915,10 @@ impl VM {
         }
 
         // Keep static atlas/tile metadata in sync.
-        self.upload_atlas_to_gpu_with(device, queue);
+        self.upload_atlas_to_gpu_with(device, queue)?;
         self.upload_tile_metadata_to_gpu(device)?;
 
-        let (atlas_view, atlas_mat_view) = self
-            .shared_atlas
-            .texture_views()
-            .expect("atlas GPU resources missing");
+        let (atlas_view, atlas_mat_view) = self.retain_atlas_texture_views()?;
         let debug_visibility_start = instant::Instant::now();
         let (
             visible_indices,
@@ -12889,7 +12898,7 @@ impl VM {
         self.init_compute(device)?;
         let (write_view, prev_view, next_front) =
             self.prepare_layer_views(device, queue, fb_w, fb_h)?;
-        self.upload_atlas_to_gpu_with(device, queue);
+        self.upload_atlas_to_gpu_with(device, queue)?;
         let c = self.camera3d;
 
         let u = ComputeSdfUniforms {
@@ -12939,11 +12948,8 @@ impl VM {
 
         self.upload_sdf_data_to_gpu(device)?;
 
+        let (atlas_tex_view, _atlas_mat_tex_view) = self.retain_atlas_texture_views()?;
         let g = self.gpu.as_mut().unwrap();
-        let (atlas_tex_view, _atlas_mat_tex_view) = self
-            .shared_atlas
-            .texture_views()
-            .expect("atlas GPU resources missing");
         g.u_sdf_bg = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("vm-sdf-bg"),
             layout: g.u_sdf_bgl.as_ref().unwrap(),
