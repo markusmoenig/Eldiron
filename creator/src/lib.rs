@@ -12,6 +12,8 @@ pub mod configeditor;
 pub mod dockmanager;
 mod documents;
 mod host_services;
+#[cfg(all(target_arch = "wasm32", feature = "native-render"))]
+mod gpu_task;
 #[cfg(feature = "native-render")]
 mod scene_source;
 pub mod docks;

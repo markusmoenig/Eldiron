@@ -170,9 +170,12 @@ impl NativePreview {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("native geometry preview"),
                 });
-        let maps =
+        let Some(maps) =
             self.materials
-                .encode(&mut encoder, &specs, &job.palette, job.surface_seconds)?;
+                .encode(&mut encoder, &specs, &job.palette, job.surface_seconds)?
+        else {
+            return Ok(None);
+        };
         let bindings = self
             .mesh
             .material_bindings(&self.context.device, &maps.sampled);
@@ -193,6 +196,7 @@ impl NativePreview {
         let overlay = overlays(job, &prepared.projection, prepared.extent);
         overlay.validate().map_err(str::to_owned)?;
         self.context.queue.submit([encoder.finish()]);
+        drop(maps);
         self.materials.submitted();
         let frame = Frame {
             epoch: request.epoch,

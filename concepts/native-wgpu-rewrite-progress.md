@@ -56,9 +56,9 @@ behavior is ready to verify.
 
 ## Next work
 
-1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,18 retained standard control families, static collection/property-layout contributions and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
-2. Finish remaining source preparation and resource policy. Canonical large live UV residency, frozen Raster3D/Compute3D replay, shared alpha/page/selection/stamp catalogues, cooperative instance packets and pooled source allocation ownership are connected in the latest checkpoints. Private-frame auxiliary preparation now joins the host source budget; integration checks below cover its completed source path and pressure. First changed-recipe/source descriptor capture, prefab merge capture, synchronous placement production and aggregate CPU/GPU allocation/transfer policy still need audit/measurement. Complete remaining canonical ownership/adapters, then batch the consolidated workflow/resource/performance acceptance. Preserve shipped current paint behavior and serialization without adding obsolete experimental compatibility.
-3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
+1. Finish the remaining browser geometry material path: portable tile IDs, nonblocking source-addressed compilation, view-owned cancellation, and actual release browser rendering/recovery. These are implementation gaps found by the final ownership audit; current native GPU ownership/output checks pass. See the latest checkpoint at the end of this file.
+2. Close the canonical source/resource audit. Changed-recipe capture, prefab merge capture and placement production now use the cooperative retained owners documented below. Modal/list previews, minimap fallback, material scratch/planes and pending consumer snapshots have also been converted. Verify remaining exceptions are explicit asset/export/reference operations, then close implementation inventory; do not infer whole-app memory or latency guarantees from local cache budgets.
+3. After implementation gaps are closed, run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Browser/Apple supported-target and physical interaction checks remain required; unavailable checks stay open. Update every M0–M9 gate from actual evidence. Broad tests remain deferred until implementation is finished, as requested.
 
 ## Blockers
 
@@ -16626,3 +16626,147 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   cached pipelines/unchanged and animated sources, reject obsolete completions,
   drop receiver owners on retirement, return pending without publishing a
   partial atlas/frame. No broad acceptance until this real port gap is fixed.
+
+## Browser geometry material compilation and encoded work ownership, in progress (2026-11-15)
+
+- Added gpu_textures/browser.rs: source-addressed local async MaterialZ runtime/
+  instance compilation, one in-flight compile, retained context/palette/spec
+  identity, stale completion/error rejection and current-source failure retention.
+  Camera/time changes do not change the compile address. Empty source transitions
+  drain/retain only the already-started task, preventing repeated empty/nonempty
+  toggles from spawning unbounded abandoned work. Owner drop removes receivers.
+- GpuTextures::encode now returns Result<Option<Maps>>; None means compilation
+  is pending, before any new atlas or frame is published. NativePreview returns
+  pending and retains its existing host continuation/last-frame policy. Native
+  initialization/compilation keeps its previous synchronous behavior under an
+  explicit non-wasm cfg. Browser code no longer invokes pollster for procedural
+  mesh material setup. Existing authoritative CPU sprite/material sources remain
+  original-resolution input assets, not display framebuffers.
+- Maps now also pins Arc<RenderTicket> work: MaterialZ float maps, immutable inputs
+  and scratch cannot lose their allocation owners when GpuTextures replaces or
+  cancels its diagnostic queue before the consuming encoder is submitted. Cached
+  submitted atlas planes do not keep temporary work. NativePreview drops its
+  local work snapshot after queue.submit, then releases unique ticket work and
+  starts diagnostics; externally retained snapshots conservatively keep owners.
+- First patch script stopped before parent integration on an unmatched substring;
+  its subsequent native check only validated the baseline plus formatting, not
+  the new module. Corrected integration then hit a local name shadowing compile
+  error (procedural count vs helper); renamed helper procedural_source.
+  Logs retained: /private/tmp/eldiron-geometry-browser-materials-release-native-initial.log,
+  -native-integrated.log, -wasm-initial.log. These are not passing implementation
+  evidence. Current corrected actual browser release compile handle17106:
+  /private/tmp/eldiron-geometry-browser-materials-release-wasm-fixed.log.
+- Do not edit Rust until handle17106 terminal. Next: fix remaining build issues,
+  extend focused atlas snapshot contract to include actual procedural work after
+  producer retirement/cancellation, run native atlas/output checks, verify actual
+  browser procedural-textured geometry through available inspection harness,
+  then final native/reference/platform compilation and local checkpoint. Continue
+  final implementation audit; broad acceptance is still deferred for this gap.
+- Corrected browser release compile PASS12.50s:
+  /private/tmp/eldiron-geometry-browser-materials-release-wasm-owned.log. Compiler
+  now also tracks ready visual addresses to avoid reparsing unchanged assets.
+  Superseded instance receivers are dropped immediately; only a completion flag
+  remains until the one in-flight task ends. Late results release their data even
+  if a cached frame makes the host idle. Runtime is fixed/owner-bounded and reused.
+- Expanded focused native atlas release contracts PASS4/4,0.53s(build1m08s):
+  /private/tmp/eldiron-geometry-browser-materials-release-atlas-contracts.log.
+  New procedural16/32px snapshot case keeps actual float maps/scratch/immutable
+  inputs alive after queue replacement, producer drop and cache eviction, then
+  reverse-submits, matches all original reference map bytes and retires all3
+  pools to0live. Existing diagnostics/default-plane/cache contracts also pass.
+  Native output/animation/backpressure contracts PASS2/2,0.16s(build0.49s):
+  /private/tmp/eldiron-geometry-browser-materials-release-native-outputs.log.
+  Handles74405and17106/45065terminal; no active Rust test handles.
+- Actual Creator browser release artifact build PASS1m27s:
+  /private/tmp/eldiron-geometry-browser-materials-release-web-build.log.
+  Handle71140terminal. Building the existing repository packaging helper itself
+  in release (do not run the old /target/debug checkpoint helper from historic
+  scripts), current handle66613/log
+  /private/tmp/eldiron-geometry-browser-materials-release-package-tool.log.
+  Use /target/release/eldiron-package-web to package the freshly built wasm into
+  a new private/tmp directory. Then exercise custom procedural-textured geometry
+  in an isolated actual Chrome WebGPU profile via the existing local CDP harness.
+  Old scripts /private/tmp/eldiron-browser-creator-{package.py,bootstrap.mjs}
+  provide packaging/bootstrap/zero-readback/device recovery instrumentation;
+  adapt paths and run only release Rust artifacts. Do not edit Rust while66613
+  is live. Existing base test projects:3DStarter is plain JSON, Hideout2D ZIP;
+  fixtures belong in private/tmp, never overwrite the authored project files.
+
+- Release-only packaging complete: helper14.91s and actual packaging PASS.
+  Isolated Chrome WebGPU on port9268 loaded temporary GeometryAsync.eldiron,
+  selected AAA Async Material Probe through Meshes/New mesh/search, and created
+  an independent editable copy. This exposed a real browser shader validation
+  failure: implicit-derivative textureSample after nonuniform layer branch in
+  preview.wgsl. Native Naga/Metal accepted this shader; Chrome correctly rejects
+  it. Changed all three atlas samples to textureSampleLevel(...,0.0), preserving
+  the existing single-mip nearest sampling semantics without derivative need.
+  Failed browser screenshot /private/tmp/eldiron-geometry-async-created-probe.png
+  and probe captured both validation errors; this is NOT browser pass evidence.
+  Initial fixture chooser required Enter to commit search; no app stall.
+  Browser remains isolated; no authored projects modified. Rebuilding release
+  wasm and rerunning the exact actual-browser path before closing this gap.
+
+- Corrected shader release wasm build PASS37.25s, native four-app release compile
+  PASS11.87s, native geometry output/animation contracts PASS2/2,0.32s(build1m05),
+  Creator reference release compile PASS10.27s. Logs /private/tmp/eldiron-geometry-
+  browser-materials-release-{web-shader-fixed,native-final,shader-outputs,reference-final}.log.
+- Actual browser now accepts the geometry shader (no GPU validation errors), then
+  panics while reopening the embedded material: denrim_materials::format::new_tile_id
+  calls std::time::SystemTime::now, unsupported on wasm. Subsequent Winit RefCell
+  panic follows the original abort. Screenshot fixed-probe.png/log open-fixed.log
+  retain this failure, not pass evidence. Fixed MaterialZ's browser ID clock with
+  existing pinned web-time1.1.0 and a browser-only0 process marker. Native path and
+  opaque tile string shape stay unchanged; existing IDs are never rewritten.
+  Adding only this target-specific local dependency requires a deliberate single
+  offline lock refresh, then all further commands return to --locked.
+- Browser startup probes timed out; a brief native sample and CDP CPU profile
+  isolated the diagnostic renderer; a later context inspection reports normal
+  editing/presentations. No proof of app deadlock or shader/compiler failure from
+  those timeouts. Kept actual panic/validation failures separate from harness
+  startup responsiveness. Old isolated Chrome process was closed and replaced;
+  no user browser/profile touched. Broad suites remain deferred for these gaps.
+
+- Browser clock release check PASS24.09s; rebuilt release wasm PASS1m21s. Lock
+  refresh adds exactly MaterialZ -> web-time, with no package/version changes.
+- Ownership audit found async runtime/compile futures can outlive dropped preview
+  result receivers. Added shared browser-local gpu_task::Task: a view-owned result
+  mailbox also aborts/wakes its future on drop. Both procedural material previews/
+  graph thumbnails and geometry material compiler now use this owner. Obsolete
+  geometry tasks abort when their result mailbox is retired; its completion guard
+  still prevents starting another source until cancellation has been observed.
+  MaterialZ error scopes pop before awaiting completion, so cancellation cannot
+  leave a device error scope open. Device/registry/view retirement now releases
+  captured assets/runtime/scratch at the next executor turn without relying on
+  another host frame. No normal displayed color readback introduced.
+
+- Final browser task release compile PASS11.60s, actual release wasm build
+  PASS37.51s, native four-app release compile PASS28.26s. Logs
+  /private/tmp/eldiron-geometry-browser-materials-release-{web-task-check,
+  web-task-build,native-task-final}.log. All Rust handles terminal.
+- Actual Chrome152/WebGPU/Metal release run PASS: opened custom project recipe
+  AAA Async Material Probe through real Mesh recipes UI, created independent
+  copy and displayed filtered-basketweave procedural PBR texture. Portable tile
+  IDs and asynchronous compiler now execute without panic/GPU validation error.
+  Orbit input changed projection; destroyed actual GPUDevice and recovered
+  generation1->2, document1f4f0dd7-67cf-4488-ad1b-6aa562de1795/dirty state retained,
+  presentations1789->1882. Root CPU bytes, displayed color readback, explicit
+  asset bake bytes/requests, Canvas2D contexts and color-copy probe all0; error
+  arrays empty. Screenshot visually inspected at125% density.
+- Focused actual in-flight ownership PASS: intercepted first real MaterialZ
+  popErrorScope completion, held its promise, closed mesh preview, verified map
+  became ready, released late completion and observed MaterialZ compute-pipeline
+  count remain1 (aborted initializer cannot run subsequent pipeline stages).
+  Reopened and rendered textured geometry correctly; same generation/document,
+  no errors/readback/Canvas2D. This validates task cancellation against a real
+  pending GPU future, beyond discarded result mailboxes.
+- Durable evidence: concepts/native-wgpu-evidence/browser-geometry-material-
+  {recovered-125.png,cancelled-reopened-125.png,ownership.json}; raw harness/logs
+  /private/tmp/eldiron-geometry-async-{recovery.mjs,cancellation.mjs,owned-recovery.log,
+  owned-cancellation.log}. Corrected final bootstrap enables Runtime/Log before
+  navigation; it reaches editing normally. One replay initially used old modal
+  coordinates after tab viewport height changed and did not create a mesh;
+  dirty=false/screenshot exposed this and it was corrected, not counted as pass.
+- Browser procedural geometry gap and pending compilation owner gap now closed
+  by implementation plus focused release evidence. Continue canonical final
+  source/owner inventory; only after no known implementation gaps remain begin
+  consolidated acceptance. No M0–M9 completion or measured speedup claim.

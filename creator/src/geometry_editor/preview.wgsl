@@ -26,9 +26,9 @@ struct Output {
     // Engine particle colors are emissive palette colors, unaffected by inspection lighting.
     if v.layer < -0.5 { return vec4f(v.color,1.0); }
     let uv=v.uv;let layer=i32(v.layer+0.5);
-    let tex=textureSample(colors,nearest,uv,layer);
-    let data=textureSample(materials,nearest,uv,layer);
-    let glow=textureSample(emissions,nearest,uv,layer).rgb;
+    let tex=textureSampleLevel(colors,nearest,uv,layer,0.0);
+    let data=textureSampleLevel(materials,nearest,uv,layer,0.0);
+    let glow=textureSampleLevel(emissions,nearest,uv,layer,0.0).rgb;
     if layer>0 && tex.a<0.05{discard;}
     let base=select(v.color,tex.rgb,layer>0);
     let n=normalize(v.normal)*select(-1.0,1.0,front);

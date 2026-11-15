@@ -107,13 +107,23 @@ pub struct Tile {
 pub fn new_tile_id() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT: AtomicU64 = AtomicU64::new(0);
-    let time = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    #[cfg(not(target_arch = "wasm32"))]
+    use std::time::{SystemTime, UNIX_EPOCH};
+    #[cfg(target_arch = "wasm32")]
+    use web_time::{SystemTime, UNIX_EPOCH};
+    #[cfg(not(target_arch = "wasm32"))]
+    let process = std::process::id();
+    // Browsers have no process identity. Time plus the monotonic local counter
+    // supplies the same opaque document identity without unsupported OS calls.
+    #[cfg(target_arch = "wasm32")]
+    let process = 0u32;
+    let time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
     format!(
         "tile-{time:x}-{:x}-{:x}",
-        std::process::id(),
+        process,
         NEXT.fetch_add(1, Ordering::Relaxed)
     )
 }

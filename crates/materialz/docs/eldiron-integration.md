@@ -8,8 +8,9 @@ tile parameters, single-material WGPU rendering, and live value updates. Enable
 denrim-materials = { path = "../MaterialZ", features = ["wgpu"] }
 ```
 
-The runtime uses WGPU 29, compatible with Eldiron's renderer. The default crate
-features remain dependency-free; the integration feature adds serialization, and
+The runtime uses WGPU 29, compatible with Eldiron's renderer. Native default crate
+features remain dependency-free; browser builds use web-time for newly authored
+opaque tile identities; the integration feature adds serialization, and
 the WGPU feature adds WGPU and Naga. Shapes, neighbour rules, compositions, dock UI,
 and palette storage remain Eldiron responsibilities. Mask composition is a
 subsequent integration slice; the runtime currently renders one selected material.

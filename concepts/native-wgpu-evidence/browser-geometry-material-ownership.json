@@ -1,0 +1,789 @@
+{
+  "date": "2026-11-15",
+  "artifact": "release wasm32-unknown-unknown eldiron-creator-web",
+  "dpr": 1.25,
+  "browser": "isolated Chrome152 WebGPU/Metal Apple M1 Max",
+  "geometry": {
+    "version": 1,
+    "id": "browser-async-geometry",
+    "label": "AAA Async Material Probe",
+    "rows": [
+      {
+        "id": "mesh",
+        "label": "Mesh",
+        "tiles": [
+          {
+            "id": "box",
+            "op": {
+              "type": "box",
+              "size": [
+                2,
+                2,
+                2
+              ]
+            }
+          },
+          {
+            "id": "surface",
+            "op": {
+              "type": "texture",
+              "preserve_uv": false,
+              "parts": [],
+              "source": "browser-async-pbr-material",
+              "bundle": "{\"version\": 1, \"source_library\": \"materialz-0.96.0-35662c6ff104a97b\", \"root\": {\"id\": \"browser-async-pbr-material\", \"recipe\": \"# Two bricks in each square, rotated by the parent cell's parity.\\n# Cell Data is evaluated in the instance scope passed through row connections.\\nproject 1\\nmaterial \\\"filtered-basketweave\\\" called \\\"Filtered Basketweave\\\"\\n  mode bsdf\\n  tiling raw\\n  default roughness to 0.78\\n  default specular to 0.3\\n  row \\\"parity\\\" called \\\"Group Parity\\\"\\n    use \\\"Cell Data\\\"\\n      set \\\"scope\\\" to 1\\n      set \\\"output\\\" to 7\\n  row \\\"tone\\\" called \\\"Brick Tone\\\"\\n    use \\\"Cell Data\\\"\\n      set \\\"scope\\\" to 1\\n  row \\\"shape\\\" called \\\"Brick\\\"\\n    use \\\"Rounded Rectangle\\\"\\n      set \\\"halfSize\\\" to 0.48 0.48\\n      set \\\"radius\\\" to 0.035\\n  row \\\"profile\\\" called \\\"Bevel\\\"\\n    use \\\"Distance Profile\\\"\\n      input from row \\\"shape\\\" distance\\n      set \\\"width\\\" to 0.045\\n      set \\\"profile\\\" to 2\\n    use \\\"Multiply\\\"\\n      set \\\"localValue\\\" from row \\\"tone\\\" xxx mapped 0.78 to 1\\n  row \\\"grain\\\" called \\\"Clay Grain\\\"\\n    use \\\"Organic Noise\\\"\\n      set \\\"scaleValue\\\" to 8\\n    use \\\"Levels\\\"\\n      set \\\"outputLow\\\" to 0.93\\n  row \\\"brick\\\" called \\\"Surface\\\"\\n    use \\\"Multiply\\\"\\n      input from row \\\"profile\\\" xyz\\n      set \\\"localValue\\\" from row \\\"grain\\\" xxx\\n  row \\\"pair\\\" called \\\"Brick Pair\\\"\\n    use \\\"Grid\\\"\\n      input from row \\\"brick\\\" xyz\\n      set \\\"cells\\\" to 1 2\\n      set \\\"gap\\\" to 0.015 0.025\\n    use \\\"Transform\\\"\\n      set \\\"rot\\\" from row \\\"parity\\\" x mapped 0 to 90\\n  row \\\"pattern\\\" called \\\"Layout\\\"\\n    use \\\"Grid\\\"\\n      input from row \\\"pair\\\" xyz\\n      set \\\"cells\\\" to 6 6\\n      set \\\"gap\\\" to 0.025 0.025\\n  row \\\"filtered\\\" called \\\"Image Filter\\\"\\n    use \\\"Directional Blur\\\"\\n      input from row \\\"pattern\\\" xyz\\n      set \\\"samples\\\" to 9\\n      set \\\"radius\\\" to 2\\n  row \\\"surface\\\" called \\\"Clay\\\"\\n    use \\\"Color Ramp\\\"\\n      input from row \\\"filtered\\\" xxx\\n      set \\\"position0\\\" to 0\\n      set \\\"color0\\\" to 0.1 0.088 0.065 1\\n      set \\\"position1\\\" to 0.18\\n      set \\\"color1\\\" to 0.18 0.043 0.018 1\\n      set \\\"position2\\\" to 0.7\\n      set \\\"color2\\\" to 0.44 0.12 0.035 1\\n      set \\\"color3\\\" to 0.68 0.24 0.075 1\\n  output base color from row \\\"surface\\\" xyz\\n  output height from row \\\"pattern\\\" x mapped 0 to 0.025\\n\"}, \"selected_material\": \"filtered-basketweave\", \"dependencies\": [], \"instances\": []}",
+              "size": 64,
+              "axes": [
+                0,
+                1
+              ],
+              "origin": [
+                -1,
+                -1
+              ],
+              "span": [
+                2,
+                2
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "output": "mesh",
+    "grip": null
+  },
+  "recovery": {
+    "before": {
+      "data": {
+        "eldironState": "editing",
+        "eldironCodecWorkers": {
+          "configured": true,
+          "workers": 0,
+          "active_jobs": 0,
+          "requests": 0,
+          "completed": 0,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "eldironReadbackBytes": "0",
+        "eldironAssetBakeReadbackBytes": "0",
+        "eldironAssetBakeReadbackRequests": "0",
+        "eldironGpuGeneration": "1",
+        "eldironRootCpuBytes": "0",
+        "eldironDocument": "1f4f0dd7-67cf-4488-ad1b-6aa562de1795",
+        "eldironDirty": "true",
+        "eldironPresentations": "1789"
+      },
+      "probe": {
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "gpuErrors": [],
+        "errors": []
+      }
+    },
+    "after": {
+      "data": {
+        "eldironState": "editing",
+        "eldironCodecWorkers": {
+          "configured": true,
+          "workers": 0,
+          "active_jobs": 0,
+          "requests": 0,
+          "completed": 0,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "eldironReadbackBytes": "0",
+        "eldironAssetBakeReadbackBytes": "0",
+        "eldironAssetBakeReadbackRequests": "0",
+        "eldironGpuGeneration": "2",
+        "eldironRootCpuBytes": "0",
+        "eldironDocument": "1f4f0dd7-67cf-4488-ad1b-6aa562de1795",
+        "eldironDirty": "true",
+        "eldironPresentations": "1882"
+      },
+      "probe": {
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "gpuErrors": [],
+        "errors": []
+      }
+    }
+  },
+  "cancellation": {
+    "held": {
+      "data": {
+        "eldironState": "editing",
+        "eldironCodecWorkers": {
+          "configured": true,
+          "workers": 0,
+          "active_jobs": 0,
+          "requests": 0,
+          "completed": 0,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "eldironReadbackBytes": "0",
+        "eldironAssetBakeReadbackBytes": "0",
+        "eldironAssetBakeReadbackRequests": "0",
+        "eldironGpuGeneration": "2",
+        "eldironRootCpuBytes": "0",
+        "eldironDocument": "1f4f0dd7-67cf-4488-ad1b-6aa562de1795",
+        "eldironDirty": "true",
+        "eldironPresentations": "2866",
+        "eldironInspectView": "",
+        "eldironCacheUsage": {
+          "immutable": {
+            "allocations": 775,
+            "byte_limit": 134217728,
+            "cpu_bytes": 282896,
+            "entries": 775,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 282896,
+            "hits": 1169249,
+            "live_allocations": 775,
+            "live_bytes": 282896,
+            "peak_live_bytes": 282896,
+            "uploaded_bytes": 282896
+          },
+          "targets": {
+            "allocations": 47,
+            "byte_limit": 536870912,
+            "bytes": 307525556,
+            "entries": 47,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 20950,
+            "live_allocations": 47,
+            "live_bytes": 307525556,
+            "peak_live_bytes": 307525556
+          },
+          "unpooled_images": {
+            "allocations": 92,
+            "live_bytes": 8692168,
+            "live_images": 90,
+            "peak_live_bytes": 8692168
+          },
+          "working": {
+            "allocations": 61,
+            "byte_limit": 134217728,
+            "bytes": 1910772,
+            "entries": 61,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 1,
+            "live_allocations": 61,
+            "live_bytes": 1910772,
+            "peak_live_bytes": 1910772
+          }
+        },
+        "eldironViewSource": {
+          "bake": {
+            "adapter": false,
+            "job": null,
+            "rendering": false,
+            "status": "Missing"
+          },
+          "bake_pages": null,
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 0,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "play_sources": null,
+          "position": [
+            5.014869689941406,
+            0.0,
+            0.30367547273635864
+          ],
+          "source": {
+            "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+            "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+            "presented": null
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true,
+          "world_sources": {
+            "context_immutable_buffers": {
+              "cached_cpu_bytes": 282896,
+              "cached_gpu_bytes": 282896,
+              "live_allocations": 775,
+              "live_bytes": 282896,
+              "peak_live_bytes": 282896
+            },
+            "context_unpooled_images": {
+              "allocations": 92,
+              "live_bytes": 8692168,
+              "live_images": 90,
+              "peak_live_bytes": 8692168
+            },
+            "paint_producers": {
+              "failed_sources": 0,
+              "frame_uploaded_bytes": 0,
+              "gpu_copied_bytes": 0,
+              "gpu_plane_bytes": 0,
+              "gpu_table_bytes": 0,
+              "logical_cpu_page_bytes": 0,
+              "pending_sources": 0,
+              "pending_views": 0,
+              "reused_bindings": 0,
+              "reused_pages": 0,
+              "sources": 0,
+              "uploaded_pages": 0
+            },
+            "pending_frames": false,
+            "scene_preparation_this_frame": {
+              "calls": 2,
+              "cpu_ns": 100001,
+              "gpu_copied_bytes": 0,
+              "packed_cpu_bytes": 96,
+              "uploaded_bytes": 96
+            }
+          }
+        }
+      },
+      "probe": {
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "gpuErrors": [],
+        "errors": []
+      },
+      "gate": {
+        "held": true,
+        "compiles": 1
+      }
+    },
+    "retired": {
+      "data": {
+        "eldironState": "editing",
+        "eldironCodecWorkers": {
+          "configured": true,
+          "workers": 0,
+          "active_jobs": 0,
+          "requests": 0,
+          "completed": 0,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "eldironReadbackBytes": "0",
+        "eldironAssetBakeReadbackBytes": "0",
+        "eldironAssetBakeReadbackRequests": "0",
+        "eldironGpuGeneration": "2",
+        "eldironRootCpuBytes": "0",
+        "eldironDocument": "1f4f0dd7-67cf-4488-ad1b-6aa562de1795",
+        "eldironDirty": "true",
+        "eldironPresentations": "2868",
+        "eldironInspectView": "",
+        "eldironCacheUsage": {
+          "immutable": {
+            "allocations": 775,
+            "byte_limit": 134217728,
+            "cpu_bytes": 282896,
+            "entries": 775,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 282896,
+            "hits": 1171935,
+            "live_allocations": 775,
+            "live_bytes": 282896,
+            "peak_live_bytes": 282896,
+            "uploaded_bytes": 282896
+          },
+          "targets": {
+            "allocations": 47,
+            "byte_limit": 536870912,
+            "bytes": 307525556,
+            "entries": 47,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 20984,
+            "live_allocations": 47,
+            "live_bytes": 307525556,
+            "peak_live_bytes": 307525556
+          },
+          "unpooled_images": {
+            "allocations": 92,
+            "live_bytes": 8692156,
+            "live_images": 88,
+            "peak_live_bytes": 8692168
+          },
+          "working": {
+            "allocations": 68,
+            "byte_limit": 134217728,
+            "bytes": 1591544,
+            "entries": 64,
+            "entry_limit": 64,
+            "evictions": 4,
+            "hits": 14,
+            "live_allocations": 64,
+            "live_bytes": 1591544,
+            "peak_live_bytes": 1986072
+          }
+        },
+        "eldironViewSource": {
+          "bake": {
+            "adapter": false,
+            "job": null,
+            "rendering": false,
+            "status": "Missing"
+          },
+          "bake_pages": null,
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 0,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "play_sources": null,
+          "position": [
+            5.014869689941406,
+            0.0,
+            0.30367547273635864
+          ],
+          "source": {
+            "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+            "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+            "presented": {
+              "baked": false,
+              "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+              "custom": false,
+              "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+              "ready": true,
+              "waiting_cpu_sources": false
+            }
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true,
+          "world_sources": {
+            "context_immutable_buffers": {
+              "cached_cpu_bytes": 282896,
+              "cached_gpu_bytes": 282896,
+              "live_allocations": 775,
+              "live_bytes": 282896,
+              "peak_live_bytes": 282896
+            },
+            "context_unpooled_images": {
+              "allocations": 92,
+              "live_bytes": 8692156,
+              "live_images": 88,
+              "peak_live_bytes": 8692168
+            },
+            "paint_producers": {
+              "failed_sources": 0,
+              "frame_uploaded_bytes": 0,
+              "gpu_copied_bytes": 0,
+              "gpu_plane_bytes": 0,
+              "gpu_table_bytes": 0,
+              "logical_cpu_page_bytes": 0,
+              "pending_sources": 0,
+              "pending_views": 0,
+              "reused_bindings": 0,
+              "reused_pages": 0,
+              "sources": 0,
+              "uploaded_pages": 0
+            },
+            "pending_frames": false,
+            "scene_preparation_this_frame": {
+              "calls": 2,
+              "cpu_ns": 0,
+              "gpu_copied_bytes": 0,
+              "packed_cpu_bytes": 64,
+              "uploaded_bytes": 0
+            }
+          }
+        }
+      },
+      "probe": {
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "gpuErrors": [],
+        "errors": []
+      },
+      "gate": {
+        "held": true,
+        "compiles": 1
+      }
+    },
+    "late": {
+      "data": {
+        "eldironState": "editing",
+        "eldironCodecWorkers": {
+          "configured": true,
+          "workers": 0,
+          "active_jobs": 0,
+          "requests": 0,
+          "completed": 0,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "eldironReadbackBytes": "0",
+        "eldironAssetBakeReadbackBytes": "0",
+        "eldironAssetBakeReadbackRequests": "0",
+        "eldironGpuGeneration": "2",
+        "eldironRootCpuBytes": "0",
+        "eldironDocument": "1f4f0dd7-67cf-4488-ad1b-6aa562de1795",
+        "eldironDirty": "true",
+        "eldironPresentations": "2868",
+        "eldironInspectView": "",
+        "eldironCacheUsage": {
+          "immutable": {
+            "allocations": 775,
+            "byte_limit": 134217728,
+            "cpu_bytes": 282896,
+            "entries": 775,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 282896,
+            "hits": 1171935,
+            "live_allocations": 775,
+            "live_bytes": 282896,
+            "peak_live_bytes": 282896,
+            "uploaded_bytes": 282896
+          },
+          "targets": {
+            "allocations": 47,
+            "byte_limit": 536870912,
+            "bytes": 307525556,
+            "entries": 47,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 20984,
+            "live_allocations": 47,
+            "live_bytes": 307525556,
+            "peak_live_bytes": 307525556
+          },
+          "unpooled_images": {
+            "allocations": 92,
+            "live_bytes": 8692156,
+            "live_images": 88,
+            "peak_live_bytes": 8692168
+          },
+          "working": {
+            "allocations": 68,
+            "byte_limit": 134217728,
+            "bytes": 1591544,
+            "entries": 64,
+            "entry_limit": 64,
+            "evictions": 4,
+            "hits": 14,
+            "live_allocations": 64,
+            "live_bytes": 1591544,
+            "peak_live_bytes": 1986072
+          }
+        },
+        "eldironViewSource": {
+          "bake": {
+            "adapter": false,
+            "job": null,
+            "rendering": false,
+            "status": "Missing"
+          },
+          "bake_pages": null,
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 0,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "play_sources": null,
+          "position": [
+            5.014869689941406,
+            0.0,
+            0.30367547273635864
+          ],
+          "source": {
+            "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+            "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+            "presented": {
+              "baked": false,
+              "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+              "custom": false,
+              "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+              "ready": true,
+              "waiting_cpu_sources": false
+            }
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true,
+          "world_sources": {
+            "context_immutable_buffers": {
+              "cached_cpu_bytes": 282896,
+              "cached_gpu_bytes": 282896,
+              "live_allocations": 775,
+              "live_bytes": 282896,
+              "peak_live_bytes": 282896
+            },
+            "context_unpooled_images": {
+              "allocations": 92,
+              "live_bytes": 8692156,
+              "live_images": 88,
+              "peak_live_bytes": 8692168
+            },
+            "paint_producers": {
+              "failed_sources": 0,
+              "frame_uploaded_bytes": 0,
+              "gpu_copied_bytes": 0,
+              "gpu_plane_bytes": 0,
+              "gpu_table_bytes": 0,
+              "logical_cpu_page_bytes": 0,
+              "pending_sources": 0,
+              "pending_views": 0,
+              "reused_bindings": 0,
+              "reused_pages": 0,
+              "sources": 0,
+              "uploaded_pages": 0
+            },
+            "pending_frames": false,
+            "scene_preparation_this_frame": {
+              "calls": 2,
+              "cpu_ns": 0,
+              "gpu_copied_bytes": 0,
+              "packed_cpu_bytes": 64,
+              "uploaded_bytes": 0
+            }
+          }
+        }
+      },
+      "probe": {
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "gpuErrors": [],
+        "errors": []
+      },
+      "gate": {
+        "held": true,
+        "compiles": 1
+      }
+    },
+    "reopened": {
+      "data": {
+        "eldironState": "editing",
+        "eldironCodecWorkers": {
+          "configured": true,
+          "workers": 0,
+          "active_jobs": 0,
+          "requests": 0,
+          "completed": 0,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "eldironReadbackBytes": "0",
+        "eldironAssetBakeReadbackBytes": "0",
+        "eldironAssetBakeReadbackRequests": "0",
+        "eldironGpuGeneration": "2",
+        "eldironRootCpuBytes": "0",
+        "eldironDocument": "1f4f0dd7-67cf-4488-ad1b-6aa562de1795",
+        "eldironDirty": "true",
+        "eldironPresentations": "2930",
+        "eldironInspectView": "",
+        "eldironCacheUsage": {
+          "immutable": {
+            "allocations": 775,
+            "byte_limit": 134217728,
+            "cpu_bytes": 282896,
+            "entries": 775,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 282896,
+            "hits": 1241424,
+            "live_allocations": 775,
+            "live_bytes": 282896,
+            "peak_live_bytes": 282896,
+            "uploaded_bytes": 282896
+          },
+          "targets": {
+            "allocations": 47,
+            "byte_limit": 536870912,
+            "bytes": 307525556,
+            "entries": 47,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 22230,
+            "live_allocations": 47,
+            "live_bytes": 307525556,
+            "peak_live_bytes": 307525556
+          },
+          "unpooled_images": {
+            "allocations": 94,
+            "live_bytes": 8692168,
+            "live_images": 90,
+            "peak_live_bytes": 8692168
+          },
+          "working": {
+            "allocations": 76,
+            "byte_limit": 134217728,
+            "bytes": 1910836,
+            "entries": 64,
+            "entry_limit": 64,
+            "evictions": 12,
+            "hits": 19,
+            "live_allocations": 64,
+            "live_bytes": 1910836,
+            "peak_live_bytes": 1986072
+          }
+        },
+        "eldironViewSource": {
+          "bake": {
+            "adapter": false,
+            "job": null,
+            "rendering": false,
+            "status": "Missing"
+          },
+          "bake_pages": null,
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 0,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "play_sources": null,
+          "position": [
+            5.014869689941406,
+            0.0,
+            0.30367547273635864
+          ],
+          "source": {
+            "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+            "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+            "presented": null
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true,
+          "world_sources": {
+            "context_immutable_buffers": {
+              "cached_cpu_bytes": 282896,
+              "cached_gpu_bytes": 282896,
+              "live_allocations": 775,
+              "live_bytes": 282896,
+              "peak_live_bytes": 282896
+            },
+            "context_unpooled_images": {
+              "allocations": 94,
+              "live_bytes": 8692168,
+              "live_images": 90,
+              "peak_live_bytes": 8692168
+            },
+            "paint_producers": {
+              "failed_sources": 0,
+              "frame_uploaded_bytes": 0,
+              "gpu_copied_bytes": 0,
+              "gpu_plane_bytes": 0,
+              "gpu_table_bytes": 0,
+              "logical_cpu_page_bytes": 0,
+              "pending_sources": 0,
+              "pending_views": 0,
+              "reused_bindings": 0,
+              "reused_pages": 0,
+              "sources": 0,
+              "uploaded_pages": 0
+            },
+            "pending_frames": false,
+            "scene_preparation_this_frame": {
+              "calls": 2,
+              "cpu_ns": 0,
+              "gpu_copied_bytes": 0,
+              "packed_cpu_bytes": 64,
+              "uploaded_bytes": 0
+            }
+          }
+        }
+      },
+      "probe": {
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "gpuErrors": [],
+        "errors": []
+      },
+      "gate": {
+        "held": true,
+        "compiles": 1
+      }
+    }
+  },
+  "method": "Held first real MaterialZ popErrorScope completion; closed preview before release; MaterialZ createComputePipeline count stayed1 after late release; reopened preview successfully. Browser-local mailbox owner aborts underlying future. Screenshots visually inspected. Source project and existing saved tile IDs are unchanged.",
+  "limits": "Focused geometry lifecycle evidence. Not a whole-app performance baseline, driver-memory measurement, or full platform acceptance."
+}

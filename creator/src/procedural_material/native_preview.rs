@@ -120,11 +120,11 @@ pub(super) struct Preview {
     context: Arc<GpuContext>,
     runtime: Option<Arc<MaterialZ>>,
     #[cfg(target_arch = "wasm32")]
-    initializing: Option<std::sync::mpsc::Receiver<Result<Arc<MaterialZ>, String>>>,
+    initializing: Option<crate::gpu_task::Task<Result<Arc<MaterialZ>, String>>>,
     #[cfg(target_arch = "wasm32")]
     compiling: Option<(
         Arc<EditableMaterialAsset>,
-        std::sync::mpsc::Receiver<Result<MaterialInstance, String>>,
+        crate::gpu_task::Task<Result<MaterialInstance, String>>,
     )>,
     compiled: Option<MaterialInstance>,
     compiled_asset: Option<Arc<EditableMaterialAsset>>,
@@ -146,16 +146,13 @@ impl Preview {
         let runtime = None;
         #[cfg(target_arch = "wasm32")]
         let initializing = {
-            let (done, receive) = std::sync::mpsc::channel();
             let context = context.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                let result = MaterialZ::new_with_context(context.clone())
+            Some(crate::gpu_task::Task::spawn(async move {
+                MaterialZ::new_with_context(context)
                     .await
                     .map(Arc::new)
-                    .map_err(|e| e.to_string());
-                let _ = done.send(result);
-            });
-            Some(receive)
+                    .map_err(|e| e.to_string())
+            }))
         };
         let mut entries = vec![wgpu::BindGroupLayoutEntry {
             binding: 0,
@@ -327,16 +324,15 @@ impl Preview {
         }
         #[cfg(target_arch = "wasm32")]
         {
-            let (done, receive) = std::sync::mpsc::channel();
             let source = asset.clone();
-            self.compiling = Some((source.clone(), receive));
-            wasm_bindgen_futures::spawn_local(async move {
-                let result = runtime
+            let pending = source.clone();
+            let task = crate::gpu_task::Task::spawn(async move {
+                runtime
                     .compile(&source, InstanceRecord::new("eldiron-preview"))
                     .await
-                    .map_err(|e| e.to_string());
-                let _ = done.send(result);
+                    .map_err(|e| e.to_string())
             });
+            self.compiling = Some((pending, task));
             Ok(false)
         }
     }
