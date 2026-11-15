@@ -233,9 +233,13 @@ fn resources(gpu: &GpuContext) -> Json {
     let ranges = gpu.immutable_range_cache_usage();
     let images = gpu.image_allocation_usage();
     let targets = gpu.target_pool_usage();
+    let retained = gpu.retained_cache_usage();
     json!({"transfers":{"uploaded_bytes":transfers.uploaded_bytes,
         "readback_bytes":transfers.readback_bytes,"capture_requests":transfers.capture_requests,
         "asset_bake_readback_bytes":transfers.asset_bake_readback_bytes},
+        "retained_cache":{"reserved_bytes":retained.bytes,"peak_reserved_bytes":retained.peak_bytes,
+            "reservations":retained.reservations,"byte_limit":retained.byte_limit,
+            "requests":retained.requests,"rejected_requests":retained.rejected_requests},
         "immutable_buffers":{"live_bytes":buffers.live_bytes,"peak_live_bytes":buffers.peak_live_bytes,
             "cached_gpu_bytes":buffers.gpu_bytes,"cached_cpu_bytes":buffers.cpu_bytes,
             "allocations":buffers.allocations,"uploaded_bytes":buffers.uploaded_bytes},

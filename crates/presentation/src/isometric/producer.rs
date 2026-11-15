@@ -25,7 +25,9 @@ use scenevm::{
 };
 use std::{collections::HashMap, sync::Arc};
 mod frame_sources;
+mod ground_cache;
 pub(crate) use frame_sources::IsometricFrameSources;
+pub use ground_cache::GroundCacheUsage;
 
 pub struct IsometricSceneInput<'a> {
     pub map: &'a Map,
@@ -81,6 +83,7 @@ pub struct IsometricSceneRenderer {
     sprites: IsometricSources,
     materials: IsometricMaterialSources,
     paints: IsometricPaintSources,
+    ground_cache: ground_cache::GroundCache,
 }
 impl IsometricSceneRenderer {
     /// Asset overviews preserve authored source colors, without live lighting,
@@ -102,6 +105,7 @@ impl IsometricSceneRenderer {
             sprites: IsometricSources::new(context.clone(), 64 * 1024 * 1024, 2048),
             materials: IsometricMaterialSources::new(context.clone(), 32 * 1024 * 1024, 1024),
             paints: IsometricPaintSources::new(context.clone(), 32 * 1024 * 1024, 256),
+            ground_cache: Default::default(),
             context,
             scene: SceneCache::default(),
             elevation: None,
@@ -120,6 +124,10 @@ impl IsometricSceneRenderer {
     pub(crate) fn invalidate_geometry(&mut self) {
         self.scene = SceneCache::default();
         self.elevation = None;
+        self.ground_cache.clear();
+    }
+    pub fn ground_cache_usage(&self) -> GroundCacheUsage {
+        self.ground_cache.usage()
     }
     pub fn source_builds(&self) -> [u64; 3] {
         [
@@ -297,25 +305,28 @@ impl IsometricSceneRenderer {
         let lighting = &frame.lighting;
         let geometry = &frame.geometry;
         let canvas = self.canvas.as_ref().unwrap();
-        self.blitter.render(
-            canvas,
-            if terrain {
-                [17, 34, 29, 0]
-            } else {
-                [17, 34, 29, 255]
-            },
-            &[],
-        )?;
-        for command in ground {
-            Self::execute(
-                &mut self.blitter,
-                &mut self.surfaces,
+        if !self.ground_cache.restore(&self.context, canvas, frame)? {
+            self.blitter.render(
                 canvas,
-                p,
-                command,
-                SpriteContacts::default(),
-                false,
+                if terrain {
+                    [17, 34, 29, 0]
+                } else {
+                    [17, 34, 29, 255]
+                },
+                &[],
             )?;
+            for command in ground {
+                Self::execute(
+                    &mut self.blitter,
+                    &mut self.surfaces,
+                    canvas,
+                    p,
+                    command,
+                    SpriteContacts::default(),
+                    false,
+                )?;
+            }
+            self.ground_cache.store(&self.context, canvas, frame)?;
         }
         for (i, command) in upright {
             let contact = SpriteContacts {

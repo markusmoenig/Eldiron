@@ -18672,3 +18672,84 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Shared per-device retained-cache admission must include metadata and GPU bytes
   and hold reservations through queued work. Cache misses/pressure use existing
   full rendering. This implementation is not yet written/accepted.
+
+- Terrain residency implementation now uncommitted: producer/ground_cache.rs
+  retains only the terrain-only deferred base, before upright sprites and live
+  lighting. Exact f32-bit geometry/projection and immutable source identities;
+  weak source guards prevent pointer ABA without keeping GPU asset bytes alive.
+  Cache copies albedo/surface/owner/terrain GPU storage; no shader math, order or
+  CPU destination pixels changed. Camera edits currently miss conservatively;
+  no scrolling reuse or speedup is claimed.
+- Renderkit now owns shared64MiB optional retained-cache admission per cloned
+  device domain, including conservative CPU metadata plus GPU storage. Individual
+  ground GPU payload max32MiB; source/weak metadata reserved conservatively1024B
+  per triangle. Reservations pin once across owners and queued completion callbacks;
+  pressure/zero limit uses original full rendering. Counters separate reservation
+  bytes from existing physical working-buffer allocation totals. Diagnostics and
+  release benchmark report reservations. No formats/serialized data changed.
+- Current sole optimized GPU contract /private/tmp/eldiron-release-ground-residency-contract.log:
+  exact frozen cached vs independently rerasterized RGBA, four deferred planes
+  after poisoning active storage, live lighting, tiny geometry/subpixel camera
+  invalidation, weak source strong-count preservation, two-view shared admission,
+  retirement and zero-limit fallback. This is implementation pending verification,
+  not a completed cache/performance gate. HEADb30a20f9 is last full checkpoint.
+
+- Initial terrain contract92769terminalPASS1/1,0.11s. Strengthened full library
+  isometric36862terminalPASS5/5,0.37s, including source-publication replacement
+  and original material publication dying while cached deferred pixels remain.
+- Added settled-camera admission: constantly moving projections use original
+  rendering without snapshot uploads/copies/key rebuilding. Two matching render
+  requests admit a base; camera changes release it. Metadata bounds reserve1024B
+  per triangle (max64MiB); aggregate shared64MiB includes actual24B/pixel GPU
+  payload, so oversized/pressured candidates bypass. No hash-only cache keys.
+- Current final focused20102terminalPASS: isometric lib5/5 (0.36s), shared
+  admission CPU1/1, original11/11 isometric occlusion/paint/receipts/surfaces.
+  /private/tmp/eldiron-release-ground-residency-{isometric-lib,cache-admission,integrations}-final.log.
+  Source/math/order/serialized-format assertions preserved. No performance claim.
+- Current serialized optimized assembled Creator build/test follows at
+  /private/tmp/eldiron-release-ground-residency-creator-assembled.log. After terminal,
+  fresh120sample native runs against saved matched CPU reference, inspect actual
+  admitted reservations and tail timings, then browser compilation/real density
+  source/recovery and launcher refresh if this residency improvement is retained.
+
+- Current assembled Creator96563terminalPASS1/1 in24.12s, including original
+  root/source/recovery/authoring integration and five-DPI source comparisons
+  maxRGBA delta1. /private/tmp/eldiron-release-ground-residency-creator-assembled.log.
+  Current serialized matched120-per-mode four-run comparison now follows, same
+  native/reference/reference/native order and strict project/viewport/camera as
+  previous baseline; /private/tmp/eldiron-release-ground-residency-matched.log.
+  Verify actual retained_cache admission and tail times before claiming benefit
+  or checkpointing new production cache. All cache changes still uncommitted.
+
+- First complete cache120comparison84506terminalPASS4 but peak reservations0:
+  no performance benefit is claimed. Existing trace confirms58480INPUTterrain
+  triangles versus35593active, so1024B/input plus17.9MBGPU exceeded64MiB
+  admission even though real metadata was smaller. Preserved all failed-to-admit
+  observations /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-compact-matched-2pyuixj_.
+- Refined metadata bound640B/input +4096fixed, checked at compile time against
+  signature/vector growth, weak-control-block and simultaneous source-dedup table
+  storage, on each target. Global64MiB ceiling and32MiB GPU payload unchanged.
+  Admission request/refusal counters now expose this failure instead of inferring
+  it from timing. No GPU math/order/format changes.
+- Sized43146terminalPASS: admission1, isometric exactness5, assembled Creator1
+  (24.06s, all original five-DPI source assertions unchanged). Logs:
+  /private/tmp/eldiron-release-ground-residency-{admission-sized,isometric-sized,creator-sized}.log.
+  Current two fresh native120sample runs follow against unchanged fresh CPU1/2
+  reference observations from the preceding matched sequence. Check actual
+  reservation and P95/P99 before any speedup claim.
+
+- Sized native80523terminalPASS2fresh120sample-per-mode runs. Actual reservation
+  55,359,080B admitted once, no refusals, same hard64MiB limit, fully retired
+  after camera movement. Normal color readback delta0. Native idleP99~31.0/31.1
+  and hoverP99~34.8/34.1ms versus pre-cache~47-49ms; medians~9ms unchanged.
+  Panning36.1/36.6ms and zoom tails~55-57ms still open, no general speedup claim.
+  Actual immutable source count58480 makes the checked640B metadata bound fit.
+  Durable release-ground-residency-contracts.json and two full120sampleJSONs.
+  New cache browser/mobile checks still pending; previous host proof predates it.
+- Next small source-preparation optimization is supported by existing CPU sample:
+  prepare_surface/cached material lookups repeat for every triangle despite
+  identical cell/material-frame/version. Reuse the prepared source/template only
+  WITHIN one preparation, keyed by exact integer cell; preserve each triangle's
+  original vertex bits/order and all paint/secondary fields. No persistent source
+  key or shader change. Verify existing terrain/paint integrations and measure
+  native again before retaining. Then new-cache browser/launcher acceptance.

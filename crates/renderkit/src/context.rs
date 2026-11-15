@@ -55,6 +55,7 @@ pub struct GpuContext {
     buffer_cache: Arc<crate::buffer_cache::BufferCache>,
     range_cache: Arc<crate::range_cache::RangeCache>,
     working_buffers: Arc<crate::working_buffers::WorkingBuffers>,
+    retained_caches: Arc<crate::retained_cache::RetainedCaches>,
     image_allocations: Arc<crate::allocation_usage::AllocationUsage>,
     #[cfg(target_arch = "wasm32")]
     validation_error: Arc<std::sync::Mutex<Option<String>>>,
@@ -132,6 +133,7 @@ impl GpuContext {
             buffer_cache: Arc::new(crate::buffer_cache::BufferCache::default()),
             range_cache: Arc::new(crate::range_cache::RangeCache::default()),
             working_buffers: Arc::new(crate::working_buffers::WorkingBuffers::default()),
+            retained_caches: Arc::new(crate::retained_cache::RetainedCaches::default()),
             image_allocations: Arc::new(crate::allocation_usage::AllocationUsage::default()),
             #[cfg(target_arch = "wasm32")]
             validation_error,
@@ -200,6 +202,18 @@ impl GpuContext {
     }
     pub fn working_buffer_pool_usage(&self) -> crate::WorkingBufferPoolUsage {
         self.working_buffers.usage()
+    }
+    /// Optional derived caches share admission across independent views. GPU
+    /// allocations remain counted in their pools; these reservation bytes must
+    /// not be added again to physical allocation totals.
+    pub fn retained_cache_usage(&self) -> crate::RetainedCacheUsage {
+        self.retained_caches.usage()
+    }
+    pub fn set_retained_cache_limit(&self, bytes: u64) {
+        self.retained_caches.set_limit(bytes);
+    }
+    pub fn try_reserve_retained_cache(&self, bytes: u64) -> Option<crate::RetainedCacheLease> {
+        (!self.is_lost()).then(|| self.retained_caches.reserve(bytes)).flatten()
     }
     pub fn set_working_buffer_cache_limits(&self, bytes: u64, buffers: usize) {
         self.working_buffers.set_limits(bytes, buffers);

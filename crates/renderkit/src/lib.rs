@@ -8,6 +8,8 @@ pub use range_storage::GpuBufferRange;
 mod allocation_usage;
 mod working_buffers;
 pub use working_buffers::{WorkingBufferDescriptor, WorkingBufferLease, WorkingBufferPoolUsage};
+mod retained_cache;
+pub use retained_cache::{RetainedCacheLease, RetainedCacheUsage};
 mod capture_queue;
 mod source_pool;
 mod target_pool;

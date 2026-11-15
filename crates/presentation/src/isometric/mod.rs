@@ -16,7 +16,7 @@ mod paint_sources;
 pub use paint_sources::{GpuTerrainPaintSource, IsometricPaintSources};
 
 mod producer;
-pub use producer::{IsometricPreparedFrame, IsometricSceneInput, IsometricSceneRenderer};
+pub use producer::{GroundCacheUsage, IsometricPreparedFrame, IsometricSceneInput, IsometricSceneRenderer};
 pub(crate) use producer::IsometricFrameSources;
 
 mod picking;

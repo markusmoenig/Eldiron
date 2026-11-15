@@ -1,0 +1,109 @@
+{
+  "scope": "Native release terrain residency contracts and two120sample-per-mode measurements, not full platform acceptance",
+  "base_source_head": "b30a20f9",
+  "contracts": {
+    "isometric_lib": 5,
+    "shared_admission_cpu": 1,
+    "original_isometric_integrations": 11,
+    "assembled_creator": 1,
+    "assembled_creator_seconds": 24.06
+  },
+  "runs": [
+    {
+      "repeat": 1,
+      "total_ms": {
+        "hover": {
+          "mean": 14.639276783333333,
+          "p50": 9.419542,
+          "p95": 32.358208,
+          "p99": 34.130667
+        },
+        "idle": {
+          "mean": 10.167284033333333,
+          "p50": 8.965542,
+          "p95": 10.834084,
+          "p99": 31.123209
+        },
+        "pan": {
+          "mean": 36.206317750000004,
+          "p50": 36.129124999999995,
+          "p95": 38.561917,
+          "p99": 41.707625
+        },
+        "zoom": {
+          "mean": 26.631116024999997,
+          "p50": 25.796458,
+          "p95": 56.500333,
+          "p99": 57.432790999999995
+        }
+      },
+      "reserved_before": {
+        "byte_limit": 67108864,
+        "peak_reserved_bytes": 55359080,
+        "rejected_requests": 0,
+        "requests": 1,
+        "reservations": 1,
+        "reserved_bytes": 55359080
+      },
+      "reserved_after": {
+        "byte_limit": 67108864,
+        "peak_reserved_bytes": 55359080,
+        "rejected_requests": 0,
+        "requests": 1,
+        "reservations": 0,
+        "reserved_bytes": 0
+      },
+      "peak_process_rss_bytes": 3324641280,
+      "normal_color_readback_delta": 0
+    },
+    {
+      "repeat": 2,
+      "total_ms": {
+        "hover": {
+          "mean": 14.738652758333329,
+          "p50": 9.421333,
+          "p95": 31.957834,
+          "p99": 34.75625
+        },
+        "idle": {
+          "mean": 9.975533358333333,
+          "p50": 8.92925,
+          "p95": 10.930083,
+          "p99": 30.995667
+        },
+        "pan": {
+          "mean": 36.64168955833334,
+          "p50": 36.633959,
+          "p95": 39.615207999999996,
+          "p99": 41.965708
+        },
+        "zoom": {
+          "mean": 26.433143758333337,
+          "p50": 24.835542,
+          "p95": 55.324,
+          "p99": 56.368333
+        }
+      },
+      "reserved_before": {
+        "byte_limit": 67108864,
+        "peak_reserved_bytes": 55359080,
+        "rejected_requests": 0,
+        "requests": 1,
+        "reservations": 1,
+        "reserved_bytes": 55359080
+      },
+      "reserved_after": {
+        "byte_limit": 67108864,
+        "peak_reserved_bytes": 55359080,
+        "rejected_requests": 0,
+        "requests": 1,
+        "reservations": 0,
+        "reserved_bytes": 0
+      },
+      "peak_process_rss_bytes": 3328327680,
+      "normal_color_readback_delta": 0
+    }
+  ],
+  "baseline": "release-compact-matched-120-summary.json; current CPU refs also recorded in /private/tmp/eldiron-release-ground-residency-matched.log",
+  "limits": "No browser/UIKit acceptance for the new cache yet. Physical latency and driver-wide memory excluded. All four deferred planes and frozen RGBA match independent rerasterization in targeted Metal tests; live lighting, tiny edits, replacement/expired sources and pressure are tested. Terrain base only; moving cameras deliberately bypass snapshots. Pan and zoom tails remain open."
+}

@@ -6,8 +6,14 @@ pub(super) fn snapshot(scenes: &SceneViews) -> serde_json::Value {
     let paint = scenes.surface_paint_stats();
     let images = scenes.image_allocation_usage();
     let immutable = scenes.context().immutable_buffer_cache_usage();
+    let retained = scenes.context().retained_cache_usage();
     serde_json::json!({
         "pending_frames": scenes.has_pending_surface_paint_frames(),
+        "context_retained_cache": {
+            "reserved_bytes":retained.bytes, "peak_reserved_bytes":retained.peak_bytes,
+            "reservations":retained.reservations, "byte_limit":retained.byte_limit,
+            "requests":retained.requests,"rejected_requests":retained.rejected_requests,
+        },
         "context_immutable_buffers": {
             "live_bytes": immutable.live_bytes, "live_allocations": immutable.live_allocations,
             "peak_live_bytes": immutable.peak_live_bytes,
