@@ -17244,3 +17244,52 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   evidence/logs persist. Current UIKit checks do not replace full mobile Play,
   real touch/IME or physical-device acceptance. Next hidden-bake scopes, final
   native package checks and matched release profiling.
+
+- Remaining native hidden-bake scope contracts PASS6/6, runtime9.86s, build0.55s;
+  /private/tmp/eldiron-acceptance-final-hidden-bake-scopes.log;11741terminal.
+  Frozen scope/capture retirement, large linked paint, linked Prefab paint, many
+  cooperative stamps, oversized original replacement and oversized stamp
+  admission/cancellation pass. Durable release-hidden-bake-acceptance.json.
+- Adding matched release-only offscreen Creator profiling, two fresh processes
+  for native/reference using identical project, dimensions/density, camera and
+  semantic hover/pan/zoom input. Retained CPU root upload uses the same GPU output
+  and compositor rather than per-frame texture allocations. Measure CPU phases,
+  GPU-completion wall time, p50/p95/p99, startup-to-complete-view and tracked
+  resources/transfers. This is not physical display latency, GPU timestamps or
+  total driver memory. No numerical performance acceptance is claimed yet.
+
+- Paired offscreen profiler release compilationPASS (1m00s initial,1m02s final
+  continuation/capture partition update). Logs /private/tmp/eldiron-creator-
+  release-profile-build{,-final}.log;33446/65386terminal. Profiler records actual
+  continuation frames rather than rejecting valid bounded preparation; normal
+  readback assertions subtract explicit asset bakes. Fresh native30-frame/mode
+  3DStarter1600×1000@1pilot now49114; /private/tmp/eldiron-release-profile-
+  pilot-native-2d.{log,json}. CPU reference follows in a separate process.
+  Pilot results are not numerical acceptance budgets or a final speedup claim.
+
+- First native profiler pilot49114terminal stopped before timing: fixture guard
+  assumed polygon vertices, while 3DStarter's real authored scene consists of2
+  mesh geometry objects and0polygon vertices. Corrected guard to admit either
+  authored geometry representation; no app algorithm changed and no performance
+  result accepted. /private/tmp/eldiron-release-profile-pilot-native-2d.log.
+  Added optional explicit comparison capture before timed counters, initial
+  camera/layout metadata and glyph-rasterization counts to verify matched inputs.
+
+- Matched release pilot native/reference PASS in separate fresh processes,30
+  samples/mode at1600×1000@1. Native53113terminal11.22s, reference83728terminal
+  11.54s. Actual fixture is3DStarter editorIso/mapThreeDIso (temporary log prefix
+  2d was an initial naming assumption, not its authored mode). Both screenshots
+  visually inspected; project, physical/logical size, viewport, camera state,
+  mode and GPU adapter metadata match exactly.
+- Native p50 idle7.55/hover9.46/pan7.91/zoom6.79ms versus reference
+  12.75/13.05/13.12/13.05ms, including offscreen GPU completion. Native warm
+  normal capture/readback delta0; image/glyph uploads11432B and immutable draw
+  inputs38400B versus reference root/image uploads768001440B across120frames.
+  CPU raw legacy scene transfers are not fully represented by renderkit counters;
+  do not infer their absence. Static source images are GPU resident in native.
+- First-complete-view native9.95s/reference9.48s; performance/first-load work
+  remains. ProcessRSS510/554MB; footprint722/717MB. These are process metrics,
+  not total GPU/driver memory. Durable release-perf-pilot-3d-iso-{native,reference,
+  summary}.json plus both PNGs. Thirty samples are a pilot, not final p99 budgets
+  or app-wide speed claims. Next larger top-down/isometric projects and density
+  profiles, then measured fixes/repeat acceptance.

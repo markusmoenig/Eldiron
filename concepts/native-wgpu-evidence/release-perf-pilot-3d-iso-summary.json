@@ -1,0 +1,81 @@
+{
+  "date": "2026-11-15",
+  "status": "pilot only; not performance acceptance",
+  "profile": "release",
+  "frames_per_mode": 30,
+  "matched": {
+    "project": true,
+    "logical_size": true,
+    "physical_size": true,
+    "density": true,
+    "viewport": true,
+    "view_mode": true,
+    "map_camera": true,
+    "initial_camera": true,
+    "gpu_adapter": true
+  },
+  "mode": "actual 3DStarter ThreeDIso / editor Iso (temporary log prefix2d was an initial naming assumption)",
+  "timings_ms": {
+    "idle": {
+      "native": {
+        "mean": 7.466283233333334,
+        "p50": 7.551457999999999,
+        "p95": 10.820583,
+        "p99": 10.8965
+      },
+      "reference": {
+        "mean": 12.652293033333333,
+        "p50": 12.745291,
+        "p95": 13.525334,
+        "p99": 13.767292000000001
+      }
+    },
+    "hover": {
+      "native": {
+        "mean": 8.625962666666664,
+        "p50": 9.464291999999999,
+        "p95": 9.807166,
+        "p99": 10.992666999999999
+      },
+      "reference": {
+        "mean": 13.0010347,
+        "p50": 13.049375,
+        "p95": 13.493165999999999,
+        "p99": 13.543875
+      }
+    },
+    "pan": {
+      "native": {
+        "mean": 8.666415233333332,
+        "p50": 7.907917,
+        "p95": 10.819624999999998,
+        "p99": 11.309958
+      },
+      "reference": {
+        "mean": 13.07168616666667,
+        "p50": 13.121292,
+        "p95": 13.886583,
+        "p99": 13.927583
+      }
+    },
+    "zoom": {
+      "native": {
+        "mean": 7.344187533333335,
+        "p50": 6.785208,
+        "p95": 11.174,
+        "p99": 11.281084
+      },
+      "reference": {
+        "mean": 13.032863866666666,
+        "p50": 13.051833,
+        "p95": 13.911708,
+        "p99": 13.977666
+      }
+    }
+  },
+  "first_complete_view_ms": {
+    "native": 9950.675165999999,
+    "reference": 9484.777417
+  },
+  "scope": "Fresh-process offscreen input through GPU completion. CPU reference painting uses a persistent RGBA upload and the common compositor, not the old Pixels window. Physical latency/GPU timestamps/driver-wide memory are unmeasured; wider projects, density and repeats remain."
+}

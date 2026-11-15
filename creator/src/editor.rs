@@ -3,6 +3,9 @@ use crate::prelude::*;
 #[cfg(test)]
 #[path = "editor/benchmark_stress.rs"]
 mod benchmark_stress;
+#[cfg(all(test, feature = "native-render", not(target_arch = "wasm32")))]
+#[path = "editor/release_benchmark.rs"]
+mod release_benchmark;
 #[cfg(not(target_arch = "wasm32"))]
 mod scepter_authoring;
 #[cfg(not(target_arch = "wasm32"))]

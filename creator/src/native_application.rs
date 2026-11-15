@@ -28,6 +28,16 @@ struct IdleProbe {
     started: Option<(Instant, u64)>,
 }
 impl NativeCreatorApplication {
+    #[cfg(test)]
+    pub(crate) fn for_release_benchmark(args: Vec<String>) -> Self {
+        let mut application = Self::new(args, false);
+        application.start_services = false;
+        application
+    }
+    #[cfg(test)]
+    pub(crate) fn release_benchmark_editor(&mut self) -> &mut Editor {
+        &mut self.editor
+    }
     pub fn new(args: Vec<String>, smoke: bool) -> Self {
         let startup = std::env::var_os("ELDIRON_PROFILE_STARTUP")
             .is_some()

@@ -1,0 +1,10 @@
+{
+  "date": "2026-11-15",
+  "profile": "release",
+  "passed": 6,
+  "failed": 0,
+  "runtime_seconds": 9.86,
+  "build_seconds": 0.55,
+  "log": "/private/tmp/eldiron-acceptance-final-hidden-bake-scopes.log",
+  "scope": "All hidden-world bake_job scope tests: frozen scope/capture retirement, large linked paint, linked Prefab paint, cooperative many stamps, oversized original replacement and oversized stamp admission/cancellation."
+}
