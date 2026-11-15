@@ -106,7 +106,8 @@ impl SceneViews {
         if let Some(output) = view.output.take() {
             images.remove(output.image);
         }
-        view.target = target;
+        view.scene.cancel();
+        view.scene.target = target;
         view.last_image = None;
         view.isometric_frame = None;
         if !isometric {

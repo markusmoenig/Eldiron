@@ -14998,3 +14998,60 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Browser Creator release compilation PASS26.96s:
   /private/tmp/eldiron-private-raster-owner-release-web.log. Compiler handles
   terminal before CPU live-source index edits. Concurrent concept remains excluded.
+
+
+## Current live paint source to residency index (2026-11-15, integration continuing)
+
+- Added CPU-only SurfacePaintIndexBuilder under shared surface_paint/pages. It
+  retains one exact current SurfacePaint publication, cooperatively validates it,
+  indexes original atlas origins, then copies metadata one key/empty slot/alpha
+  owner per unit. Lookup slot/geo/UV identity remains complete and stable; original
+  atlas rectangles become unloaded markers. Original color/material SharedBytes
+  are retained directly, including aliases, without stitching or resampling a CPU
+  atlas. Generated-stamp storage remains independent and empty for this source.
+- Finish requires complete validation, page mapping, every lookup slot and every
+  alpha owner. Errors are sticky; no partial index escapes. The metadata limit is
+  independent of GPU texture dimensions, allowing a physical resident layout to
+  service a larger logical source. Existing from_layer/bake paths and serialized
+  paint/project data are unchanged. One-time reservations/source table storage
+  remain separate from measured subframe allocation/resource acceptance.
+- CPU-only runtime release compilation PASS10.03s:
+  /private/tmp/eldiron-live-paint-index-release-cpu.log. Canonical native check is
+  in flight. Do not claim current canonical source adoption: the live Sources
+  cache still uses complete planes until the index/frame owner is installed.
+- Next exact integration work: a SceneViews scene owner must move the complete
+  SceneHandler/target into RasterPaintFrame, recover completed scene/target/pages
+  without VM swapping, and retire unresolved residency on cancellation. CPU scene
+  mutation must retire an old request; unchanged scoped player/editor preparation
+  must allow the frozen request to advance rather than restarting every frame.
+  Existing dirty/output guards reject input while a private request is pending.
+  Stage large source indices in Sources, replace the full atlas only with the
+  bounded path, and account scheduling/transfer/resource limits across views.
+- Native four-application compile for the new CPU live index PASS18.85s:
+  /private/tmp/eldiron-live-paint-index-release.log.
+- SceneViews now stores its SceneHandler and target in a SceneOwner slot. Ordinary
+  callers use the same scene borrow; private requests can own both without a VM
+  swap. A mutable borrow cancels a private request, restores scene/target, and
+  discards unresolved residency rather than allowing a new writer to reuse it.
+  First-use validation occurs before moving ready parts; failure leaves ownership
+  recoverable. Completion restores resident pages for reuse. Pending CPU queries
+  remain gated by the view's existing dirty/output checks.
+- Presentation-only release compile for this SceneOwner adoption PASS5.37s:
+  /private/tmp/eldiron-scene-view-owner-release.log. Native applications check is
+  in flight. Its start/advance hooks are not yet selected by live Sources, so
+  large live sources still use the old complete-atlas path. This is ownership
+  preparation, not canonical live residency acceptance.
+- Next prerequisite before activating large live sources: cooperative initial
+  residency-table validation/upload under the existing source transfer budget.
+  The explicit private/bake constructor still validates/captures/uploads its key
+  table synchronously once; do not silently introduce that unbounded work into
+  live frame scheduling. Then install indexed sources + frozen scene frames and
+  scope guards in player/Creator preparation, preserving actual output revisions.
+- Canonical four-application release compile for the SceneOwner slot PASS14.58s:
+  /private/tmp/eldiron-scene-view-owner-release-apps.log. Browser feature check is
+  being collected. Upcoming table preparation will also remove the per-owner
+  Vec-to-Arc-slice metadata copy by sharing an immutable Arc<Vec> key backing;
+  builders must retain exclusive mutation until their complete index is published.
+- Browser Creator release compilation for SceneOwner + CPU index PASS17.14s:
+  /private/tmp/eldiron-scene-view-owner-release-web.log. All compiler handles
+  terminal; git diff --check passes. Source/frame activation remains pending.

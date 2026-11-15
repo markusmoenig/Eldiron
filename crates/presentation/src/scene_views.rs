@@ -7,6 +7,8 @@ use scenevm::{SceneVM, SharedAtlas, render_output::SceneRenderTarget};
 use std::sync::Arc;
 use theframework_core::Uuid;
 mod editor;
+mod owner;
+use owner::SceneOwner;
 mod isometric;
 mod picking;
 mod surface_paint;
@@ -46,7 +48,7 @@ pub struct ViewCapture {
     pub ticket: ReadbackTicket,
 }
 struct SceneView {
-    scene: SceneHandler,
+    scene: SceneOwner,
     editor_source: Option<Arc<rusterix::scene_build_index::SceneBuildSnapshot>>,
     surface_paint_source: Option<Arc<rusterix::surface_paint::SurfacePaint>>,
     installed_surface_paint_source: Option<Arc<rusterix::surface_paint::SurfacePaint>>,
@@ -59,7 +61,6 @@ struct SceneView {
     isometric_frame: Option<crate::isometric::IsometricPreparedFrame>,
     last_image: Option<Arc<renderkit::GpuImage>>,
     size: (u32, u32),
-    target: Option<SceneRenderTarget>,
     output: Option<ViewImage>,
     dirty: bool,
     revision: u64,
@@ -129,7 +130,7 @@ impl SceneViews {
         self.views.insert(
             id,
             SceneView {
-                scene: SceneHandler::with_vm(vm),
+                scene: SceneOwner::new(SceneHandler::with_vm(vm), target),
                 editor_source: None,
                 surface_paint_source: None,
                 installed_surface_paint_source: None,
@@ -142,7 +143,6 @@ impl SceneViews {
                 isometric_frame: None,
                 last_image: None,
                 size,
-                target,
                 output: None,
                 dirty: true,
                 revision: 0,
@@ -153,7 +153,7 @@ impl SceneViews {
     pub fn scene(&self, id: ViewId) -> Result<&SceneHandler> {
         self.views
             .get(&id)
-            .map(|v| &v.scene)
+            .map(|v| &*v.scene)
             .ok_or_else(|| RenderError("unknown scene view".into()))
     }
     /// Preparing/mutating a view invalidates only that view. Document, session,
@@ -189,12 +189,13 @@ impl SceneViews {
         if view.size == size {
             return Ok(());
         }
+        view.scene.cancel();
         let replace_target = if view.isometric {
             view.last_image
                 .as_ref()
                 .is_some_and(|image| (image.descriptor.width, image.descriptor.height) != size)
         } else {
-            view.target
+            view.scene.target
                 .as_ref()
                 .is_none_or(|target| target.size() != size)
         };
@@ -212,7 +213,7 @@ impl SceneViews {
                 images.remove(output.image);
             }
             view.last_image = None;
-            view.target = target;
+            view.scene.target = target;
         }
         // Zero-sized/suspended views retain their last target but produce no
         // paint output or render work. Resuming at the same size reuses it.
@@ -277,11 +278,8 @@ impl SceneViews {
                 .ok_or_else(|| RenderError("isometric producer missing".into()))?
                 .render_prepared(frame, revision)?
         } else {
-            let target = view
-                .target
-                .as_mut()
-                .ok_or_else(|| RenderError("scene view target missing".into()))?;
-            view.scene.vm.render_gpu(target, revision)?
+            let (scene, target) = view.scene.parts_mut();
+            scene.vm.render_gpu(target.ok_or_else(|| RenderError("scene view target missing".into()))?, revision)?
         };
         let image = if let Some(output) = view.output {
             if images.get(output.image).is_none() {
@@ -357,10 +355,6 @@ impl SceneViews {
             .isometric_renderer
             .as_ref()
             .is_some_and(|r| r.has_cpu_storage() || r.has_readback_storage())
-            || view.scene.vm.render_target_cpu_bytes() > 0
-            || view
-                .target
-                .as_ref()
-                .is_some_and(|t| t.has_cpu_storage() || t.has_readback_storage()))
+            || view.scene.has_cpu_target_storage())
     }
 }

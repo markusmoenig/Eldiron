@@ -4,6 +4,8 @@
 //! separately so indirect rays can distinguish absent keys from unloaded pages.
 use super::Builder;
 mod preparation;
+mod surface;
+pub use surface::SurfacePaintIndexBuilder;
 #[cfg(feature = "graphics")]
 mod generated;
 #[cfg(feature = "graphics")]

@@ -46,6 +46,15 @@ impl RasterPaintFrame {
         mut pages: PaintPageResidency,
         revision: u64,
     ) -> Result<Self> {
+        Self::prepare(&context, &mut scene, &target, &mut pages)?;
+        Ok(Self::from_prepared(context, scene, target, pages, revision))
+    }
+    pub(crate) fn prepare(
+        context: &Arc<GpuContext>,
+        scene: &mut SceneHandler,
+        target: &SceneRenderTarget,
+        pages: &mut PaintPageResidency,
+    ) -> Result<()> {
         if context.is_lost()
             || scene.vm.device_generation() != Some(context.generation())
             || scene.vm.vm.render_mode != RenderMode::Raster3D
@@ -62,11 +71,20 @@ impl RasterPaintFrame {
             .vm
             .set_paint_page_binding(&context, pages.binding()?)?;
         pages.begin_dispatch();
+        Ok(())
+    }
+    pub(crate) fn from_prepared(
+        context: Arc<GpuContext>,
+        mut scene: SceneHandler,
+        target: SceneRenderTarget,
+        pages: PaintPageResidency,
+        revision: u64,
+    ) -> Self {
         scene.vm.set_layer_paint_dispatch(0, None);
         let size = target.size();
         let current = PaintDispatchRegion::full([size.0, size.1]);
         scene.vm.set_layer_paint_dispatch(0, Some(current));
-        Ok(Self {
+        Self {
             context,
             scene,
             target,
@@ -76,7 +94,7 @@ impl RasterPaintFrame {
             waiting: Vec::new(),
             phase: Phase::Draw,
             subdivisions: 0,
-        })
+        }
     }
     /// At most one page upload and one base attempt or composition per call. A
     /// metadata receipt must complete before any resident slot is replaced.
@@ -184,6 +202,30 @@ impl RasterPaintFrame {
     /// output is ready. Pending/private raw regions are never an input receipt.
     pub fn completed_scene(&self) -> Option<&SceneHandler> {
         self.output().map(|_| &self.scene)
+    }
+    pub(crate) fn scene(&self) -> &SceneHandler {
+        &self.scene
+    }
+    pub(crate) fn has_cpu_target_storage(&self) -> bool {
+        self.scene.vm.render_target_cpu_bytes() > 0
+            || self.target.has_cpu_storage()
+            || self.target.has_readback_storage()
+    }
+    pub(crate) fn into_parts(
+        mut self,
+    ) -> (
+        SceneHandler,
+        SceneRenderTarget,
+        PaintPageResidency,
+        Option<SceneOutput>,
+    ) {
+        self.scene.vm.set_layer_paint_dispatch(0, None);
+        let output = if let Phase::Complete(output) = self.phase {
+            Some(output)
+        } else {
+            None
+        };
+        (self.scene, self.target, self.pages, output)
     }
     pub fn residency_usage(&self) -> PaintResidencyUsage {
         self.pages.usage()
