@@ -55,7 +55,7 @@ behavior is ready to verify.
 ## Next work
 
 1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,16 retained standard control families and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
-2. Close cooperative per-recipe browser work, live source residency and remaining UV/player source policy. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
+2. Close live source residency, catalogue capture and remaining UV/player source policy. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
 ## Blockers
@@ -14180,3 +14180,65 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   count/empty/source changes and compute/HDR/device reconstruction. Large-source
   live residency, cooperative per-recipe work, UV/player policies and the other
   full-plan gates remain open. Concurrent networking concept remains untouched.
+
+## Resumable procedural stamp kernels (2026-11-15)
+
+- Previous goal turn classified as progress: c6bee795 connected retained source
+  spans and placement-only GPU publication, with native/browser release compile
+  evidence. Current worktree preflight preserved the untracked networking concept.
+- Replaced per-recipe all-at-once native virtual raster traversals with owned,
+  resumable CPU StampWork. The existing procedural kernel source now checkpoints
+  its loops (including candidate pixels rejected by ellipse/source bounds, long
+  Bresenham lines and alpha-cutoff mask construction). A shared slice yields
+  after 8192 operations or at a 64-operation elapsed check reaching 2ms. These
+  are work/scheduling policies, not measured latency guarantees. No duplicate
+  procedural algorithm, drawing-order change, original-coordinate/noise change,
+  new canvas-sized scratch or serialized paint/project representation change.
+- The shape dispatcher and nested procedural-source/material mask share one
+  slice. Synchronous image/reference utilities explicitly consume the same
+  kernel to completion. Resumable jobs own CPU inputs/targets only and use no
+  document, VM, widget, GPU resource or executor callback borrows. Pending means
+  yield-to-owner; each browser update polls one slice and native workers inspect
+  their existing cancellation flag between slices. Dropping a job retires its
+  partially evaluated future and buffers without publishing them.
+- Live StampSpritePreparation retains a pending coverage/sample job per visual
+  recipe. Private StampCatalogBuilder separately retains a crop/cutoff-mask job
+  and frozen ordered placement while preparation is pending. Lazy generated
+  source pages now use the same raster_work in both native admitted workers and
+  the browser owner; native page cancellation is checked inside large recipes
+  instead of only before/after a complete page. Existing admission and one-result
+  backpressure remain in place.
+- Initial canonical Creator/classic/WGPU/terminal release compilation PASS16.85s:
+  /private/tmp/eldiron-cooperative-stamp-kernels-release.log. Narrowed internal
+  kernel visibility after the compiler reported private-interface warnings.
+  Browser and final native release compilation are pending. No broad functional,
+  GPU, performance or isolated bake-edge-case suite run per user steering.
+- Consolidated verification must cover exact recipe/crop/color/material/alpha
+  parity, interleaved slices, size-independent allocation, cancel/retire/drop,
+  native admission/release and actual browser update latency. Catalogue-wide
+  metadata capture/finalization, original-channel decoder rescan latency, live
+  GPU source residency, remaining UV/player policies, retained UI collections,
+  remaining canonical ownership/adapters and all full-plan platform/resource/
+  release-performance gates remain open. Full M0-M9 Goal remains active.
+- Final visibility-cleanup native release PASS17.15s; incremental live metadata
+  native release PASS16.99s; isolated shared --no-default-features CPU release
+  PASS10.28s. Logs:/private/tmp/eldiron-cooperative-stamp-kernels-release-final.log,
+  /private/tmp/eldiron-cooperative-stamp-kernels-release-incremental.log and
+  /private/tmp/eldiron-cooperative-stamp-kernels-release-cpu.log. Initial browser
+  release PASS16.47s:/private/tmp/eldiron-cooperative-stamp-kernels-release-web.log.
+- Live sprite publication now builds source slots, exact visual buckets and
+  current pixel-sharing buckets per completed entry. Raster entries retain the
+  already computed pixel hash. finish transfers prepared metadata rather than
+  rescanning/rehashing every completed image on the host in one burst. It retains
+  only current sources; historical buckets remain preparation-only reuse inputs.
+- Static source review normalized out checkpoints, async/work arguments,
+  dispatcher naming/boxing and equivalent rustfmt match-arm braces. Every
+  remaining procedural kernel token matched the preceding committed source.
+  This supports unchanged math/order, not runtime parity or elapsed acceptance.
+- Final browser Creator release compilation with incremental metadata PASS16.67s:
+  /private/tmp/eldiron-cooperative-stamp-kernels-release-web-final.log. All native,
+  CPU-only and browser compiler handles are terminal. git diff --check passes.
+  Current code has compilation evidence only; full visual/resource/latency and
+  platform/release-performance acceptance remains open. Next move to retained
+  layout/collection output and remaining live source ownership/residency rather
+  than running additional isolated bake cases. Full Goal remains active.

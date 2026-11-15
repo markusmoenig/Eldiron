@@ -1,5 +1,5 @@
 //! Immutable live sprite pixels are independent of world/camera placement.
-use super::super::stamp_raster::native_sprite;
+use super::super::stamp_raster::{NativeSprite, StampWork, native_sprite_work};
 use super::catalog::{same_visual, visual_hash};
 use super::*;
 use std::sync::Arc;
@@ -59,6 +59,12 @@ impl StampSpriteRequest {
             entries: Vec::new(),
             cursor: 0,
             pixels,
+            pending: None,
+            buckets: HashMap::new(),
+            slots: Vec::new(),
+            sprites: Vec::new(),
+            by_pixels: HashMap::new(),
+            current_pixels: HashMap::new(),
         }
     }
 }
@@ -68,6 +74,7 @@ struct Entry {
     raster: Option<Raster>,
 }
 struct Raster {
+    hash: u64,
     sprite: Arc<OrganicBillboardSprite>,
     min: [i32; 2],
     max: [i32; 2],
@@ -177,9 +184,16 @@ pub struct StampSpritePreparation {
     entries: Vec<Arc<Entry>>,
     cursor: usize,
     pixels: HashMap<u64, Vec<Arc<OrganicBillboardSprite>>>,
+    pending: Option<StampWork<Option<NativeSprite>>>,
+    buckets: HashMap<u64, Vec<usize>>,
+    slots: Vec<Option<u32>>,
+    sprites: Vec<Arc<OrganicBillboardSprite>>,
+    by_pixels: HashMap<usize, u32>,
+    current_pixels: HashMap<u64, Vec<Arc<OrganicBillboardSprite>>>,
 }
 impl StampSpritePreparation {
-    /// One recipe at a time; the caller owns its worker/cooperative policy.
+    /// At most one inner kernel slice per requested item. The caller owns its
+    /// worker/cooperative policy; dropping preparation cancels a partial recipe.
     pub fn advance(&mut self, items: usize) -> Result<bool, String> {
         for _ in 0..items {
             let Some(stamp) = self.request.inputs.get(self.cursor) else {
@@ -192,8 +206,16 @@ impl StampSpritePreparation {
             let entry = match cached {
                 Some(entry) => entry,
                 None => {
-                    let raster = native_sprite(stamp)?.map(|raster| {
-                        let bucket = self.pixels.entry(pixel_hash(&raster.sprite)).or_default();
+                    let pending = self
+                        .pending
+                        .get_or_insert_with(|| native_sprite_work(stamp.clone()));
+                    let Some(raster) = pending.advance() else {
+                        return Ok(false);
+                    };
+                    self.pending = None;
+                    let raster = raster?.map(|raster| {
+                        let hash = pixel_hash(&raster.sprite);
+                        let bucket = self.pixels.entry(hash).or_default();
                         let same = bucket
                             .iter()
                             .find(|old| {
@@ -208,6 +230,7 @@ impl StampSpritePreparation {
                             sprite
                         });
                         Raster {
+                            hash,
                             sprite,
                             min: raster.min,
                             max: raster.max,
@@ -220,6 +243,29 @@ impl StampSpritePreparation {
                     })
                 }
             };
+            self.buckets
+                .entry(visual_hash(&entry.stamp))
+                .or_default()
+                .push(self.entries.len());
+            self.slots.push(if let Some(raster) = &entry.raster {
+                let identity = Arc::as_ptr(&raster.sprite) as usize;
+                let slot = if let Some(slot) = self.by_pixels.get(&identity) {
+                    *slot
+                } else {
+                    let slot = u32::try_from(self.sprites.len())
+                        .map_err(|_| "Too many live stamp sources")?;
+                    self.by_pixels.insert(identity, slot);
+                    self.sprites.push(raster.sprite.clone());
+                    self.current_pixels
+                        .entry(raster.hash)
+                        .or_default()
+                        .push(raster.sprite.clone());
+                    slot
+                };
+                Some(slot)
+            } else {
+                None
+            });
             self.entries.push(entry);
             self.cursor += 1;
         }
@@ -230,46 +276,14 @@ impl StampSpritePreparation {
         if self.cursor != self.request.inputs.len() {
             return Err("Live stamp preparation is incomplete".into());
         }
-        let mut buckets = HashMap::<u64, Vec<usize>>::new();
-        let mut by_pixels = HashMap::new();
-        let mut sprites = Vec::new();
-        let mut slots = Vec::with_capacity(self.entries.len());
-        for (index, entry) in self.entries.iter().enumerate() {
-            buckets
-                .entry(visual_hash(&entry.stamp))
-                .or_default()
-                .push(index);
-            slots.push(if let Some(raster) = &entry.raster {
-                let identity = Arc::as_ptr(&raster.sprite) as usize;
-                let slot = if let Some(slot) = by_pixels.get(&identity) {
-                    *slot
-                } else {
-                    let slot =
-                        u32::try_from(sprites.len()).map_err(|_| "Too many live stamp sources")?;
-                    by_pixels.insert(identity, slot);
-                    sprites.push(raster.sprite.clone());
-                    slot
-                };
-                Some(slot)
-            } else {
-                None
-            });
-        }
-        let mut pixels = HashMap::<u64, Vec<Arc<OrganicBillboardSprite>>>::new();
-        for sprite in &sprites {
-            pixels
-                .entry(pixel_hash(sprite))
-                .or_default()
-                .push(sprite.clone());
-        }
         Ok(StampSpriteSet {
             id: Uuid::new_v4(),
             request: self.request,
             entries: self.entries,
-            buckets,
-            slots,
-            sprites,
-            pixels,
+            buckets: self.buckets,
+            slots: self.slots,
+            sprites: self.sprites,
+            pixels: self.current_pixels,
         })
     }
 }

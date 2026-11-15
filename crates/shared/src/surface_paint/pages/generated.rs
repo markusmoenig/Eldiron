@@ -2,7 +2,7 @@
 //! is off-thread with global two-worker admission; results never publish after
 //! retirement. Browser work owns the same shared recipe without payload transfer.
 use super::*;
-use crate::iso_paint_render::StampRecipe;
+use crate::iso_paint_render::{StampRecipe, StampWork};
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::atomic::AtomicBool;
 use std::sync::{
@@ -16,11 +16,14 @@ struct Source {
     origin: [u32; 2],
 }
 impl Source {
-    fn generate(&self) -> Result<PaintPagePixels, String> {
-        Ok(PaintPagePixels {
-            color: self.recipe.raster(self.origin, [SIZE; 2])?.into(),
-            material: vec![0; PLANE_BYTES].into(),
-        })
+    fn work(&self) -> StampWork<Vec<u8>> {
+        self.recipe.raster_work(self.origin, [SIZE; 2])
+    }
+}
+fn pixels(color: Vec<u8>) -> PaintPagePixels {
+    PaintPagePixels {
+        color: color.into(),
+        material: vec![0; PLANE_BYTES].into(),
     }
 }
 #[derive(Default)]
@@ -109,12 +112,17 @@ impl Work {
             .name("stamp-source-page".into())
             .spawn(move || {
                 let _slot = slot;
-                if cancelled.load(Ordering::Acquire) {
-                    return;
-                }
-                let pixels = source.generate();
-                if !cancelled.load(Ordering::Acquire) {
-                    let _ = sender.send(pixels);
+                let mut work = source.work();
+                loop {
+                    if cancelled.load(Ordering::Acquire) {
+                        return;
+                    }
+                    if let Some(result) = work.advance() {
+                        if !cancelled.load(Ordering::Acquire) {
+                            let _ = sender.send(result.map(pixels));
+                        }
+                        return;
+                    }
                 }
             })
             .map_err(|error| format!("Cannot start stamp page worker: {error}"))?;
@@ -138,7 +146,7 @@ impl Drop for Work {
 #[cfg(target_arch = "wasm32")]
 struct Work {
     page: usize,
-    source: Source,
+    work: StampWork<Vec<u8>>,
     _slot: Slot,
 }
 #[cfg(target_arch = "wasm32")]
@@ -146,11 +154,14 @@ impl Work {
     fn start(page: usize, source: Source) -> Result<Option<Self>, String> {
         Ok(Slot::acquire().map(|slot| Self {
             page,
-            source,
+            work: source.work(),
             _slot: slot,
         }))
     }
     fn poll(&mut self) -> Result<Option<PaintPagePixels>, String> {
-        self.source.generate().map(Some)
+        self.work
+            .advance()
+            .transpose()
+            .map(|result| result.map(pixels))
     }
 }

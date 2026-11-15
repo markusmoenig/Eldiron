@@ -1,6 +1,6 @@
 //! Frozen stamp recipes and ordered placement, without retained sprite pixels.
 use super::*;
-use crate::iso_paint_render::StampRecipe;
+use crate::iso_paint_render::{StampRecipe, StampWork};
 use scenevm::PagedBillboardSprite;
 use std::sync::Arc;
 
@@ -18,6 +18,12 @@ impl StampCatalog {
         self.recipes
     }
 }
+struct PendingRecipe {
+    stamp: Arc<IsoPaintStamp>,
+    world: [f32; 3],
+    hash: u64,
+    work: StampWork<Option<Arc<StampRecipe>>>,
+}
 pub struct StampCatalogBuilder {
     chunks: indexmap::map::IntoValues<String, IsoPaintChunk>,
     current: std::vec::IntoIter<IsoPaintStamp>,
@@ -27,6 +33,7 @@ pub struct StampCatalogBuilder {
     height: u32,
     metadata_limit: u64,
     metadata_bytes: u64,
+    pending: Option<PendingRecipe>,
     done: bool,
     failure: Option<String>,
 }
@@ -55,6 +62,7 @@ impl StampCatalogBuilder {
             height,
             metadata_limit,
             metadata_bytes: 32,
+            pending: None,
             done: false,
             failure: None,
         }
@@ -71,7 +79,32 @@ impl StampCatalogBuilder {
     }
     fn advance_inner(&mut self, vm: &SceneVM, items: usize) -> Result<bool, String> {
         for _ in 0..items {
-            if let Some(stamp) = self.current.next() {
+            let (stamp, world, slot) = if let Some(pending) = &mut self.pending {
+                let Some(recipe) = pending.work.advance() else {
+                    return Ok(false);
+                };
+                let pending = self.pending.take().unwrap();
+                let Some(recipe) = recipe? else {
+                    continue;
+                };
+                let slot = u32::try_from(self.output.recipes.len())
+                    .map_err(|_| "Stamp recipe count exceeds u32")?;
+                let size = recipe.size();
+                // Preparation already filled the mask; this only clones its Arc.
+                let alpha_mask = recipe.alpha_mask();
+                self.metadata_bytes = self
+                    .metadata_bytes
+                    .saturating_add(16 + alpha_mask.len() as u64 * 4);
+                self.output.sprites.push(PagedBillboardSprite {
+                    width: size[0],
+                    height: size[1],
+                    source_id: slot,
+                    alpha_mask,
+                });
+                self.output.recipes.push(recipe);
+                self.by_hash.entry(pending.hash).or_default().push(slot);
+                (pending.stamp, pending.world, slot)
+            } else if let Some(stamp) = self.current.next() {
                 let world = match (stamp.paint_geo, stamp.surface_uv) {
                     (Some(geo), Some(uv)) => vm
                         .paint_surface_world_at(geo, uv)
@@ -88,53 +121,40 @@ impl StampCatalogBuilder {
                         same_visual(&self.output.recipes[*slot as usize].stamp, &stamp)
                     })
                 });
-                let slot = if let Some(slot) = existing {
-                    slot
+                let stamp = Arc::new(stamp);
+                if let Some(slot) = existing {
+                    (stamp, world, slot)
                 } else {
-                    let slot = u32::try_from(self.output.recipes.len())
-                        .map_err(|_| "Stamp recipe count exceeds u32")?;
-                    let Some(recipe) = StampRecipe::prepare(Arc::new(stamp.clone()))? else {
-                        continue;
-                    };
-                    let size = recipe.size();
-                    let alpha_mask = recipe.alpha_mask();
-                    self.metadata_bytes = self
-                        .metadata_bytes
-                        .saturating_add(16 + alpha_mask.len() as u64 * 4);
-                    self.output.sprites.push(PagedBillboardSprite {
-                        width: size[0],
-                        height: size[1],
-                        source_id: slot,
-                        alpha_mask,
+                    self.pending = Some(PendingRecipe {
+                        work: StampRecipe::prepare_masked_work(stamp.clone()),
+                        stamp,
+                        world,
+                        hash,
                     });
-                    self.output.recipes.push(Arc::new(recipe));
-                    self.by_hash.entry(hash).or_default().push(slot);
-                    slot
-                };
-                let (min, max, anchor) = self.output.recipes[slot as usize].crop();
-                let mut instance =
-                    placement(&stamp, world, self.camera, self.height, min, max, anchor);
-                instance.sprite_index = slot;
-                if !instance.width.is_finite()
-                    || instance.width <= 0.
-                    || !instance.height.is_finite()
-                    || instance.height <= 0.
-                    || !instance.center.iter().all(|value| value.is_finite())
-                {
-                    return Err("Invalid stamp world placement".into());
-                }
-                self.output.instances.push(instance);
-                self.metadata_bytes = self.metadata_bytes.saturating_add(32);
-                if self.metadata_bytes > self.metadata_limit {
-                    return Err(
-                        "Stamp placement metadata exceeds the storage-binding budget".into(),
-                    );
+                    continue;
                 }
             } else if let Some(chunk) = self.chunks.next() {
                 self.current = chunk.stamps.into_iter();
+                continue;
             } else {
                 self.done = true;
                 break;
+            };
+            let (min, max, anchor) = self.output.recipes[slot as usize].crop();
+            let mut instance = placement(&stamp, world, self.camera, self.height, min, max, anchor);
+            instance.sprite_index = slot;
+            if !instance.width.is_finite()
+                || instance.width <= 0.
+                || !instance.height.is_finite()
+                || instance.height <= 0.
+                || !instance.center.iter().all(|value| value.is_finite())
+            {
+                return Err("Invalid stamp world placement".into());
+            }
+            self.output.instances.push(instance);
+            self.metadata_bytes = self.metadata_bytes.saturating_add(32);
+            if self.metadata_bytes > self.metadata_limit {
+                return Err("Stamp placement metadata exceeds the storage-binding budget".into());
             }
         }
         Ok(self.done)

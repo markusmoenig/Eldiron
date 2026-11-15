@@ -2,7 +2,7 @@
 use super::*;
 
 impl IsoPaintRenderer {
-    pub(in crate::iso_paint_render) fn iso_paint_blend_line(
+    pub(super) async fn iso_paint_blend_line(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         stamp_depth: Option<f32>,
@@ -12,6 +12,7 @@ impl IsoPaintRenderer {
         x1: i32,
         y1: i32,
         color: [u8; 4],
+        work: &mut Slice,
     ) {
         let dim = *buffer.dim();
         if dim.width <= 0 || dim.height <= 0 {
@@ -25,6 +26,7 @@ impl IsoPaintRenderer {
         let sy = if y0 < y1 { 1 } else { -1 };
         let mut err = dx + dy;
         loop {
+            work.checkpoint().await;
             if Self::iso_paint_stamp_pixel_visible(surface_buffer, stamp_depth, owner_geo_id, x, y)
             {
                 buffer.blend(x, y, color);
@@ -44,7 +46,7 @@ impl IsoPaintRenderer {
         }
     }
 
-    pub(in crate::iso_paint_render) fn iso_paint_blend_stamp_pixel(
+    pub(super) fn iso_paint_blend_stamp_pixel(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         stamp_depth: Option<f32>,
@@ -59,7 +61,7 @@ impl IsoPaintRenderer {
         buffer.blend(x, y, color);
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_rotated_ellipse(
+    pub(super) async fn draw_iso_paint_rotated_ellipse(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         stamp_depth: Option<f32>,
@@ -70,6 +72,7 @@ impl IsoPaintRenderer {
         angle: f32,
         color: [u8; 4],
         variation: u32,
+        work: &mut Slice,
     ) {
         let radius_major = radius_major.max(1.0);
         let radius_minor = radius_minor.max(1.0);
@@ -77,7 +80,9 @@ impl IsoPaintRenderer {
         let sin = angle.sin();
         let bound = (radius_major.max(radius_minor) + 1.0).ceil() as i32;
         for y in -bound..=bound {
+            work.checkpoint().await;
             for x in -bound..=bound {
+                work.checkpoint().await;
                 let lx = x as f32 * cos + y as f32 * sin;
                 let ly = -x as f32 * sin + y as f32 * cos;
                 let edge = lx * lx / (radius_major * radius_major)
@@ -111,7 +116,7 @@ impl IsoPaintRenderer {
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_leaves_stamp(
+    pub(super) async fn draw_iso_paint_leaves_stamp(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         screen: [i32; 2],
@@ -122,12 +127,14 @@ impl IsoPaintRenderer {
         opacity: f32,
         variation: u32,
         rotation: f32,
+        work: &mut Slice,
     ) {
         let opacity = opacity.clamp(0.0, 1.0);
         let leaf_count = 5 + (variation % 6) as i32;
         let spread = (size * 10.0).round().clamp(5.0, 38.0) as i32;
         let shadow = [12, 10, 7, (opacity * 42.0).round() as u8];
         for i in 0..leaf_count {
+            work.checkpoint().await;
             let seed = variation
                 .wrapping_add((i as u32).wrapping_mul(0x27d4_eb2d))
                 .rotate_left(((i * 5) as u32) & 15);
@@ -151,7 +158,9 @@ impl IsoPaintRenderer {
                 angle,
                 shadow,
                 seed ^ 0x51ad_0001,
-            );
+                work,
+            )
+            .await;
             Self::draw_iso_paint_rotated_ellipse(
                 buffer,
                 surface_buffer,
@@ -163,7 +172,9 @@ impl IsoPaintRenderer {
                 angle,
                 leaf,
                 seed,
-            );
+                work,
+            )
+            .await;
             let vein_alpha = (opacity * 92.0).round() as u8;
             let vein = Self::iso_paint_adjust_rgb(leaf, 0.42);
             let vein = [vein[0], vein[1], vein[2], vein_alpha];
@@ -179,11 +190,13 @@ impl IsoPaintRenderer {
                 center[0] + vx,
                 center[1] + vy,
                 vein,
-            );
+                work,
+            )
+            .await;
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_flowers_stamp(
+    pub(super) async fn draw_iso_paint_flowers_stamp(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         screen: [i32; 2],
@@ -196,6 +209,7 @@ impl IsoPaintRenderer {
         variant: &str,
         variation: u32,
         rotation: f32,
+        work: &mut Slice,
     ) {
         let opacity = opacity.clamp(0.0, 1.0);
         let flower_count = match variant {
@@ -213,6 +227,7 @@ impl IsoPaintRenderer {
         shadow[3] = (opacity * 48.0).round() as u8;
 
         for i in 0..flower_count {
+            work.checkpoint().await;
             let seed = variation
                 .wrapping_add((i as u32).wrapping_mul(0x7feb_352d))
                 .rotate_left(((i * 6) as u32) & 15);
@@ -236,7 +251,9 @@ impl IsoPaintRenderer {
                 tip[0] + 1,
                 tip[1] + 1,
                 shadow,
-            );
+                work,
+            )
+            .await;
             Self::iso_paint_blend_line(
                 buffer,
                 surface_buffer,
@@ -247,7 +264,9 @@ impl IsoPaintRenderer {
                 tip[0],
                 tip[1],
                 stem,
-            );
+                work,
+            )
+            .await;
 
             if i % 2 == 0 {
                 let leaf_center = [
@@ -265,7 +284,9 @@ impl IsoPaintRenderer {
                     rotation + if seed & 1 == 0 { -0.45 } else { 0.45 },
                     leaf,
                     seed ^ 0x3311_aa01,
-                );
+                    work,
+                )
+                .await;
             }
 
             let petal_slot = if variant == "wildflowers" {
@@ -284,6 +305,7 @@ impl IsoPaintRenderer {
             let radius = (size * (0.9 + ((seed >> 5) & 0x3f) as f32 / 120.0)).clamp(1.1, 4.2);
             let petal_count = if variant == "poppies" { 5 } else { 4 };
             for petal_index in 0..petal_count {
+                work.checkpoint().await;
                 let angle = rotation
                     + petal_index as f32 * std::f32::consts::TAU / petal_count as f32
                     + ((seed >> 9) & 0x1f) as f32 / 255.0;
@@ -313,7 +335,9 @@ impl IsoPaintRenderer {
                     angle,
                     petal,
                     seed ^ petal_index as u32,
-                );
+                    work,
+                )
+                .await;
             }
             let center_slot = if variant == "wildflowers" { 2 } else { 3 };
             let center_fallback = Self::iso_paint_adjust_rgb(stem_source, 0.55);
@@ -335,11 +359,13 @@ impl IsoPaintRenderer {
                 rotation,
                 center,
                 seed ^ 0x7777_0013,
-            );
+                work,
+            )
+            .await;
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_vines_stamp(
+    pub(super) async fn draw_iso_paint_vines_stamp(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         screen: [i32; 2],
@@ -351,6 +377,7 @@ impl IsoPaintRenderer {
         opacity: f32,
         variation: u32,
         rotation: f32,
+        work: &mut Slice,
     ) {
         let opacity = opacity.clamp(0.0, 1.0);
         let mut stem = Self::iso_paint_stamp_palette_color(
@@ -381,6 +408,7 @@ impl IsoPaintRenderer {
         let vine_count = 2 + (variation % 3) as i32;
         let spread = (size * 7.0).round().clamp(3.0, 28.0) as i32;
         for i in 0..vine_count {
+            work.checkpoint().await;
             let seed = variation
                 .wrapping_add((i as u32).wrapping_mul(0x632b_e5ab))
                 .rotate_left(((i * 5) as u32) & 15);
@@ -401,6 +429,7 @@ impl IsoPaintRenderer {
             let segments = 5 + ((seed >> 7) & 3) as i32;
             let mut prev = base;
             for step in 1..=segments {
+                work.checkpoint().await;
                 let t = step as f32 / segments as f32;
                 let wave = (phase + t * std::f32::consts::TAU * 0.72).sin() * sway;
                 let point = [
@@ -417,7 +446,9 @@ impl IsoPaintRenderer {
                     point[0] + 1,
                     point[1] + 1,
                     shadow,
-                );
+                    work,
+                )
+                .await;
                 Self::iso_paint_blend_line(
                     buffer,
                     surface_buffer,
@@ -428,7 +459,9 @@ impl IsoPaintRenderer {
                     point[0],
                     point[1],
                     stem,
-                );
+                    work,
+                )
+                .await;
 
                 if step % 2 == 0 || step == segments {
                     let side = if (seed >> (step as u32)) & 1 == 0 {
@@ -452,14 +485,16 @@ impl IsoPaintRenderer {
                         angle + side * 0.78,
                         if step % 3 == 0 { leaf_b } else { leaf_a },
                         leaf_seed,
-                    );
+                        work,
+                    )
+                    .await;
                 }
                 prev = point;
             }
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_roots_stamp(
+    pub(super) async fn draw_iso_paint_roots_stamp(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         screen: [i32; 2],
@@ -471,6 +506,7 @@ impl IsoPaintRenderer {
         opacity: f32,
         variation: u32,
         rotation: f32,
+        work: &mut Slice,
     ) {
         let opacity = opacity.clamp(0.0, 1.0);
         let mut root = Self::iso_paint_stamp_palette_color(
@@ -500,6 +536,7 @@ impl IsoPaintRenderer {
         let base_angle = rotation + std::f32::consts::FRAC_PI_2;
 
         for i in 0..branch_count {
+            work.checkpoint().await;
             let seed = variation
                 .wrapping_add((i as u32).wrapping_mul(0x94d0_49bb))
                 .rotate_left(((i * 4) as u32) & 15);
@@ -518,6 +555,7 @@ impl IsoPaintRenderer {
             let segments = 4 + ((seed >> 19) & 3) as i32;
             let mut prev = start;
             for step in 1..=segments {
+                work.checkpoint().await;
                 let t = step as f32 / segments as f32;
                 let wave = (t * std::f32::consts::PI).sin() * bend * side;
                 let point = [
@@ -534,7 +572,9 @@ impl IsoPaintRenderer {
                     point[0] + 1,
                     point[1] + 1,
                     dark,
-                );
+                    work,
+                )
+                .await;
                 Self::iso_paint_blend_line(
                     buffer,
                     surface_buffer,
@@ -545,7 +585,9 @@ impl IsoPaintRenderer {
                     point[0],
                     point[1],
                     root,
-                );
+                    work,
+                )
+                .await;
                 if size > 1.35 && step < segments {
                     Self::iso_paint_blend_line(
                         buffer,
@@ -557,7 +599,9 @@ impl IsoPaintRenderer {
                         point[0],
                         point[1] - 1,
                         root,
-                    );
+                        work,
+                    )
+                    .await;
                 }
 
                 if step == 2 || (step == segments - 1 && seed & 1 == 0) {
@@ -579,7 +623,9 @@ impl IsoPaintRenderer {
                         twig_end[0],
                         twig_end[1],
                         dark,
-                    );
+                        work,
+                    )
+                    .await;
                 }
                 prev = point;
             }
@@ -596,12 +642,14 @@ impl IsoPaintRenderer {
                     angle,
                     highlight,
                     seed ^ 0x7015_0001,
-                );
+                    work,
+                )
+                .await;
             }
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_leaf_mass(
+    pub(super) async fn draw_iso_paint_leaf_mass(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         stamp_depth: Option<f32>,
@@ -613,13 +661,16 @@ impl IsoPaintRenderer {
         dark: [u8; 4],
         mid: [u8; 4],
         light: [u8; 4],
+        work: &mut Slice,
     ) {
         let radius_x = radius_x.max(2.0);
         let radius_y = radius_y.max(2.0);
         let bound_x = (radius_x + 2.0).ceil() as i32;
         let bound_y = (radius_y + 2.0).ceil() as i32;
         for y in -bound_y..=bound_y {
+            work.checkpoint().await;
             for x in -bound_x..=bound_x {
+                work.checkpoint().await;
                 let nx = x as f32 / radius_x;
                 let ny = y as f32 / radius_y;
                 let edge = nx * nx + ny * ny;
@@ -675,7 +726,7 @@ impl IsoPaintRenderer {
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_bushes_stamp(
+    pub(super) async fn draw_iso_paint_bushes_stamp(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         screen: [i32; 2],
@@ -687,6 +738,7 @@ impl IsoPaintRenderer {
         opacity: f32,
         variation: u32,
         rotation: f32,
+        work: &mut Slice,
     ) {
         let opacity = opacity.clamp(0.0, 1.0);
         let dark = Self::iso_paint_stamp_palette_color(
@@ -720,6 +772,7 @@ impl IsoPaintRenderer {
         let stem_height = (art_size * 6.6).round().clamp(7.0, 30.0) as i32;
 
         for i in 0..stem_count {
+            work.checkpoint().await;
             let seed = variation ^ (i as u32 + 1).wrapping_mul(0x45d9_f3b);
             let lane = i - stem_count / 2;
             let base_x = screen[0] + lane * spread_x / stem_count.max(1);
@@ -739,7 +792,9 @@ impl IsoPaintRenderer {
                 top[0] + 1,
                 top[1],
                 bark_dark,
-            );
+                work,
+            )
+            .await;
             Self::iso_paint_blend_line(
                 buffer,
                 surface_buffer,
@@ -750,9 +805,12 @@ impl IsoPaintRenderer {
                 top[0],
                 top[1],
                 branch,
-            );
+                work,
+            )
+            .await;
 
             for node in 0..2 {
+                work.checkpoint().await;
                 let t = 0.42 + node as f32 * 0.25;
                 let center = [
                     (base_x as f32 + (top[0] - base_x) as f32 * t).round() as i32,
@@ -780,7 +838,9 @@ impl IsoPaintRenderer {
                     dark,
                     mid,
                     light,
-                );
+                    work,
+                )
+                .await;
             }
 
             let tip_leaf = if i % 2 == 0 { light } else { mid };
@@ -795,7 +855,9 @@ impl IsoPaintRenderer {
                 rotation + lean as f32 * 0.03,
                 tip_leaf,
                 seed ^ 0xb055_0001,
-            );
+                work,
+            )
+            .await;
 
             Self::iso_paint_blend_line(
                 buffer,
@@ -807,7 +869,9 @@ impl IsoPaintRenderer {
                 top[0] + 1,
                 top[1],
                 bark_dark,
-            );
+                work,
+            )
+            .await;
             Self::iso_paint_blend_line(
                 buffer,
                 surface_buffer,
@@ -818,11 +882,14 @@ impl IsoPaintRenderer {
                 top[0],
                 top[1],
                 branch,
-            );
+                work,
+            )
+            .await;
         }
 
         let base = Self::iso_paint_adjust_rgb(branch, 0.62);
         for dx in -spread_x / 2..=spread_x / 2 {
+            work.checkpoint().await;
             if dx.abs() <= spread_x / 3 {
                 Self::iso_paint_blend_stamp_pixel(
                     buffer,
@@ -837,7 +904,7 @@ impl IsoPaintRenderer {
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_tree_stamp(
+    pub(super) async fn draw_iso_paint_tree_stamp(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         screen: [i32; 2],
@@ -849,6 +916,7 @@ impl IsoPaintRenderer {
         opacity: f32,
         variation: u32,
         rotation: f32,
+        work: &mut Slice,
     ) {
         let opacity = opacity.clamp(0.0, 1.0);
         let leaf_dark = Self::iso_paint_stamp_palette_color(
@@ -888,11 +956,14 @@ impl IsoPaintRenderer {
             rotation * 0.2,
             shadow,
             variation ^ 0x7aee_0001,
-        );
+            work,
+        )
+        .await;
 
         let trunk_height = (size * 14.0).round().clamp(10.0, 46.0) as i32;
         let trunk_width = (size * 1.5).round().clamp(2.0, 7.0) as i32;
         for dx in -trunk_width..=trunk_width {
+            work.checkpoint().await;
             let shade = if dx < 0 { 1.12 } else { 0.64 };
             let trunk_pixel = Self::iso_paint_adjust_rgb(trunk, shade);
             Self::iso_paint_blend_line(
@@ -905,11 +976,14 @@ impl IsoPaintRenderer {
                 base[0] + dx / 2,
                 base[1] - trunk_height,
                 trunk_pixel,
-            );
+                work,
+            )
+            .await;
         }
 
         let bark_dark = Self::iso_paint_adjust_rgb(trunk, 0.42);
         for stripe in [-1, 1] {
+            work.checkpoint().await;
             Self::iso_paint_blend_line(
                 buffer,
                 surface_buffer,
@@ -920,10 +994,13 @@ impl IsoPaintRenderer {
                 base[0] + stripe / 2,
                 base[1] - trunk_height + 2,
                 bark_dark,
-            );
+                work,
+            )
+            .await;
         }
 
         for side in [-1.0_f32, 1.0] {
+            work.checkpoint().await;
             let start = [base[0], base[1] - trunk_height * 2 / 3];
             let end = [
                 start[0] + (side * size * 7.2).round() as i32,
@@ -939,7 +1016,9 @@ impl IsoPaintRenderer {
                 end[0],
                 end[1],
                 bark_dark,
-            );
+                work,
+            )
+            .await;
             Self::iso_paint_blend_line(
                 buffer,
                 surface_buffer,
@@ -950,7 +1029,9 @@ impl IsoPaintRenderer {
                 end[0],
                 end[1] - 1,
                 trunk,
-            );
+                work,
+            )
+            .await;
         }
 
         let crown = [
@@ -964,6 +1045,7 @@ impl IsoPaintRenderer {
             (-1.5, -3.6, 10.8, 8.2),
         ];
         for (i, (ox, oy, rx, ry)) in crown.iter().enumerate() {
+            work.checkpoint().await;
             let seed = variation
                 .wrapping_add((i as u32).wrapping_mul(0x85eb_ca6b))
                 .rotate_left(((i * 6) as u32) & 15);
@@ -985,10 +1067,13 @@ impl IsoPaintRenderer {
                 leaf_dark,
                 leaf_mid,
                 leaf_light,
-            );
+                work,
+            )
+            .await;
         }
 
         for i in 0..18 {
+            work.checkpoint().await;
             let seed = variation ^ (i as u32).wrapping_mul(0x27d4_eb2d);
             if (seed & 3) == 0 {
                 continue;
@@ -1013,7 +1098,7 @@ impl IsoPaintRenderer {
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_candles_stamp(
+    pub(super) async fn draw_iso_paint_candles_stamp(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         screen: [i32; 2],
@@ -1024,6 +1109,7 @@ impl IsoPaintRenderer {
         palette: &[[u8; 4]],
         opacity: f32,
         variation: u32,
+        work: &mut Slice,
     ) {
         let opacity = opacity.clamp(0.0, 1.0);
         let wax = Self::iso_paint_stamp_palette_color(palette, 0, color, opacity, 235.0);
@@ -1042,6 +1128,7 @@ impl IsoPaintRenderer {
         let shadow = [8, 6, 4, (opacity * 62.0).round() as u8];
         let glow = [255, 151, 45, (opacity * 32.0).round() as u8];
         for i in 0..candle_count {
+            work.checkpoint().await;
             let seed = variation
                 .wrapping_add((i as u32).wrapping_mul(0x85eb_ca6b))
                 .rotate_left(((i * 6) as u32) & 15);
@@ -1069,7 +1156,9 @@ impl IsoPaintRenderer {
                 0.0,
                 shadow,
                 seed ^ 0x1188_0001,
-            );
+                work,
+            )
+            .await;
             Self::draw_iso_paint_rotated_ellipse(
                 buffer,
                 surface_buffer,
@@ -1081,8 +1170,11 @@ impl IsoPaintRenderer {
                 0.0,
                 glow,
                 seed ^ 0x7f7f_0009,
-            );
+                work,
+            )
+            .await;
             for dx in -half_width..=half_width {
+                work.checkpoint().await;
                 let mut body = if dx > half_width / 2 { side } else { wax };
                 let shade = if dx < -half_width / 2 { 1.09 } else { 1.0 };
                 body = Self::iso_paint_adjust_rgb(body, shade);
@@ -1096,7 +1188,9 @@ impl IsoPaintRenderer {
                     base[0] + dx,
                     top_y,
                     body,
-                );
+                    work,
+                )
+                .await;
             }
             Self::draw_iso_paint_rotated_ellipse(
                 buffer,
@@ -1109,7 +1203,9 @@ impl IsoPaintRenderer {
                 0.0,
                 side,
                 seed ^ 0x5511_0001,
-            );
+                work,
+            )
+            .await;
             Self::draw_iso_paint_rotated_ellipse(
                 buffer,
                 surface_buffer,
@@ -1121,7 +1217,9 @@ impl IsoPaintRenderer {
                 0.0,
                 wax,
                 seed ^ 0x5511_0002,
-            );
+                work,
+            )
+            .await;
             let wick = [24, 17, 12, (opacity * 185.0).round() as u8];
             Self::iso_paint_blend_line(
                 buffer,
@@ -1133,7 +1231,9 @@ impl IsoPaintRenderer {
                 base[0],
                 top_y - (size * 2.3).round().max(2.0) as i32,
                 wick,
-            );
+                work,
+            )
+            .await;
             let flame_y = top_y - (size * 4.2).round().max(4.0) as i32;
             Self::draw_iso_paint_rotated_ellipse(
                 buffer,
@@ -1146,7 +1246,9 @@ impl IsoPaintRenderer {
                 0.0,
                 flame,
                 seed ^ 0xf17e_0001,
-            );
+                work,
+            )
+            .await;
             Self::draw_iso_paint_rotated_ellipse(
                 buffer,
                 surface_buffer,
@@ -1158,11 +1260,13 @@ impl IsoPaintRenderer {
                 0.0,
                 core,
                 seed ^ 0xf17e_0002,
-            );
+                work,
+            )
+            .await;
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_stamp_shape(
+    pub(super) async fn draw_iso_paint_stamp_shape_steps(
         buffer: &mut impl Target,
         stamp: &IsoPaintStamp,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
@@ -1170,6 +1274,7 @@ impl IsoPaintRenderer {
         stamp_depth: Option<f32>,
         owner_geo_id: Option<scenevm::GeoId>,
         size: f32,
+        work: &mut Slice,
     ) {
         if let Some(spec) = stamp
             .source_image
@@ -1196,7 +1301,7 @@ impl IsoPaintRenderer {
             native.opacity *= o;
             if stamp.source_material_pass {
                 let mut pixels = buffer.blank();
-                Self::draw_iso_paint_stamp_shape(
+                Box::pin(Self::draw_iso_paint_stamp_shape_steps(
                     &mut pixels,
                     &native,
                     surface_buffer,
@@ -1204,11 +1309,13 @@ impl IsoPaintRenderer {
                     stamp_depth,
                     owner_geo_id,
                     size,
-                );
+                    work,
+                ))
+                .await;
                 let [rm, oe] = rusterix::Texture::encode_material_bytes(r, m, o, e);
                 buffer.material_mask(pixels, [64 + spec.material_id.min(59), rm, oe]);
             } else {
-                Self::draw_iso_paint_stamp_shape(
+                Box::pin(Self::draw_iso_paint_stamp_shape_steps(
                     buffer,
                     &native,
                     surface_buffer,
@@ -1216,7 +1323,9 @@ impl IsoPaintRenderer {
                     stamp_depth,
                     owner_geo_id,
                     size,
-                );
+                    work,
+                ))
+                .await;
             }
             return;
         }
@@ -1263,7 +1372,9 @@ impl IsoPaintRenderer {
                 .ceil() as i32;
             // Inverse sampling keeps rotated/scaled sprites solid without holes between pixels.
             for y in min_y.max(-screen[1])..max_y.min(dim.height - screen[1]) {
+                work.checkpoint().await;
                 for x in min_x.max(-screen[0])..max_x.min(dim.width - screen[0]) {
+                    work.checkpoint().await;
                     let sx = x as f32 * cos + y as f32 * sin + anchor[0];
                     let sy = -x as f32 * sin + y as f32 * cos + anchor[1];
                     if sx < 0. || sy < 0. || sx >= width || sy >= height {
@@ -1312,149 +1423,193 @@ impl IsoPaintRenderer {
             return;
         }
         match stamp.kind.as_str() {
-            "grass" | "grass_stamp" => Self::draw_iso_paint_grass_stamp(
-                buffer,
-                surface_buffer,
-                screen,
-                stamp_depth,
-                owner_geo_id,
-                size,
-                stamp.color,
-                stamp.opacity,
-                stamp.variation,
-                stamp.rotation,
-            ),
-            "rubble" => Self::draw_iso_paint_rubble_stamp(
-                buffer,
-                surface_buffer,
-                screen,
-                stamp_depth,
-                owner_geo_id,
-                size,
-                stamp.color,
-                stamp.opacity,
-                stamp.variation,
-                stamp.rotation,
-            ),
-            "leaves" => Self::draw_iso_paint_leaves_stamp(
-                buffer,
-                surface_buffer,
-                screen,
-                stamp_depth,
-                owner_geo_id,
-                size,
-                stamp.color,
-                stamp.opacity,
-                stamp.variation,
-                stamp.rotation,
-            ),
-            "flowers" => Self::draw_iso_paint_flowers_stamp(
-                buffer,
-                surface_buffer,
-                screen,
-                stamp_depth,
-                owner_geo_id,
-                size,
-                stamp.color,
-                &stamp.palette_colors,
-                stamp.opacity,
-                stamp.variant.as_str(),
-                stamp.variation,
-                stamp.rotation,
-            ),
-            "vines" => Self::draw_iso_paint_vines_stamp(
-                buffer,
-                surface_buffer,
-                screen,
-                stamp_depth,
-                owner_geo_id,
-                size,
-                stamp.color,
-                &stamp.palette_colors,
-                stamp.opacity,
-                stamp.variation,
-                stamp.rotation,
-            ),
-            "roots" => Self::draw_iso_paint_roots_stamp(
-                buffer,
-                surface_buffer,
-                screen,
-                stamp_depth,
-                owner_geo_id,
-                size,
-                stamp.color,
-                &stamp.palette_colors,
-                stamp.opacity,
-                stamp.variation,
-                stamp.rotation,
-            ),
-            "bushes" => Self::draw_iso_paint_bushes_stamp(
-                buffer,
-                surface_buffer,
-                screen,
-                stamp_depth,
-                owner_geo_id,
-                size,
-                stamp.color,
-                &stamp.palette_colors,
-                stamp.opacity,
-                stamp.variation,
-                stamp.rotation,
-            ),
-            "tree" => Self::draw_iso_paint_tree_stamp(
-                buffer,
-                surface_buffer,
-                screen,
-                stamp_depth,
-                owner_geo_id,
-                size,
-                stamp.color,
-                &stamp.palette_colors,
-                stamp.opacity,
-                stamp.variation,
-                stamp.rotation,
-            ),
-            "candles" => Self::draw_iso_paint_candles_stamp(
-                buffer,
-                surface_buffer,
-                screen,
-                stamp_depth,
-                owner_geo_id,
-                size,
-                stamp.color,
-                &stamp.palette_colors,
-                stamp.opacity,
-                stamp.variation,
-            ),
-            "footprints" => Self::draw_iso_paint_footprints_stamp(
-                buffer,
-                surface_buffer,
-                screen,
-                stamp_depth,
-                owner_geo_id,
-                size,
-                stamp.color,
-                stamp.opacity,
-                stamp.variation,
-                stamp.rotation,
-            ),
-            "mud" => Self::draw_iso_paint_mud_stamp(
-                buffer,
-                surface_buffer,
-                screen,
-                stamp_depth,
-                owner_geo_id,
-                size,
-                stamp.color,
-                stamp.opacity,
-                stamp.variation,
-                stamp.rotation,
-            ),
+            "grass" | "grass_stamp" => {
+                Self::draw_iso_paint_grass_stamp(
+                    buffer,
+                    surface_buffer,
+                    screen,
+                    stamp_depth,
+                    owner_geo_id,
+                    size,
+                    stamp.color,
+                    stamp.opacity,
+                    stamp.variation,
+                    stamp.rotation,
+                    work,
+                )
+                .await
+            }
+            "rubble" => {
+                Self::draw_iso_paint_rubble_stamp(
+                    buffer,
+                    surface_buffer,
+                    screen,
+                    stamp_depth,
+                    owner_geo_id,
+                    size,
+                    stamp.color,
+                    stamp.opacity,
+                    stamp.variation,
+                    stamp.rotation,
+                    work,
+                )
+                .await
+            }
+            "leaves" => {
+                Self::draw_iso_paint_leaves_stamp(
+                    buffer,
+                    surface_buffer,
+                    screen,
+                    stamp_depth,
+                    owner_geo_id,
+                    size,
+                    stamp.color,
+                    stamp.opacity,
+                    stamp.variation,
+                    stamp.rotation,
+                    work,
+                )
+                .await
+            }
+            "flowers" => {
+                Self::draw_iso_paint_flowers_stamp(
+                    buffer,
+                    surface_buffer,
+                    screen,
+                    stamp_depth,
+                    owner_geo_id,
+                    size,
+                    stamp.color,
+                    &stamp.palette_colors,
+                    stamp.opacity,
+                    stamp.variant.as_str(),
+                    stamp.variation,
+                    stamp.rotation,
+                    work,
+                )
+                .await
+            }
+            "vines" => {
+                Self::draw_iso_paint_vines_stamp(
+                    buffer,
+                    surface_buffer,
+                    screen,
+                    stamp_depth,
+                    owner_geo_id,
+                    size,
+                    stamp.color,
+                    &stamp.palette_colors,
+                    stamp.opacity,
+                    stamp.variation,
+                    stamp.rotation,
+                    work,
+                )
+                .await
+            }
+            "roots" => {
+                Self::draw_iso_paint_roots_stamp(
+                    buffer,
+                    surface_buffer,
+                    screen,
+                    stamp_depth,
+                    owner_geo_id,
+                    size,
+                    stamp.color,
+                    &stamp.palette_colors,
+                    stamp.opacity,
+                    stamp.variation,
+                    stamp.rotation,
+                    work,
+                )
+                .await
+            }
+            "bushes" => {
+                Self::draw_iso_paint_bushes_stamp(
+                    buffer,
+                    surface_buffer,
+                    screen,
+                    stamp_depth,
+                    owner_geo_id,
+                    size,
+                    stamp.color,
+                    &stamp.palette_colors,
+                    stamp.opacity,
+                    stamp.variation,
+                    stamp.rotation,
+                    work,
+                )
+                .await
+            }
+            "tree" => {
+                Self::draw_iso_paint_tree_stamp(
+                    buffer,
+                    surface_buffer,
+                    screen,
+                    stamp_depth,
+                    owner_geo_id,
+                    size,
+                    stamp.color,
+                    &stamp.palette_colors,
+                    stamp.opacity,
+                    stamp.variation,
+                    stamp.rotation,
+                    work,
+                )
+                .await
+            }
+            "candles" => {
+                Self::draw_iso_paint_candles_stamp(
+                    buffer,
+                    surface_buffer,
+                    screen,
+                    stamp_depth,
+                    owner_geo_id,
+                    size,
+                    stamp.color,
+                    &stamp.palette_colors,
+                    stamp.opacity,
+                    stamp.variation,
+                    work,
+                )
+                .await
+            }
+            "footprints" => {
+                Self::draw_iso_paint_footprints_stamp(
+                    buffer,
+                    surface_buffer,
+                    screen,
+                    stamp_depth,
+                    owner_geo_id,
+                    size,
+                    stamp.color,
+                    stamp.opacity,
+                    stamp.variation,
+                    stamp.rotation,
+                    work,
+                )
+                .await
+            }
+            "mud" => {
+                Self::draw_iso_paint_mud_stamp(
+                    buffer,
+                    surface_buffer,
+                    screen,
+                    stamp_depth,
+                    owner_geo_id,
+                    size,
+                    stamp.color,
+                    stamp.opacity,
+                    stamp.variation,
+                    stamp.rotation,
+                    work,
+                )
+                .await
+            }
             _ => {}
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_footprints_stamp(
+    pub(super) async fn draw_iso_paint_footprints_stamp(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         screen: [i32; 2],
@@ -1465,6 +1620,7 @@ impl IsoPaintRenderer {
         opacity: f32,
         variation: u32,
         rotation: f32,
+        work: &mut Slice,
     ) {
         let opacity = opacity.clamp(0.0, 1.0);
         let angle = rotation;
@@ -1476,6 +1632,7 @@ impl IsoPaintRenderer {
         let foot_w = (size * 1.35).clamp(1.2, 5.0);
         let shadow = [8, 6, 5, (opacity * 45.0).round() as u8];
         for i in 0..2 {
+            work.checkpoint().await;
             let phase = if i == 0 { -1.0 } else { 1.0 };
             let seed = variation ^ (i as u32 + 1).wrapping_mul(0x9e37_79b9);
             let center = [
@@ -1499,7 +1656,9 @@ impl IsoPaintRenderer {
                 foot_angle,
                 shadow,
                 seed ^ 0x5a5a_0011,
-            );
+                work,
+            )
+            .await;
             Self::draw_iso_paint_rotated_ellipse(
                 buffer,
                 surface_buffer,
@@ -1511,12 +1670,15 @@ impl IsoPaintRenderer {
                 foot_angle,
                 print,
                 seed,
-            );
+                work,
+            )
+            .await;
             let toe = [
                 center[0] + (forward[0] * foot_len * 0.68).round() as i32,
                 center[1] + (forward[1] * foot_len * 0.68).round() as i32,
             ];
             for toe_side in [-0.9_f32, 0.0, 0.9] {
+                work.checkpoint().await;
                 let toe_center = [
                     toe[0] + (side[0] * foot_w * toe_side).round() as i32,
                     toe[1] + (side[1] * foot_w * toe_side).round() as i32,
@@ -1532,12 +1694,14 @@ impl IsoPaintRenderer {
                     foot_angle,
                     print,
                     seed ^ ((toe_side.to_bits()).wrapping_mul(0x45d9_f3b)),
-                );
+                    work,
+                )
+                .await;
             }
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_mud_stamp(
+    pub(super) async fn draw_iso_paint_mud_stamp(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         screen: [i32; 2],
@@ -1548,6 +1712,7 @@ impl IsoPaintRenderer {
         opacity: f32,
         variation: u32,
         rotation: f32,
+        work: &mut Slice,
     ) {
         let opacity = opacity.clamp(0.0, 1.0);
         let spread = (size * 9.0).round().clamp(5.0, 34.0) as i32;
@@ -1555,6 +1720,7 @@ impl IsoPaintRenderer {
         let mut base = Self::iso_paint_adjust_rgb(color, 0.78);
         base[3] = (opacity * 165.0).round() as u8;
         for i in 0..3 {
+            work.checkpoint().await;
             let seed = variation
                 .wrapping_add((i as u32).wrapping_mul(0x4cf5_ad43))
                 .rotate_left(((i * 4) as u32) & 15);
@@ -1583,7 +1749,9 @@ impl IsoPaintRenderer {
                 angle,
                 shadow,
                 seed ^ 0x011d_1111,
-            );
+                work,
+            )
+            .await;
             Self::draw_iso_paint_rotated_ellipse(
                 buffer,
                 surface_buffer,
@@ -1595,11 +1763,14 @@ impl IsoPaintRenderer {
                 angle,
                 base,
                 seed,
-            );
+                work,
+            )
+            .await;
         }
 
         let bubble_count = 3 + (variation % 4) as i32;
         for i in 0..bubble_count {
+            work.checkpoint().await;
             let seed = variation
                 .wrapping_add((i as u32).wrapping_mul(0x9e37_79b9))
                 .rotate_left(((i * 7) as u32) & 15);
@@ -1622,7 +1793,9 @@ impl IsoPaintRenderer {
                 rotation,
                 rim,
                 seed ^ 0x8b8b_0001,
-            );
+                work,
+            )
+            .await;
             Self::draw_iso_paint_rotated_ellipse(
                 buffer,
                 surface_buffer,
@@ -1634,7 +1807,9 @@ impl IsoPaintRenderer {
                 rotation,
                 dome,
                 seed,
-            );
+                work,
+            )
+            .await;
             let highlight = [210, 224, 208, (opacity * 112.0).round() as u8];
             Self::iso_paint_blend_stamp_pixel(
                 buffer,
@@ -1648,7 +1823,7 @@ impl IsoPaintRenderer {
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_rubble_ellipse(
+    pub(super) async fn draw_iso_paint_rubble_ellipse(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         stamp_depth: Option<f32>,
@@ -1658,13 +1833,16 @@ impl IsoPaintRenderer {
         radius_y: i32,
         color: [u8; 4],
         variation: u32,
+        work: &mut Slice,
     ) {
         let radius_x = radius_x.max(1);
         let radius_y = radius_y.max(1);
         let rx2 = (radius_x * radius_x).max(1) as f32;
         let ry2 = (radius_y * radius_y).max(1) as f32;
         for y in -radius_y..=radius_y {
+            work.checkpoint().await;
             for x in -radius_x..=radius_x {
+                work.checkpoint().await;
                 let edge = x as f32 * x as f32 / rx2 + y as f32 * y as f32 / ry2;
                 if edge > 1.0 {
                     continue;
@@ -1695,7 +1873,7 @@ impl IsoPaintRenderer {
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_rubble_stamp(
+    pub(super) async fn draw_iso_paint_rubble_stamp(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         screen: [i32; 2],
@@ -1706,12 +1884,14 @@ impl IsoPaintRenderer {
         opacity: f32,
         variation: u32,
         rotation: f32,
+        work: &mut Slice,
     ) {
         let opacity = opacity.clamp(0.0, 1.0);
         let stone_count = 4 + (variation % 5) as i32;
         let spread = (size * 9.0).round().clamp(5.0, 36.0) as i32;
         let shadow = [9, 8, 7, (opacity * 72.0).round() as u8];
         for i in 0..stone_count {
+            work.checkpoint().await;
             let seed = variation
                 .wrapping_add((i as u32).wrapping_mul(0x85eb_ca6b))
                 .rotate_left(((i * 3) as u32) & 15);
@@ -1726,6 +1906,7 @@ impl IsoPaintRenderer {
                 .round()
                 .max(1.0) as i32;
             for sx in -radius_x..=radius_x {
+                work.checkpoint().await;
                 Self::iso_paint_blend_stamp_pixel(
                     buffer,
                     surface_buffer,
@@ -1749,11 +1930,13 @@ impl IsoPaintRenderer {
                 radius_y,
                 stone,
                 seed,
-            );
+                work,
+            )
+            .await;
         }
     }
 
-    pub(in crate::iso_paint_render) fn draw_iso_paint_grass_stamp(
+    pub(super) async fn draw_iso_paint_grass_stamp(
         buffer: &mut impl Target,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         screen: [i32; 2],
@@ -1764,6 +1947,7 @@ impl IsoPaintRenderer {
         opacity: f32,
         variation: u32,
         rotation: f32,
+        work: &mut Slice,
     ) {
         let opacity = opacity.clamp(0.0, 1.0);
         let blade_count = 5 + (variation % 5) as i32;
@@ -1773,6 +1957,7 @@ impl IsoPaintRenderer {
         let height = (size * 12.0).round().clamp(10.0, 56.0) as i32;
         let spread = (size * 5.0).round().clamp(4.0, 28.0) as i32;
         for sx in -spread / 2..=spread / 2 {
+            work.checkpoint().await;
             let x = screen[0] + sx;
             if Self::iso_paint_stamp_pixel_visible(
                 surface_buffer,
@@ -1785,6 +1970,7 @@ impl IsoPaintRenderer {
             }
         }
         for i in 0..blade_count {
+            work.checkpoint().await;
             let lane = i - blade_count / 2;
             let seed = variation
                 .wrapping_add((i as u32).wrapping_mul(0x9e37_79b9))
@@ -1806,7 +1992,9 @@ impl IsoPaintRenderer {
                 top_x,
                 top_y,
                 blade,
-            );
+                work,
+            )
+            .await;
             if size > 1.7 {
                 Self::iso_paint_blend_line(
                     buffer,
@@ -1818,7 +2006,9 @@ impl IsoPaintRenderer {
                     top_x + 1,
                     top_y,
                     blade,
-                );
+                    work,
+                )
+                .await;
             }
         }
     }

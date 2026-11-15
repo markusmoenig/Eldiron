@@ -1,14 +1,40 @@
 //! Shared stamp kernels can target an explicit reference image or a bounded
 //! virtual raster. Virtual coordinates remain unchanged, including noise hashes.
 use super::*;
+mod cooperative;
 mod procedural;
+pub use cooperative::StampWork;
+use cooperative::{Slice, finish};
 
-pub(super) trait Target: Sized {
+pub(super) trait Target: Sized + Send {
     fn dim(&self) -> &TheDim;
     fn blend(&mut self, x: i32, y: i32, color: [u8; 4]);
     fn replace(&mut self, x: i32, y: i32, color: [u8; 4]);
     fn blank(&self) -> Self;
     fn material_mask(&mut self, source: Self, material: [u8; 3]);
+}
+
+impl IsoPaintRenderer {
+    pub(in crate::iso_paint_render) fn draw_iso_paint_stamp_shape(
+        buffer: &mut impl Target,
+        stamp: &IsoPaintStamp,
+        surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
+        screen: [i32; 2],
+        stamp_depth: Option<f32>,
+        owner_geo_id: Option<scenevm::GeoId>,
+        size: f32,
+    ) {
+        finish(Self::draw_iso_paint_stamp_shape_steps(
+            buffer,
+            stamp,
+            surface_buffer,
+            screen,
+            stamp_depth,
+            owner_geo_id,
+            size,
+            &mut Slice::unlimited(),
+        ));
+    }
 }
 impl Target for TheRGBABuffer {
     fn dim(&self) -> &TheDim {
@@ -251,6 +277,25 @@ pub struct StampRecipe {
 }
 impl StampRecipe {
     pub fn prepare(stamp: std::sync::Arc<IsoPaintStamp>) -> Result<Option<Self>, String> {
+        finish(Self::prepare_steps(stamp, &mut Slice::unlimited()))
+    }
+    /// Freeze crop and cutoff coverage cooperatively for private paged sources.
+    pub fn prepare_masked_work(
+        stamp: std::sync::Arc<IsoPaintStamp>,
+    ) -> StampWork<Option<std::sync::Arc<Self>>> {
+        StampWork::new(async move {
+            let mut work = Slice::cooperative();
+            let Some(recipe) = Self::prepare_steps(stamp, &mut work).await? else {
+                return Ok(None);
+            };
+            recipe.alpha_mask_steps(&mut work).await;
+            Ok(Some(std::sync::Arc::new(recipe)))
+        })
+    }
+    async fn prepare_steps(
+        stamp: std::sync::Arc<IsoPaintStamp>,
+        work: &mut Slice,
+    ) -> Result<Option<Self>, String> {
         if !stamp.size.is_finite() {
             return Err("Stamp size must be finite".into());
         }
@@ -273,7 +318,7 @@ impl StampRecipe {
             dim,
             bounds: Bounds::empty(),
         };
-        IsoPaintRenderer::draw_iso_paint_stamp_shape(
+        IsoPaintRenderer::draw_iso_paint_stamp_shape_steps(
             &mut coverage,
             &stamp,
             None,
@@ -281,7 +326,9 @@ impl StampRecipe {
             None,
             None,
             size,
-        );
+            work,
+        )
+        .await;
         if !coverage.bounds.present() {
             return Ok(None);
         }
@@ -301,40 +348,46 @@ impl StampRecipe {
         self.output
     }
     pub fn alpha_mask(&self) -> std::sync::Arc<[u32]> {
-        self.alpha_mask
-            .get_or_init(|| {
-                let pixels = self.output[0] as usize * self.output[1] as usize;
-                let mut target = AlphaSamples {
-                    mapping: Samples {
-                        dim: self.dim,
-                        bounds: self.bounds,
-                        size: self.output,
-                        region_origin: [0; 2],
-                        region_size: self.output,
-                        rgba: Vec::new(),
-                    },
-                    alpha: vec![0; pixels],
-                };
-                IsoPaintRenderer::draw_iso_paint_stamp_shape(
-                    &mut target,
-                    &self.stamp,
-                    None,
-                    self.anchor,
-                    None,
-                    None,
-                    self.stamp.size.max(0.01),
-                );
-                let mut mask = vec![0u32; pixels.div_ceil(32)];
-                for (index, alpha) in target.alpha.into_iter().enumerate() {
-                    // Exactly the integer-alpha threshold of the shared compute
-                    // kernel's BILLBOARD_ALPHA_CUTOFF=0.08 (20/255 < .08 < 21/255).
-                    if alpha >= 21 {
-                        mask[index / 32] |= 1 << (index % 32);
-                    }
-                }
-                mask.into()
-            })
-            .clone()
+        finish(self.alpha_mask_steps(&mut Slice::unlimited()))
+    }
+    async fn alpha_mask_steps(&self, work: &mut Slice) -> std::sync::Arc<[u32]> {
+        if let Some(mask) = self.alpha_mask.get() {
+            return mask.clone();
+        }
+        let pixels = self.output[0] as usize * self.output[1] as usize;
+        let mut target = AlphaSamples {
+            mapping: Samples {
+                dim: self.dim,
+                bounds: self.bounds,
+                size: self.output,
+                region_origin: [0; 2],
+                region_size: self.output,
+                rgba: Vec::new(),
+            },
+            alpha: vec![0; pixels],
+        };
+        IsoPaintRenderer::draw_iso_paint_stamp_shape_steps(
+            &mut target,
+            &self.stamp,
+            None,
+            self.anchor,
+            None,
+            None,
+            self.stamp.size.max(0.01),
+            work,
+        )
+        .await;
+        let mut mask = vec![0u32; pixels.div_ceil(32)];
+        for (index, alpha) in target.alpha.into_iter().enumerate() {
+            work.checkpoint().await;
+            // Exactly BILLBOARD_ALPHA_CUTOFF=0.08 (20/255 < .08 < 21/255).
+            if alpha >= 21 {
+                mask[index / 32] |= 1 << (index % 32);
+            }
+        }
+        let mask: std::sync::Arc<[u32]> = mask.into();
+        let _ = self.alpha_mask.set(mask.clone());
+        self.alpha_mask.get().unwrap().clone()
     }
     pub fn crop(&self) -> ([i32; 2], [i32; 2], [i32; 2]) {
         (self.bounds.min, self.bounds.max, self.anchor)
@@ -342,6 +395,26 @@ impl StampRecipe {
     /// Original sprite coordinates, with transparent padding at partial edge
     /// pages. Allocation is bounded independently of original canvas size.
     pub fn raster(&self, origin: [u32; 2], size: [u32; 2]) -> Result<Vec<u8>, String> {
+        finish(self.raster_steps(origin, size, &mut Slice::unlimited()))
+    }
+    pub fn raster_work(
+        self: &std::sync::Arc<Self>,
+        origin: [u32; 2],
+        size: [u32; 2],
+    ) -> StampWork<Vec<u8>> {
+        let recipe = self.clone();
+        StampWork::new(async move {
+            recipe
+                .raster_steps(origin, size, &mut Slice::cooperative())
+                .await
+        })
+    }
+    async fn raster_steps(
+        &self,
+        origin: [u32; 2],
+        size: [u32; 2],
+        work: &mut Slice,
+    ) -> Result<Vec<u8>, String> {
         if !(0..2).all(|axis| {
             size[axis] > 0
                 && size[axis] <= 256
@@ -358,7 +431,7 @@ impl StampRecipe {
             region_size: size,
             rgba: vec![0; size[0] as usize * size[1] as usize * 4],
         };
-        IsoPaintRenderer::draw_iso_paint_stamp_shape(
+        IsoPaintRenderer::draw_iso_paint_stamp_shape_steps(
             &mut samples,
             &self.stamp,
             None,
@@ -366,7 +439,9 @@ impl StampRecipe {
             None,
             None,
             self.stamp.size.max(0.01),
-        );
+            work,
+        )
+        .await;
         Ok(samples.rgba)
     }
 }
@@ -374,14 +449,31 @@ impl StampRecipe {
 /// Synchronous small-sprite convenience API. Paged producers retain the recipe
 /// and generate only selected64px rectangles instead of this complete sprite.
 pub(super) fn native_sprite(stamp: &IsoPaintStamp) -> Result<Option<NativeSprite>, String> {
-    let Some(recipe) = StampRecipe::prepare(std::sync::Arc::new(stamp.clone()))? else {
+    finish(native_sprite_steps(
+        std::sync::Arc::new(stamp.clone()),
+        &mut Slice::unlimited(),
+    ))
+}
+pub(super) fn native_sprite_work(
+    stamp: std::sync::Arc<IsoPaintStamp>,
+) -> StampWork<Option<NativeSprite>> {
+    StampWork::new(async move { native_sprite_steps(stamp, &mut Slice::cooperative()).await })
+}
+async fn native_sprite_steps(
+    stamp: std::sync::Arc<IsoPaintStamp>,
+    work: &mut Slice,
+) -> Result<Option<NativeSprite>, String> {
+    let Some(recipe) = StampRecipe::prepare_steps(stamp, work).await? else {
         return Ok(None);
     };
     Ok(Some(NativeSprite {
         sprite: scenevm::OrganicBillboardSprite {
             width: recipe.output[0],
             height: recipe.output[1],
-            rgba: recipe.raster([0; 2], recipe.output)?.into(),
+            rgba: recipe
+                .raster_steps([0; 2], recipe.output, work)
+                .await?
+                .into(),
         },
         min: recipe.bounds.min,
         max: recipe.bounds.max,
