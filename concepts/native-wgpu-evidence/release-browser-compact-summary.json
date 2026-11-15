@@ -1,0 +1,23 @@
+{
+  "source_head": "e9da236e",
+  "builds": {
+    "creator": "optimized wasm + CPU codec worker passed",
+    "player": "optimized wasm + CPU codec worker passed"
+  },
+  "creator": {
+    "3DStarter": "actual complete source and generation1->2 reconstruction pass, unchanged document/dirty, no normal copies/readback/Canvas2D/GPU or JS errors",
+    "UnendingNight": "actual complete source and generation1->2 reconstruction pass using saved trace; ten low-level rgba16float source channel transfers classified by exact label and asset_bake::Baker stack as explicit editable material assets, zero normal viewport copies"
+  },
+  "player": {
+    "Hideout2D": "startup/Setup screen and reconstruction pass; attempted click remained Setup, so actual game transition is NOT verified",
+    "UnendingNight": "playing and continuous presentations/ticks observed, screenshot timed out120s. Actual in-game visual/recovery proof is NOT verified"
+  },
+  "density": "Requested capture scale1.5 but actual GPU canvas remained1600x1000 at logical1600x1000. Browser fractional GPU density gate remains open. Headless document focus false requires controlled focus and post-navigation metrics checks.",
+  "logs": [
+    "/private/tmp/eldiron-release-compact-browser-acceptance.log",
+    "/private/tmp/eldiron-release-compact-browser-copy-audit.log",
+    "/private/tmp/eldiron-release-compact-browser-player.log",
+    "/private/tmp/eldiron-release-compact-browser-player-game.log"
+  ],
+  "scope": "Partial current browser acceptance only. No physical input/display, final performance, full player-world, or M8 completion claim. All owned Chrome/server/probe processes reaped before Apple compilation."
+}

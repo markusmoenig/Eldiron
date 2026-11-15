@@ -27,10 +27,14 @@ platform validation. Earlier per-milestone inventories below are historical;
 later implementation/evidence entries supersede their old remaining-caller lists.
 No percentage is mechanically measured; the chat's roughly85% is an estimate.
 
-- Earlier broad release passes (not a fresh final matrix): Renderkit12, Framework296, SceneVM77, presentation216,
-  CPU core/shared/runtime205, Creator nonignored641, common player13, assembled
-  Creator1 and large native bake1. Twenty-nine isolated dependency configurations
-  pass. Ignored specialized Creator contracts are inventoried separately.
+- Consolidated release foundations pass615 checks: Renderkit17, Framework299,
+  SceneVM77 and presentation222, before the latest private isometric metadata
+  optimization. Its targeted exact-pixel/upload/order/integration checks pass.
+  Current Creator nonignored642, common player13 and assembled Creator1 pass.
+  Twenty-nine isolated dependency configurations pass. The CPU suite has835
+  passes and the same six documented shipped-data baseline failures. Ignored
+  specialized Creator contracts are inventoried separately; this is not a fully
+  green final functional/platform matrix.
 - Canonical Creator/player/browser/Apple share explicit presentation owners.
   Creator foreign handles/layers and Swift close approvals are per owner; actual
   optimized detached multi-host and retained-window lifetime checks pass.
@@ -18499,3 +18503,97 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Overall estimate remains roughly85%, not a measured acceptance fraction.
   Next current ordinary Creator and common-player release acceptance, then latest
   browser/Apple and uninstrumented longer matched performance. Goal remains open.
+
+- Compact implementation checkpoint e9da236e. Current ordinary Creator release
+  binary39403terminalPASS642/642,123explicitlyignored in79.51s; no blanket
+  ignored maintenance/export/profiler suite. Log:
+  /private/tmp/eldiron-release-creator-compact-ordinary.log. Current serialized
+  common-player release acceptance follows, native-player feature, all its
+  inventoried ignored GPU contracts included. No completion/physical parity claim.
+
+- Current common-player75098terminalPASS13/13 in32.23s, including actual Metal ABI/foreign layers, isometric source
+  reconstruction, containers, tooltip/input, lifecycle and local session clocks.
+  /private/tmp/eldiron-release-player-compact-acceptance.log. Creator642/642 and
+  player13/13 verify current compact production implementation. Browser release
+  packaging now follows serially, then actual source-ready WebGPU/recovery.
+  Console readback again shows IOConsoleLocked=Yes and CGSSessionScreenIsLocked=Yes;
+  physical AppKit input/window/monitor acceptance remains open.
+
+- Latest Creator browser optimized artifact14624terminalPASS, CPU codec worker
+  and wasm main packaged under /private/tmp/eldiron-compact-web-release/creator.
+  Log /private/tmp/eldiron-release-compact-web-creator-build.log. Player packaging
+  follows serialized. Actual Chrome proof will wait for complete source-ready
+  presentation (not merely editing/first-frame status), then destroy device and
+  require ready recovered source with preserved document/session and zero normal
+  color copies/readback/Canvas2D. Physical DPI/input remains separate.
+
+- Browser release Creator+player packaging terminalPASS (14624/94500). Actual
+  owned Chrome152/Apple metal-3, baseline8storage buffers,150%DPR run71814:
+  Creator3DStarter source-ready initial/recovered PASS, document/dirty preserved,
+  normal readback/root/Canvas2D/colorcopy counters0; screenshot visually checked.
+  CreatorUnending reaches ready and renders screenshot, but recovery probe saw6
+  RGBA texture-copy commands while new-context readback counter stayed0. This
+  recovery case is NOT accepted. Original probe tested source texture dimensions
+  rather than actual copied extent; next owned run logs actual extent/label/stack
+  and saves pre/post state before assertions to classify small queries versus
+  asset or prohibited full-color transfers. No production change or relaxed gate.
+  First run and owned Chrome reaped terminal after failure. Audit log:
+  /private/tmp/eldiron-release-compact-browser-copy-audit.log. Independent Apple
+  and final matched timings follow after serialized current browser process.
+
+- Browser copy audit64244terminal failed its intentionally strict all-copy
+  assertion, but saved initial+recovered states and complete JS/Wasm stacks before
+  assertion. All10RGBA copies are64/384/512px rgba16float source-asset channels,
+  destination MaterialZ explicit asset readback, stack procedural_material::
+  asset_bake::Baker. Source asset_bake.rs:current/render/readback and native_host
+  asset-worker admission confirm editable CPU material production, not interactive
+  previews or viewport composition. Two GPU devices total are initial+replacement.
+  Device counters sampled on first recovered presentation are0; asynchronous
+  assets may issue between presentations, so low-level copy trace is retained.
+- Offline assertions against those ACTUAL saved states pass: same document/dirty,
+  generation1->2 and increasing presentations, source ready/no CPU wait, root and
+  normal (readback minus labelled assets)0, Canvas2D0, no uncapturedGPU/JSerrors.
+  Every low-level RGBA copy classified as an explicit asset bake; zero normal
+  copies. No production/tolerance change or repeated expensive Creator run merely
+  to classify the trace. creator-UnendingNight-classified.json in owned output
+  /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-compact-browser-5rox93un.
+  Current player-only actual WebGPU acceptance68584 follows with exact labelled
+  asset separation and actual copied extents. Goal remains open.
+
+- Browser player68584: Hideout startup-screen recovery passes with session
+  identity preserved and zero normal copies/Canvas2D/errors; screenshot inspected
+  and is Setup, so this does NOT establish actual game-world rendering. Large
+  Unending reaches playing/presentation1 but Chrome Page.captureScreenshot times
+  out120s; owned target/Chrome reaped. Attempt96244 leaves RAF live and waits8+
+  presentations, but its Unending startup screenshot still times out. Independent
+  diagnostic while that app remained alive observed521presentations/202ticks, no
+  application failure: screenshot timeout does not establish a hung app.
+- Hideout96244 click at presumed Start-button CSS position did NOT leave Setup
+  (visually inspected); its session/recovery checks pass but game transition is
+  unverified. Owned target had document.hasFocus=false. Browser scripts must
+  bring target to front, enable headless focus emulation, log actual DOM/canvas
+  metrics and verify a real game image before accepting the transition.
+- Browser density correction: emulated screenshot scale1.5 alone was insufficient.
+  Saved application canvas is1600x1000 at logical1600x1000, and later DOM query
+  had devicePixelRatio1. Earlier150%DPR wording describes requested emulation,
+  NOT verified fractional application GPU density. Native five-density contracts
+  remain valid; browser fractional-DPI gate stays open. Blank target with exact
+  metrics command reads1.5 correctly; investigate post-navigation focus/metrics
+  rather than weakening source/input/pixel requirements. No production edits.
+- Continue independent serialized current Apple release Creator host/lifetimes:
+  /private/tmp/eldiron-release-compact-apple-creator.log; then player and UIKit,
+  longer native/reference timings. Current browser gaps remain open.
+
+- Current Apple Creator14560terminalPASS optimized Rust+Swift host, close-policy
+  check and actual retained-window lifetime-only test. Two independent versioned
+  foreign hosts plus legacy facade retain correct separate layer/document ownership;
+  no physical console presentation claim. Evidence root:
+  /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-creator-apple-host-ddqbfdmy.
+  Current serialized Apple player follows.
+- Browser investigation recovered earlier exact emulation diagnosis (historical
+  lines7158-7210/9160-9189/12755-12787): CDP DPR and devicePixelContentBox differ;
+  actual --force-device-scale-factor=1.5 gives consistent startup physical pixels.
+  Do NOT patch production sizing for this emulation discrepancy. Next focused
+  browser run uses that REAL startup flag, active target/focus emulation, asserts
+  DOM/canvas physical metrics and captures actual game before/after loss. Previous
+  guessed Start click under mismatched DPR is not game/input parity evidence.

@@ -1,0 +1,282 @@
+{
+  "app": "creator",
+  "project": "3DStarter.eldiron",
+  "initial": {
+    "attrs": {
+      "data-eldiron-inspect-view": "",
+      "data-eldiron-state": "editing",
+      "data-eldiron-codec-workers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+      "data-eldiron-cache-usage": "{\"immutable\":{\"allocations\":0,\"byte_limit\":134217728,\"cpu_bytes\":0,\"entries\":0,\"entry_limit\":16384,\"evictions\":0,\"gpu_bytes\":0,\"hits\":0,\"live_allocations\":0,\"live_bytes\":0,\"peak_live_bytes\":0,\"uploaded_bytes\":0},\"targets\":{\"allocations\":26,\"byte_limit\":536870912,\"bytes\":75578340,\"entries\":26,\"entry_limit\":64,\"evictions\":0,\"hits\":0,\"live_allocations\":26,\"live_bytes\":75578340,\"peak_live_bytes\":75578340},\"unpooled_images\":{\"allocations\":64,\"live_bytes\":231468,\"live_images\":64,\"peak_live_bytes\":231468},\"working\":{\"allocations\":49,\"byte_limit\":134217728,\"bytes\":1253872,\"entries\":49,\"entry_limit\":64,\"evictions\":0,\"hits\":0,\"live_allocations\":49,\"live_bytes\":1253872,\"peak_live_bytes\":1253872}}",
+      "data-eldiron-readback-bytes": "0",
+      "data-eldiron-asset-bake-readback-bytes": "0",
+      "data-eldiron-asset-bake-readback-requests": "0",
+      "data-eldiron-gpu-generation": "1",
+      "data-eldiron-root-cpu-bytes": "0",
+      "data-eldiron-document": "f57e1d28-284f-42fb-9e25-311ad1a11f8b",
+      "data-eldiron-dirty": "false",
+      "data-eldiron-view-source": "{\"bake\":{\"adapter\":false,\"job\":null,\"rendering\":false,\"status\":\"Missing\"},\"bake_pages\":null,\"center\":[0.0,0.0,0.0],\"fly\":false,\"fly_mouse\":false,\"mode\":\"iso\",\"moving\":false,\"navigation\":false,\"paste\":{\"active\":false,\"authored_vertices\":0,\"projected_vertices\":null,\"ready\":false,\"target\":null},\"play_sources\":null,\"position\":[5.014869689941406,0.0,0.30367547273635864],\"source\":{\"context\":\"Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)\",\"map\":\"236ae48a-0b3c-4871-9594-1408bcd9596f\",\"presented\":{\"baked\":false,\"context\":\"Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)\",\"custom\":false,\"map\":\"236ae48a-0b3c-4871-9594-1408bcd9596f\",\"ready\":true,\"waiting_cpu_sources\":false}},\"speech\":{\"fonts\":false,\"layouts\":0,\"messages\":0,\"visible\":0},\"world\":true,\"world_sources\":{\"context_immutable_buffers\":{\"cached_cpu_bytes\":0,\"cached_gpu_bytes\":0,\"live_allocations\":0,\"live_bytes\":0,\"peak_live_bytes\":0},\"context_unpooled_images\":{\"allocations\":65,\"live_bytes\":8620076,\"live_images\":65,\"peak_live_bytes\":8620076},\"paint_producers\":{\"failed_sources\":0,\"frame_uploaded_bytes\":0,\"gpu_copied_bytes\":0,\"gpu_plane_bytes\":0,\"gpu_table_bytes\":0,\"logical_cpu_page_bytes\":0,\"pending_sources\":0,\"pending_views\":0,\"reused_bindings\":0,\"reused_pages\":0,\"sources\":0,\"uploaded_pages\":0},\"pending_frames\":false,\"scene_preparation_this_frame\":{\"calls\":2,\"cpu_ns\":1300000,\"gpu_copied_bytes\":0,\"packed_cpu_bytes\":96,\"uploaded_bytes\":96}}}",
+      "data-eldiron-presentations": "1"
+    },
+    "source": {
+      "bake": {
+        "adapter": false,
+        "job": null,
+        "rendering": false,
+        "status": "Missing"
+      },
+      "bake_pages": null,
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "fly": false,
+      "fly_mouse": false,
+      "mode": "iso",
+      "moving": false,
+      "navigation": false,
+      "paste": {
+        "active": false,
+        "authored_vertices": 0,
+        "projected_vertices": null,
+        "ready": false,
+        "target": null
+      },
+      "play_sources": null,
+      "position": [
+        5.014869689941406,
+        0,
+        0.30367547273635864
+      ],
+      "source": {
+        "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+        "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+        "presented": {
+          "baked": false,
+          "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+          "custom": false,
+          "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+          "ready": true,
+          "waiting_cpu_sources": false
+        }
+      },
+      "speech": {
+        "fonts": false,
+        "layouts": 0,
+        "messages": 0,
+        "visible": 0
+      },
+      "world": true,
+      "world_sources": {
+        "context_immutable_buffers": {
+          "cached_cpu_bytes": 0,
+          "cached_gpu_bytes": 0,
+          "live_allocations": 0,
+          "live_bytes": 0,
+          "peak_live_bytes": 0
+        },
+        "context_unpooled_images": {
+          "allocations": 65,
+          "live_bytes": 8620076,
+          "live_images": 65,
+          "peak_live_bytes": 8620076
+        },
+        "paint_producers": {
+          "failed_sources": 0,
+          "frame_uploaded_bytes": 0,
+          "gpu_copied_bytes": 0,
+          "gpu_plane_bytes": 0,
+          "gpu_table_bytes": 0,
+          "logical_cpu_page_bytes": 0,
+          "pending_sources": 0,
+          "pending_views": 0,
+          "reused_bindings": 0,
+          "reused_pages": 0,
+          "sources": 0,
+          "uploaded_pages": 0
+        },
+        "pending_frames": false,
+        "scene_preparation_this_frame": {
+          "calls": 2,
+          "cpu_ns": 1300000,
+          "gpu_copied_bytes": 0,
+          "packed_cpu_bytes": 96,
+          "uploaded_bytes": 96
+        }
+      }
+    },
+    "probe": {
+      "contexts2D": 0,
+      "colorCopies": 0,
+      "gpuErrors": [],
+      "errors": [],
+      "devices": [
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        }
+      ]
+    },
+    "canvas": [
+      {
+        "width": 1600,
+        "height": 1000
+      }
+    ],
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
+  },
+  "recovered": {
+    "attrs": {
+      "data-eldiron-inspect-view": "",
+      "data-eldiron-state": "editing",
+      "data-eldiron-codec-workers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+      "data-eldiron-cache-usage": "{\"immutable\":{\"allocations\":0,\"byte_limit\":134217728,\"cpu_bytes\":0,\"entries\":0,\"entry_limit\":16384,\"evictions\":0,\"gpu_bytes\":0,\"hits\":0,\"live_allocations\":0,\"live_bytes\":0,\"peak_live_bytes\":0,\"uploaded_bytes\":0},\"targets\":{\"allocations\":26,\"byte_limit\":536870912,\"bytes\":75578340,\"entries\":26,\"entry_limit\":64,\"evictions\":0,\"hits\":0,\"live_allocations\":26,\"live_bytes\":75578340,\"peak_live_bytes\":75578340},\"unpooled_images\":{\"allocations\":64,\"live_bytes\":231468,\"live_images\":64,\"peak_live_bytes\":231468},\"working\":{\"allocations\":49,\"byte_limit\":134217728,\"bytes\":1253872,\"entries\":49,\"entry_limit\":64,\"evictions\":0,\"hits\":0,\"live_allocations\":49,\"live_bytes\":1253872,\"peak_live_bytes\":1253872}}",
+      "data-eldiron-readback-bytes": "0",
+      "data-eldiron-asset-bake-readback-bytes": "0",
+      "data-eldiron-asset-bake-readback-requests": "0",
+      "data-eldiron-gpu-generation": "2",
+      "data-eldiron-root-cpu-bytes": "0",
+      "data-eldiron-document": "f57e1d28-284f-42fb-9e25-311ad1a11f8b",
+      "data-eldiron-dirty": "false",
+      "data-eldiron-view-source": "{\"bake\":{\"adapter\":false,\"job\":null,\"rendering\":false,\"status\":\"Missing\"},\"bake_pages\":null,\"center\":[0.0,0.0,0.0],\"fly\":false,\"fly_mouse\":false,\"mode\":\"iso\",\"moving\":false,\"navigation\":false,\"paste\":{\"active\":false,\"authored_vertices\":0,\"projected_vertices\":null,\"ready\":false,\"target\":null},\"play_sources\":null,\"position\":[5.014869689941406,0.0,0.30367547273635864],\"source\":{\"context\":\"Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)\",\"map\":\"236ae48a-0b3c-4871-9594-1408bcd9596f\",\"presented\":{\"baked\":false,\"context\":\"Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)\",\"custom\":false,\"map\":\"236ae48a-0b3c-4871-9594-1408bcd9596f\",\"ready\":true,\"waiting_cpu_sources\":false}},\"speech\":{\"fonts\":false,\"layouts\":0,\"messages\":0,\"visible\":0},\"world\":true,\"world_sources\":{\"context_immutable_buffers\":{\"cached_cpu_bytes\":0,\"cached_gpu_bytes\":0,\"live_allocations\":0,\"live_bytes\":0,\"peak_live_bytes\":0},\"context_unpooled_images\":{\"allocations\":65,\"live_bytes\":8620076,\"live_images\":65,\"peak_live_bytes\":8620076},\"paint_producers\":{\"failed_sources\":0,\"frame_uploaded_bytes\":0,\"gpu_copied_bytes\":0,\"gpu_plane_bytes\":0,\"gpu_table_bytes\":0,\"logical_cpu_page_bytes\":0,\"pending_sources\":0,\"pending_views\":0,\"reused_bindings\":0,\"reused_pages\":0,\"sources\":0,\"uploaded_pages\":0},\"pending_frames\":false,\"scene_preparation_this_frame\":{\"calls\":2,\"cpu_ns\":300000,\"gpu_copied_bytes\":0,\"packed_cpu_bytes\":96,\"uploaded_bytes\":96}}}",
+      "data-eldiron-presentations": "3"
+    },
+    "source": {
+      "bake": {
+        "adapter": false,
+        "job": null,
+        "rendering": false,
+        "status": "Missing"
+      },
+      "bake_pages": null,
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "fly": false,
+      "fly_mouse": false,
+      "mode": "iso",
+      "moving": false,
+      "navigation": false,
+      "paste": {
+        "active": false,
+        "authored_vertices": 0,
+        "projected_vertices": null,
+        "ready": false,
+        "target": null
+      },
+      "play_sources": null,
+      "position": [
+        5.014869689941406,
+        0,
+        0.30367547273635864
+      ],
+      "source": {
+        "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+        "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+        "presented": {
+          "baked": false,
+          "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+          "custom": false,
+          "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+          "ready": true,
+          "waiting_cpu_sources": false
+        }
+      },
+      "speech": {
+        "fonts": false,
+        "layouts": 0,
+        "messages": 0,
+        "visible": 0
+      },
+      "world": true,
+      "world_sources": {
+        "context_immutable_buffers": {
+          "cached_cpu_bytes": 0,
+          "cached_gpu_bytes": 0,
+          "live_allocations": 0,
+          "live_bytes": 0,
+          "peak_live_bytes": 0
+        },
+        "context_unpooled_images": {
+          "allocations": 65,
+          "live_bytes": 8620076,
+          "live_images": 65,
+          "peak_live_bytes": 8620076
+        },
+        "paint_producers": {
+          "failed_sources": 0,
+          "frame_uploaded_bytes": 0,
+          "gpu_copied_bytes": 0,
+          "gpu_plane_bytes": 0,
+          "gpu_table_bytes": 0,
+          "logical_cpu_page_bytes": 0,
+          "pending_sources": 0,
+          "pending_views": 0,
+          "reused_bindings": 0,
+          "reused_pages": 0,
+          "sources": 0,
+          "uploaded_pages": 0
+        },
+        "pending_frames": false,
+        "scene_preparation_this_frame": {
+          "calls": 2,
+          "cpu_ns": 300000,
+          "gpu_copied_bytes": 0,
+          "packed_cpu_bytes": 96,
+          "uploaded_bytes": 96
+        }
+      }
+    },
+    "probe": {
+      "contexts2D": 0,
+      "colorCopies": 0,
+      "gpuErrors": [],
+      "errors": [],
+      "devices": [
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        },
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        }
+      ]
+    },
+    "canvas": [
+      {
+        "width": 1600,
+        "height": 1000
+      }
+    ],
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
+  },
+  "scope": "Actual Chrome WebGPU ready source and real device destruction/reconstruction; screenshot via DevTools only. No physical input or cross-browser claim.",
+  "density_correction": "Requested Chrome capture scale1.5; actual application canvas1600x1000 at logical1600x1000. Fractional application GPU density was not verified by these runs."
+}

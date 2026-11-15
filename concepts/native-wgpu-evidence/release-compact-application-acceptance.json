@@ -1,0 +1,19 @@
+{
+  "source_head": "e9da236e",
+  "profile": "release",
+  "creator": {
+    "passed": 642,
+    "failed": 0,
+    "ignored": 123,
+    "seconds": 79.51,
+    "log": "/private/tmp/eldiron-release-creator-compact-ordinary.log"
+  },
+  "common_player": {
+    "passed": 13,
+    "failed": 0,
+    "ignored": 0,
+    "seconds": 32.23,
+    "log": "/private/tmp/eldiron-release-player-compact-acceptance.log"
+  },
+  "limits": "Ordinary Creator checks plus all common-player library checks including its native GPU contracts; specialized Creator ignored contracts are separate. Physical Mac console remains locked. Not final performance/platform completion."
+}
