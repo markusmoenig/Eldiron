@@ -1,7 +1,7 @@
 //! Producer-owned paint residency on the scene's injected device. The binding
 //! retains textures, not a CPU atlas; the producer controls writes and replay.
-use crate::{GeoId, Raster3DSurfacePaintEntry, SceneVM};
-use renderkit::{GpuContext, GpuImage, RenderError, Result, wgpu};
+use crate::SceneVM;
+use renderkit::{GpuContext, Result, wgpu};
 use std::sync::Arc;
 
 /// Absolute pixel rectangle in one unchanged full-size camera/sample target.
@@ -42,79 +42,9 @@ impl PaintDispatchRegion {
     }
 }
 
-pub struct PaintPageBinding {
-    pub(crate) color: Arc<GpuImage>,
-    pub(crate) material: Arc<GpuImage>,
-    pub(crate) entries: Arc<[Raster3DSurfacePaintEntry]>,
-    pub(crate) alpha_geo_ids: Vec<GeoId>,
-    pub(crate) has_missing: bool,
-}
-impl PaintPageBinding {
-    /// Submit consumers before the producer rewrites any resident texture slot.
-    /// Retaining this binding preserves allocation lifetime, not a pixel copy.
-    pub fn new(
-        context: &GpuContext,
-        color: Arc<GpuImage>,
-        material: Arc<GpuImage>,
-        entries: Arc<[Raster3DSurfacePaintEntry]>,
-        alpha_geo_ids: Vec<GeoId>,
-    ) -> Result<Arc<Self>> {
-        if context.is_lost()
-            || color.device_generation() != context.generation()
-            || material.device_generation() != context.generation()
-            || color.descriptor.format != wgpu::TextureFormat::Rgba8Unorm
-            || material.descriptor.format != wgpu::TextureFormat::Rgba8Uint
-            || color.descriptor.width != material.descriptor.width
-            || color.descriptor.height != material.descriptor.height
-            || ![&color, &material].iter().all(|image| {
-                image
-                    .texture
-                    .usage()
-                    .contains(wgpu::TextureUsages::TEXTURE_BINDING)
-                    && image.texture.sample_count() == 1
-                    && image.texture.depth_or_array_layers() == 1
-                    && image.texture.dimension() == wgpu::TextureDimension::D2
-            })
-            || entries.len() < 2
-            || !entries.len().is_power_of_two()
-            || (size_of_val(entries.as_ref()) as u64 + 20)
-                > u64::from(context.device.limits().max_storage_buffer_binding_size)
-        {
-            return Err(RenderError(
-                "invalid paint page binding/device/table".into(),
-            ));
-        }
-        let mut has_missing = false;
-        for entry in entries.iter().filter(|entry| entry.uv_size != [0; 2]) {
-            if entry.uv_size != [64; 2] {
-                return Err(RenderError("invalid paint page UV dimensions".into()));
-            }
-            if entry.atlas_rect[2..] == [0, 0] {
-                has_missing = true;
-                continue;
-            }
-            if entry.atlas_rect[2..] != [64, 64]
-                || !entry.atlas_rect[0]
-                    .checked_add(64)
-                    .is_some_and(|end| end <= color.descriptor.width)
-                || !entry.atlas_rect[1]
-                    .checked_add(64)
-                    .is_some_and(|end| end <= color.descriptor.height)
-            {
-                return Err(RenderError(
-                    "paint page rectangle exceeds its texture".into(),
-                ));
-            }
-        }
-        Ok(Arc::new(Self {
-            color,
-            material,
-            entries,
-            alpha_geo_ids,
-            has_missing,
-        }))
-    }
-}
+mod binding;
+pub use binding::{PaintPageBinding, PaintPageBindingPreparation};
+
 pub struct LayerHistoryCheckpoint {
     pub(crate) front: usize,
     pub(crate) generation: u64,

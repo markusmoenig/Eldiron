@@ -55,7 +55,7 @@ behavior is ready to verify.
 ## Next work
 
 1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,18 retained standard control families, static collection/property-layout contributions and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
-2. Close live source residency, catalogue capture and remaining UV/player source policy. Cooperative shared GPU page uploads and live world/player billboard buffer uploads are connected below; source allocation/large instance metadata/capture scheduling and working-set residency remain open. Live organic pixel packing now has a shared cooperative owner in the latest checkpoint; integrated acceptance remains open. Player UV pages share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection now has an owned page publication below. Player stamp CPU publication/controller ownership is checkpointed with standalone native/browser release compilation; consolidated runtime acceptance remains. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
+2. Close live source residency, catalogue capture and remaining UV/player source policy. Cooperative shared GPU page uploads, staged UV validation/shared lookup buffers, unchanged-page GPU reuse and live world/player billboard buffer uploads are connected below; source allocation/large instance metadata/capture scheduling and working-set residency remain open. Live organic pixel packing now has a shared cooperative owner in the latest checkpoint; integrated acceptance remains open. Player UV pages share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection now has an owned page publication below. Player stamp CPU publication/controller ownership is checkpointed with standalone native/browser release compilation; consolidated runtime acceptance remains. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
 ## Blockers
@@ -14743,3 +14743,82 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   memory/performance behavior. Concurrent networking concept stays untouched and
   excluded. Next: remaining source metadata/residency and concrete canonical
   ownership/adapters, followed by the consolidated full-plan acceptance matrix.
+
+## Live UV validation, shared lookup buffers and unchanged-page reuse (2026-11-15, integration active)
+
+- Previous checkpointe2400d64 is progress. Revalidated tracked-clean worktree;
+  unrelated networking concept is still untracked and untouched. User reiterated
+  autonomous implementation, release-only builds and broad tests after the port.
+  Full M0-M9 Goal remains active; no implementation blocker.
+- Found remaining synchronous live scans: SurfacePaint::validate at GPU request,
+  SurfacePaintPreparation::finish and PaintPageBinding::new scanned entire page/
+  lookup tables. Extracted a CPU-only SurfacePaintValidation cursor retaining an
+  immutable Arc source. One unit checks one page or one lookup slot (including
+  empty slots); malformed sources have sticky errors. Explicit synchronous
+  validation drains this same kernel without cloning source planes.
+- Creator UV/selection preparation now includes incremental final validation
+  before returning its publication. Shared GPU sources queue CPU validation,
+  image/page upload and binding-table preparation as separate private states.
+  Validation batches use<=64 slots and a4096-unit/frame policy with existing2ms
+  elapsed checks. Image allocation waits for source validation; no partial source
+  becomes a view binding. Invalid private jobs retire into a sticky failed state
+  until source/view ownership changes. Current serialization remains unchanged.
+- Added PaintPageBindingPreparation in the small paint_pages/binding module.
+  Live raster lookup buffers upload in<=64KiB pieces within the existing512KiB
+  paint-transfer frame budget (shared with color/material pages). A complete
+  source binding owns one GPU lookup buffer reused by all its raster views.
+  Direct reference/private-compute constructors keep their existing upload
+  policy; they do not eagerly allocate/upload an unused extra raster table.
+- VM GPU state records whether a lookup buffer is shared. Leaving that binding
+  for a private atlas always allocates a private table, even at identical byte
+  size, so one view cannot overwrite another view's source. Device reconstruction
+  drops this GPU state and the source owner rebuilds in the new domain.
+- Added GPU-side replacement plane copies for compatible source dimensions on
+  the same device. A bounded three-position hint chooses a prior ready source;
+  every skipped page separately proves identical atlas origin, byte lengths and
+  immutable color/material backing. SharedBytes uses copy-on-write and both CPU
+  owners stay alive, so address reuse cannot falsely identify edited pixels.
+  Reordered/new/different-backed pages upload normally. No CPU viewport/image
+  readback or pixel hash shortcut is introduced.
+- Views now retain the installed complete CPU source independently of a pending
+  replacement. Repeated edits/defer/cancellation can still reuse that last ready
+  source, and its cache entry retires once no view desires or has installed it.
+  Clear/hide/view removal also retire the installed owner. Existing output/input
+  readiness waits for complete current images and lookup data as before.
+- Paint stats distinguish current plane/table allocation, actual queued CPU
+  writes, skipped page writes and GPU-plane copy bytes. Pending validation has
+  no image allocation. These are owner/transfer diagnostics, not peak physical
+  driver memory or GPU completion/timing measurements. Error paths preserve
+  already-queued byte accounting. Full atlas replacement allocations/GPU copies,
+  CPU descriptor capture, Arc-slice finalization, alpha-owner sets, large instance
+  metadata and true working-set residency remain explicit work/acceptance gaps.
+- Release compile evidence so far: canonical four applications PASS28.98s for
+  staged validation; PASS27.16s for shared tables; PASS25.90s after table-detach/
+  accounting refinements; PASS25.94s for changed-page reuse. CPU-only runtime
+  PASS10.00s; browser Creator PASS25.59s after retaining installed sources. Logs:
+  /private/tmp/eldiron-cooperative-paint-validation-release.log,
+  /private/tmp/eldiron-cooperative-paint-validation-release-shared-table.log,
+  /private/tmp/eldiron-cooperative-paint-validation-release-final.log,
+  /private/tmp/eldiron-cooperative-paint-validation-release-cpu.log,
+  /private/tmp/eldiron-paint-page-reuse-release.log,
+  /private/tmp/eldiron-paint-page-reuse-release-web.log.
+  Final native/module and standalone browser feature checks are being collected.
+- No functional/GPU/performance suite run per user steering. Consolidated checks
+  must cover partial/cancelled/invalid validation, table upload caps/fairness,
+  equal-size shared-to-private table switching with two views, original color/
+  material/alpha bytes after changed-page copies, page insertion/reordering/
+  dimension changes, continuous edits, clear/hide/suspend, device replacement,
+  latest input receipts, resource retirement and matched release performance.
+  Full M0-M9 acceptance remains unverified; compile checks are not these gates.
+- Final canonical native four-application/module release compile PASS25.95s:
+  /private/tmp/eldiron-paint-page-reuse-release-final.log. Current standalone
+  browser player (without Creator feature unification) release PASS14.79s:
+  /private/tmp/eldiron-paint-page-reuse-release-player-web.log.
+  All compiler handles terminal; git diff --check passed. No functional/GPU/
+  performance suite run. The module split retains existing public import paths;
+  final source-only comment describes changed-page rather than full CPU uploads.
+- Next implementation dependencies remain full live working-set residency,
+  repeated descriptor/lookup finalization and alpha-owner metadata work, large
+  moving instance metadata, and concrete canonical/platform ownership gaps.
+  Keep all full-plan acceptance/performance gates open until the consolidated
+  release run proves them; do not treat these source policies as measured bounds.

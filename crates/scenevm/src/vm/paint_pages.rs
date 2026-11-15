@@ -14,6 +14,7 @@ pub(super) fn upload_entries(
     let bytes = bytemuck::cast_slice(entries);
     if g.raster3d_surface_paint_entries_ssbo.is_none()
         || g.raster3d_surface_paint_entries_size != bytes.len()
+        || g.raster3d_surface_paint_entries_shared
     {
         g.raster3d_surface_paint_entries_ssbo = Some(device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
@@ -30,6 +31,7 @@ pub(super) fn upload_entries(
             bytes,
         );
     }
+    g.raster3d_surface_paint_entries_shared = false;
 }
 impl VM {
     pub(crate) fn set_paint_dispatch(
@@ -96,7 +98,15 @@ impl VM {
             g.raster3d_paint_material_view = Some(paint.material.view.clone());
             g.raster3d_paint_tex_size =
                 (paint.color.descriptor.width, paint.color.descriptor.height);
-            upload_entries(g, device, queue, &paint.entries);
+            if let Some(entries) = &paint.raster_entries {
+                g.raster3d_surface_paint_entries_ssbo = Some(entries.clone());
+                g.raster3d_surface_paint_entries_size = size_of_val(paint.entries.as_ref());
+                g.raster3d_surface_paint_entries_shared = true;
+            } else {
+                // Explicit reference/compute owners may keep their own upload
+                // policy. Live SceneViews supply the complete shared buffer.
+                upload_entries(g, device, queue, &paint.entries);
+            }
             self.raster3d_paint_overlay_dirty = false;
         }
         true

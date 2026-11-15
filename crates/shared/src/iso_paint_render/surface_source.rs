@@ -2,7 +2,7 @@
 //! shared authored pages and emits no renderer, history or stitched atlas.
 use super::*;
 use crate::surface_paint::Builder;
-use rusterix::surface_paint::{SurfacePaint, SurfacePaintPage};
+use rusterix::surface_paint::{SurfacePaint, SurfacePaintPage, SurfacePaintValidation};
 use std::sync::Arc;
 
 #[derive(Clone, PartialEq)]
@@ -77,6 +77,8 @@ impl SurfacePaintRequest {
             table_len: 2,
             table_limit,
             hash: DefaultHasher::new(),
+            validation: None,
+            source: None,
             failure: invalid_selection.then(|| "Invalid selection mask size".into()),
         }
     }
@@ -100,6 +102,7 @@ enum Stage {
     Selection,
     Table,
     Pages,
+    Validate,
     Done,
 }
 struct SelectionWork {
@@ -127,6 +130,8 @@ pub struct SurfacePaintPreparation {
     table_len: usize,
     table_limit: u64,
     hash: DefaultHasher,
+    validation: Option<SurfacePaintValidation>,
+    source: Option<Arc<SurfacePaint>>,
     failure: Option<String>,
 }
 impl SurfacePaintPreparation {
@@ -271,7 +276,20 @@ impl SurfacePaintPreparation {
             }
             Stage::Pages => {
                 let Some(chunk) = self.packed.next() else {
-                    self.stage = Stage::Done;
+                    if self.pages.is_empty() {
+                        self.stage = Stage::Done;
+                        return Ok(());
+                    }
+                    let source = Arc::new(SurfacePaint {
+                        key: self.hash.finish(),
+                        width: self.size[0],
+                        height: self.size[1],
+                        pages: std::mem::take(&mut self.pages),
+                        entries: std::mem::take(&mut self.entries).into(),
+                        alpha_geo_ids: std::mem::take(&mut self.alpha),
+                    });
+                    self.validation = Some(SurfacePaintValidation::new(source)?);
+                    self.stage = Stage::Validate;
                     return Ok(());
                 };
                 let index = self.pages.len();
@@ -306,6 +324,12 @@ impl SurfacePaintPreparation {
                     material_rgba: chunk.material_rgba,
                 });
             }
+            Stage::Validate => {
+                if self.validation.as_mut().unwrap().advance(64)? {
+                    self.source = Some(self.validation.take().unwrap().finish()?);
+                    self.stage = Stage::Done;
+                }
+            }
             Stage::Done => (),
         }
         Ok(())
@@ -317,23 +341,9 @@ impl SurfacePaintPreparation {
         if !matches!(self.stage, Stage::Done) {
             return Err("UV paint publication is incomplete".into());
         }
-        let source = if self.pages.is_empty() {
-            None
-        } else {
-            let source = SurfacePaint {
-                key: self.hash.finish(),
-                width: self.size[0],
-                height: self.size[1],
-                pages: self.pages,
-                entries: self.entries.into(),
-                alpha_geo_ids: self.alpha,
-            };
-            source.validate()?;
-            Some(Arc::new(source))
-        };
         Ok(SurfacePaintPublication {
             request: self.request,
-            source,
+            source: self.source,
         })
     }
 }
