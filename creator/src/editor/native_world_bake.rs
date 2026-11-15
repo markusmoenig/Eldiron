@@ -1,13 +1,8 @@
-//! Application-owned persisted bake presentation. Progressive work keeps its
-//! explicit adapter until its asset capture/scheduling path is adopted.
+//! Application-owned persisted/progressive bake presentation on the host GPU.
 use super::*;
 use eldiron_presentation::orthographic_bake::{OrthographicBakeOverlay, OrthographicBakeRenderer};
 use renderkit::{GpuImage, ImageHandle, ImageRegistry};
 use rusterix::orthographic_bake::{OrthographicBakeLighting, OrthographicBakeSource};
-
-pub(super) fn supported(asset: &rusterix::map::OrthographicBakeAsset) -> bool {
-    asset.tile_size > 0
-}
 
 #[derive(Default)]
 pub(super) struct Gpu {

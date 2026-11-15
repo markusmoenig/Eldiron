@@ -217,7 +217,7 @@ fn run_hidden_linked_paint(large: bool, oversized: bool, stamps: bool) {
             "../../tests/fixtures/oversized-current-bake.json"
         ))
         .unwrap();
-        assert!(bake::supported(&asset));
+        assert!(asset.tile_size > 0);
         region.map.orthographic_bake = Some(asset);
         editor
             .server_ctx

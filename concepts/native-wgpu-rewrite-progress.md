@@ -16221,3 +16221,31 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Reference PNG/Scepter captures and explicit preview workers are already guarded
   as CPU consumers/reference-only paths. Tool editor_mode selects a separate
   visible editor stack, whose hidden PolyView is suppressed by native_hidden.
+
+
+## Invalid saved-bake viewport adapter retirement (2026-11-15)
+
+- Removed native_world_owns_viewport's tile_size0 exclusion. A malformed saved
+  bake no longer opts the canonical world into CPU canvas rendering. Common
+  presentation_source rejects the zero-sized projection before requesting decode;
+  absence of a bake image keeps the existing live native geometry path active.
+  Valid saved/progressive bakes and current serialized data remain unchanged.
+- Removed the obsolete supported() viewport guard and stale progressive-adapter
+  comment. The existing oversized fixture still explicitly requires positive
+  original tile geometry, without treating that as a native display escape hatch.
+- Focused CPU release contract PASS0.00s (build53.78s):
+  /private/tmp/eldiron-invalid-bake-release-contract.log. Invalid zero-sized asset
+  produces no presentation/decode storage and matches reference compose None.
+  Canonical four-application native release check PASS25.95s:
+  /private/tmp/eldiron-invalid-bake-release-native.log. Actual Creator browser-host
+  wasm release check PASS24.60s:
+  /private/tmp/eldiron-invalid-bake-release-wasm.log. All handles terminal.
+- Further canonical adapter inventory found actual dialog preview adapters in
+  geometry_editor/control_publisher.rs::preview and recipe_browser.rs::preview:
+  they call CPU presentation::thumbnail then scale/compose a view-sized buffer.
+  Next: retain immutable evaluated values and publish shared-context GPU card
+  sources through the modal render views; preserve exact64px thumbnail projection,
+  palette/theme bytes, nearest fitting/centering, controls and commit/cancel.
+  Existing native_thumbnails GPU renderer already implements that card policy.
+  Keep source ownership with GeometryEditor/native_host, retire registry handles
+  when dialogs close, and rebuild from CPU requests on device replacement.

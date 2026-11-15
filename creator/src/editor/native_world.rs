@@ -864,11 +864,6 @@ impl Editor {
         };
         if !(scope::uses_region(&self.server_ctx) || self.server_ctx.shared.pc.is_prefab() || self.server_ctx.shared.pc.is_screen()
             || custom::Description::current(map, &self.server_ctx).is_some()) { return false; }
-        if self.server_ctx.shared.editor_view_mode != EditorViewMode::D2
-            && map.orthographic_bake.as_ref().is_some_and(|asset| !bake::supported(asset)) {
-            // Invalid tile geometry cannot enter the original-region producer.
-            return false;
-        }
         let tools = self.server_ctx.tools.read();
         if tools.editor_mode
             || !matches!(

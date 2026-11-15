@@ -121,7 +121,7 @@ impl OrthographicBakeController {
         } else {
             (self.committed.as_ref()?, &self.committed_tiles)
         };
-        if !asset_matches_camera(asset, camera) || !tiles.may_have_tiles() {
+        if asset.tile_size == 0 || !asset_matches_camera(asset, camera) || !tiles.may_have_tiles() {
             return None;
         }
         Some(OrthographicBakeSource {
@@ -151,7 +151,9 @@ mod tests {
             tiles: vec![OrthographicBakeTile {
                 x: 0,
                 y: 0,
-                color_png_base64: BASE64.encode(encode_png(1, 1, &[80, 120, 160, 255]).unwrap()).into(),
+                color_png_base64: BASE64
+                    .encode(encode_png(1, 1, &[80, 120, 160, 255]).unwrap())
+                    .into(),
                 depth_base64: Some(BASE64.encode(encode_depth(&[2.])).into()),
                 albedo_png_base64: None,
                 normal_png_base64: None,
@@ -183,6 +185,19 @@ mod tests {
             );
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
+    }
+
+    #[test]
+    fn zero_sized_saved_bake_has_no_presentation_or_decode_work() {
+        let map = Uuid::new_v4();
+        let camera = Camera3D::iso();
+        let mut asset = fixture(&camera);
+        asset.tile_size = 0;
+        let mut owner = OrthographicBakeController::default();
+        owner.sync_persisted_asset(map, Some(&asset));
+        assert!(owner.presentation_source(map, &camera).is_none());
+        assert_eq!(owner.committed_tiles.usage(), 0);
+        assert!(owner.compose_rgba(map, 16, 16, &camera).is_none());
     }
 
     #[test]
