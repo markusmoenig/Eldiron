@@ -158,6 +158,7 @@ impl VM {
         if g.organic_billboard_ssbo.is_none() || g.organic_billboard_ssbo_size != organic_byte_len {
             let mut words = Vec::with_capacity(organic_words.len());
             organic_words.append_to(&mut words);
+            g.organic_billboard_source_lease = None;
             g.organic_billboard_ssbo = Some(device.create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
                     label: Some("vm-organic-billboards"),
@@ -250,6 +251,7 @@ impl VM {
             words.extend_from_slice(&header);
             words.extend_from_slice(surface_words);
             organic.append_to(&mut words);
+            gpu.compute3d_aux_source_lease = None;
             gpu.compute3d_aux_ssbo = Some(device.create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
                     label: Some("vm-compute3d-aux"),

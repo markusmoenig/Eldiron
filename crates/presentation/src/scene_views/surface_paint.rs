@@ -245,9 +245,9 @@ impl Sources {
                         alpha_mode: AlphaMode::Straight,
                     };
                     let color =
-                        GpuImage::new(context, descriptor(wgpu::TextureFormat::Rgba8Unorm))?;
+                        GpuImage::render_target(context, descriptor(wgpu::TextureFormat::Rgba8Unorm))?;
                     let material =
-                        GpuImage::new(context, descriptor(wgpu::TextureFormat::Rgba8Uint))?;
+                        GpuImage::render_target(context, descriptor(wgpu::TextureFormat::Rgba8Uint))?;
                     let previous = match entry.previous.take() {
                         Some(previous)
                             if previous

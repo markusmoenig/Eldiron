@@ -77,8 +77,9 @@ impl PaintPageResidencyPreparation {
             color_space: ColorSpace::Srgb,
             alpha_mode: AlphaMode::Straight,
         };
-        let color = GpuImage::new(&context, descriptor(wgpu::TextureFormat::Rgba8Unorm))?;
-        let material = GpuImage::new(&context, descriptor(wgpu::TextureFormat::Rgba8Uint))?;
+        let color = GpuImage::render_target(&context, descriptor(wgpu::TextureFormat::Rgba8Unorm))?;
+        let material =
+            GpuImage::render_target(&context, descriptor(wgpu::TextureFormat::Rgba8Uint))?;
         let table = PaintResidencyTablePreparation::new_indexed_alpha(
             context.clone(),
             color.clone(),

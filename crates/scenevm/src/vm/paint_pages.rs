@@ -145,6 +145,11 @@ impl VM {
             gpu.u3d_bg = None;
             gpu.compute3d_paint_table = None;
             gpu.compute3d_aux_surface = None;
+            gpu.compute3d_aux_organic = None;
+            gpu.compute3d_aux_ssbo = None;
+            gpu.compute3d_aux_ssbo_size = 0;
+            gpu.compute3d_aux_source_lease = None;
+            gpu.pending_source_upload = None;
         }
     }
     pub(crate) fn set_paint_page_binding(

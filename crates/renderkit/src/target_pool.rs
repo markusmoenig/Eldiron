@@ -75,6 +75,11 @@ impl TargetDescriptor {
 /// remain valid and uncached rather than failing an otherwise supported frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TargetPoolUsage {
+    /// All allocations still owned by cache entries or live leases, including
+    /// uncached/evicted active owners. Excludes raw queue/driver-only handles.
+    pub live_bytes: u64,
+    pub live_allocations: u64,
+    pub peak_live_bytes: u64,
     pub cached_bytes: u64,
     pub cached_textures: usize,
     pub byte_limit: u64,
@@ -85,6 +90,7 @@ pub struct TargetPoolUsage {
     pub uncached_allocations: u64,
 }
 struct Target {
+    _charge: crate::allocation_usage::AllocationCharge,
     texture: wgpu::Texture,
     view: wgpu::TextureView,
     generation: u64,
@@ -152,10 +158,16 @@ impl Cache {
     }
 }
 #[derive(Default)]
-pub(crate) struct TargetPool(Mutex<Cache>);
+pub(crate) struct TargetPool(Mutex<Cache>, Arc<crate::allocation_usage::AllocationUsage>);
 impl TargetPool {
     pub fn usage(&self) -> TargetPoolUsage {
-        self.0.lock().unwrap().usage
+        let mut usage = self.0.lock().unwrap().usage;
+        (
+            usage.live_bytes,
+            usage.live_allocations,
+            usage.peak_live_bytes,
+        ) = self.1.snapshot();
+        usage
     }
     pub fn set_limits(&self, bytes: u64, textures: usize) {
         let mut cache = self.0.lock().unwrap();
@@ -229,6 +241,7 @@ impl TargetPool {
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let target = Arc::new(Target {
+            _charge: self.1.charge(bytes),
             texture,
             view,
             generation: context.generation(),

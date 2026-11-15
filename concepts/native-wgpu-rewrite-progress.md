@@ -15292,3 +15292,46 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   /private/tmp/eldiron-instance-owner-release-web.log. All compiler handles
   terminal; diff whitespace check passes. Continue into shared resource ownership
   and CPU catalogue capture; no broad suite or full-port acceptance has run.
+
+
+## Shared device pool ownership and allocation evidence (2026-11-15)
+
+- Live shared/private paint planes now retain target-pool image leases. Complete
+  source publication/loaded-slot rectangles control which initialized texels may
+  be sampled; unspecified pooled contents are never treated as authored pages.
+  Initial lookup tables retain working-buffer leases through their immutable
+  PaintPageBinding, and staged organic/compute auxiliary buffers transfer their
+  private lease into VMGpu only after every span completes. Replacement/cancel
+  drops producer ownership; queue ordering retains submitted resource lifetimes.
+- Paint retirement now also drops its obsolete compute auxiliary buffer/CPU span
+  cache/pending source replacement and associated lease. Complete output targets
+  remain independent. Explicit legacy/reference allocation fallback remains for
+  callers outside canonical cooperative preparation; no serialized type changed.
+- Both device pools now count all cache/lease-owned allocation bytes, allocation
+  count and peak bytes, including uncached or evicted-but-active leases. Cache
+  limits still bound retained cache storage. These counters do not claim total
+  driver/queued-raw-handle memory, a whole-application hard cap or a measured
+  release budget. Browser inspection exports the new live/peak fields separately
+  from retained cache bytes; full aggregate policy/measurement remains a gate.
+- Canonical four-application release compile PASS26.80s:
+  /private/tmp/eldiron-live-source-pools-release.log. Focused pool lease/eviction
+  checks PASS (target0.05s, buffer0.03s), including exact queued contents and zero
+  owned-byte count after lease retirement:
+  /private/tmp/eldiron-live-source-pools-release-lease.log. Cold isolated feature
+  dependencies were compiled in release for that check; no broad suite was run.
+- Canonical translucent indexed-paint fixture with pooled planes/tables
+  PASS0.15s (release build55.96s):
+  /private/tmp/eldiron-live-source-pools-release-view.log. Focused Raster3D/
+  Compute3D source staging/GPU copy fixture also PASS after pooling (build7.17s):
+  /private/tmp/eldiron-live-source-pools-release-source.log. Browser/final native
+  feature compilation remains. Continue with shared CPU paint catalogues and
+  remaining canonical ownership/adapters; broad acceptance remains deferred.
+
+- Browser-host Creator release feature compilation PASS28.65s and final canonical
+  four-application native release compile PASS25.85s:
+  /private/tmp/eldiron-live-source-pools-release-web.log,
+  /private/tmp/eldiron-live-source-pools-release-final.log. The focused pool checks
+  took15.48s to compile. All handles terminal; diff whitespace check passes.
+  Next implementation: share authored CPU page/selection catalogue snapshots
+  without copying every page descriptor on each camera/render request, preserving
+  the current serialized map representation and frozen worker inputs.

@@ -55,8 +55,13 @@ fn writable_leases_reuse_only_after_retirement_and_preserve_queued_contents() {
     context.set_working_buffer_cache_limits(0, 0);
     assert_eq!(context.working_buffer_pool_usage().cached_bytes, 0);
     assert_eq!(context.working_buffer_pool_usage().cached_buffers, 0);
+    assert_eq!(context.working_buffer_pool_usage().live_bytes, 96);
+    assert_eq!(context.working_buffer_pool_usage().live_allocations, 5);
+    assert_eq!(context.working_buffer_pool_usage().peak_live_bytes, 96);
     context.queue.submit([encoder.finish()]);
     drop((reused, second, third, different_usage, larger, raw_first));
+    assert_eq!(context.working_buffer_pool_usage().live_bytes, 0);
+    assert_eq!(context.working_buffer_pool_usage().live_allocations, 0);
     let (tx, rx) = mpsc::channel();
     staging
         .slice(..)

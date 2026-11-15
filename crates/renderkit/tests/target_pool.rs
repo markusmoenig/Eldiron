@@ -61,8 +61,13 @@ fn leased_targets_do_not_alias_and_eviction_preserves_queued_work() {
     context.set_target_cache_limits(0, 0);
     assert_eq!(context.target_pool_usage().cached_textures, 0);
     assert_eq!(context.target_pool_usage().cached_bytes, 0);
+    assert_eq!(context.target_pool_usage().live_bytes, 512);
+    assert_eq!(context.target_pool_usage().live_allocations, 2);
+    assert_eq!(context.target_pool_usage().peak_live_bytes, 512);
     assert_eq!(pixel(&context, second), [0, 255, 0, 255]);
     assert_eq!(pixel(&context, reused), [0, 0, 255, 255]);
+    assert_eq!(context.target_pool_usage().live_bytes, 0);
+    assert_eq!(context.target_pool_usage().live_allocations, 0);
     let uncached = GpuImage::render_target(&context, descriptor).unwrap();
     clear(&context, &uncached, wgpu::Color::WHITE);
     assert_eq!(context.target_pool_usage().uncached_allocations, 1);

@@ -38,7 +38,8 @@ pub fn codec_worker_stats() -> String {
     serde_json::to_string(&rusterix::orthographic_bake::browser_codec_worker_stats()).unwrap()
 }
 // Last prepared-frame diagnostics, sampled only when inspection is enabled.
-// These are retained cache sizes, not total active/in-flight/driver memory.
+// Live pool owners include evicted leases; raw queued/driver-only handles and
+// uninstrumented allocations remain outside these measurements.
 fn resource_stats(context: &renderkit::GpuContext) -> String {
     let target = context.target_pool_usage();
     let working = context.working_buffer_pool_usage();
@@ -46,11 +47,15 @@ fn resource_stats(context: &renderkit::GpuContext) -> String {
     serde_json::json!({
         "targets": {
             "bytes": target.cached_bytes, "entries": target.cached_textures,
+            "live_bytes": target.live_bytes, "live_allocations": target.live_allocations,
+            "peak_live_bytes": target.peak_live_bytes,
             "byte_limit": target.byte_limit, "entry_limit": target.texture_limit,
             "allocations": target.allocations, "hits": target.hits, "evictions": target.evictions,
         },
         "working": {
             "bytes": working.cached_bytes, "entries": working.cached_buffers,
+            "live_bytes": working.live_bytes, "live_allocations": working.live_allocations,
+            "peak_live_bytes": working.peak_live_bytes,
             "byte_limit": working.byte_limit, "entry_limit": working.buffer_limit,
             "allocations": working.allocations, "hits": working.hits, "evictions": working.evictions,
         },

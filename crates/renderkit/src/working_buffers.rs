@@ -26,6 +26,11 @@ impl WorkingBufferDescriptor {
 /// resources and driver/allocator overhead are not a total-memory guarantee.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct WorkingBufferPoolUsage {
+    /// All allocations still owned by cache entries or live leases, including
+    /// uncached/evicted active owners. Excludes raw queue/driver-only handles.
+    pub live_bytes: u64,
+    pub live_allocations: u64,
+    pub peak_live_bytes: u64,
     pub cached_bytes: u64,
     pub cached_buffers: usize,
     pub byte_limit: u64,
@@ -36,6 +41,7 @@ pub struct WorkingBufferPoolUsage {
     pub uncached_allocations: u64,
 }
 struct Buffer {
+    _charge: crate::allocation_usage::AllocationCharge,
     buffer: wgpu::Buffer,
     generation: u64,
 }
@@ -95,10 +101,16 @@ impl Cache {
     }
 }
 #[derive(Default)]
-pub(crate) struct WorkingBuffers(Mutex<Cache>);
+pub(crate) struct WorkingBuffers(Mutex<Cache>, Arc<crate::allocation_usage::AllocationUsage>);
 impl WorkingBuffers {
     pub fn usage(&self) -> WorkingBufferPoolUsage {
-        self.0.lock().unwrap().usage
+        let mut usage = self.0.lock().unwrap().usage;
+        (
+            usage.live_bytes,
+            usage.live_allocations,
+            usage.peak_live_bytes,
+        ) = self.1.snapshot();
+        usage
     }
     pub fn set_limits(&self, bytes: u64, buffers: usize) {
         let mut cache = self.0.lock().unwrap();
@@ -164,6 +176,7 @@ impl WorkingBuffers {
             while cache.evict() {}
         }
         let buffer = Arc::new(Buffer {
+            _charge: self.1.charge(descriptor.bytes),
             buffer: context.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("renderkit pooled working buffer"),
                 size: descriptor.bytes,

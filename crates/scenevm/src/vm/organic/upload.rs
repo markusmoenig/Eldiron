@@ -31,6 +31,7 @@ struct Span {
 }
 pub(crate) struct Pending {
     buffer: wgpu::Buffer,
+    lease: renderkit::WorkingBufferLease,
     spans: Vec<Span>,
     next: usize,
     compute: bool,
@@ -196,6 +197,15 @@ impl VM {
         } else {
             None
         };
+        let context = self
+            .target_context
+            .as_ref()
+            .ok_or_else(|| {
+                crate::SceneVMError::InvalidOperation(
+                    "live source upload has no device owner".into(),
+                )
+            })?
+            .clone();
         let gpu = self.gpu.as_mut().unwrap();
         let previous = if compute {
             gpu.compute3d_aux_organic.as_ref()
@@ -300,15 +310,12 @@ impl VM {
                     };
                     Some((buffer.clone(), prefix + old.instances.len() as u64 * 4))
                 });
+            let lease = context
+                .acquire_working_buffer(renderkit::WorkingBufferDescriptor::storage(bytes as u64))
+                .map_err(|error| crate::SceneVMError::BufferAllocationFailed(error.to_string()))?;
             gpu.pending_source_upload = Some(Pending {
-                buffer: device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("private-live-scene-source"),
-                    size: bytes as u64,
-                    usage: wgpu::BufferUsages::STORAGE
-                        | wgpu::BufferUsages::COPY_DST
-                        | wgpu::BufferUsages::COPY_SRC,
-                    mapped_at_creation: false,
-                }),
+                buffer: lease.buffer().clone(),
+                lease,
                 spans: data
                     .into_iter()
                     .map(|data| Span { data, cursor: 0 })
@@ -336,12 +343,14 @@ impl VM {
         let pending = gpu.pending_source_upload.take().unwrap();
         if compute {
             gpu.compute3d_aux_ssbo = Some(pending.buffer);
+            gpu.compute3d_aux_source_lease = Some(pending.lease);
             gpu.compute3d_paint_table = None;
             gpu.compute3d_aux_ssbo_size = bytes;
             gpu.compute3d_aux_surface = surface;
             gpu.compute3d_aux_organic = Some(organic);
         } else {
             gpu.organic_billboard_ssbo = Some(pending.buffer);
+            gpu.organic_billboard_source_lease = Some(pending.lease);
             gpu.organic_billboard_ssbo_size = bytes;
             gpu.organic_billboard_count = organic.instances[2];
             gpu.organic_billboard_words = Some(organic);

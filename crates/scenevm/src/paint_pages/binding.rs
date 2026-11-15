@@ -17,6 +17,7 @@ pub struct PaintPageBinding {
     pub(crate) alpha_geo_ids: Arc<FxHashSet<GeoId>>,
     pub(crate) has_missing: bool,
     pub(crate) raster_entries: Option<wgpu::Buffer>,
+    raster_lease: Option<renderkit::WorkingBufferLease>,
     pub(crate) resident_table: Option<Arc<super::residency::ResidentTable>>,
 }
 /// Private table validation for cooperative live producers. The images/table
@@ -110,6 +111,7 @@ impl PaintPageBindingPreparation {
                 alpha_geo_ids,
                 has_missing: false,
                 raster_entries: None,
+                raster_lease: None,
                 resident_table: None,
             }),
             cursor: 0,
@@ -210,20 +212,14 @@ impl PaintPageBindingPreparation {
         if count == 0 {
             return Ok(0);
         }
-        let buffer = binding.raster_entries.get_or_insert_with(|| {
-            context.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("shared-raster-paint-lookup"),
-                size: bytes.len() as u64,
-                usage: wgpu::BufferUsages::STORAGE
-                    | wgpu::BufferUsages::COPY_DST
-                    | if self.require_unloaded {
-                        wgpu::BufferUsages::COPY_SRC
-                    } else {
-                        wgpu::BufferUsages::empty()
-                    },
-                mapped_at_creation: false,
-            })
-        });
+        if binding.raster_entries.is_none() {
+            let lease = context.acquire_working_buffer(
+                renderkit::WorkingBufferDescriptor::storage(bytes.len() as u64),
+            )?;
+            binding.raster_entries = Some(lease.buffer().clone());
+            binding.raster_lease = Some(lease);
+        }
+        let buffer = binding.raster_entries.as_ref().unwrap();
         context.queue.write_buffer(
             buffer,
             self.uploaded_bytes as u64,
