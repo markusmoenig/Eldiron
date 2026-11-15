@@ -13,10 +13,14 @@ mod tests;
 pub(crate) struct GamePaintScope {
     pub description: (Uuid, Uuid, rusterix::PlayerCamera, [u32; 17]),
     pub stamps: Option<Arc<rusterix::stamp_paint::StampPaint>>,
+    pub map_revision: u32,
+    pub assets_revision: u64,
 }
 impl PartialEq for GamePaintScope {
     fn eq(&self, other: &Self) -> bool {
         self.description == other.description
+            && self.map_revision == other.map_revision
+            && self.assets_revision == other.assets_revision
             && match (&self.stamps, &other.stamps) {
                 (None, None) => true,
                 (Some(a), Some(b)) => Arc::ptr_eq(a, b),

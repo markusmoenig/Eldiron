@@ -68,6 +68,8 @@ impl SceneViews {
         let scope = GamePaintScope {
             description: (input.scope, input.map.id, widget.camera.clone(), stamp),
             stamps: stamps.clone(),
+            map_revision: input.map.changed,
+            assets_revision: input.assets.visual_source_revision,
         };
         if self.keep_game_paint_frame(id, &scope)? {
             return Ok(());
@@ -94,6 +96,8 @@ impl SceneViews {
             GamePaintScope {
                 description: (input.scope, input.map.id, widget.camera.clone(), stamp),
                 stamps,
+                map_revision: input.map.changed,
+                assets_revision: input.assets.visual_source_revision,
             },
         )?;
         // Player/map synchronization can change the camera during preparation.

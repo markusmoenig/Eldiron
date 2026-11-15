@@ -522,8 +522,7 @@ impl SceneViews {
         view.scene.retire_paint();
         view.surface_paint_source = None;
         view.surface_paint_ready = false;
-        view.pending_content_revision = None;
-        view.dirty = true;
+        view.invalidate_request();
         self.retire_unused_surface_paint();
         Ok(())
     }
@@ -569,9 +568,7 @@ impl SceneViews {
         let view = self.views.get_mut(&id).unwrap();
         view.scene.retire_paint();
         view.scene.vm.cancel_source_uploads();
-        view.game_scope = None;
-        view.scene_sources_ready = true;
-        view.pending_content_revision = None;
+        view.invalidate_request();
         view.surface_paint_source = source.cloned();
         view.surface_paint_ready = source.is_none();
         view.scene.vm.set_active_vm(0);

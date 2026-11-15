@@ -69,7 +69,7 @@ impl SceneViews {
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
         view.scene.vm.cancel_source_uploads();
-        view.scene_sources_ready = true;
+        view.invalidate_request();
         Ok(())
     }
     pub fn defer_stamp_paint(&mut self, id: ViewId) -> Result<()> {
@@ -79,7 +79,7 @@ impl SceneViews {
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
         view.stamp_paint_ready = false;
         view.scene.vm.cancel_source_uploads();
-        view.dirty = true;
+        view.invalidate_request();
         Ok(())
     }
     pub fn set_stamp_paint(
@@ -91,6 +91,14 @@ impl SceneViews {
             .views
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
+        let was_frame = view.scene.pending();
+        let was_preparing = was_frame || !view.scene_sources_ready;
+        let will_mutate =
+            source.is_some() || view.stamp_uploaded.is_some() || !view.stamp_paint_ready;
+        if was_frame && will_mutate {
+            view.invalidate_request();
+        }
+        let mut changed = false;
         if let Some((layer, pixels)) = source {
             let vm = &mut view.scene.vm;
             let active = vm.active_vm_index();
@@ -105,14 +113,19 @@ impl SceneViews {
                 &mut view.stamp_uploaded,
             );
             vm.set_active_vm(active);
-            view.dirty |= result.map_err(RenderError)? || !view.stamp_paint_ready;
+            changed = result.map_err(RenderError)?;
+            view.dirty |= changed || !view.stamp_paint_ready;
         } else if view.stamp_uploaded.take().is_some() || !view.stamp_paint_ready {
             let vm = &mut view.scene.vm;
             let active = vm.active_vm_index();
             vm.set_active_vm(0);
             vm.execute(scenevm::Atom::ClearPaintBillboards);
             vm.set_active_vm(active);
+            changed = true;
             view.dirty = true;
+        }
+        if changed && was_preparing {
+            view.invalidate_request();
         }
         view.stamp_paint_ready = true;
         Ok(())

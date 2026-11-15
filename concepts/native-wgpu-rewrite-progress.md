@@ -15475,3 +15475,33 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   workflows are still outstanding. Next lifetime audit found game frozen-scope
   keys need the static map/source revisions as well as identity/camera/stamps;
   retain temporal pose updates separately and invalidate actual source edits.
+
+
+## Static-source and explicit cancellation request scopes (2026-11-15)
+
+- Game frozen scopes now include static map.changed and CPU visual-source revision
+  alongside session/map identity, camera and stamp backing. Actual static source
+  edits retire an old request; temporal runtime/animation updates still preserve
+  the pose already being staged. Existing GameSceneInput API/serialization stays
+  unchanged; these are derived private scope fields.
+- SceneView has one request invalidation boundary for scene mutation, resize,
+  UV replacement/defer and explicit source cancellation. It cancels an unresolved
+  private writer, revokes its pending output revision/game scope, marks picking
+  dirty and resets preparation ownership while preserving reusable immutable CPU
+  packets. Stamp replacement invalidates a held request before mutable access,
+  including error paths; unchanged None publication keeps its pending request.
+  New stamp publication before initial source preparation keeps the new game scope.
+- Four canonical native applications release compile PASS12.09s for static source
+  scope and PASS11.79s for the initial explicit cancellation changes:
+  /private/tmp/eldiron-game-source-scope-release.log,
+  /private/tmp/eldiron-game-source-scope-release-final.log. After consolidating the
+  invalidation boundary, existing focused live ownership contract PASS0.08s
+  (release build8.41s): /private/tmp/eldiron-game-source-scope-release-owner.log;
+  presentation release feature compile PASS13.49s:
+  /private/tmp/eldiron-game-source-scope-release-presentation.log.
+- All handles terminal; diff whitespace check passes. Full two-view source-edit/
+  cancel/device-recovery interaction remains part of consolidated acceptance.
+  Next implementation audit: make actual application source/residency diagnostics
+  available to the existing browser/Apple inspection boundary, then close remaining
+  source capture/placement ownership and canonical adapter inventory before broad
+  functional/platform/release-performance verification. Full Goal is unfinished.

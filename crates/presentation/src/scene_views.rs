@@ -68,6 +68,17 @@ struct SceneView {
     pending_content_revision: Option<u64>,
     game_scope: Option<GamePaintScope>,
 }
+impl SceneView {
+    /// Revoke the frozen request identity while preserving reusable immutable
+    /// CPU packets. The next source preparation still validates current inputs.
+    fn invalidate_request(&mut self) {
+        self.scene.cancel();
+        self.scene_sources_ready = true;
+        self.pending_content_revision = None;
+        self.game_scope = None;
+        self.dirty = true;
+    }
+}
 /// Each view retains its own VM/camera/history and target. Immutable atlas source
 /// data and its GPU textures are shared on the host device. UI only sees handles.
 /// The application constructs this owner from the presenter's registry domain;
@@ -168,10 +179,7 @@ impl SceneViews {
             .views
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
-        view.dirty = true;
-        view.game_scope = None;
-        view.scene_sources_ready = true;
-        view.pending_content_revision = None;
+        view.invalidate_request();
         view.isometric_frame = None;
         Ok(&mut view.scene)
     }
@@ -197,10 +205,7 @@ impl SceneViews {
         if view.size == size {
             return Ok(());
         }
-        view.scene.cancel();
-        view.game_scope = None;
-        view.scene_sources_ready = true;
-        view.pending_content_revision = None;
+        view.invalidate_request();
         view.scene.vm.cancel_source_uploads();
         let replace_target = if view.isometric {
             view.last_image

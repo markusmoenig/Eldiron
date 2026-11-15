@@ -14,6 +14,8 @@ fn live_source_staging_preserves_pose_revision_and_scope() {
     let make_scope = || GamePaintScope {
         description: (session, map, rusterix::PlayerCamera::D3Iso, [0; 17]),
         stamps: None,
+        map_revision: 0,
+        assets_revision: 0,
     };
     let scene = views.scene_mut(id).unwrap();
     scene.vm.execute(Atom::SetRenderMode(RenderMode::Raster3D));
