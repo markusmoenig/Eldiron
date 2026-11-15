@@ -32,6 +32,12 @@ def main():
     if sys.platform != "darwin":
         raise RuntimeError("This check requires macOS/Xcode/Metal")
     os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "26.1")
+    policy = OUTPUT / "CreatorCloseApprovalCheck"
+    run("close-policy-build", ["xcrun", "swiftc", "-O", "-parse-as-library",
+                               str(ROOT / "Xcode/Eldiron/Eldiron macOS/CreatorCloseApproval.swift"),
+                               str(ROOT / "Xcode/Eldiron/Tests/CreatorCloseApprovalCheck.swift"),
+                               "-o", str(policy)])
+    run("close-policy", [str(policy)])
     run("rust-release", ["cargo", "rustc", "--release", "--locked", "--offline",
                         "-p", "eldiron-creator", "--no-default-features",
                         "--features", "staticlib", "--lib", "--",
@@ -47,7 +53,25 @@ def main():
                           "-L", str(TARGET / "release"), "-leldiron_creator",
                           *shlex.split(match.group(1)), "-o", str(executable)])
     run("host", [str(executable)], timeout=180)
-    print(f"All detached-layer Creator checks passed: {OUTPUT}")
+    if "--windows" in sys.argv[1:] or "--window-lifetimes" in sys.argv[1:]:
+        sources = [ROOT / "Xcode/Eldiron/Eldiron Shared" / (name + ".swift")
+                   for name in ["Renderer", "RMKTView", "Keycodes", "Utils", "Math"]]
+        sources += [ROOT / "Xcode/Client/SceneVM" / (name + ".swift")
+                    for name in ["NativeTextHost", "NativeTextClient", "NativeUIKitTextClient"]]
+        sources += [ROOT / "Xcode/Eldiron/Eldiron macOS" / (name + ".swift")
+                    for name in ["CreatorCloseApproval", "GameViewController"]]
+        window_check = OUTPUT / "NativeCreatorWindowCheck"
+        run("windows-build", ["xcrun", "swiftc", "-O", "-g", "-parse-as-library",
+                              "-swift-version", "5", "-default-isolation", "MainActor",
+                              "-target", f"{platform.machine()}-apple-macosx26.1",
+                              "-import-objc-header", str(ROOT / "Xcode/Eldiron/Eldiron Shared/Bridge.h"),
+                              *map(str, sources),
+                              str(ROOT / "Xcode/Eldiron/Tests/NativeCreatorWindowCheck.swift"),
+                              "-L", str(TARGET / "release"), "-leldiron_creator",
+                              *shlex.split(match.group(1)), "-o", str(window_check)])
+        arguments = [] if "--windows" in sys.argv[1:] else ["--lifetime-only"]
+        run("windows", [str(window_check), *arguments], timeout=180)
+    print(f"All requested Creator host checks passed: {OUTPUT}")
 
 
 if __name__ == "__main__":

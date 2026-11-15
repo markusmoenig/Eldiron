@@ -29,7 +29,9 @@ with separate documents, controllers, sessions, GPU domains and pending requests
 A layer already owned by another live host is rejected on creation/replacement.
 Unversioned exports address only the host created by `rust_init`; a scoped v1
 forward cannot change that legacy owner. Separate document tabs remain supported
-inside each host.
+inside each host. macOS close approvals belong to the closing host; Quit checks
+all remaining windows. Menu actions follow the key window, its sheet parent or
+the main Creator, and do not pick an arbitrary owner when several are inactive.
 
 Resize dimensions are physical pixels; input is in logical points. Keep the
 layer alive until `eldiron_creator_destroy_v1` or a successful
@@ -66,9 +68,16 @@ search directory and `-import-objc-header 'Xcode/Eldiron/Eldiron Shared/Bridge.h
 to `swiftc` when linking that executable. Run it on the main thread with Metal
 available. It is a detached-layer check, separate from physical window evidence.
 
+`tools/check_native_creator_apple.py` builds optimized Rust/Swift owner checks.
+Use `--windows` on an unlocked Mac for strict actual AppKit presentation/teardown.
+`--window-lifetimes` separately verifies eager close and stale handles while
+controllers/windows remain retained; it does not accept physical presentation.
+Window exit/teardown only closes that owner, stops its callbacks, destroys its
+Rust host and then releases the backing layer.
+
 Native macOS/iOS composition/accessibility, complete physical input/document
-workflows, mobile runtime execution, multiwindow ownership and distribution
-remain in the rewrite acceptance matrix. Creator reuses the client's
+workflows, mobile runtime execution, physical multiwindow interaction and
+distribution remain in the rewrite acceptance matrix. Creator reuses the client's
 `NativeTextHost`, AppKit input context and UIKit UITextInput responders. The
 shared Rust UTF-16 protocol validates source identity/revision and Unicode
 boundaries before edits. Source text is queried on demand and selection-only

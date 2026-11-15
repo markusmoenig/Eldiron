@@ -1,0 +1,32 @@
+{
+  "date": "2026-11-15",
+  "configuration": "release Rust; Swift -O -g",
+  "command": "MACOSX_DEPLOYMENT_TARGET=26.1 CARGO_TARGET_DIR=/Users/markusmoenig/Eldiron/target python3 tools/check_native_creator_apple.py --window-lifetimes",
+  "result": "owner-lifetimes pass; onscreen presentation unverified",
+  "console_locked": true,
+  "onscreen_presentations": [
+    0,
+    0
+  ],
+  "root_cpu_bytes": [
+    0,
+    0
+  ],
+  "normal_color_readback_bytes": [
+    0,
+    0
+  ],
+  "asserted": [
+    "per-controller close approval cannot bypass another dirty owner or recreated handle",
+    "two actual AppKit windows retain their controllers beyond immediate addressed Rust teardown",
+    "surviving window/Creator retains its own handle and documents",
+    "late document callbacks reject destroyed handles",
+    "separate detached-layer suite actually presents all independent hosts"
+  ],
+  "logs": {
+    "close-policy": "Creator close approvals remain scoped to their closing owner\n",
+    "host": "Scepter API listening on http://127.0.0.1:37687/scepter/ping\nScene manager has started up.\nScepter API unavailable at 127.0.0.1:37687\nScepter service: could not start local Scepter API at 127.0.0.1:37687: Address already in use (os error 48)\nScene manager has started up.\nScepter API unavailable at 127.0.0.1:37687\nScepter service: could not start local Scepter API at 127.0.0.1:37687: Address already in use (os error 48)\nScene manager has started up.\nIndependent Creator handles/layers/legacy routing/pending save retirement passed\nScepter API listening on http://127.0.0.1:37687/scepter/ping\nScene manager has started up.\nNative Creator CAMetalLayer/handle/document/PNG transactions passed\n",
+    "windows": "Scepter API listening on http://127.0.0.1:37687/scepter/ping\nScepter API unavailable at 127.0.0.1:37687\nScene manager has started up.\nScepter service: could not start local Scepter API at 127.0.0.1:37687: Address already in use (os error 48)\nScene manager has started up.\nCreator window 1 presentations 0 root CPU 0 readback 0\nCreator window 2 presentations 0 root CPU 0 readback 0\nCreator window close ownership passed; physical presentation is not accepted in lifetime-only mode\n"
+  },
+  "limits": "Physical macOS presentation/input/IME/monitor behavior remains open while console is locked. Default --windows still requires positive actual surface presentations."
+}

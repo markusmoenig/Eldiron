@@ -10,7 +10,6 @@ import Cocoa
 @main
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
-    static var bypassUnsavedPromptOnce: Bool = false
 
     private func menuItem(named title: String) -> NSMenuItem? {
         NSApp.mainMenu?.items.first { $0.title == title }
@@ -227,8 +226,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private var creatorRenderer: Renderer? {
-        (NSApp.keyWindow?.contentViewController as? GameViewController)?.renderer
-            ?? NSApp.windows.compactMap { ($0.contentViewController as? GameViewController)?.renderer }.first
+        // A panel/sheet can own keyboard focus while its Creator remains main.
+        for window in [NSApp.keyWindow?.sheetParent, NSApp.keyWindow, NSApp.mainWindow] {
+            if let renderer = (window?.contentViewController as? GameViewController)?.renderer {
+                return renderer
+            }
+        }
+        let owners = NSApp.windows.compactMap { ($0.contentViewController as? GameViewController)?.renderer }
+        return owners.count == 1 ? owners[0] : nil
     }
 
     @objc private func openMenu() {
@@ -351,9 +356,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func confirmCloseIfNeeded() -> Bool {
-        if creatorRenderer?.hasUnsavedChanges != true {
-            return true
+        let needsConfirmation = NSApp.windows.contains {
+            ($0.contentViewController as? GameViewController)?.hasUnapprovedChanges == true
         }
+        if !needsConfirmation { return true }
 
         let alert = NSAlert()
         alert.messageText = "Unsaved Changes"
@@ -378,10 +384,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if AppDelegate.bypassUnsavedPromptOnce {
-            AppDelegate.bypassUnsavedPromptOnce = false
-            return .terminateNow
-        }
         return confirmCloseIfNeeded() ? .terminateNow : .terminateCancel
     }
 }

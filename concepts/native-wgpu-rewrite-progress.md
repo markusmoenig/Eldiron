@@ -62,7 +62,7 @@ behavior is ready to verify.
 
 ## Blockers
 
-None preventing implementation. Full visual/platform validation is outstanding, not passed.
+No blocker prevents continued implementation/available acceptance. The Mac console is currently locked (ioreg CGSSessionScreenIsLocked=Yes); actual AppKit test windows have zero presentations, so physical macOS presentation/input checks remain unverified. Detached Metal GPU tests and owner-lifetime checks pass. Continue independent work without waiting for an unlock. Physical Windows/Linux/iOS-device checks remain unavailable; simulator runtimes are installed and can be exercised in an isolated owned device.
 
 ## Foundation checkpoint (2026-11-11)
 
@@ -16914,3 +16914,73 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   release evidence. Resume remaining focused target checks and consolidated
   acceptance, preserving existing foundation results and concurrent networking
   concept. No full objective or M0–M9 completion claim.
+
+- Release native4app compile PASS10.70s, browser compile PASS10.63s, Apple
+  simulator staticlib compile PASS38.82s after handle/theme ownership changes.
+  Logs /private/tmp/eldiron-creator-host-owners-release-{apps,wasm,ios}.log;
+  handle37144terminal. These do not imply simulator runtime execution.
+- Wrapper source audit found a remaining dangerous close-owner assumption:
+  AppDelegate.bypassUnsavedPromptOnce was global; approving discard for windowA
+  while B remained open could later bypass B's dirty Quit prompt. Quit also only
+  checked the key/fallback renderer. Replaced with per-controller, handle-scoped
+  CreatorCloseApproval and aggregate dirty-owner checks; key/reopen resets revoke
+  prior approval. Duplicate prompts for the same approved closing host remain
+  suppressed, without approving other hosts or a recreated handle. Added a pure
+  optimized Swift regression and registered its small policy module in macOS
+  target sources. Focused wrapper compile/policy verification next; broad tests
+  remain paused until this ownership implementation is verified.
+
+- Optimized close-policy regression PASS and actual macOS Creator Xcode Release
+  bundle BUILD SUCCEEDED (CODE_SIGNING_ALLOWED=NO, deployment26.1, current real
+  release static archive). Logs /private/tmp/eldiron-creator-close-approval-
+  release{,-xcode}.log; handle46517terminal. Also scoped AppDelegate menu routing
+  through the key window/sheet parent/main window; an ambiguous inactive set
+  cannot fall back to the first unrelated Creator. This prevents panel-focused
+  Save/Close commands from selecting a different host. Incremental Release
+  wrapper compile next, then resume consolidated acceptance.
+
+- Final Swift lifetime audit found owner exit still called NSApp.terminate, and
+  closed windows relied on Renderer.deinit for releasing the Rust host. Scoped
+  exit to its window and added explicit Renderer.close from windowWillClose,
+  retiring handle/timer/observers/snapshots before releasing the layer. Tick
+  returns immediately after a close request, avoiding unowned-view access after
+  synchronous teardown. Added optional --windows actual AppKit integration: two
+  checked-in Creator controllers/renderers present through real windows, close
+  one while retaining its controller/window, assert immediate stale-handle
+  rejection and survivor liveness, then close the other. This directly verifies
+  the lifetime fix instead of relying on deinit or detached model owners.
+
+- Optimized actual AppKit window harness compiled, detached host/close-policy
+  contracts all passed, but strict real-window presentation check trapped at
+  NativeCreatorWindowCheck.swift:46 (presentations==0). ioreg confirms current
+  CGSSessionScreenIsLocked=Yes. This is NOT physical window presentation evidence.
+  Logs .../eldiron-creator-apple-host-37nnbxmv/{windows-build,windows}.log and
+  /private/tmp/eldiron-creator-window-owners-release.log; handle53850terminal.
+- Kept default --windows positive-presentation assertion unchanged. Added a
+  separate --window-lifetimes mode for close/retained-controller/stale-handle
+  verification while the console is locked, explicitly excluding presentation
+  acceptance. Harness now finishes normal AppKit launch and logs per-window
+  presentation/root/readback counts. No unlock/bypass attempt, no waiting for
+  user input; continue other available checks after focused lifecycle evidence.
+
+- Actual optimized close-policy + detached-layer + AppKit lifetime contracts
+  PASS, handle89702terminal. Two real windows had0presentations while console
+  locked,0rootCPU/readback each; both immediately retire their correct Rust
+  handles while controllers/windows remain retained, survivor stays valid, stale
+  document callbacks reject retired owners. This accepts eager lifetime teardown,
+  NOT onscreen rendering. Detailed .../eldiron-creator-apple-host-sfia5dzv logs,
+  /private/tmp/eldiron-creator-window-lifetimes-release.log and durable
+  concepts/native-wgpu-evidence/apple-creator-window-lifetimes.json.
+- Final actual Xcode Release compile running for the scoped exit/close changes;
+  after success checkpoint the wrapper batch and resume consolidated presentation
+  and CPU/Creator/player acceptance. Do not wait for an unlock: physical macOS
+  check is one explicit blocker, not a reason to stop independent work.
+
+- Final actual macOS Creator Xcode Release bundle BUILD SUCCEEDED after scoped
+  exit and eager teardown; /private/tmp/eldiron-creator-window-close-release-
+  xcode.log, handle32339terminal. Wrapper close/command/lifetime ownership gaps
+  are now implemented and focused-verified. Physical window presentation stays
+  explicitly blocked by locked console; detached-layer counters remain separate.
+  Checkpoint this batch, then resume the presentation suite from its first run
+  (113/115 library cases,2stale assertions now fixed), followed by remaining
+  assembled/source/runtime/target/performance acceptance.

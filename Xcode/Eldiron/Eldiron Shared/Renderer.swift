@@ -61,6 +61,21 @@ final class Renderer: NSObject, MTKViewDelegate {
         #endif
     }
 
+    func close() {
+        timer?.invalidate()
+        timer = nil
+        observers.forEach { NotificationCenter.default.removeObserver($0) }
+        observers.removeAll()
+        if handle != 0 {
+            let retired = handle
+            handle = 0
+            _ = eldiron_creator_destroy_v1(retired)
+        }
+        nativeInputState = nil
+        sourceSnapshot = nil
+        backingLayer = nil
+    }
+
     private func physicalSize() -> (UInt32, UInt32) {
         let scale = CGFloat(density)
         return (UInt32(max(0, (view.bounds.width * scale).rounded())),
@@ -80,6 +95,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             NSLog("Native Creator presentation failed")
         }
         serviceRequests()
+        guard ready else { return }
         refreshTextState()
         #if os(macOS)
         let changed = eldiron_creator_has_changes_v1(handle)
@@ -135,7 +151,8 @@ final class Renderer: NSObject, MTKViewDelegate {
             case "error": NSLog("Creator: %@", request["message"] as? String ?? "Unknown error")
             case "exit":
                 #if os(macOS)
-                NSApp.terminate(nil)
+                view.window?.performClose(nil)
+                return
                 #else
                 eldiron_creator_suspend_v1(handle)
                 #endif

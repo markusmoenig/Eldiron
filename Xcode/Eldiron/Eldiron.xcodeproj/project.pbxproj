@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CE7700000000000000000202 /* CreatorCloseApproval.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7700000000000000000201 /* CreatorCloseApproval.swift */; };
 		DD219B8529752AE300E978F5 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B8429752AE300E978F5 /* AudioToolbox.framework */; };
 		DD219B8729752B1100E978F5 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B8629752B1100E978F5 /* CoreAudio.framework */; };
 		DD219B89297672ED00E978F5 /* Keycodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD219B88297672ED00E978F5 /* Keycodes.swift */; };
@@ -62,6 +63,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		CE7700000000000000000201 /* CreatorCloseApproval.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatorCloseApproval.swift; sourceTree = "<group>"; };
 		DD219B8429752AE300E978F5 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		DD219B8629752B1100E978F5 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		DD219B88297672ED00E978F5 /* Keycodes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keycodes.swift; sourceTree = "<group>"; };
@@ -204,6 +206,7 @@
 			children = (
 				DD5FD12428FBD15C00853829 /* AppDelegate.swift */,
 				DD5FD12628FBD15C00853829 /* GameViewController.swift */,
+				CE7700000000000000000201 /* CreatorCloseApproval.swift */,
 				DD5FD12828FBD15C00853829 /* Main.storyboard */,
 				DD5FD12B28FBD15C00853829 /* Eldiron_macOS.entitlements */,
 			);
@@ -404,6 +407,7 @@
 				CE7700000000000000000106 /* NativeTextClient.swift in Sources */,
 				CE7700000000000000000103 /* NativeTextHost.swift in Sources */,
 				DD5FD12728FBD15C00853829 /* GameViewController.swift in Sources */,
+				CE7700000000000000000202 /* CreatorCloseApproval.swift in Sources */,
 				DD5B0371290E84B3003F7C12 /* RMKTView.swift in Sources */,
 				DD5FD12528FBD15C00853829 /* AppDelegate.swift in Sources */,
 				DD5B0373290E84B7003F7C12 /* Math.swift in Sources */,

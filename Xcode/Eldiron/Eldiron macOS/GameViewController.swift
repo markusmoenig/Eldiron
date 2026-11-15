@@ -13,6 +13,16 @@ class GameViewController: NSViewController, NSWindowDelegate {
 
     var renderer: Renderer!
     var mtkView:  RMTKView!
+    private var closeApproval = CreatorCloseApproval()
+
+    var hasUnapprovedChanges: Bool {
+        guard let renderer else { return false }
+        return closeApproval.requiresConfirmation(host: renderer.handle, hasChanges: renderer.hasUnsavedChanges)
+    }
+    func windowDidBecomeKey(_ notification: Notification) {
+        closeApproval.reset()
+    }
+
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -60,6 +70,7 @@ class GameViewController: NSViewController, NSWindowDelegate {
 
     override func viewDidAppear() {
         super.viewDidAppear()
+        closeApproval.reset()
         if let window = view.window {
             window.delegate = self
             let autosaveName = "EldironCreatorMainWindow"
@@ -68,21 +79,26 @@ class GameViewController: NSViewController, NSWindowDelegate {
         }
     }
 
+    func windowWillClose(_ notification: Notification) {
+        renderer?.close()
+    }
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        closeApproval.reset()
         if renderer?.hasUnsavedChanges != true {
             return true
         }
 
         let alert = NSAlert()
         alert.messageText = "Unsaved Changes"
-        alert.informativeText = "You have unsaved changes. Are you sure you want to quit?"
+        alert.informativeText = "You have unsaved changes. Close this window?"
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Quit")
+        alert.addButton(withTitle: "Close Window")
         alert.addButton(withTitle: "Cancel")
         let shouldClose = alert.runModal() == .alertFirstButtonReturn
         if shouldClose {
-            // Avoid a second prompt in applicationShouldTerminate for this close flow.
-            AppDelegate.bypassUnsavedPromptOnce = true
+            // Last-window termination can reuse this decision for this host only.
+            closeApproval.approve(host: renderer.handle)
         }
         return shouldClose
     }
