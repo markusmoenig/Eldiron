@@ -1,0 +1,20 @@
+{
+  "source_worktree": "/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree",
+  "checkout_revision": "1292c4ebe2aa1b617d4a11af821746b2ce50cc3d",
+  "production_checkpoint": "e9da236e",
+  "profile": "release",
+  "offline_locked": true,
+  "artifacts": [
+    {
+      "path": "/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/target/native-wgpu-release-e9da236e/eldiron-creator",
+      "bytes": 104150048,
+      "sha256": "8b88629a471ede7f833272afa29c73001e633afe216a396f392627e4c8d6abe8"
+    },
+    {
+      "path": "/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/target/native-wgpu-release-e9da236e/eldiron-client-wgpu",
+      "bytes": 69005008,
+      "sha256": "ac8477d3900938cff865a16338440e6d352b0147ac20776152a3a3acf6360fd2"
+    }
+  ],
+  "limits": "Built/link-verified current native launchers. Physical window/input acceptance still blocked by locked console."
+}

@@ -1,0 +1,40 @@
+{
+  "source_head": "e9da236e",
+  "rust_profile": "release",
+  "swift_optimization": "-O",
+  "creator_macos": {
+    "result": "passed",
+    "evidence": "/var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-creator-apple-host-ddqbfdmy",
+    "scope": "independent versioned/legacy Metal layer hosts, addressed document/PNG/close approval and retained-window ownership; lifetime-only windows each have zero presentations, so physical rendering is NOT accepted"
+  },
+  "player_macos": {
+    "result": "passed",
+    "established_abi_exports_preserved": 37,
+    "evidence": "/var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-apple-host-umva9lkz",
+    "scope": "actual detached Metal layers, common session and text/lifecycle; iOS Swift SDK typecheck"
+  },
+  "creator_uikit": {
+    "elapsedSeconds": 17.500581979751587,
+    "finalPresentations": 6,
+    "firstPresentations": 3,
+    "physicalIMEVerified": false,
+    "profile": "release",
+    "readbackBytes": 0,
+    "rootCPUBytes": 0,
+    "secondPresentations": 3,
+    "status": "passed",
+    "uiKitTextProtocolPassed": true
+  },
+  "player_uikit": {
+    "elapsedSeconds": 2.8956069946289062,
+    "finalPresentations": 4,
+    "firstPresentations": 3,
+    "physicalIMEVerified": false,
+    "profile": "release",
+    "readbackBytes": 0,
+    "status": "passed",
+    "uiKitTextProtocolPassed": true
+  },
+  "simulator_ownership": "Each helper created and deleted only its own simulator; user booted6D6BB609-E5EC-49B7-899A-69F8037986B0 was not selected.",
+  "limits": "Simulator and detached-host evidence; physical Mac/monitor/IME, physical mobile and Windows/Linux remain open. Not M9 or whole-goal completion."
+}

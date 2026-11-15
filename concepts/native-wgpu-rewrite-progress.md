@@ -18597,3 +18597,78 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   browser run uses that REAL startup flag, active target/focus emulation, asserts
   DOM/canvas physical metrics and captures actual game before/after loss. Previous
   guessed Start click under mismatched DPR is not game/input parity evidence.
+
+- Apple player76773terminalPASS current optimized Rust/Swift facade,37existing
+  ABI exports retained, actual detached CAMetalLayer runtime/text/lifecycle and
+  current iOS Swift SDK typecheck. Root:
+  /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-apple-host-umva9lkz.
+  Current isolated UIKit Creator release check follows using helper-created
+  owned simulator only (no --device). Preserve user booted6D6BB609-E5EC-49B7-899A-69F8037986B0.
+  Helper finally shuts down/deletes only its own newly created UUID. Then UIKit
+  player, real-startup-density focused browser and longer matched timings.
+
+- Current UIKit Creator45911terminalPASS actual simulator app/runtime/text after
+  optimized Rust and Swift-O build, initial/final presentations increasing and
+  readback0. Result:
+  /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-uikit-release-c55be8jy/result.json.
+  Helper-created device cleanup completed before next player helper. User existing
+  booted device was not selected. Current UIKit player follows serially.
+
+- UIKit player67972terminalPASS actual optimized Rust/Swift simulator app/text/
+  lifecycle with increasing presentations and readback0. Result:
+  /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-uikit-release-ii6had50/result.json.
+  Own simulator cleanup complete; current Creator/player Apple host+UIKit
+  evidence durable in release-compact-apple-hosts.json and UIKit result files.
+- Longer matched performance starts using current optimized Creator test binary
+  e9da236e production implementation: four fresh processes in native/reference/
+  reference/native order,120samples per idle/hover/pan/zoom, same UnendingNight,
+  logical1600x1000 and density1.5. No tracing, sampling/guard or concurrent build/
+  GPU test. GPU completion waits included; /usr/bin/time-l reports process RSS.
+  Explicit initial screenshot is outside timed frames. Script/output log:
+  /private/tmp/eldiron-compact-matched-release.py /private/tmp/eldiron-release-compact-matched.log.
+  This still excludes physical acquisition/input/display and full driver memory.
+
+- Longer matched85222terminalPASS4fresh processes/120samples per mode. Strict
+  project/size/DPI/viewport/mode/initialcamera identities equal across all4.
+  Native1/2 P50idle8.91/8.93,hover9.39/9.38,pan36.46/36.13,zoom25.44/24.92ms;
+  CPU1/2 idle27.01/27.33,hover26.89/26.93,pan26.93/27.00,zoom34.95/35.58ms.
+  Normal native color readback delta0. Native firstcomplete7.39/7.12s vsCPU6.23/6.22s;
+  peakprocessRSS3.294/3.267GB vsCPU2.505/2.491GB. Native idle/hover P99~47-49ms
+  and zoomP95/99~55-57ms exceed CPU~29-30/~38-40ms, so do NOT accept overall
+  performance from better medians. Slow hover samples spend~29-30mspaint and
+  ~16-17msGPUcompletion, update<1ms. Panning P50paint31.94ms.
+- Terrain render_prepared currently clears and re-rasterizes unchanged ground
+  before upright sprites/lighting on every refreshed frame. Investigate bounded
+  GPU base-ground residency, exact semantic/source guards and copied storage,
+  especially animation redraws; do not change shader math/order or cache only by
+  hash. Ground and upright are separate ordered command sequences in producer.rs.
+  This is a candidate, not an implemented optimization or a claimed speedup.
+  Durable release-compact-matched-120-summary.json and all4rawsampleJSONs.
+- Canonical optimized launcher42860terminalPASS build/link1m11s. Found normal
+  target/release/eldiron-creator had still been datedNov11 despite fresh release
+  test/Swift artifacts. Rebuilt Creator+common-player and preserved exact fresh
+  executable copies+SHA256 manifest under worktree target/native-wgpu-release-e9da236e/.
+  Physical launch/input remains unverified while console locked. Other launcher
+  binaries and final implementation changes still require corresponding refresh.
+- Focused real-startup-density/focus Chrome run now uses --force-device-scale-factor=1.5,
+  checks actual DOM/canvas dimensions and real game images, with separate old
+  emulation failures preserved. /private/tmp/eldiron-release-compact-browser-real-density.log.
+
+- REAL startup150% focused browser71049terminalPASS both Hideout2D and
+  UnendingNight actual game worlds before/after device.destroy, visually inspected.
+  DPR1.5, CSS1600x1000, actualGPUcanvas2400x1500 and documentFocus=true.
+  Start Game pointer transition now displays actual Hideout map/HUD/avatar/text
+  (earlier CDP-only mismatched-size click had remained Setup). Both sessions
+  unchanged across generation1->2, ticks/presentations continue, normal copies/
+  colorreadback/Canvas2D/GPUerrors/JSerrors0. Source
+  /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-compact-browser-x4zadwy7.
+  Durable release-browser-compact-real-150-player-* JSON and before/recovered PNGs.
+  Older screenshot/input failures remain diagnostic evidence and are superseded
+  for these stable-startup player cases. Dynamic monitor/DPR transitions and
+  current Creator actual150% still separate gates. All owned Chrome reaped.
+- Next bounded terrain-base residency: cache only deferred ground before upright
+  sprites/lighting, exact projection/geometry/immutable source guards, weak source
+  anchors (no new strong GPU source retention), no shader arithmetic changes.
+  Shared per-device retained-cache admission must include metadata and GPU bytes
+  and hold reservations through queued work. Cache misses/pressure use existing
+  full rendering. This implementation is not yet written/accepted.

@@ -1,0 +1,199 @@
+{
+  "source_head": "e9da236e",
+  "profile": "release",
+  "runs": [
+    {
+      "backend": "native",
+      "repeat": 1,
+      "first_complete_view_ms": 7389.229542,
+      "peak_process_rss_bytes": 3294068736,
+      "normal_color_readback_delta": 0,
+      "total_frame_ms": {
+        "hover": {
+          "mean": 17.319845083333334,
+          "p50": 9.390166,
+          "p95": 47.99875,
+          "p99": 49.03325
+        },
+        "idle": {
+          "mean": 10.553706275,
+          "p50": 8.907292,
+          "p95": 10.556041,
+          "p99": 47.981
+        },
+        "pan": {
+          "mean": 35.986909,
+          "p50": 36.462791,
+          "p95": 38.102125,
+          "p99": 40.24225
+        },
+        "zoom": {
+          "mean": 26.719118408333326,
+          "p50": 25.437333,
+          "p95": 55.11725,
+          "p99": 57.421958000000004
+        }
+      },
+      "timed_source_uploaded_bytes": 1275591760,
+      "raw_evidence": "release-unending-compact-120-native-1.json"
+    },
+    {
+      "backend": "reference",
+      "repeat": 1,
+      "first_complete_view_ms": 6231.4025,
+      "peak_process_rss_bytes": 2505179136,
+      "normal_color_readback_delta": 0,
+      "total_frame_ms": {
+        "hover": {
+          "mean": 27.246181925,
+          "p50": 26.893125,
+          "p95": 28.579583,
+          "p99": 28.92625
+        },
+        "idle": {
+          "mean": 27.1626021,
+          "p50": 27.00975,
+          "p95": 29.481709,
+          "p99": 29.912792
+        },
+        "pan": {
+          "mean": 26.947315333333343,
+          "p50": 26.934209,
+          "p95": 28.992082999999997,
+          "p99": 31.705625
+        },
+        "zoom": {
+          "mean": 34.20701179166667,
+          "p50": 34.947083,
+          "p95": 38.140125,
+          "p99": 40.128917
+        }
+      },
+      "timed_source_uploaded_bytes": 6912000000,
+      "raw_evidence": "release-unending-compact-120-reference-1.json"
+    },
+    {
+      "backend": "reference",
+      "repeat": 2,
+      "first_complete_view_ms": 6219.075292,
+      "peak_process_rss_bytes": 2490941440,
+      "normal_color_readback_delta": 0,
+      "total_frame_ms": {
+        "hover": {
+          "mean": 27.195648600000002,
+          "p50": 26.92875,
+          "p95": 28.466,
+          "p99": 28.526540999999998
+        },
+        "idle": {
+          "mean": 27.246493466666664,
+          "p50": 27.333208000000003,
+          "p95": 28.66075,
+          "p99": 30.183457999999998
+        },
+        "pan": {
+          "mean": 26.860494808333332,
+          "p50": 27.004875000000002,
+          "p95": 29.1265,
+          "p99": 29.892625
+        },
+        "zoom": {
+          "mean": 34.739264649999996,
+          "p50": 35.575917,
+          "p95": 38.520291,
+          "p99": 40.316708
+        }
+      },
+      "timed_source_uploaded_bytes": 6912000000,
+      "raw_evidence": "release-unending-compact-120-reference-2.json"
+    },
+    {
+      "backend": "native",
+      "repeat": 2,
+      "first_complete_view_ms": 7117.548125,
+      "peak_process_rss_bytes": 3266658304,
+      "normal_color_readback_delta": 0,
+      "total_frame_ms": {
+        "hover": {
+          "mean": 16.77290065833333,
+          "p50": 9.383958,
+          "p95": 45.356415999999996,
+          "p99": 46.574749999999995
+        },
+        "idle": {
+          "mean": 10.701286124999994,
+          "p50": 8.928333,
+          "p95": 11.007416000000001,
+          "p99": 46.737291
+        },
+        "pan": {
+          "mean": 35.98621315833332,
+          "p50": 36.130750000000006,
+          "p95": 38.310334000000005,
+          "p99": 39.868583
+        },
+        "zoom": {
+          "mean": 26.206276733333322,
+          "p50": 24.917624999999997,
+          "p95": 54.919875,
+          "p99": 56.335916
+        }
+      },
+      "timed_source_uploaded_bytes": 1268474528,
+      "raw_evidence": "release-unending-compact-120-native-2.json"
+    }
+  ],
+  "matched_identity": {
+    "project": "/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/test_projects/UnendingNight.eldiron",
+    "density": 1.5,
+    "logical_size": [
+      1600,
+      1000
+    ],
+    "physical_size": [
+      2400,
+      1500
+    ],
+    "viewport": [
+      51,
+      87,
+      1169,
+      639
+    ],
+    "view_mode": "D2",
+    "map_camera": "TwoDIso",
+    "initial_camera": {
+      "grid_size": 25.0,
+      "iso_scale": 4.0,
+      "look_at": [
+        20.0,
+        0.5,
+        18.0
+      ],
+      "map_offset": [
+        -725.0,
+        -12.5
+      ],
+      "position": [
+        10.0,
+        12.0,
+        28.0
+      ]
+    }
+  },
+  "frames_per_mode_per_run": 120,
+  "mode_order": [
+    "idle",
+    "hover",
+    "pan",
+    "zoom"
+  ],
+  "process_order": [
+    "native",
+    "reference",
+    "reference",
+    "native"
+  ],
+  "limits": "Offscreen through actual GPU completion; no tracing, sampling or guard and no concurrent build/test. Physical acquisition/input/display and driver-wide memory excluded. Paths include120pan inputs before120zoom inputs;30-frame pilots follow a different camera path and their zoom timing is not directly comparable. Character animation clock is not frozen for pixel comparisons. CPU reference uses persistent RGBA upload plus common compositor.",
+  "open_performance": "Native median idle/hover and zoom faster in this matched path, but pan about36vs27ms, hover/idle p99 about47-49vs29-30ms, zoom p95/99 about55-57vs38-40ms; native startup and peak RSS also higher. Overall performance acceptance remains open."
+}
