@@ -1,0 +1,3236 @@
+{
+  "scope": "Instrumented release attribution, not normal frame-time or physical input/present latency",
+  "source_commit": "53af6e17",
+  "test_harness_delta": "optional per-mode wall-clock markers",
+  "clock_alignment_guard_ns": 2000000,
+  "cpu_weight_note": "Statistical 1ms sample weights, not measured function durations; inclusive shares overlap",
+  "gpu_label_note": "wgpu-hal29 Metal relabels the final command buffer to (wgpu internal) Signal when submitting. Generic compute labels do not distinguish original kernels and are not solely fence overhead.",
+  "gpu_overlap_note": "Only target-PID depth-zero Active intervals; union Vertex/Fragment/Compute per encoder and globally; stage distributions are encoder durations, not frame times",
+  "cpu_only": {
+    "pid": 22413,
+    "sample_range_ns": [
+      922654666,
+      19164656125
+    ],
+    "phase_ranges_ns": {
+      "hover": [
+        10318624872,
+        11964450872
+      ],
+      "idle": [
+        9175297872,
+        10318622872
+      ],
+      "pan": [
+        11964452872,
+        16055561872
+      ],
+      "zoom": [
+        16055563872,
+        19059764872
+      ]
+    },
+    "modes": {
+      "hover": {
+        "samples": 1713,
+        "sample_weight_ns": 1713000000,
+        "frame_samples": 1311,
+        "frame_weight_ns": 1311000000,
+        "leaf": [
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 253000000,
+            "frame_sample_share": 0.19298245614035087
+          },
+          {
+            "function": "<core::hash::sip::Hasher<core::hash::sip::Sip13Rounds> as core::hash::Hasher>::write",
+            "sample_weight_ns": 92000000,
+            "frame_sample_share": 0.07017543859649122
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 88000000,
+            "frame_sample_share": 0.06712433257055683
+          },
+          {
+            "function": "_platform_memmove",
+            "sample_weight_ns": 57000000,
+            "frame_sample_share": 0.043478260869565216
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 39000000,
+            "frame_sample_share": 0.029748283752860413
+          },
+          {
+            "function": "mach_msg2_trap",
+            "sample_weight_ns": 25000000,
+            "frame_sample_share": 0.01906941266209001
+          },
+          {
+            "function": "_xzm_xzone_malloc_tiny",
+            "sample_weight_ns": 17000000,
+            "frame_sample_share": 0.012967200610221205
+          },
+          {
+            "function": "serde_json::ser::format_escaped_str::<&mut alloc::vec::Vec<u8>, serde_json::ser::CompactFormatter>",
+            "sample_weight_ns": 15000000,
+            "frame_sample_share": 0.011441647597254004
+          },
+          {
+            "function": "_xzm_free_main",
+            "sample_weight_ns": 15000000,
+            "frame_sample_share": 0.011441647597254004
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::terrain_sources::CellSources>::prepare",
+            "sample_weight_ns": 14000000,
+            "frame_sample_share": 0.010678871090770405
+          },
+          {
+            "function": "_platform_memcmp",
+            "sample_weight_ns": 14000000,
+            "frame_sample_share": 0.010678871090770405
+          },
+          {
+            "function": "objc_msgSend",
+            "sample_weight_ns": 14000000,
+            "frame_sample_share": 0.010678871090770405
+          },
+          {
+            "function": "<alloc::collections::btree::map::BTreeMap<u64, renderkit::range_cache::Key>>::remove::<u64>",
+            "sample_weight_ns": 13000000,
+            "frame_sample_share": 0.009916094584286803
+          },
+          {
+            "function": "<deduplicated_symbol>",
+            "sample_weight_ns": 13000000,
+            "frame_sample_share": 0.009916094584286803
+          },
+          {
+            "function": "_platform_memset",
+            "sample_weight_ns": 13000000,
+            "frame_sample_share": 0.009916094584286803
+          },
+          {
+            "function": "<eldiron_creator::editor::native_views::world::pixels::SourceOp>::from",
+            "sample_weight_ns": 12000000,
+            "frame_sample_share": 0.009153318077803204
+          },
+          {
+            "function": "theframework::render_wgpu::sampled_lines::prepare",
+            "sample_weight_ns": 11000000,
+            "frame_sample_share": 0.008390541571319604
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_sculpt::TerrainSculpt>::sample",
+            "sample_weight_ns": 11000000,
+            "frame_sample_share": 0.008390541571319604
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::height_on_grid",
+            "sample_weight_ns": 11000000,
+            "frame_sample_share": 0.008390541571319604
+          },
+          {
+            "function": "core::ptr::drop_glue::<eldiron_presentation::isometric::producer::PreparedSurface>",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.007627765064836003
+          },
+          {
+            "function": "<alloc::collections::btree::map::BTreeMap<u64, renderkit::range_cache::Key>>::insert",
+            "sample_weight_ns": 9000000,
+            "frame_sample_share": 0.006864988558352402
+          },
+          {
+            "function": "<rusterix::procedural_avatar::ResolvedSprite>::render",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.006102212051868803
+          },
+          {
+            "function": "rusterix::isometric::editor::guide_segments::<<eldiron_creator::editor::Editor>::prepare_native_world_viewport::{closure#62}>",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.006102212051868803
+          },
+          {
+            "function": "<alloc::vec::Vec<eldiron_creator::editor::native_views::world::pixels::SourceOp> as alloc::vec::spec_from_iter::SpecFromIter<eldiron_creator::editor::native_views::world::pixels::SourceOp, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<theframework::paint::PaintOp>, <eldiron_creator::editor::native_views::world::pixels::SourceOp>::from>, core::result::Result<core::convert::Infallible, alloc::string::String>>>>::from_iter",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.006102212051868803
+          },
+          {
+            "function": "_free",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.006102212051868803
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render_ops",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.006102212051868803
+          },
+          {
+            "function": "<lyon_tessellation::fill::FillTessellator>::process_events",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.006102212051868803
+          },
+          {
+            "function": "eldiron_creator::procedural_material::palette::key",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.006102212051868803
+          },
+          {
+            "function": "<scenevm::isometric::shadows::gpu::Pass>::draw",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.006102212051868803
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::contains",
+            "sample_weight_ns": 7000000,
+            "frame_sample_share": 0.005339435545385202
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricPreparedFrame>::source_leases",
+            "sample_weight_ns": 7000000,
+            "frame_sample_share": 0.005339435545385202
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::render_prepared",
+            "sample_weight_ns": 7000000,
+            "frame_sample_share": 0.005339435545385202
+          },
+          {
+            "function": "madvise",
+            "sample_weight_ns": 7000000,
+            "frame_sample_share": 0.005339435545385202
+          },
+          {
+            "function": "<eldiron_creator::editor::native_views::world::pixels::SourceOp as core::slice::cmp::SlicePartialEq<eldiron_creator::editor::native_views::world::pixels::SourceOp>>::equal_same_length",
+            "sample_weight_ns": 7000000,
+            "frame_sample_share": 0.005339435545385202
+          },
+          {
+            "function": "_malloc_zone_malloc",
+            "sample_weight_ns": 6000000,
+            "frame_sample_share": 0.004576659038901602
+          }
+        ],
+        "inclusive": [
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::frame",
+            "sample_weight_ns": 983000000,
+            "frame_sample_share": 0.7498093058733791
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 352000000,
+            "frame_sample_share": 0.26849733028222733
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render",
+            "sample_weight_ns": 350000000,
+            "frame_sample_share": 0.2669717772692601
+          },
+          {
+            "function": "rusterix::isometric::editor::guide_segments::<<eldiron_creator::editor::Editor>::prepare_native_world_viewport::{closure#62}>",
+            "sample_weight_ns": 340000000,
+            "frame_sample_share": 0.2593440122044241
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render_ops",
+            "sample_weight_ns": 336000000,
+            "frame_sample_share": 0.2562929061784897
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::height_on_grid",
+            "sample_weight_ns": 324000000,
+            "frame_sample_share": 0.2471395881006865
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::height_at",
+            "sample_weight_ns": 281000000,
+            "frame_sample_share": 0.2143401983218917
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 253000000,
+            "frame_sample_share": 0.19298245614035087
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::render",
+            "sample_weight_ns": 223000000,
+            "frame_sample_share": 0.17009916094584288
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::render_prepared",
+            "sample_weight_ns": 222000000,
+            "frame_sample_share": 0.16933638443935928
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::execute",
+            "sample_weight_ns": 184000000,
+            "frame_sample_share": 0.14035087719298245
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_scene",
+            "sample_weight_ns": 136000000,
+            "frame_sample_share": 0.10373760488176964
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_editor",
+            "sample_weight_ns": 136000000,
+            "frame_sample_share": 0.10373760488176964
+          },
+          {
+            "function": "<renderkit::range_cache::RangeCache>::upload",
+            "sample_weight_ns": 129000000,
+            "frame_sample_share": 0.09839816933638444
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreCommandEncoder as wgpu::dispatch::CommandEncoderInterface>::finish",
+            "sample_weight_ns": 126000000,
+            "frame_sample_share": 0.09610983981693363
+          },
+          {
+            "function": "<wgpu_core::global::Global>::command_encoder_finish",
+            "sample_weight_ns": 126000000,
+            "frame_sample_share": 0.09610983981693363
+          },
+          {
+            "function": "<wgpu_core::command::CommandEncoder>::finish",
+            "sample_weight_ns": 125000000,
+            "frame_sample_share": 0.09534706331045004
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 115000000,
+            "frame_sample_share": 0.08771929824561403
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::geometry",
+            "sample_weight_ns": 110000000,
+            "frame_sample_share": 0.08390541571319603
+          },
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::update",
+            "sample_weight_ns": 99000000,
+            "frame_sample_share": 0.07551487414187644
+          },
+          {
+            "function": "<renderkit::ordered_compute::OrderedCompute>::finish",
+            "sample_weight_ns": 97000000,
+            "frame_sample_share": 0.07398932112890923
+          },
+          {
+            "function": "<eldiron_creator::editor::Editor as theframework::thetrait::TheTrait>::update_ui",
+            "sample_weight_ns": 92000000,
+            "frame_sample_share": 0.07017543859649122
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreQueue as wgpu::dispatch::QueueInterface>::submit",
+            "sample_weight_ns": 83000000,
+            "frame_sample_share": 0.06331045003813883
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_submit",
+            "sample_weight_ns": 80000000,
+            "frame_sample_share": 0.06102212051868802
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::submit",
+            "sample_weight_ns": 79000000,
+            "frame_sample_share": 0.060259344012204424
+          },
+          {
+            "function": "wgpu_core::command::render::encode_render_pass",
+            "sample_weight_ns": 79000000,
+            "frame_sample_share": 0.060259344012204424
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::write_buffer",
+            "sample_weight_ns": 70000000,
+            "frame_sample_share": 0.05339435545385202
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_write_buffer",
+            "sample_weight_ns": 70000000,
+            "frame_sample_share": 0.05339435545385202
+          },
+          {
+            "function": "theframework::render_wgpu::mesh::tessellate",
+            "sample_weight_ns": 54000000,
+            "frame_sample_share": 0.041189931350114416
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::triangles::<<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl::{closure#1}>",
+            "sample_weight_ns": 47000000,
+            "frame_sample_share": 0.03585049580472922
+          },
+          {
+            "function": "<core::iter::adapters::map::Map<core::ops::range::RangeInclusive<usize>, rusterix::isometric::editor::projected_segment_at_height::{closure#1}> as core::iter::traits::iterator::Iterator>::fold::<(), core::iter::traits::iterator::Iterator::for_each::call<vek::vec::repr_c::vec2::Vec2<f32>, <alloc::vec::Vec<vek::vec::repr_c::vec2::Vec2<f32>>>::extend_trusted<core::iter::adapters::map::Map<core::ops::range::RangeInclusive<usize>, rusterix::isometric::editor::projected_segment_at_height::{closure#1}>>::{closure#0}>::{closure#0}>",
+            "sample_weight_ns": 43000000,
+            "frame_sample_share": 0.03279938977879481
+          },
+          {
+            "function": "<alloc::vec::Vec<vek::vec::repr_c::vec2::Vec2<f32>> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<vek::vec::repr_c::vec2::Vec2<f32>, core::iter::adapters::map::Map<core::ops::range::RangeInclusive<usize>, rusterix::isometric::editor::projected_segment_at_height::{closure#1}>>>::from_iter",
+            "sample_weight_ns": 43000000,
+            "frame_sample_share": 0.03279938977879481
+          },
+          {
+            "function": "rusterix::isometric::editor::projected_segment_at_height",
+            "sample_weight_ns": 43000000,
+            "frame_sample_share": 0.03279938977879481
+          },
+          {
+            "function": "wgpu_core::command::compute::encode_compute_pass",
+            "sample_weight_ns": 42000000,
+            "frame_sample_share": 0.032036613272311214
+          },
+          {
+            "function": "<theframework::theui::TheUI>::paint_commands",
+            "sample_weight_ns": 41000000,
+            "frame_sample_share": 0.031273836765827616
+          }
+        ]
+      },
+      "idle": {
+        "samples": 914,
+        "sample_weight_ns": 914000000,
+        "frame_samples": 806,
+        "frame_weight_ns": 806000000,
+        "leaf": [
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 199000000,
+            "frame_sample_share": 0.24689826302729528
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 81000000,
+            "frame_sample_share": 0.10049627791563276
+          },
+          {
+            "function": "_platform_memmove",
+            "sample_weight_ns": 45000000,
+            "frame_sample_share": 0.05583126550868486
+          },
+          {
+            "function": "<core::hash::sip::Hasher<core::hash::sip::Sip13Rounds> as core::hash::Hasher>::write",
+            "sample_weight_ns": 28000000,
+            "frame_sample_share": 0.034739454094292806
+          },
+          {
+            "function": "_xzm_free_main",
+            "sample_weight_ns": 19000000,
+            "frame_sample_share": 0.02357320099255583
+          },
+          {
+            "function": "serde_json::ser::format_escaped_str::<&mut alloc::vec::Vec<u8>, serde_json::ser::CompactFormatter>",
+            "sample_weight_ns": 16000000,
+            "frame_sample_share": 0.019851116625310174
+          },
+          {
+            "function": "mach_msg2_trap",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.01240694789081886
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_sculpt::TerrainSculpt>::sample",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.01240694789081886
+          },
+          {
+            "function": "<lyon_tessellation::fill::FillTessellator>::process_events",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.01240694789081886
+          },
+          {
+            "function": "rusterix::isometric::editor::guide_segments::<<eldiron_creator::editor::Editor>::prepare_native_world_viewport::{closure#62}>",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.01240694789081886
+          },
+          {
+            "function": "AGX::RenderContext<AGX::G13::Encoders, AGX::G13::Classes, AGX::G13::ObjClasses, AGX::G13::CommandEncoding>::encodeAndEmitRenderState(AGX::G13::VertexProgramVariant const*, AGX::G13::FragmentProgramVariant const*, AGX::G13::FixedLayoutUserArgumentTable*, AGX::G13::FixedLayoutUserArgumentTable*, AGX::RenderDirtyBits<AGX::G13::Classes>&, bool)",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.01240694789081886
+          },
+          {
+            "function": "_xzm_xzone_malloc_tiny",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.01240694789081886
+          },
+          {
+            "function": "<alloc::vec::Vec<eldiron_creator::editor::native_views::world::pixels::SourceOp> as alloc::vec::spec_from_iter::SpecFromIter<eldiron_creator::editor::native_views::world::pixels::SourceOp, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<theframework::paint::PaintOp>, <eldiron_creator::editor::native_views::world::pixels::SourceOp>::from>, core::result::Result<core::convert::Infallible, alloc::string::String>>>>::from_iter",
+            "sample_weight_ns": 9000000,
+            "frame_sample_share": 0.011166253101736972
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.009925558312655087
+          },
+          {
+            "function": "<eldiron_creator::editor::native_views::world::pixels::SourceOp>::from",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.009925558312655087
+          },
+          {
+            "function": "<alloc::collections::btree::map::BTreeMap<u64, renderkit::range_cache::Key>>::insert",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.009925558312655087
+          },
+          {
+            "function": "<deduplicated_symbol>",
+            "sample_weight_ns": 7000000,
+            "frame_sample_share": 0.008684863523573201
+          },
+          {
+            "function": "<eldiron_creator::editor::native_views::world::pixels::SourceOp as core::slice::cmp::SlicePartialEq<eldiron_creator::editor::native_views::world::pixels::SourceOp>>::equal_same_length",
+            "sample_weight_ns": 7000000,
+            "frame_sample_share": 0.008684863523573201
+          },
+          {
+            "function": "_free",
+            "sample_weight_ns": 6000000,
+            "frame_sample_share": 0.007444168734491315
+          },
+          {
+            "function": "<renderkit::range_cache::RangeCache>::upload",
+            "sample_weight_ns": 6000000,
+            "frame_sample_share": 0.007444168734491315
+          },
+          {
+            "function": "eldiron_creator::procedural_material::palette::key",
+            "sample_weight_ns": 6000000,
+            "frame_sample_share": 0.007444168734491315
+          },
+          {
+            "function": "<alloc::collections::btree::map::BTreeMap<u64, renderkit::range_cache::Key>>::remove::<u64>",
+            "sample_weight_ns": 6000000,
+            "frame_sample_share": 0.007444168734491315
+          },
+          {
+            "function": "IOGPUResourceListAddResource",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.00620347394540943
+          },
+          {
+            "function": "<serde_json::ser::Compound<&mut alloc::vec::Vec<u8>, serde_json::ser::CompactFormatter> as serde_core::ser::SerializeMap>::serialize_entry::<str, f32>",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.00620347394540943
+          },
+          {
+            "function": "_malloc_zone_malloc",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.00620347394540943
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::height_on_grid",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.00620347394540943
+          },
+          {
+            "function": "_platform_memcmp",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.00620347394540943
+          },
+          {
+            "function": "<rusterix::value::ValueContainer>::get_float",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.00620347394540943
+          },
+          {
+            "function": "MTLResourceListAddResource",
+            "sample_weight_ns": 4000000,
+            "frame_sample_share": 0.004962779156327543
+          },
+          {
+            "function": "AGX::RenderContext<AGX::G13::Encoders, AGX::G13::Classes, AGX::G13::ObjClasses, AGX::G13::CommandEncoding>::setRenderPipelineStateCommon(AGX::G13::RenderPipeline const*)",
+            "sample_weight_ns": 4000000,
+            "frame_sample_share": 0.004962779156327543
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::contains",
+            "sample_weight_ns": 4000000,
+            "frame_sample_share": 0.004962779156327543
+          },
+          {
+            "function": "AGX::RenderUSCStateLoader<AGX::G13::Encoders, AGX::G13::Classes>::extractProgramVariantArgumentDirtyBits(AGX::G13::VertexProgramVariant const*, AGX::G13::FragmentProgramVariant const*, AGX::RenderDirtyBits<AGX::G13::Classes> const&)",
+            "sample_weight_ns": 3000000,
+            "frame_sample_share": 0.0037220843672456576
+          },
+          {
+            "function": "<core::iter::adapters::map::Map<core::iter::adapters::zip::Zip<core::array::iter::IntoIter<[f32; 2], 4>, core::array::iter::IntoIter<[f32; 2], 4>>, theframework::render_wgpu::mesh::append_quad::{closure#0}> as core::iter::traits::iterator::Iterator>::fold::<(), core::iter::traits::iterator::Iterator::for_each::call<theframework::render_wgpu::mesh::Vertex, <alloc::vec::Vec<theframework::render_wgpu::mesh::Vertex>>::extend_trusted<core::iter::adapters::map::Map<core::iter::adapters::zip::Zip<core::array::iter::IntoIter<[f32; 2], 4>, core::array::iter::IntoIter<[f32; 2], 4>>, theframework::render_wgpu::mesh::append_quad::{closure#0}>>::{closure#0}>::{closure#0}>",
+            "sample_weight_ns": 3000000,
+            "frame_sample_share": 0.0037220843672456576
+          },
+          {
+            "function": "<lyon_tessellation::event_queue::EventQueueBuilder>::build",
+            "sample_weight_ns": 3000000,
+            "frame_sample_share": 0.0037220843672456576
+          },
+          {
+            "function": "<icu_segmenter::rule_segmenter::RuleBreakIterator<icu_segmenter::rule_segmenter::Utf8> as core::iter::traits::iterator::Iterator>::next",
+            "sample_weight_ns": 3000000,
+            "frame_sample_share": 0.0037220843672456576
+          }
+        ],
+        "inclusive": [
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::frame",
+            "sample_weight_ns": 516000000,
+            "frame_sample_share": 0.6401985111662531
+          },
+          {
+            "function": "rusterix::isometric::editor::guide_segments::<<eldiron_creator::editor::Editor>::prepare_native_world_viewport::{closure#62}>",
+            "sample_weight_ns": 311000000,
+            "frame_sample_share": 0.3858560794044665
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 290000000,
+            "frame_sample_share": 0.3598014888337469
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::height_on_grid",
+            "sample_weight_ns": 286000000,
+            "frame_sample_share": 0.3548387096774194
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::height_at",
+            "sample_weight_ns": 272000000,
+            "frame_sample_share": 0.337468982630273
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render",
+            "sample_weight_ns": 238000000,
+            "frame_sample_share": 0.29528535980148884
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render_ops",
+            "sample_weight_ns": 235000000,
+            "frame_sample_share": 0.29156327543424315
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 199000000,
+            "frame_sample_share": 0.24689826302729528
+          },
+          {
+            "function": "<wgpu_core::command::CommandEncoder>::finish",
+            "sample_weight_ns": 89000000,
+            "frame_sample_share": 0.11042183622828784
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreCommandEncoder as wgpu::dispatch::CommandEncoderInterface>::finish",
+            "sample_weight_ns": 89000000,
+            "frame_sample_share": 0.11042183622828784
+          },
+          {
+            "function": "<wgpu_core::global::Global>::command_encoder_finish",
+            "sample_weight_ns": 89000000,
+            "frame_sample_share": 0.11042183622828784
+          },
+          {
+            "function": "wgpu_core::command::render::encode_render_pass",
+            "sample_weight_ns": 76000000,
+            "frame_sample_share": 0.09429280397022333
+          },
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::update",
+            "sample_weight_ns": 68000000,
+            "frame_sample_share": 0.08436724565756824
+          },
+          {
+            "function": "<eldiron_creator::editor::Editor as theframework::thetrait::TheTrait>::update_ui",
+            "sample_weight_ns": 66000000,
+            "frame_sample_share": 0.08188585607940446
+          },
+          {
+            "function": "theframework::render_wgpu::mesh::tessellate",
+            "sample_weight_ns": 65000000,
+            "frame_sample_share": 0.08064516129032258
+          },
+          {
+            "function": "<renderkit::range_cache::RangeCache>::upload",
+            "sample_weight_ns": 60000000,
+            "frame_sample_share": 0.07444168734491315
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::geometry",
+            "sample_weight_ns": 50000000,
+            "frame_sample_share": 0.062034739454094295
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::render",
+            "sample_weight_ns": 41000000,
+            "frame_sample_share": 0.05086848635235732
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::render_prepared",
+            "sample_weight_ns": 41000000,
+            "frame_sample_share": 0.05086848635235732
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::execute",
+            "sample_weight_ns": 35000000,
+            "frame_sample_share": 0.043424317617866005
+          },
+          {
+            "function": "<theframework::theui::TheUI>::paint_commands",
+            "sample_weight_ns": 34000000,
+            "frame_sample_share": 0.04218362282878412
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_scene",
+            "sample_weight_ns": 28000000,
+            "frame_sample_share": 0.034739454094292806
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_editor",
+            "sample_weight_ns": 28000000,
+            "frame_sample_share": 0.034739454094292806
+          },
+          {
+            "function": "<theframework::theui::thecanvas::TheCanvas>::paint",
+            "sample_weight_ns": 28000000,
+            "frame_sample_share": 0.034739454094292806
+          },
+          {
+            "function": "<theframework::theui::paint::WidgetPainter>::widget",
+            "sample_weight_ns": 28000000,
+            "frame_sample_share": 0.034739454094292806
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 23000000,
+            "frame_sample_share": 0.028535980148883373
+          },
+          {
+            "function": "<theframework::theui::thelayout::thestacklayout::TheStackLayout as theframework::theui::thelayout::TheLayout>::paint",
+            "sample_weight_ns": 23000000,
+            "frame_sample_share": 0.028535980148883373
+          },
+          {
+            "function": "<theframework::text::TextSystem>::label_layout",
+            "sample_weight_ns": 22000000,
+            "frame_sample_share": 0.02729528535980149
+          },
+          {
+            "function": "<theframework::theui::paint::WidgetPainter>::label",
+            "sample_weight_ns": 21000000,
+            "frame_sample_share": 0.026054590570719603
+          },
+          {
+            "function": "<alloc::vec::Vec<eldiron_creator::editor::native_views::world::pixels::SourceOp> as alloc::vec::spec_from_iter::SpecFromIter<eldiron_creator::editor::native_views::world::pixels::SourceOp, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<theframework::paint::PaintOp>, <eldiron_creator::editor::native_views::world::pixels::SourceOp>::from>, core::result::Result<core::convert::Infallible, alloc::string::String>>>>::from_iter",
+            "sample_weight_ns": 19000000,
+            "frame_sample_share": 0.02357320099255583
+          },
+          {
+            "function": "<renderkit::ordered_compute::OrderedCompute>::finish",
+            "sample_weight_ns": 19000000,
+            "frame_sample_share": 0.02357320099255583
+          },
+          {
+            "function": "<theframework::theui::thelayout::thesharedvlayout::TheSharedVLayout as theframework::theui::thelayout::TheLayout>::paint",
+            "sample_weight_ns": 19000000,
+            "frame_sample_share": 0.02357320099255583
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::submit",
+            "sample_weight_ns": 18000000,
+            "frame_sample_share": 0.022332506203473945
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreQueue as wgpu::dispatch::QueueInterface>::submit",
+            "sample_weight_ns": 18000000,
+            "frame_sample_share": 0.022332506203473945
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_submit",
+            "sample_weight_ns": 18000000,
+            "frame_sample_share": 0.022332506203473945
+          }
+        ]
+      },
+      "pan": {
+        "samples": 5481,
+        "sample_weight_ns": 5481000000,
+        "frame_samples": 3876,
+        "frame_weight_ns": 3876000000,
+        "leaf": [
+          {
+            "function": "<core::hash::sip::Hasher<core::hash::sip::Sip13Rounds> as core::hash::Hasher>::write",
+            "sample_weight_ns": 368000000,
+            "frame_sample_share": 0.09494324045407637
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 338000000,
+            "frame_sample_share": 0.08720330237358101
+          },
+          {
+            "function": "_platform_memmove",
+            "sample_weight_ns": 316000000,
+            "frame_sample_share": 0.08152734778121776
+          },
+          {
+            "function": "mach_msg2_trap",
+            "sample_weight_ns": 174000000,
+            "frame_sample_share": 0.04489164086687306
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 165000000,
+            "frame_sample_share": 0.04256965944272446
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 116000000,
+            "frame_sample_share": 0.029927760577915376
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_order::waves",
+            "sample_weight_ns": 112000000,
+            "frame_sample_share": 0.02889576883384933
+          },
+          {
+            "function": "<eldiron_presentation::isometric::surface_renderer::IsometricSurfaceRenderer>::append",
+            "sample_weight_ns": 104000000,
+            "frame_sample_share": 0.026831785345717233
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_renderer::batch::append",
+            "sample_weight_ns": 98000000,
+            "frame_sample_share": 0.025283797729618165
+          },
+          {
+            "function": "iokit_user_client_trap",
+            "sample_weight_ns": 75000000,
+            "frame_sample_share": 0.01934984520123839
+          },
+          {
+            "function": "_platform_memset",
+            "sample_weight_ns": 68000000,
+            "frame_sample_share": 0.017543859649122806
+          },
+          {
+            "function": "_xzm_xzone_malloc_tiny",
+            "sample_weight_ns": 61000000,
+            "frame_sample_share": 0.015737874097007224
+          },
+          {
+            "function": "<alloc::vec::Vec<eldiron_presentation::isometric::surface_renderer::SurfaceTriangle> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<eldiron_presentation::isometric::surface_renderer::SurfaceTriangle, core::iter::adapters::map::Map<core::slice::iter::Iter<eldiron_presentation::isometric::producer::PreparedSurface>, <eldiron_presentation::isometric::producer::IsometricSceneRenderer>::execute::{closure#0}>>>::from_iter",
+            "sample_weight_ns": 61000000,
+            "frame_sample_share": 0.015737874097007224
+          },
+          {
+            "function": "theframework::render_wgpu::sampled_lines::prepare",
+            "sample_weight_ns": 51000000,
+            "frame_sample_share": 0.013157894736842105
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::terrain_sources::CellSources>::prepare",
+            "sample_weight_ns": 50000000,
+            "frame_sample_share": 0.012899896800825593
+          },
+          {
+            "function": "core::ptr::drop_glue::<eldiron_presentation::isometric::producer::PreparedSurface>",
+            "sample_weight_ns": 39000000,
+            "frame_sample_share": 0.010061919504643963
+          },
+          {
+            "function": "<scenevm::isometric::shadows::gpu::Pass>::draw",
+            "sample_weight_ns": 38000000,
+            "frame_sample_share": 0.00980392156862745
+          },
+          {
+            "function": "_platform_memcmp",
+            "sample_weight_ns": 37000000,
+            "frame_sample_share": 0.009545923632610939
+          },
+          {
+            "function": "_xzm_free_main",
+            "sample_weight_ns": 36000000,
+            "frame_sample_share": 0.009287925696594427
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricPreparedFrame>::source_leases",
+            "sample_weight_ns": 34000000,
+            "frame_sample_share": 0.008771929824561403
+          },
+          {
+            "function": "madvise",
+            "sample_weight_ns": 30000000,
+            "frame_sample_share": 0.007739938080495356
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::contains",
+            "sample_weight_ns": 29000000,
+            "frame_sample_share": 0.007481940144478844
+          },
+          {
+            "function": "objc_msgSend",
+            "sample_weight_ns": 28000000,
+            "frame_sample_share": 0.007223942208462332
+          },
+          {
+            "function": "<core::iter::adapters::chain::Chain<core::slice::iter::Iter<f32>, core::iter::adapters::flatten::Flatten<core::slice::iter::Iter<[f32; 2]>>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::any::check<&f32, theframework::render_wgpu::sampled_lines::prepare::{closure#0}>::{closure#0}, core::ops::control_flow::ControlFlow<()>>",
+            "sample_weight_ns": 28000000,
+            "frame_sample_share": 0.007223942208462332
+          },
+          {
+            "function": "<deduplicated_symbol>",
+            "sample_weight_ns": 27000000,
+            "frame_sample_share": 0.00696594427244582
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_renderer::bindings::sources",
+            "sample_weight_ns": 25000000,
+            "frame_sample_share": 0.006449948400412796
+          },
+          {
+            "function": "_ioGPUResourceListAddResourceEntry",
+            "sample_weight_ns": 21000000,
+            "frame_sample_share": 0.005417956656346749
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_sculpt::TerrainSculpt>::sample",
+            "sample_weight_ns": 20000000,
+            "frame_sample_share": 0.005159958720330237
+          },
+          {
+            "function": "MTLResourceListAddResource",
+            "sample_weight_ns": 20000000,
+            "frame_sample_share": 0.005159958720330237
+          },
+          {
+            "function": "<rusterix::isometric::Projection>::screen",
+            "sample_weight_ns": 19000000,
+            "frame_sample_share": 0.004901960784313725
+          },
+          {
+            "function": "mach_absolute_time",
+            "sample_weight_ns": 18000000,
+            "frame_sample_share": 0.0046439628482972135
+          },
+          {
+            "function": "<alloc::collections::btree::map::BTreeMap<u64, renderkit::range_cache::Key>>::remove::<u64>",
+            "sample_weight_ns": 17000000,
+            "frame_sample_share": 0.0043859649122807015
+          },
+          {
+            "function": "<alloc::vec::Vec<eldiron_creator::editor::native_views::world::pixels::SourceOp> as alloc::vec::spec_from_iter::SpecFromIter<eldiron_creator::editor::native_views::world::pixels::SourceOp, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<theframework::paint::PaintOp>, <eldiron_creator::editor::native_views::world::pixels::SourceOp>::from>, core::result::Result<core::convert::Infallible, alloc::string::String>>>>::from_iter",
+            "sample_weight_ns": 16000000,
+            "frame_sample_share": 0.0041279669762641896
+          },
+          {
+            "function": "rusterix::isometric::editor::guide_segments::<<eldiron_creator::editor::Editor>::prepare_native_world_viewport::{closure#62}>",
+            "sample_weight_ns": 15000000,
+            "frame_sample_share": 0.003869969040247678
+          },
+          {
+            "function": "_malloc_zone_malloc",
+            "sample_weight_ns": 14000000,
+            "frame_sample_share": 0.003611971104231166
+          }
+        ],
+        "inclusive": [
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::frame",
+            "sample_weight_ns": 3534000000,
+            "frame_sample_share": 0.9117647058823529
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::render",
+            "sample_weight_ns": 1498000000,
+            "frame_sample_share": 0.3864809081527348
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::render_prepared",
+            "sample_weight_ns": 1498000000,
+            "frame_sample_share": 0.3864809081527348
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::execute",
+            "sample_weight_ns": 1363000000,
+            "frame_sample_share": 0.35165118679050567
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render",
+            "sample_weight_ns": 1132000000,
+            "frame_sample_share": 0.29205366357069146
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render_ops",
+            "sample_weight_ns": 1111000000,
+            "frame_sample_share": 0.2866357069143447
+          },
+          {
+            "function": "<renderkit::range_cache::RangeCache>::upload",
+            "sample_weight_ns": 657000000,
+            "frame_sample_share": 0.16950464396284828
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::geometry",
+            "sample_weight_ns": 639000000,
+            "frame_sample_share": 0.16486068111455107
+          },
+          {
+            "function": "<eldiron_presentation::isometric::surface_renderer::IsometricSurfaceRenderer>::append",
+            "sample_weight_ns": 575000000,
+            "frame_sample_share": 0.14834881320949433
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::write_buffer",
+            "sample_weight_ns": 549000000,
+            "frame_sample_share": 0.141640866873065
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_write_buffer",
+            "sample_weight_ns": 548000000,
+            "frame_sample_share": 0.14138286893704852
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_scene",
+            "sample_weight_ns": 523000000,
+            "frame_sample_share": 0.13493292053663572
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_editor",
+            "sample_weight_ns": 523000000,
+            "frame_sample_share": 0.13493292053663572
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 474000000,
+            "frame_sample_share": 0.12229102167182662
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 460000000,
+            "frame_sample_share": 0.11867905056759546
+          },
+          {
+            "function": "<wgpu_core::command::CommandEncoder>::finish",
+            "sample_weight_ns": 436000000,
+            "frame_sample_share": 0.11248710010319918
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreCommandEncoder as wgpu::dispatch::CommandEncoderInterface>::finish",
+            "sample_weight_ns": 436000000,
+            "frame_sample_share": 0.11248710010319918
+          },
+          {
+            "function": "<wgpu_core::global::Global>::command_encoder_finish",
+            "sample_weight_ns": 436000000,
+            "frame_sample_share": 0.11248710010319918
+          },
+          {
+            "function": "<renderkit::ordered_compute::OrderedCompute>::finish",
+            "sample_weight_ns": 411000000,
+            "frame_sample_share": 0.10603715170278638
+          },
+          {
+            "function": "rusterix::isometric::editor::guide_segments::<<eldiron_creator::editor::Editor>::prepare_native_world_viewport::{closure#62}>",
+            "sample_weight_ns": 352000000,
+            "frame_sample_share": 0.09081527347781218
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 338000000,
+            "frame_sample_share": 0.08720330237358101
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::height_on_grid",
+            "sample_weight_ns": 332000000,
+            "frame_sample_share": 0.08565531475748193
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_renderer::batch::append",
+            "sample_weight_ns": 314000000,
+            "frame_sample_share": 0.08101135190918472
+          },
+          {
+            "function": "wgpu_core::command::compute::encode_compute_pass",
+            "sample_weight_ns": 286000000,
+            "frame_sample_share": 0.0737874097007224
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::height_at",
+            "sample_weight_ns": 284000000,
+            "frame_sample_share": 0.07327141382868937
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreQueue as wgpu::dispatch::QueueInterface>::submit",
+            "sample_weight_ns": 258000000,
+            "frame_sample_share": 0.06656346749226007
+          },
+          {
+            "function": "<wgpu_hal::metal::Device as wgpu_hal::dynamic::device::DynDevice>::create_buffer",
+            "sample_weight_ns": 252000000,
+            "frame_sample_share": 0.06501547987616099
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::submit",
+            "sample_weight_ns": 252000000,
+            "frame_sample_share": 0.06501547987616099
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_submit",
+            "sample_weight_ns": 252000000,
+            "frame_sample_share": 0.06501547987616099
+          },
+          {
+            "function": "<wgpu_hal::metal::Device as wgpu_hal::Device>::create_buffer",
+            "sample_weight_ns": 250000000,
+            "frame_sample_share": 0.06449948400412797
+          },
+          {
+            "function": "<wgpu_core::resource::StagingBuffer>::new",
+            "sample_weight_ns": 213000000,
+            "frame_sample_share": 0.05495356037151703
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::triangles::<<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl::{closure#1}>",
+            "sample_weight_ns": 186000000,
+            "frame_sample_share": 0.047987616099071206
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::write_staging_buffer_impl",
+            "sample_weight_ns": 182000000,
+            "frame_sample_share": 0.04695562435500516
+          },
+          {
+            "function": "<renderkit::range_storage::RangeStorage>::upload",
+            "sample_weight_ns": 162000000,
+            "frame_sample_share": 0.04179566563467492
+          },
+          {
+            "function": "<wgpu_hal::metal::CommandEncoder as wgpu_hal::CommandEncoder>::begin_encoding",
+            "sample_weight_ns": 158000000,
+            "frame_sample_share": 0.04076367389060888
+          }
+        ]
+      },
+      "zoom": {
+        "samples": 2504,
+        "sample_weight_ns": 2504000000,
+        "frame_samples": 2012,
+        "frame_weight_ns": 2012000000,
+        "leaf": [
+          {
+            "function": "_platform_memmove",
+            "sample_weight_ns": 157000000,
+            "frame_sample_share": 0.07803180914512922
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 153000000,
+            "frame_sample_share": 0.07604373757455268
+          },
+          {
+            "function": "<core::hash::sip::Hasher<core::hash::sip::Sip13Rounds> as core::hash::Hasher>::write",
+            "sample_weight_ns": 130000000,
+            "frame_sample_share": 0.06461232604373758
+          },
+          {
+            "function": "mach_msg2_trap",
+            "sample_weight_ns": 122000000,
+            "frame_sample_share": 0.06063618290258449
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_order::waves",
+            "sample_weight_ns": 90000000,
+            "frame_sample_share": 0.04473161033797217
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 58000000,
+            "frame_sample_share": 0.02882703777335984
+          },
+          {
+            "function": "<eldiron_presentation::isometric::surface_renderer::IsometricSurfaceRenderer>::append",
+            "sample_weight_ns": 49000000,
+            "frame_sample_share": 0.024353876739562623
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 49000000,
+            "frame_sample_share": 0.024353876739562623
+          },
+          {
+            "function": "iokit_user_client_trap",
+            "sample_weight_ns": 46000000,
+            "frame_sample_share": 0.02286282306163022
+          },
+          {
+            "function": "_xzm_free_main",
+            "sample_weight_ns": 37000000,
+            "frame_sample_share": 0.018389662027833
+          },
+          {
+            "function": "_xzm_xzone_malloc_tiny",
+            "sample_weight_ns": 31000000,
+            "frame_sample_share": 0.015407554671968192
+          },
+          {
+            "function": "serde_json::ser::format_escaped_str::<&mut alloc::vec::Vec<u8>, serde_json::ser::CompactFormatter>",
+            "sample_weight_ns": 27000000,
+            "frame_sample_share": 0.01341948310139165
+          },
+          {
+            "function": "<scenevm::isometric::shadows::gpu::Pass>::draw",
+            "sample_weight_ns": 24000000,
+            "frame_sample_share": 0.011928429423459244
+          },
+          {
+            "function": "_platform_memcmp",
+            "sample_weight_ns": 22000000,
+            "frame_sample_share": 0.010934393638170975
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_renderer::batch::append",
+            "sample_weight_ns": 18000000,
+            "frame_sample_share": 0.008946322067594433
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::terrain_sources::CellSources>::prepare",
+            "sample_weight_ns": 17000000,
+            "frame_sample_share": 0.008449304174950299
+          },
+          {
+            "function": "<wgpu_hal::metal::CommandEncoder>::update_bind_group_state",
+            "sample_weight_ns": 16000000,
+            "frame_sample_share": 0.007952286282306162
+          },
+          {
+            "function": "<deduplicated_symbol>",
+            "sample_weight_ns": 15000000,
+            "frame_sample_share": 0.007455268389662028
+          },
+          {
+            "function": "theframework::render_wgpu::sampled_lines::prepare",
+            "sample_weight_ns": 14000000,
+            "frame_sample_share": 0.006958250497017893
+          },
+          {
+            "function": "MTLResourceListAddResource",
+            "sample_weight_ns": 14000000,
+            "frame_sample_share": 0.006958250497017893
+          },
+          {
+            "function": "objc_msgSend",
+            "sample_weight_ns": 14000000,
+            "frame_sample_share": 0.006958250497017893
+          },
+          {
+            "function": "<alloc::vec::Vec<eldiron_presentation::isometric::surface_renderer::SurfaceTriangle> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<eldiron_presentation::isometric::surface_renderer::SurfaceTriangle, core::iter::adapters::map::Map<core::slice::iter::Iter<eldiron_presentation::isometric::producer::PreparedSurface>, <eldiron_presentation::isometric::producer::IsometricSceneRenderer>::execute::{closure#0}>>>::from_iter",
+            "sample_weight_ns": 13000000,
+            "frame_sample_share": 0.0064612326043737576
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::triangles::<<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl::{closure#1}>",
+            "sample_weight_ns": 13000000,
+            "frame_sample_share": 0.0064612326043737576
+          },
+          {
+            "function": "_platform_memset",
+            "sample_weight_ns": 13000000,
+            "frame_sample_share": 0.0064612326043737576
+          },
+          {
+            "function": "_xzm_free",
+            "sample_weight_ns": 13000000,
+            "frame_sample_share": 0.0064612326043737576
+          },
+          {
+            "function": "core::ptr::drop_glue::<eldiron_presentation::isometric::producer::PreparedSurface>",
+            "sample_weight_ns": 12000000,
+            "frame_sample_share": 0.005964214711729622
+          },
+          {
+            "function": "<core::iter::adapters::chain::Chain<core::slice::iter::Iter<f32>, core::iter::adapters::flatten::Flatten<core::slice::iter::Iter<[f32; 2]>>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::any::check<&f32, theframework::render_wgpu::sampled_lines::prepare::{closure#0}>::{closure#0}, core::ops::control_flow::ControlFlow<()>>",
+            "sample_weight_ns": 12000000,
+            "frame_sample_share": 0.005964214711729622
+          },
+          {
+            "function": "_malloc_zone_malloc",
+            "sample_weight_ns": 11000000,
+            "frame_sample_share": 0.0054671968190854875
+          },
+          {
+            "function": "MTLRangeAllocatorGetMaxFreeSize",
+            "sample_weight_ns": 11000000,
+            "frame_sample_share": 0.0054671968190854875
+          },
+          {
+            "function": "madvise",
+            "sample_weight_ns": 11000000,
+            "frame_sample_share": 0.0054671968190854875
+          },
+          {
+            "function": "IOGPUResourceListAddResource",
+            "sample_weight_ns": 11000000,
+            "frame_sample_share": 0.0054671968190854875
+          },
+          {
+            "function": "<lyon_tessellation::fill::FillTessellator>::process_events",
+            "sample_weight_ns": 11000000,
+            "frame_sample_share": 0.0054671968190854875
+          },
+          {
+            "function": "<alloc::collections::btree::map::BTreeMap<u64, renderkit::range_cache::Key>>::remove::<u64>",
+            "sample_weight_ns": 11000000,
+            "frame_sample_share": 0.0054671968190854875
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::contains",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.004970178926441352
+          },
+          {
+            "function": "<rusterix::isometric::Projection>::screen",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.004970178926441352
+          }
+        ],
+        "inclusive": [
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::frame",
+            "sample_weight_ns": 1597000000,
+            "frame_sample_share": 0.7937375745526839
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::render",
+            "sample_weight_ns": 787000000,
+            "frame_sample_share": 0.3911530815109344
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::render_prepared",
+            "sample_weight_ns": 785000000,
+            "frame_sample_share": 0.39015904572564614
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::execute",
+            "sample_weight_ns": 671000000,
+            "frame_sample_share": 0.3334990059642147
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render",
+            "sample_weight_ns": 504000000,
+            "frame_sample_share": 0.2504970178926441
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render_ops",
+            "sample_weight_ns": 490000000,
+            "frame_sample_share": 0.24353876739562624
+          },
+          {
+            "function": "<eldiron_presentation::isometric::surface_renderer::IsometricSurfaceRenderer>::append",
+            "sample_weight_ns": 379000000,
+            "frame_sample_share": 0.18836978131212723
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_write_buffer",
+            "sample_weight_ns": 309000000,
+            "frame_sample_share": 0.15357852882703776
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::write_buffer",
+            "sample_weight_ns": 308000000,
+            "frame_sample_share": 0.15308151093439365
+          },
+          {
+            "function": "<wgpu_core::command::CommandEncoder>::finish",
+            "sample_weight_ns": 283000000,
+            "frame_sample_share": 0.14065606361829025
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreCommandEncoder as wgpu::dispatch::CommandEncoderInterface>::finish",
+            "sample_weight_ns": 283000000,
+            "frame_sample_share": 0.14065606361829025
+          },
+          {
+            "function": "<wgpu_core::global::Global>::command_encoder_finish",
+            "sample_weight_ns": 283000000,
+            "frame_sample_share": 0.14065606361829025
+          },
+          {
+            "function": "<renderkit::range_cache::RangeCache>::upload",
+            "sample_weight_ns": 255000000,
+            "frame_sample_share": 0.12673956262425448
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::geometry",
+            "sample_weight_ns": 242000000,
+            "frame_sample_share": 0.12027833001988071
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_editor",
+            "sample_weight_ns": 226000000,
+            "frame_sample_share": 0.11232604373757456
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_scene",
+            "sample_weight_ns": 225000000,
+            "frame_sample_share": 0.11182902584493042
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_renderer::batch::append",
+            "sample_weight_ns": 218000000,
+            "frame_sample_share": 0.10834990059642147
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 212000000,
+            "frame_sample_share": 0.10536779324055666
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 191000000,
+            "frame_sample_share": 0.09493041749502983
+          },
+          {
+            "function": "<wgpu_hal::metal::Device as wgpu_hal::dynamic::device::DynDevice>::create_buffer",
+            "sample_weight_ns": 185000000,
+            "frame_sample_share": 0.091948310139165
+          },
+          {
+            "function": "<wgpu_hal::metal::Device as wgpu_hal::Device>::create_buffer",
+            "sample_weight_ns": 183000000,
+            "frame_sample_share": 0.09095427435387674
+          },
+          {
+            "function": "<renderkit::ordered_compute::OrderedCompute>::finish",
+            "sample_weight_ns": 177000000,
+            "frame_sample_share": 0.08797216699801193
+          },
+          {
+            "function": "<wgpu_core::resource::StagingBuffer>::new",
+            "sample_weight_ns": 165000000,
+            "frame_sample_share": 0.08200795228628231
+          },
+          {
+            "function": "rusterix::isometric::editor::guide_segments::<<eldiron_creator::editor::Editor>::prepare_native_world_viewport::{closure#62}>",
+            "sample_weight_ns": 162000000,
+            "frame_sample_share": 0.0805168986083499
+          },
+          {
+            "function": "wgpu_core::command::compute::encode_compute_pass",
+            "sample_weight_ns": 160000000,
+            "frame_sample_share": 0.07952286282306163
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::height_on_grid",
+            "sample_weight_ns": 160000000,
+            "frame_sample_share": 0.07952286282306163
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 153000000,
+            "frame_sample_share": 0.07604373757455268
+          },
+          {
+            "function": "wgpu_core::command::render::encode_render_pass",
+            "sample_weight_ns": 123000000,
+            "frame_sample_share": 0.06113320079522863
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::height_at",
+            "sample_weight_ns": 108000000,
+            "frame_sample_share": 0.0536779324055666
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_order::waves",
+            "sample_weight_ns": 101000000,
+            "frame_sample_share": 0.05019880715705766
+          },
+          {
+            "function": "<wgpu_core::device::resource::Device>::maintain",
+            "sample_weight_ns": 100000000,
+            "frame_sample_share": 0.04970178926441352
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::maintain",
+            "sample_weight_ns": 96000000,
+            "frame_sample_share": 0.04771371769383698
+          },
+          {
+            "function": "<wgpu_core::device::life::LifetimeTracker>::triage_submissions",
+            "sample_weight_ns": 96000000,
+            "frame_sample_share": 0.04771371769383698
+          },
+          {
+            "function": "<wgpu_core::command::compute::State>::flush_bindings",
+            "sample_weight_ns": 92000000,
+            "frame_sample_share": 0.04572564612326044
+          },
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::update",
+            "sample_weight_ns": 92000000,
+            "frame_sample_share": 0.04572564612326044
+          }
+        ]
+      }
+    }
+  },
+  "metal_cpu": {
+    "pid": 22312,
+    "sample_range_ns": [
+      1212107250,
+      21827107041
+    ],
+    "phase_ranges_ns": {
+      "hover": [
+        10911380936,
+        12958205936
+      ],
+      "idle": [
+        9664216936,
+        10911378936
+      ],
+      "pan": [
+        12958208936,
+        18396683936
+      ],
+      "zoom": [
+        18396686936,
+        21717573936
+      ]
+    },
+    "modes": {
+      "hover": {
+        "samples": 2305,
+        "sample_weight_ns": 2305000000,
+        "frame_samples": 1703,
+        "frame_weight_ns": 1703000000,
+        "leaf": [
+          {
+            "function": "__kdebug_trace64",
+            "sample_weight_ns": 338000000,
+            "frame_sample_share": 0.1984732824427481
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 252000000,
+            "frame_sample_share": 0.1479741632413388
+          },
+          {
+            "function": "<core::hash::sip::Hasher<core::hash::sip::Sip13Rounds> as core::hash::Hasher>::write",
+            "sample_weight_ns": 95000000,
+            "frame_sample_share": 0.05578391074574281
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 79000000,
+            "frame_sample_share": 0.04638872577803876
+          },
+          {
+            "function": "_platform_memmove",
+            "sample_weight_ns": 79000000,
+            "frame_sample_share": 0.04638872577803876
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 43000000,
+            "frame_sample_share": 0.02524955960070464
+          },
+          {
+            "function": "mach_msg2_trap",
+            "sample_weight_ns": 39000000,
+            "frame_sample_share": 0.022900763358778626
+          },
+          {
+            "function": "_xzm_xzone_malloc_tiny",
+            "sample_weight_ns": 21000000,
+            "frame_sample_share": 0.012331180270111567
+          },
+          {
+            "function": "<alloc::vec::Vec<eldiron_creator::editor::native_views::world::pixels::SourceOp> as alloc::vec::spec_from_iter::SpecFromIter<eldiron_creator::editor::native_views::world::pixels::SourceOp, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<theframework::paint::PaintOp>, <eldiron_creator::editor::native_views::world::pixels::SourceOp>::from>, core::result::Result<core::convert::Infallible, alloc::string::String>>>>::from_iter",
+            "sample_weight_ns": 19000000,
+            "frame_sample_share": 0.011156782149148562
+          },
+          {
+            "function": "iokit_user_client_trap",
+            "sample_weight_ns": 19000000,
+            "frame_sample_share": 0.011156782149148562
+          },
+          {
+            "function": "_platform_memcmp",
+            "sample_weight_ns": 16000000,
+            "frame_sample_share": 0.009395184967704051
+          },
+          {
+            "function": "objc_msgSend",
+            "sample_weight_ns": 15000000,
+            "frame_sample_share": 0.008807985907222548
+          },
+          {
+            "function": "<alloc::collections::btree::map::BTreeMap<u64, renderkit::range_cache::Key>>::remove::<u64>",
+            "sample_weight_ns": 15000000,
+            "frame_sample_share": 0.008807985907222548
+          },
+          {
+            "function": "theframework::render_wgpu::sampled_lines::prepare",
+            "sample_weight_ns": 14000000,
+            "frame_sample_share": 0.008220786846741044
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::terrain_sources::CellSources>::prepare",
+            "sample_weight_ns": 12000000,
+            "frame_sample_share": 0.007046388725778039
+          },
+          {
+            "function": "serde_json::ser::format_escaped_str::<&mut alloc::vec::Vec<u8>, serde_json::ser::CompactFormatter>",
+            "sample_weight_ns": 12000000,
+            "frame_sample_share": 0.007046388725778039
+          },
+          {
+            "function": "AGX::RenderContext<AGX::G13::Encoders, AGX::G13::Classes, AGX::G13::ObjClasses, AGX::G13::CommandEncoding>::encodeAndEmitRenderState(AGX::G13::VertexProgramVariant const*, AGX::G13::FragmentProgramVariant const*, AGX::G13::FixedLayoutUserArgumentTable*, AGX::G13::FixedLayoutUserArgumentTable*, AGX::RenderDirtyBits<AGX::G13::Classes>&, bool)",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.005871990604815032
+          },
+          {
+            "function": "_xzm_free_main",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.005871990604815032
+          },
+          {
+            "function": "<deduplicated_symbol>",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.005871990604815032
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_sculpt::TerrainSculpt>::sample",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.005871990604815032
+          },
+          {
+            "function": "_platform_memset",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.005871990604815032
+          },
+          {
+            "function": "<alloc::collections::btree::map::BTreeMap<u64, renderkit::range_cache::Key>>::insert",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.005871990604815032
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::contains",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.005871990604815032
+          },
+          {
+            "function": "_free",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.005871990604815032
+          },
+          {
+            "function": "core::ptr::drop_glue::<eldiron_presentation::isometric::producer::PreparedSurface>",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.005871990604815032
+          },
+          {
+            "function": "kevent_id",
+            "sample_weight_ns": 9000000,
+            "frame_sample_share": 0.005284791544333529
+          },
+          {
+            "function": "<scenevm::isometric::shadows::gpu::Pass>::draw",
+            "sample_weight_ns": 9000000,
+            "frame_sample_share": 0.005284791544333529
+          },
+          {
+            "function": "<eldiron_creator::editor::native_views::world::pixels::SourceOp>::from",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.004697592483852026
+          },
+          {
+            "function": "<eldiron_creator::editor::native_views::world::pixels::SourceOp as core::slice::cmp::SlicePartialEq<eldiron_creator::editor::native_views::world::pixels::SourceOp>>::equal_same_length",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.004697592483852026
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::render_prepared",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.004697592483852026
+          },
+          {
+            "function": "__kdebug_trace_string",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.004697592483852026
+          },
+          {
+            "function": "<lyon_tessellation::fill::FillTessellator>::process_events",
+            "sample_weight_ns": 7000000,
+            "frame_sample_share": 0.004110393423370522
+          },
+          {
+            "function": "_malloc_zone_malloc",
+            "sample_weight_ns": 7000000,
+            "frame_sample_share": 0.004110393423370522
+          },
+          {
+            "function": "eldiron_creator::procedural_material::palette::key",
+            "sample_weight_ns": 6000000,
+            "frame_sample_share": 0.0035231943628890195
+          },
+          {
+            "function": "_realloc",
+            "sample_weight_ns": 6000000,
+            "frame_sample_share": 0.0035231943628890195
+          }
+        ],
+        "inclusive": [
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::frame",
+            "sample_weight_ns": 1334000000,
+            "frame_sample_share": 0.7833235466823253
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::render",
+            "sample_weight_ns": 559000000,
+            "frame_sample_share": 0.3282442748091603
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::render_prepared",
+            "sample_weight_ns": 559000000,
+            "frame_sample_share": 0.3282442748091603
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::execute",
+            "sample_weight_ns": 490000000,
+            "frame_sample_share": 0.28772753963593656
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render",
+            "sample_weight_ns": 394000000,
+            "frame_sample_share": 0.23135642982971227
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render_ops",
+            "sample_weight_ns": 376000000,
+            "frame_sample_share": 0.2207868467410452
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 341000000,
+            "frame_sample_share": 0.2002348796241926
+          },
+          {
+            "function": "rusterix::isometric::editor::guide_segments::<<eldiron_creator::editor::Editor>::prepare_native_world_viewport::{closure#62}>",
+            "sample_weight_ns": 330000000,
+            "frame_sample_share": 0.19377568995889607
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::height_on_grid",
+            "sample_weight_ns": 301000000,
+            "frame_sample_share": 0.17674691720493246
+          },
+          {
+            "function": "<renderkit::ordered_compute::OrderedCompute>::finish",
+            "sample_weight_ns": 276000000,
+            "frame_sample_share": 0.1620669406928949
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::height_at",
+            "sample_weight_ns": 273000000,
+            "frame_sample_share": 0.16030534351145037
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreCommandEncoder as wgpu::dispatch::CommandEncoderInterface>::finish",
+            "sample_weight_ns": 269000000,
+            "frame_sample_share": 0.15795654726952438
+          },
+          {
+            "function": "<wgpu_core::global::Global>::command_encoder_finish",
+            "sample_weight_ns": 269000000,
+            "frame_sample_share": 0.15795654726952438
+          },
+          {
+            "function": "<wgpu_core::command::CommandEncoder>::finish",
+            "sample_weight_ns": 268000000,
+            "frame_sample_share": 0.15736934820904286
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 252000000,
+            "frame_sample_share": 0.1479741632413388
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::write_buffer",
+            "sample_weight_ns": 208000000,
+            "frame_sample_share": 0.12213740458015267
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_write_buffer",
+            "sample_weight_ns": 208000000,
+            "frame_sample_share": 0.12213740458015267
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreQueue as wgpu::dispatch::QueueInterface>::submit",
+            "sample_weight_ns": 176000000,
+            "frame_sample_share": 0.10334703464474457
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_submit",
+            "sample_weight_ns": 173000000,
+            "frame_sample_share": 0.10158543746330007
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::submit",
+            "sample_weight_ns": 171000000,
+            "frame_sample_share": 0.10041103934233706
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_scene",
+            "sample_weight_ns": 153000000,
+            "frame_sample_share": 0.08984145625366999
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_editor",
+            "sample_weight_ns": 153000000,
+            "frame_sample_share": 0.08984145625366999
+          },
+          {
+            "function": "<renderkit::range_cache::RangeCache>::upload",
+            "sample_weight_ns": 134000000,
+            "frame_sample_share": 0.07868467410452143
+          },
+          {
+            "function": "wgpu_core::command::render::encode_render_pass",
+            "sample_weight_ns": 131000000,
+            "frame_sample_share": 0.07692307692307693
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 130000000,
+            "frame_sample_share": 0.07633587786259542
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::write_staging_buffer_impl",
+            "sample_weight_ns": 130000000,
+            "frame_sample_share": 0.07633587786259542
+          },
+          {
+            "function": "wgpu_core::command::compute::encode_compute_pass",
+            "sample_weight_ns": 129000000,
+            "frame_sample_share": 0.07574867880211392
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::geometry",
+            "sample_weight_ns": 119000000,
+            "frame_sample_share": 0.06987668819729888
+          },
+          {
+            "function": "<wgpu_hal::metal::CommandEncoder as wgpu_hal::dynamic::command::DynCommandEncoder>::copy_buffer_to_buffer",
+            "sample_weight_ns": 111000000,
+            "frame_sample_share": 0.06517909571344686
+          },
+          {
+            "function": "<wgpu_hal::metal::CommandEncoder>::enter_blit",
+            "sample_weight_ns": 102000000,
+            "frame_sample_share": 0.05989430416911333
+          },
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::update",
+            "sample_weight_ns": 97000000,
+            "frame_sample_share": 0.05695830886670581
+          },
+          {
+            "function": "<eldiron_creator::editor::Editor as theframework::thetrait::TheTrait>::update_ui",
+            "sample_weight_ns": 92000000,
+            "frame_sample_share": 0.0540223135642983
+          },
+          {
+            "function": "<wgpu_hal::metal::Device as wgpu_hal::dynamic::device::DynDevice>::create_buffer",
+            "sample_weight_ns": 80000000,
+            "frame_sample_share": 0.046975924838520255
+          },
+          {
+            "function": "<wgpu_hal::metal::Device as wgpu_hal::Device>::create_buffer",
+            "sample_weight_ns": 80000000,
+            "frame_sample_share": 0.046975924838520255
+          },
+          {
+            "function": "<wgpu_core::resource::StagingBuffer>::new",
+            "sample_weight_ns": 78000000,
+            "frame_sample_share": 0.04580152671755725
+          }
+        ]
+      },
+      "idle": {
+        "samples": 1044,
+        "sample_weight_ns": 1044000000,
+        "frame_samples": 900,
+        "frame_weight_ns": 900000000,
+        "leaf": [
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 200000000,
+            "frame_sample_share": 0.2222222222222222
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 85000000,
+            "frame_sample_share": 0.09444444444444444
+          },
+          {
+            "function": "__kdebug_trace64",
+            "sample_weight_ns": 84000000,
+            "frame_sample_share": 0.09333333333333334
+          },
+          {
+            "function": "_platform_memmove",
+            "sample_weight_ns": 40000000,
+            "frame_sample_share": 0.044444444444444446
+          },
+          {
+            "function": "<core::hash::sip::Hasher<core::hash::sip::Sip13Rounds> as core::hash::Hasher>::write",
+            "sample_weight_ns": 30000000,
+            "frame_sample_share": 0.03333333333333333
+          },
+          {
+            "function": "serde_json::ser::format_escaped_str::<&mut alloc::vec::Vec<u8>, serde_json::ser::CompactFormatter>",
+            "sample_weight_ns": 21000000,
+            "frame_sample_share": 0.023333333333333334
+          },
+          {
+            "function": "_xzm_free_main",
+            "sample_weight_ns": 13000000,
+            "frame_sample_share": 0.014444444444444444
+          },
+          {
+            "function": "<alloc::vec::Vec<eldiron_creator::editor::native_views::world::pixels::SourceOp> as alloc::vec::spec_from_iter::SpecFromIter<eldiron_creator::editor::native_views::world::pixels::SourceOp, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<theframework::paint::PaintOp>, <eldiron_creator::editor::native_views::world::pixels::SourceOp>::from>, core::result::Result<core::convert::Infallible, alloc::string::String>>>>::from_iter",
+            "sample_weight_ns": 13000000,
+            "frame_sample_share": 0.014444444444444444
+          },
+          {
+            "function": "<alloc::collections::btree::map::BTreeMap<u64, renderkit::range_cache::Key>>::insert",
+            "sample_weight_ns": 11000000,
+            "frame_sample_share": 0.012222222222222223
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_sculpt::TerrainSculpt>::sample",
+            "sample_weight_ns": 11000000,
+            "frame_sample_share": 0.012222222222222223
+          },
+          {
+            "function": "<alloc::collections::btree::map::BTreeMap<u64, renderkit::range_cache::Key>>::remove::<u64>",
+            "sample_weight_ns": 9000000,
+            "frame_sample_share": 0.01
+          },
+          {
+            "function": "mach_msg2_trap",
+            "sample_weight_ns": 9000000,
+            "frame_sample_share": 0.01
+          },
+          {
+            "function": "_xzm_xzone_malloc_tiny",
+            "sample_weight_ns": 9000000,
+            "frame_sample_share": 0.01
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.008888888888888889
+          },
+          {
+            "function": "_platform_memcmp",
+            "sample_weight_ns": 8000000,
+            "frame_sample_share": 0.008888888888888889
+          },
+          {
+            "function": "<deduplicated_symbol>",
+            "sample_weight_ns": 7000000,
+            "frame_sample_share": 0.0077777777777777776
+          },
+          {
+            "function": "<lyon_tessellation::fill::FillTessellator>::process_events",
+            "sample_weight_ns": 7000000,
+            "frame_sample_share": 0.0077777777777777776
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::height_on_grid",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.005555555555555556
+          },
+          {
+            "function": "<eldiron_creator::editor::native_views::world::pixels::SourceOp>::from",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.005555555555555556
+          },
+          {
+            "function": "_platform_memset",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.005555555555555556
+          },
+          {
+            "function": "AGX::RenderContext<AGX::G13::Encoders, AGX::G13::Classes, AGX::G13::ObjClasses, AGX::G13::CommandEncoding>::encodeAndEmitRenderState(AGX::G13::VertexProgramVariant const*, AGX::G13::FragmentProgramVariant const*, AGX::G13::FixedLayoutUserArgumentTable*, AGX::G13::FixedLayoutUserArgumentTable*, AGX::RenderDirtyBits<AGX::G13::Classes>&, bool)",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.005555555555555556
+          },
+          {
+            "function": "<serde_json::ser::Compound<&mut alloc::vec::Vec<u8>, serde_json::ser::CompactFormatter> as serde_core::ser::SerializeMap>::serialize_entry::<str, f32>",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.005555555555555556
+          },
+          {
+            "function": "_malloc_zone_malloc",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.005555555555555556
+          },
+          {
+            "function": "DYLD-STUB$$memcpy",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.005555555555555556
+          },
+          {
+            "function": "<eldiron_creator::editor::native_views::world::pixels::SourceOp as core::slice::cmp::SlicePartialEq<eldiron_creator::editor::native_views::world::pixels::SourceOp>>::equal_same_length",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.005555555555555556
+          },
+          {
+            "function": "objc_msgSend",
+            "sample_weight_ns": 5000000,
+            "frame_sample_share": 0.005555555555555556
+          },
+          {
+            "function": "-[AGXG13XFamilyRenderContext setFragmentSamplerState:atIndex:]",
+            "sample_weight_ns": 4000000,
+            "frame_sample_share": 0.0044444444444444444
+          },
+          {
+            "function": "<renderkit::range_cache::RangeCache>::upload",
+            "sample_weight_ns": 4000000,
+            "frame_sample_share": 0.0044444444444444444
+          },
+          {
+            "function": "<core::iter::adapters::map::Map<core::iter::adapters::zip::Zip<core::array::iter::IntoIter<[f32; 2], 4>, core::array::iter::IntoIter<[f32; 2], 4>>, theframework::render_wgpu::mesh::append_quad::{closure#0}> as core::iter::traits::iterator::Iterator>::fold::<(), core::iter::traits::iterator::Iterator::for_each::call<theframework::render_wgpu::mesh::Vertex, <alloc::vec::Vec<theframework::render_wgpu::mesh::Vertex>>::extend_trusted<core::iter::adapters::map::Map<core::iter::adapters::zip::Zip<core::array::iter::IntoIter<[f32; 2], 4>, core::array::iter::IntoIter<[f32; 2], 4>>, theframework::render_wgpu::mesh::append_quad::{closure#0}>>::{closure#0}>::{closure#0}>",
+            "sample_weight_ns": 4000000,
+            "frame_sample_share": 0.0044444444444444444
+          },
+          {
+            "function": "core::ptr::drop_glue::<theframework::paint::PaintOp>",
+            "sample_weight_ns": 4000000,
+            "frame_sample_share": 0.0044444444444444444
+          },
+          {
+            "function": "std::__1::enable_if<true, void>::type AGX::RenderContext<AGX::G13::Encoders, AGX::G13::Classes, AGX::G13::ObjClasses, AGX::G13::CommandEncoding>::setTexture<false, true>(AGX::RenderContext<AGX::G13::Encoders, AGX::G13::Classes, AGX::G13::ObjClasses, AGX::G13::CommandEncoding>::StageBindInfo<false>&, AGXG13XFamilyTexture const*, unsigned int)",
+            "sample_weight_ns": 4000000,
+            "frame_sample_share": 0.0044444444444444444
+          },
+          {
+            "function": "harfrust::hb::ot_layout::apply_forward",
+            "sample_weight_ns": 4000000,
+            "frame_sample_share": 0.0044444444444444444
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::contains",
+            "sample_weight_ns": 3000000,
+            "frame_sample_share": 0.0033333333333333335
+          },
+          {
+            "function": "<f32 as zmij::private::Sealed>::write_to_zmij_buffer",
+            "sample_weight_ns": 3000000,
+            "frame_sample_share": 0.0033333333333333335
+          },
+          {
+            "function": "<hashbrown::map::HashMap<u32, (), rustc_hash::FxBuildHasher>>::insert",
+            "sample_weight_ns": 3000000,
+            "frame_sample_share": 0.0033333333333333335
+          }
+        ],
+        "inclusive": [
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::frame",
+            "sample_weight_ns": 563000000,
+            "frame_sample_share": 0.6255555555555555
+          },
+          {
+            "function": "rusterix::isometric::editor::guide_segments::<<eldiron_creator::editor::Editor>::prepare_native_world_viewport::{closure#62}>",
+            "sample_weight_ns": 315000000,
+            "frame_sample_share": 0.35
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 296000000,
+            "frame_sample_share": 0.3288888888888889
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::height_on_grid",
+            "sample_weight_ns": 295000000,
+            "frame_sample_share": 0.3277777777777778
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_surface::TerrainSurface>::height_at",
+            "sample_weight_ns": 277000000,
+            "frame_sample_share": 0.30777777777777776
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render",
+            "sample_weight_ns": 277000000,
+            "frame_sample_share": 0.30777777777777776
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render_ops",
+            "sample_weight_ns": 268000000,
+            "frame_sample_share": 0.29777777777777775
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 200000000,
+            "frame_sample_share": 0.2222222222222222
+          },
+          {
+            "function": "<wgpu_core::command::CommandEncoder>::finish",
+            "sample_weight_ns": 136000000,
+            "frame_sample_share": 0.1511111111111111
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreCommandEncoder as wgpu::dispatch::CommandEncoderInterface>::finish",
+            "sample_weight_ns": 136000000,
+            "frame_sample_share": 0.1511111111111111
+          },
+          {
+            "function": "<wgpu_core::global::Global>::command_encoder_finish",
+            "sample_weight_ns": 136000000,
+            "frame_sample_share": 0.1511111111111111
+          },
+          {
+            "function": "wgpu_core::command::render::encode_render_pass",
+            "sample_weight_ns": 107000000,
+            "frame_sample_share": 0.11888888888888889
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::render",
+            "sample_weight_ns": 91000000,
+            "frame_sample_share": 0.10111111111111111
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::render_prepared",
+            "sample_weight_ns": 91000000,
+            "frame_sample_share": 0.10111111111111111
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::execute",
+            "sample_weight_ns": 80000000,
+            "frame_sample_share": 0.08888888888888889
+          },
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::update",
+            "sample_weight_ns": 75000000,
+            "frame_sample_share": 0.08333333333333333
+          },
+          {
+            "function": "<renderkit::range_cache::RangeCache>::upload",
+            "sample_weight_ns": 69000000,
+            "frame_sample_share": 0.07666666666666666
+          },
+          {
+            "function": "<eldiron_creator::editor::Editor as theframework::thetrait::TheTrait>::update_ui",
+            "sample_weight_ns": 68000000,
+            "frame_sample_share": 0.07555555555555556
+          },
+          {
+            "function": "theframework::render_wgpu::mesh::tessellate",
+            "sample_weight_ns": 54000000,
+            "frame_sample_share": 0.06
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::geometry",
+            "sample_weight_ns": 51000000,
+            "frame_sample_share": 0.056666666666666664
+          },
+          {
+            "function": "<renderkit::ordered_compute::OrderedCompute>::finish",
+            "sample_weight_ns": 44000000,
+            "frame_sample_share": 0.04888888888888889
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::write_buffer",
+            "sample_weight_ns": 37000000,
+            "frame_sample_share": 0.04111111111111111
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_write_buffer",
+            "sample_weight_ns": 37000000,
+            "frame_sample_share": 0.04111111111111111
+          },
+          {
+            "function": "<theframework::theui::TheUI>::paint_commands",
+            "sample_weight_ns": 35000000,
+            "frame_sample_share": 0.03888888888888889
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreQueue as wgpu::dispatch::QueueInterface>::submit",
+            "sample_weight_ns": 31000000,
+            "frame_sample_share": 0.034444444444444444
+          },
+          {
+            "function": "<theframework::theui::thecanvas::TheCanvas>::paint",
+            "sample_weight_ns": 30000000,
+            "frame_sample_share": 0.03333333333333333
+          },
+          {
+            "function": "<theframework::theui::paint::WidgetPainter>::widget",
+            "sample_weight_ns": 30000000,
+            "frame_sample_share": 0.03333333333333333
+          },
+          {
+            "function": "<theframework::text::TextSystem>::label_layout",
+            "sample_weight_ns": 30000000,
+            "frame_sample_share": 0.03333333333333333
+          },
+          {
+            "function": "wgpu_core::command::pass::flush_bindings_helper",
+            "sample_weight_ns": 30000000,
+            "frame_sample_share": 0.03333333333333333
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::submit",
+            "sample_weight_ns": 30000000,
+            "frame_sample_share": 0.03333333333333333
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_submit",
+            "sample_weight_ns": 30000000,
+            "frame_sample_share": 0.03333333333333333
+          },
+          {
+            "function": "<wgpu_hal::metal::CommandEncoder as wgpu_hal::CommandEncoder>::begin_render_pass",
+            "sample_weight_ns": 30000000,
+            "frame_sample_share": 0.03333333333333333
+          },
+          {
+            "function": "<wgpu_hal::metal::CommandEncoder as wgpu_hal::dynamic::command::DynCommandEncoder>::begin_render_pass",
+            "sample_weight_ns": 30000000,
+            "frame_sample_share": 0.03333333333333333
+          },
+          {
+            "function": "<theframework::theui::paint::WidgetPainter>::label",
+            "sample_weight_ns": 28000000,
+            "frame_sample_share": 0.03111111111111111
+          },
+          {
+            "function": "wgpu_core::command::compute::encode_compute_pass",
+            "sample_weight_ns": 28000000,
+            "frame_sample_share": 0.03111111111111111
+          }
+        ]
+      },
+      "pan": {
+        "samples": 7202,
+        "sample_weight_ns": 7202000000,
+        "frame_samples": 5217,
+        "frame_weight_ns": 5217000000,
+        "leaf": [
+          {
+            "function": "__kdebug_trace64",
+            "sample_weight_ns": 1247000000,
+            "frame_sample_share": 0.23902626030285604
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 363000000,
+            "frame_sample_share": 0.06958021851638872
+          },
+          {
+            "function": "<core::hash::sip::Hasher<core::hash::sip::Sip13Rounds> as core::hash::Hasher>::write",
+            "sample_weight_ns": 338000000,
+            "frame_sample_share": 0.06478819244776692
+          },
+          {
+            "function": "_platform_memmove",
+            "sample_weight_ns": 321000000,
+            "frame_sample_share": 0.06152961472110408
+          },
+          {
+            "function": "mach_msg2_trap",
+            "sample_weight_ns": 249000000,
+            "frame_sample_share": 0.04772857964347326
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 168000000,
+            "frame_sample_share": 0.03220241518113859
+          },
+          {
+            "function": "iokit_user_client_trap",
+            "sample_weight_ns": 158000000,
+            "frame_sample_share": 0.03028560475368986
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_order::waves",
+            "sample_weight_ns": 108000000,
+            "frame_sample_share": 0.020701552616446232
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_renderer::batch::append",
+            "sample_weight_ns": 102000000,
+            "frame_sample_share": 0.019551466359977
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 100000000,
+            "frame_sample_share": 0.019168104274487254
+          },
+          {
+            "function": "<eldiron_presentation::isometric::surface_renderer::IsometricSurfaceRenderer>::append",
+            "sample_weight_ns": 92000000,
+            "frame_sample_share": 0.017634655932528272
+          },
+          {
+            "function": "<alloc::vec::Vec<eldiron_presentation::isometric::surface_renderer::SurfaceTriangle> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<eldiron_presentation::isometric::surface_renderer::SurfaceTriangle, core::iter::adapters::map::Map<core::slice::iter::Iter<eldiron_presentation::isometric::producer::PreparedSurface>, <eldiron_presentation::isometric::producer::IsometricSceneRenderer>::execute::{closure#0}>>>::from_iter",
+            "sample_weight_ns": 54000000,
+            "frame_sample_share": 0.010350776308223116
+          },
+          {
+            "function": "_xzm_xzone_malloc_tiny",
+            "sample_weight_ns": 48000000,
+            "frame_sample_share": 0.009200690051753882
+          },
+          {
+            "function": "objc_msgSend",
+            "sample_weight_ns": 43000000,
+            "frame_sample_share": 0.008242284838029518
+          },
+          {
+            "function": "theframework::render_wgpu::sampled_lines::prepare",
+            "sample_weight_ns": 42000000,
+            "frame_sample_share": 0.008050603795284647
+          },
+          {
+            "function": "_xzm_free_main",
+            "sample_weight_ns": 42000000,
+            "frame_sample_share": 0.008050603795284647
+          },
+          {
+            "function": "core::ptr::drop_glue::<eldiron_presentation::isometric::producer::PreparedSurface>",
+            "sample_weight_ns": 38000000,
+            "frame_sample_share": 0.007283879624305156
+          },
+          {
+            "function": "_platform_memcmp",
+            "sample_weight_ns": 36000000,
+            "frame_sample_share": 0.006900517538815411
+          },
+          {
+            "function": "<scenevm::isometric::shadows::gpu::Pass>::draw",
+            "sample_weight_ns": 35000000,
+            "frame_sample_share": 0.006708836496070539
+          },
+          {
+            "function": "madvise",
+            "sample_weight_ns": 33000000,
+            "frame_sample_share": 0.0063254744105807935
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::terrain_sources::CellSources>::prepare",
+            "sample_weight_ns": 31000000,
+            "frame_sample_share": 0.005942112325091048
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricPreparedFrame>::source_leases",
+            "sample_weight_ns": 27000000,
+            "frame_sample_share": 0.005175388154111558
+          },
+          {
+            "function": "_platform_memset",
+            "sample_weight_ns": 27000000,
+            "frame_sample_share": 0.005175388154111558
+          },
+          {
+            "function": "<rusterix::isometric::Projection>::screen",
+            "sample_weight_ns": 26000000,
+            "frame_sample_share": 0.004983707111366686
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_renderer::bindings::sources",
+            "sample_weight_ns": 24000000,
+            "frame_sample_share": 0.004600345025876941
+          },
+          {
+            "function": "<deduplicated_symbol>",
+            "sample_weight_ns": 23000000,
+            "frame_sample_share": 0.004408663983132068
+          },
+          {
+            "function": "__kdebug_trace_string",
+            "sample_weight_ns": 21000000,
+            "frame_sample_share": 0.0040253018976423235
+          },
+          {
+            "function": "__bzero",
+            "sample_weight_ns": 18000000,
+            "frame_sample_share": 0.0034502587694077054
+          },
+          {
+            "function": "_xzm_free",
+            "sample_weight_ns": 17000000,
+            "frame_sample_share": 0.003258577726662833
+          },
+          {
+            "function": "core::ptr::drop_glue::<wgpu_core::track::metadata::ResourceMetadata<alloc::sync::Arc<wgpu_core::resource::Buffer>>>",
+            "sample_weight_ns": 17000000,
+            "frame_sample_share": 0.003258577726662833
+          },
+          {
+            "function": "xzm_malloc_zone_malloc_type_realloc",
+            "sample_weight_ns": 16000000,
+            "frame_sample_share": 0.0030668966839179604
+          },
+          {
+            "function": "serde_json::ser::format_escaped_str::<&mut alloc::vec::Vec<u8>, serde_json::ser::CompactFormatter>",
+            "sample_weight_ns": 16000000,
+            "frame_sample_share": 0.0030668966839179604
+          },
+          {
+            "function": "AGX::ComputeContext<AGX::G13::Encoders, AGX::G13::Classes, AGX::G13::ObjClasses, AGX::G13::CommandEncoding, AGX::G13::EncoderComputeServiceClasses>::ComputeContext<AGX::G13::EncoderComputeServiceConfigA>(ComputeContextConfig, AGX::G13::EncoderComputeServiceConfigA)",
+            "sample_weight_ns": 15000000,
+            "frame_sample_share": 0.002875215641173088
+          },
+          {
+            "function": "mach_absolute_time",
+            "sample_weight_ns": 15000000,
+            "frame_sample_share": 0.002875215641173088
+          },
+          {
+            "function": "<core::iter::adapters::chain::Chain<core::slice::iter::Iter<f32>, core::iter::adapters::flatten::Flatten<core::slice::iter::Iter<[f32; 2]>>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::any::check<&f32, theframework::render_wgpu::sampled_lines::prepare::{closure#0}>::{closure#0}, core::ops::control_flow::ControlFlow<()>>",
+            "sample_weight_ns": 15000000,
+            "frame_sample_share": 0.002875215641173088
+          }
+        ],
+        "inclusive": [
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::frame",
+            "sample_weight_ns": 4843000000,
+            "frame_sample_share": 0.9283112900134177
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::render",
+            "sample_weight_ns": 2814000000,
+            "frame_sample_share": 0.5393904542840713
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::render_prepared",
+            "sample_weight_ns": 2814000000,
+            "frame_sample_share": 0.5393904542840713
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::execute",
+            "sample_weight_ns": 2537000000,
+            "frame_sample_share": 0.4862948054437416
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render",
+            "sample_weight_ns": 1183000000,
+            "frame_sample_share": 0.2267586735671842
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_write_buffer",
+            "sample_weight_ns": 1152000000,
+            "frame_sample_share": 0.22081656124209315
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::write_buffer",
+            "sample_weight_ns": 1150000000,
+            "frame_sample_share": 0.22043319915660342
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render_ops",
+            "sample_weight_ns": 1143000000,
+            "frame_sample_share": 0.2190914318573893
+          },
+          {
+            "function": "<renderkit::ordered_compute::OrderedCompute>::finish",
+            "sample_weight_ns": 1105000000,
+            "frame_sample_share": 0.21180755223308415
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreCommandEncoder as wgpu::dispatch::CommandEncoderInterface>::finish",
+            "sample_weight_ns": 961000000,
+            "frame_sample_share": 0.1842054820778225
+          },
+          {
+            "function": "<wgpu_core::global::Global>::command_encoder_finish",
+            "sample_weight_ns": 961000000,
+            "frame_sample_share": 0.1842054820778225
+          },
+          {
+            "function": "<wgpu_core::command::CommandEncoder>::finish",
+            "sample_weight_ns": 959000000,
+            "frame_sample_share": 0.18382211999233275
+          },
+          {
+            "function": "<renderkit::range_cache::RangeCache>::upload",
+            "sample_weight_ns": 701000000,
+            "frame_sample_share": 0.13436841096415564
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::geometry",
+            "sample_weight_ns": 687000000,
+            "frame_sample_share": 0.13168487636572743
+          },
+          {
+            "function": "wgpu_core::command::compute::encode_compute_pass",
+            "sample_weight_ns": 669000000,
+            "frame_sample_share": 0.1282346175963197
+          },
+          {
+            "function": "<eldiron_presentation::isometric::surface_renderer::IsometricSurfaceRenderer>::append",
+            "sample_weight_ns": 635000000,
+            "frame_sample_share": 0.12171746214299406
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreQueue as wgpu::dispatch::QueueInterface>::submit",
+            "sample_weight_ns": 593000000,
+            "frame_sample_share": 0.11366685834770941
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_submit",
+            "sample_weight_ns": 591000000,
+            "frame_sample_share": 0.11328349626221966
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::submit",
+            "sample_weight_ns": 590000000,
+            "frame_sample_share": 0.1130918152194748
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::write_staging_buffer_impl",
+            "sample_weight_ns": 545000000,
+            "frame_sample_share": 0.10446616829595554
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_scene",
+            "sample_weight_ns": 528000000,
+            "frame_sample_share": 0.1012075905692927
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_editor",
+            "sample_weight_ns": 528000000,
+            "frame_sample_share": 0.1012075905692927
+          },
+          {
+            "function": "<wgpu_hal::metal::Device as wgpu_hal::dynamic::device::DynDevice>::create_buffer",
+            "sample_weight_ns": 485000000,
+            "frame_sample_share": 0.09296530573126317
+          },
+          {
+            "function": "<wgpu_hal::metal::Device as wgpu_hal::Device>::create_buffer",
+            "sample_weight_ns": 482000000,
+            "frame_sample_share": 0.09239026260302856
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 475000000,
+            "frame_sample_share": 0.09104849530381445
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 460000000,
+            "frame_sample_share": 0.08817327966264137
+          },
+          {
+            "function": "<wgpu_hal::metal::CommandEncoder as wgpu_hal::dynamic::command::DynCommandEncoder>::copy_buffer_to_buffer",
+            "sample_weight_ns": 458000000,
+            "frame_sample_share": 0.08778991757715161
+          },
+          {
+            "function": "<wgpu_core::resource::StagingBuffer>::new",
+            "sample_weight_ns": 426000000,
+            "frame_sample_share": 0.0816561242093157
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_renderer::batch::append",
+            "sample_weight_ns": 380000000,
+            "frame_sample_share": 0.07283879624305156
+          },
+          {
+            "function": "<wgpu_hal::metal::CommandEncoder>::enter_blit",
+            "sample_weight_ns": 372000000,
+            "frame_sample_share": 0.07130534790109258
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 363000000,
+            "frame_sample_share": 0.06958021851638872
+          },
+          {
+            "function": "rusterix::isometric::editor::guide_segments::<<eldiron_creator::editor::Editor>::prepare_native_world_viewport::{closure#62}>",
+            "sample_weight_ns": 332000000,
+            "frame_sample_share": 0.06363810619129769
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::height_on_grid",
+            "sample_weight_ns": 311000000,
+            "frame_sample_share": 0.059612804293655355
+          },
+          {
+            "function": "<wgpu_hal::metal::CommandEncoder as wgpu_hal::CommandEncoder>::begin_encoding",
+            "sample_weight_ns": 286000000,
+            "frame_sample_share": 0.05482077822503354
+          },
+          {
+            "function": "wgpu_core::command::render::encode_render_pass",
+            "sample_weight_ns": 284000000,
+            "frame_sample_share": 0.0544374161395438
+          }
+        ]
+      },
+      "zoom": {
+        "samples": 3439,
+        "sample_weight_ns": 3439000000,
+        "frame_samples": 2776,
+        "frame_weight_ns": 2776000000,
+        "leaf": [
+          {
+            "function": "__kdebug_trace64",
+            "sample_weight_ns": 550000000,
+            "frame_sample_share": 0.19812680115273776
+          },
+          {
+            "function": "mach_msg2_trap",
+            "sample_weight_ns": 183000000,
+            "frame_sample_share": 0.06592219020172911
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 174000000,
+            "frame_sample_share": 0.06268011527377522
+          },
+          {
+            "function": "_platform_memmove",
+            "sample_weight_ns": 158000000,
+            "frame_sample_share": 0.0569164265129683
+          },
+          {
+            "function": "<core::hash::sip::Hasher<core::hash::sip::Sip13Rounds> as core::hash::Hasher>::write",
+            "sample_weight_ns": 127000000,
+            "frame_sample_share": 0.0457492795389049
+          },
+          {
+            "function": "iokit_user_client_trap",
+            "sample_weight_ns": 92000000,
+            "frame_sample_share": 0.03314121037463977
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_order::waves",
+            "sample_weight_ns": 84000000,
+            "frame_sample_share": 0.03025936599423631
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 58000000,
+            "frame_sample_share": 0.02089337175792507
+          },
+          {
+            "function": "<eldiron_presentation::isometric::surface_renderer::IsometricSurfaceRenderer>::append",
+            "sample_weight_ns": 53000000,
+            "frame_sample_share": 0.01909221902017291
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 43000000,
+            "frame_sample_share": 0.015489913544668587
+          },
+          {
+            "function": "_xzm_xzone_malloc_tiny",
+            "sample_weight_ns": 37000000,
+            "frame_sample_share": 0.013328530259365994
+          },
+          {
+            "function": "_xzm_free_main",
+            "sample_weight_ns": 31000000,
+            "frame_sample_share": 0.0111671469740634
+          },
+          {
+            "function": "<scenevm::isometric::shadows::gpu::Pass>::draw",
+            "sample_weight_ns": 28000000,
+            "frame_sample_share": 0.010086455331412104
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_renderer::batch::append",
+            "sample_weight_ns": 26000000,
+            "frame_sample_share": 0.009365994236311239
+          },
+          {
+            "function": "serde_json::ser::format_escaped_str::<&mut alloc::vec::Vec<u8>, serde_json::ser::CompactFormatter>",
+            "sample_weight_ns": 25000000,
+            "frame_sample_share": 0.009005763688760807
+          },
+          {
+            "function": "_platform_memcmp",
+            "sample_weight_ns": 21000000,
+            "frame_sample_share": 0.007564841498559078
+          },
+          {
+            "function": "__kdebug_trace_string",
+            "sample_weight_ns": 21000000,
+            "frame_sample_share": 0.007564841498559078
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::terrain_sources::CellSources>::prepare",
+            "sample_weight_ns": 19000000,
+            "frame_sample_share": 0.006844380403458214
+          },
+          {
+            "function": "objc_msgSend",
+            "sample_weight_ns": 19000000,
+            "frame_sample_share": 0.006844380403458214
+          },
+          {
+            "function": "_malloc_zone_malloc",
+            "sample_weight_ns": 18000000,
+            "frame_sample_share": 0.006484149855907781
+          },
+          {
+            "function": "<alloc::collections::btree::map::BTreeMap<u64, renderkit::range_cache::Key>>::remove::<u64>",
+            "sample_weight_ns": 18000000,
+            "frame_sample_share": 0.006484149855907781
+          },
+          {
+            "function": "_platform_memset",
+            "sample_weight_ns": 18000000,
+            "frame_sample_share": 0.006484149855907781
+          },
+          {
+            "function": "MTLRangeAllocatorGetMaxFreeSize",
+            "sample_weight_ns": 17000000,
+            "frame_sample_share": 0.006123919308357349
+          },
+          {
+            "function": "theframework::render_wgpu::sampled_lines::prepare",
+            "sample_weight_ns": 16000000,
+            "frame_sample_share": 0.005763688760806916
+          },
+          {
+            "function": "<deduplicated_symbol>",
+            "sample_weight_ns": 16000000,
+            "frame_sample_share": 0.005763688760806916
+          },
+          {
+            "function": "MTLResourceListAddResource",
+            "sample_weight_ns": 16000000,
+            "frame_sample_share": 0.005763688760806916
+          },
+          {
+            "function": "madvise",
+            "sample_weight_ns": 13000000,
+            "frame_sample_share": 0.004682997118155619
+          },
+          {
+            "function": "core::ptr::drop_glue::<eldiron_presentation::isometric::producer::PreparedSurface>",
+            "sample_weight_ns": 12000000,
+            "frame_sample_share": 0.004322766570605188
+          },
+          {
+            "function": "<alloc::vec::Vec<eldiron_presentation::isometric::surface_renderer::SurfaceTriangle> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<eldiron_presentation::isometric::surface_renderer::SurfaceTriangle, core::iter::adapters::map::Map<core::slice::iter::Iter<eldiron_presentation::isometric::producer::PreparedSurface>, <eldiron_presentation::isometric::producer::IsometricSceneRenderer>::execute::{closure#0}>>>::from_iter",
+            "sample_weight_ns": 11000000,
+            "frame_sample_share": 0.003962536023054755
+          },
+          {
+            "function": "<core::iter::adapters::chain::Chain<core::slice::iter::Iter<f32>, core::iter::adapters::flatten::Flatten<core::slice::iter::Iter<[f32; 2]>>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::any::check<&f32, theframework::render_wgpu::sampled_lines::prepare::{closure#0}>::{closure#0}, core::ops::control_flow::ControlFlow<()>>",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.0036023054755043226
+          },
+          {
+            "function": "<core::iter::adapters::map::Map<core::slice::iter::Iter<naga::ir::ResourceBinding>, <wgpu_hal::metal::CommandState>::make_sizes_buffer_update::{closure#0}> as core::iter::traits::iterator::Iterator>::fold::<(), core::iter::traits::iterator::Iterator::for_each::call<u32, <alloc::vec::Vec<u32>>::extend_trusted<core::iter::adapters::map::Map<core::slice::iter::Iter<naga::ir::ResourceBinding>, <wgpu_hal::metal::CommandState>::make_sizes_buffer_update::{closure#0}>>::{closure#0}>::{closure#0}>",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.0036023054755043226
+          },
+          {
+            "function": "_xzm_free",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.0036023054755043226
+          },
+          {
+            "function": "xzm_malloc_zone_malloc_type_realloc",
+            "sample_weight_ns": 10000000,
+            "frame_sample_share": 0.0036023054755043226
+          },
+          {
+            "function": "<wgpu_hal::metal::CommandEncoder>::update_bind_group_state",
+            "sample_weight_ns": 9000000,
+            "frame_sample_share": 0.0032420749279538905
+          },
+          {
+            "function": "IOGPUMetalCommandBufferStorageBeginKernelCommands",
+            "sample_weight_ns": 9000000,
+            "frame_sample_share": 0.0032420749279538905
+          }
+        ],
+        "inclusive": [
+          {
+            "function": "<theframework::platform::ui::UiApplicationAdapter<eldiron_creator::native_application::NativeCreatorApplication> as theframework::platform::session::GpuApplication>::frame",
+            "sample_weight_ns": 2285000000,
+            "frame_sample_share": 0.8231268011527377
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::render",
+            "sample_weight_ns": 1325000000,
+            "frame_sample_share": 0.4773054755043228
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::render_prepared",
+            "sample_weight_ns": 1325000000,
+            "frame_sample_share": 0.4773054755043228
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::execute",
+            "sample_weight_ns": 1106000000,
+            "frame_sample_share": 0.3984149855907781
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render",
+            "sample_weight_ns": 740000000,
+            "frame_sample_share": 0.2665706051873199
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::render_ops",
+            "sample_weight_ns": 692000000,
+            "frame_sample_share": 0.24927953890489912
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_write_buffer",
+            "sample_weight_ns": 575000000,
+            "frame_sample_share": 0.20713256484149856
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::write_buffer",
+            "sample_weight_ns": 573000000,
+            "frame_sample_share": 0.2064121037463977
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreCommandEncoder as wgpu::dispatch::CommandEncoderInterface>::finish",
+            "sample_weight_ns": 559000000,
+            "frame_sample_share": 0.20136887608069165
+          },
+          {
+            "function": "<wgpu_core::global::Global>::command_encoder_finish",
+            "sample_weight_ns": 559000000,
+            "frame_sample_share": 0.20136887608069165
+          },
+          {
+            "function": "<wgpu_core::command::CommandEncoder>::finish",
+            "sample_weight_ns": 557000000,
+            "frame_sample_share": 0.20064841498559077
+          },
+          {
+            "function": "<eldiron_presentation::isometric::surface_renderer::IsometricSurfaceRenderer>::append",
+            "sample_weight_ns": 478000000,
+            "frame_sample_share": 0.17219020172910662
+          },
+          {
+            "function": "<wgpu_hal::metal::Device as wgpu_hal::dynamic::device::DynDevice>::create_buffer",
+            "sample_weight_ns": 384000000,
+            "frame_sample_share": 0.138328530259366
+          },
+          {
+            "function": "<wgpu_hal::metal::Device as wgpu_hal::Device>::create_buffer",
+            "sample_weight_ns": 382000000,
+            "frame_sample_share": 0.13760806916426513
+          },
+          {
+            "function": "<renderkit::ordered_compute::OrderedCompute>::finish",
+            "sample_weight_ns": 379000000,
+            "frame_sample_share": 0.13652737752161384
+          },
+          {
+            "function": "<wgpu_core::resource::StagingBuffer>::new",
+            "sample_weight_ns": 360000000,
+            "frame_sample_share": 0.12968299711815562
+          },
+          {
+            "function": "eldiron_presentation::isometric::surface_renderer::batch::append",
+            "sample_weight_ns": 320000000,
+            "frame_sample_share": 0.11527377521613832
+          },
+          {
+            "function": "wgpu_core::command::compute::encode_compute_pass",
+            "sample_weight_ns": 307000000,
+            "frame_sample_share": 0.1105907780979827
+          },
+          {
+            "function": "<renderkit::range_cache::RangeCache>::upload",
+            "sample_weight_ns": 300000000,
+            "frame_sample_share": 0.10806916426512968
+          },
+          {
+            "function": "<theframework::render_wgpu::renderer::PaintRenderer>::geometry",
+            "sample_weight_ns": 277000000,
+            "frame_sample_share": 0.09978386167146974
+          },
+          {
+            "function": "wgpu_core::command::render::encode_render_pass",
+            "sample_weight_ns": 248000000,
+            "frame_sample_share": 0.0893371757925072
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_scene",
+            "sample_weight_ns": 229000000,
+            "frame_sample_share": 0.082492795389049
+          },
+          {
+            "function": "<eldiron_presentation::scene_views::SceneViews>::prepare_isometric_editor",
+            "sample_weight_ns": 229000000,
+            "frame_sample_share": 0.082492795389049
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::sample",
+            "sample_weight_ns": 224000000,
+            "frame_sample_share": 0.08069164265129683
+          },
+          {
+            "function": "<wgpu::backend::wgpu_core::CoreQueue as wgpu::dispatch::QueueInterface>::submit",
+            "sample_weight_ns": 215000000,
+            "frame_sample_share": 0.07744956772334294
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::submit",
+            "sample_weight_ns": 213000000,
+            "frame_sample_share": 0.07672910662824207
+          },
+          {
+            "function": "<wgpu_core::global::Global>::queue_submit",
+            "sample_weight_ns": 213000000,
+            "frame_sample_share": 0.07672910662824207
+          },
+          {
+            "function": "<eldiron_presentation::isometric::producer::IsometricSceneRenderer>::prepare_impl",
+            "sample_weight_ns": 189000000,
+            "frame_sample_share": 0.0680835734870317
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_shape::TerrainShapes>::apply",
+            "sample_weight_ns": 174000000,
+            "frame_sample_share": 0.06268011527377522
+          },
+          {
+            "function": "<wgpu_core::device::resource::Device>::maintain",
+            "sample_weight_ns": 164000000,
+            "frame_sample_share": 0.059077809798270896
+          },
+          {
+            "function": "<rusterix::chunkbuilder::terrain_generator::TerrainSampler>::height_on_grid",
+            "sample_weight_ns": 163000000,
+            "frame_sample_share": 0.058717579250720464
+          },
+          {
+            "function": "rusterix::isometric::editor::guide_segments::<<eldiron_creator::editor::Editor>::prepare_native_world_viewport::{closure#62}>",
+            "sample_weight_ns": 163000000,
+            "frame_sample_share": 0.058717579250720464
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::maintain",
+            "sample_weight_ns": 163000000,
+            "frame_sample_share": 0.058717579250720464
+          },
+          {
+            "function": "<wgpu_core::device::life::LifetimeTracker>::triage_submissions",
+            "sample_weight_ns": 162000000,
+            "frame_sample_share": 0.058357348703170026
+          },
+          {
+            "function": "<wgpu_core::device::queue::Queue>::write_staging_buffer_impl",
+            "sample_weight_ns": 148000000,
+            "frame_sample_share": 0.053314121037463975
+          }
+        ]
+      }
+    }
+  },
+  "gpu": {
+    "pid": 22312,
+    "phase_ranges_ns": {
+      "hover": [
+        10911380936,
+        12958205936
+      ],
+      "idle": [
+        9664216936,
+        10911378936
+      ],
+      "pan": [
+        12958208936,
+        18396683936
+      ],
+      "zoom": [
+        18396686936,
+        21717573936
+      ]
+    },
+    "modes": {
+      "hover": {
+        "depth_zero_active_events": 12147,
+        "unmatched_events": 0,
+        "owned_gpu_busy_union_ms": 555.908905,
+        "phase_wall_ms": 2046.825,
+        "stages": {
+          "(wgpu internal) PendingWrites / Blit Command 0": {
+            "count": 4912,
+            "mean_ms": 0.007021039495114007,
+            "p50_ms": 0.006583,
+            "p95_ms": 0.009375,
+            "p99_ms": 0.012542
+          },
+          "(wgpu internal) Signal / Compute Command 0": {
+            "count": 4860,
+            "mean_ms": 0.012581187242798355,
+            "p50_ms": 0.012125,
+            "p95_ms": 0.01775,
+            "p99_ms": 0.019475809999999993
+          },
+          "iso-mesh-terrain-shadow-map / iso-mesh-terrain-shadow-map": {
+            "count": 547,
+            "mean_ms": 0.13497751371115171,
+            "p50_ms": 0.098583,
+            "p95_ms": 0.34228759999999986,
+            "p99_ms": 0.36958468
+          },
+          "iso-lighting-and-shadows / iso-lighting-and-shadows": {
+            "count": 30,
+            "mean_ms": 0.6581473000000001,
+            "p50_ms": 0.5868125,
+            "p95_ms": 1.0472309499999999,
+            "p99_ms": 1.0523796399999998
+          },
+          "iso-live-particles / iso-live-particles": {
+            "count": 30,
+            "mean_ms": 0.0180208,
+            "p50_ms": 0.007354,
+            "p95_ms": 0.06818779999999999,
+            "p99_ms": 0.14526375000000008
+          },
+          "ui-ordered-paint / ui-ordered-paint": {
+            "count": 690,
+            "mean_ms": 0.5382950086956522,
+            "p50_ms": 0.2977285,
+            "p95_ms": 1.89469345,
+            "p99_ms": 2.33096087
+          },
+          "opaque compatibility display / opaque compatibility display": {
+            "count": 166,
+            "mean_ms": 0.10867089759036144,
+            "p50_ms": 0.1073755,
+            "p95_ms": 0.20295775,
+            "p99_ms": 0.20552905
+          },
+          "isometric source alpha / isometric source alpha": {
+            "count": 30,
+            "mean_ms": 0.0251195,
+            "p50_ms": 0.0250415,
+            "p95_ms": 0.037202599999999995,
+            "p99_ms": 0.03739293
+          },
+          "isometric retained terrain copy / Blit Command 0": {
+            "count": 12,
+            "mean_ms": 0.12829508333333334,
+            "p50_ms": 0.128812,
+            "p95_ms": 0.13555014999999998,
+            "p99_ms": 0.13584363
+          }
+        }
+      },
+      "idle": {
+        "depth_zero_active_events": 3029,
+        "unmatched_events": 0,
+        "owned_gpu_busy_union_ms": 416.347311,
+        "phase_wall_ms": 1247.162,
+        "stages": {
+          "ui-ordered-paint / ui-ordered-paint": {
+            "count": 614,
+            "mean_ms": 0.616507983713355,
+            "p50_ms": 0.3714165,
+            "p95_ms": 2.319208,
+            "p99_ms": 2.32861967
+          },
+          "opaque compatibility display / opaque compatibility display": {
+            "count": 129,
+            "mean_ms": 0.1516456511627907,
+            "p50_ms": 0.163667,
+            "p95_ms": 0.2047252,
+            "p99_ms": 0.20662724
+          },
+          "(wgpu internal) PendingWrites / Blit Command 0": {
+            "count": 821,
+            "mean_ms": 0.008068302070645555,
+            "p50_ms": 0.008083,
+            "p95_ms": 0.010042,
+            "p99_ms": 0.022591599999999906
+          },
+          "(wgpu internal) Signal / Compute Command 0": {
+            "count": 810,
+            "mean_ms": 0.014091449382716049,
+            "p50_ms": 0.0148125,
+            "p95_ms": 0.019125,
+            "p99_ms": 0.021280749999999998
+          },
+          "isometric metadata initialization / Blit Command 0": {
+            "count": 1,
+            "mean_ms": 0.003875,
+            "p50_ms": 0.003875,
+            "p95_ms": 0.003875,
+            "p99_ms": 0.003875
+          },
+          "iso-mesh-terrain-shadow-map / iso-mesh-terrain-shadow-map": {
+            "count": 90,
+            "mean_ms": 0.08328384444444445,
+            "p50_ms": 0.0891675,
+            "p95_ms": 0.17690609999999996,
+            "p99_ms": 0.19040675999999998
+          },
+          "iso-lighting-and-shadows / iso-lighting-and-shadows": {
+            "count": 5,
+            "mean_ms": 0.4093004,
+            "p50_ms": 0.444042,
+            "p95_ms": 0.4586922,
+            "p99_ms": 0.46140564
+          },
+          "iso-live-particles / iso-live-particles": {
+            "count": 5,
+            "mean_ms": 0.0071498,
+            "p50_ms": 0.006166,
+            "p95_ms": 0.011474599999999998,
+            "p99_ms": 0.01252772
+          },
+          "isometric source alpha / isometric source alpha": {
+            "count": 5,
+            "mean_ms": 0.018225,
+            "p50_ms": 0.0165,
+            "p95_ms": 0.024674599999999998,
+            "p99_ms": 0.02586772
+          }
+        }
+      },
+      "pan": {
+        "depth_zero_active_events": 42185,
+        "unmatched_events": 0,
+        "owned_gpu_busy_union_ms": 1553.353278,
+        "phase_wall_ms": 5438.475,
+        "stages": {
+          "(wgpu internal) PendingWrites / Blit Command 0": {
+            "count": 18080,
+            "mean_ms": 0.0058559061393805316,
+            "p50_ms": 0.004917,
+            "p95_ms": 0.009125,
+            "p99_ms": 0.031125
+          },
+          "(wgpu internal) Signal / Compute Command 0": {
+            "count": 17765,
+            "mean_ms": 0.05466314292147481,
+            "p50_ms": 0.008625,
+            "p95_ms": 0.013125,
+            "p99_ms": 0.1115
+          },
+          "iso-mesh-terrain-shadow-map / iso-mesh-terrain-shadow-map": {
+            "count": 2209,
+            "mean_ms": 0.06513175509280217,
+            "p50_ms": 0.070458,
+            "p95_ms": 0.1357584,
+            "p99_ms": 0.17269400000000013
+          },
+          "ui-ordered-paint / ui-ordered-paint": {
+            "count": 959,
+            "mean_ms": 0.32386110636079246,
+            "p50_ms": 0.127251,
+            "p95_ms": 0.8491131,
+            "p99_ms": 1.051045
+          },
+          "iso-lighting-and-shadows / iso-lighting-and-shadows": {
+            "count": 120,
+            "mean_ms": 0.31713885833333333,
+            "p50_ms": 0.313521,
+            "p95_ms": 0.36870804999999995,
+            "p99_ms": 0.5150745
+          },
+          "iso-live-particles / iso-live-particles": {
+            "count": 120,
+            "mean_ms": 0.017707316666666667,
+            "p50_ms": 0.0051665,
+            "p95_ms": 0.05249015,
+            "p99_ms": 0.2085382700000004
+          },
+          "opaque compatibility display / opaque compatibility display": {
+            "count": 359,
+            "mean_ms": 0.055713813370473535,
+            "p50_ms": 0.051917,
+            "p95_ms": 0.10034230000000001,
+            "p99_ms": 0.10282000000000002
+          },
+          "isometric source alpha / isometric source alpha": {
+            "count": 120,
+            "mean_ms": 0.020121158333333333,
+            "p50_ms": 0.021125,
+            "p95_ms": 0.02484025,
+            "p99_ms": 0.02623652
+          }
+        }
+      },
+      "zoom": {
+        "depth_zero_active_events": 13167,
+        "unmatched_events": 0,
+        "owned_gpu_busy_union_ms": 1734.335654,
+        "phase_wall_ms": 3320.887,
+        "stages": {
+          "(wgpu internal) PendingWrites / Blit Command 0": {
+            "count": 3888,
+            "mean_ms": 0.013737877829218106,
+            "p50_ms": 0.007125,
+            "p95_ms": 0.04531689999999994,
+            "p99_ms": 0.14776188000000015
+          },
+          "(wgpu internal) Signal / Compute Command 0": {
+            "count": 3674,
+            "mean_ms": 0.3629246066956995,
+            "p50_ms": 0.008667,
+            "p95_ms": 0.09704999999999996,
+            "p99_ms": 13.254996229999998
+          },
+          "iso-mesh-terrain-shadow-map / iso-mesh-terrain-shadow-map": {
+            "count": 2037,
+            "mean_ms": 0.06385562297496318,
+            "p50_ms": 0.071458,
+            "p95_ms": 0.13036639999999997,
+            "p99_ms": 0.14573775999999986
+          },
+          "iso-lighting-and-shadows / iso-lighting-and-shadows": {
+            "count": 110,
+            "mean_ms": 0.24304616363636364,
+            "p50_ms": 0.2328125,
+            "p95_ms": 0.2855144,
+            "p99_ms": 0.29071246999999995
+          },
+          "iso-live-particles / iso-live-particles": {
+            "count": 111,
+            "mean_ms": 0.02011644144144144,
+            "p50_ms": 0.008999,
+            "p95_ms": 0.0967925,
+            "p99_ms": 0.20577920000000027
+          },
+          "ui-ordered-paint / ui-ordered-paint": {
+            "count": 923,
+            "mean_ms": 0.26875402600216686,
+            "p50_ms": 0.123751,
+            "p95_ms": 0.8307077999999999,
+            "p99_ms": 1.0364694999999997
+          },
+          "opaque compatibility display / opaque compatibility display": {
+            "count": 335,
+            "mean_ms": 0.053443782089552236,
+            "p50_ms": 0.047125,
+            "p95_ms": 0.0939623,
+            "p99_ms": 0.11698372000000032
+          },
+          "isometric source alpha / isometric source alpha": {
+            "count": 91,
+            "mean_ms": 0.016204175824175823,
+            "p50_ms": 0.013959,
+            "p95_ms": 0.020542,
+            "p99_ms": 0.03186609999999943
+          }
+        }
+      }
+    }
+  }
+}

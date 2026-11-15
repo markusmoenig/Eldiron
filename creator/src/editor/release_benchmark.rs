@@ -403,7 +403,17 @@ fn run_release_benchmark() {
         "look_at":region.editing_look_at_3d.into_array(),"iso_scale":editor.server_ctx.camera.iso_camera.scale});
     let transfers = gpu.transfers();
     let mut modes = serde_json::Map::new();
+    let trace_phases = std::env::var_os("ELDIRON_BENCH_TRACE_PHASES").is_some();
+    let wallclock_ns = || -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            .try_into()
+            .unwrap()
+    };
     for mode in ["idle", "hover", "pan", "zoom"] {
+        let trace_start = trace_phases.then(wallclock_ns);
         let mut samples = Vec::with_capacity(frames);
         for frame in 0..frames {
             let input = Instant::now();
@@ -439,7 +449,11 @@ fn run_release_benchmark() {
             "draw_calls":distribution(samples.iter().map(|s|s.draw_calls as f64)),
             "continuation_frames":distribution(samples.iter().map(|s|s.continuation_frames as f64))});
         eprintln!("Release {backend} {mode}: {summary}");
-        modes.insert(mode.into(), json!({"summary":summary,"samples":samples}));
+        let mut mode_result = json!({"summary":summary,"samples":samples});
+        if let Some(start) = trace_start {
+            mode_result["trace_wallclock_ns"] = json!([start, wallclock_ns()]);
+        }
+        modes.insert(mode.into(), mode_result);
     }
     if backend == "native" {
         let after = gpu.transfers();

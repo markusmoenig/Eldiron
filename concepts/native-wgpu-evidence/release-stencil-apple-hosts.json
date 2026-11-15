@@ -1,0 +1,26 @@
+{
+  "source_commit": "53af6e17",
+  "profile": "release",
+  "scope": "Detached Metal, optimized Swift and owner lifetimes; no physical AppKit/IME claim",
+  "hosts": [
+    {
+      "application": "creator",
+      "status": "PASS",
+      "evidence": [
+        "release-stencil-apple-creator-host.log",
+        "release-stencil-apple-creator-windows.log",
+        "release-stencil-apple-creator-close-policy.log"
+      ]
+    },
+    {
+      "application": "player",
+      "status": "PASS",
+      "evidence": [
+        "release-stencil-apple-player-host.log",
+        "release-stencil-apple-player-abi.log",
+        "release-stencil-apple-player-ios-sdk.log"
+      ]
+    }
+  ],
+  "player_abi_exports_preserved": 37
+}

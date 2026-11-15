@@ -1,0 +1,1321 @@
+{
+  "app": "creator",
+  "project": "UnendingNight.eldiron",
+  "initial": {
+    "attrs": {
+      "data-eldiron-inspect-view": "",
+      "data-eldiron-state": "editing",
+      "data-eldiron-codec-workers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+      "data-eldiron-cache-usage": "{\"immutable\":{\"allocations\":27,\"byte_limit\":134217728,\"cpu_bytes\":2240,\"entries\":27,\"entry_limit\":16384,\"evictions\":0,\"gpu_bytes\":2240,\"hits\":41,\"live_allocations\":27,\"live_bytes\":2240,\"peak_live_bytes\":2240,\"uploaded_bytes\":2240},\"targets\":{\"allocations\":41,\"byte_limit\":536870912,\"bytes\":445149920,\"entries\":41,\"entry_limit\":64,\"evictions\":0,\"hits\":204,\"live_allocations\":41,\"live_bytes\":445149920,\"peak_live_bytes\":445149920},\"unpooled_images\":{\"allocations\":98,\"live_bytes\":11055356,\"live_images\":92,\"peak_live_bytes\":11055356},\"working\":{\"allocations\":989,\"byte_limit\":134217728,\"bytes\":17357872,\"entries\":64,\"entry_limit\":64,\"evictions\":925,\"hits\":13,\"live_allocations\":222,\"live_bytes\":321322772,\"peak_live_bytes\":364678864}}",
+      "data-eldiron-readback-bytes": "11698176",
+      "data-eldiron-asset-bake-readback-bytes": "11698176",
+      "data-eldiron-asset-bake-readback-requests": "4",
+      "data-eldiron-gpu-generation": "1",
+      "data-eldiron-root-cpu-bytes": "0",
+      "data-eldiron-document": "ed9ab3c8-170e-406b-b708-669abe6239ee",
+      "data-eldiron-dirty": "false",
+      "data-eldiron-view-source": "{\"bake\":{\"adapter\":false,\"job\":null,\"rendering\":false,\"status\":\"Missing\"},\"bake_pages\":null,\"center\":[20.0,0.5,18.0],\"fly\":false,\"fly_mouse\":false,\"mode\":\"2d\",\"moving\":false,\"navigation\":false,\"paste\":{\"active\":false,\"authored_vertices\":718,\"projected_vertices\":null,\"ready\":false,\"target\":null},\"play_sources\":null,\"position\":[10.0,12.0,28.0],\"source\":{\"context\":\"Region(eafa15fd-80dd-46a6-9641-9252b23736bb)\",\"map\":\"64b8e4bd-ed69-4bb2-866f-dd55ff4997fd\",\"presented\":{\"baked\":false,\"context\":\"Region(eafa15fd-80dd-46a6-9641-9252b23736bb)\",\"custom\":false,\"map\":\"64b8e4bd-ed69-4bb2-866f-dd55ff4997fd\",\"ready\":true,\"waiting_cpu_sources\":false}},\"speech\":{\"fonts\":false,\"layouts\":0,\"messages\":0,\"visible\":0},\"world\":true,\"world_sources\":{\"context_immutable_buffers\":{\"cached_cpu_bytes\":2240,\"cached_gpu_bytes\":2240,\"live_allocations\":27,\"live_bytes\":2240,\"peak_live_bytes\":2240},\"context_retained_cache\":{\"byte_limit\":67108864,\"peak_reserved_bytes\":55359080,\"rejected_requests\":0,\"requests\":2,\"reservations\":0,\"reserved_bytes\":0},\"context_unpooled_images\":{\"allocations\":98,\"live_bytes\":11055356,\"live_images\":92,\"peak_live_bytes\":11055356},\"paint_producers\":{\"failed_sources\":0,\"frame_uploaded_bytes\":0,\"gpu_copied_bytes\":0,\"gpu_plane_bytes\":0,\"gpu_table_bytes\":0,\"logical_cpu_page_bytes\":0,\"pending_sources\":0,\"pending_views\":0,\"reused_bindings\":0,\"reused_pages\":0,\"sources\":0,\"uploaded_pages\":0},\"pending_frames\":false,\"scene_preparation_this_frame\":{\"calls\":0,\"cpu_ns\":0,\"gpu_copied_bytes\":0,\"packed_cpu_bytes\":0,\"uploaded_bytes\":0}}}",
+      "data-eldiron-presentations": "9"
+    },
+    "source": {
+      "bake": {
+        "adapter": false,
+        "job": null,
+        "rendering": false,
+        "status": "Missing"
+      },
+      "bake_pages": null,
+      "center": [
+        20,
+        0.5,
+        18
+      ],
+      "fly": false,
+      "fly_mouse": false,
+      "mode": "2d",
+      "moving": false,
+      "navigation": false,
+      "paste": {
+        "active": false,
+        "authored_vertices": 718,
+        "projected_vertices": null,
+        "ready": false,
+        "target": null
+      },
+      "play_sources": null,
+      "position": [
+        10,
+        12,
+        28
+      ],
+      "source": {
+        "context": "Region(eafa15fd-80dd-46a6-9641-9252b23736bb)",
+        "map": "64b8e4bd-ed69-4bb2-866f-dd55ff4997fd",
+        "presented": {
+          "baked": false,
+          "context": "Region(eafa15fd-80dd-46a6-9641-9252b23736bb)",
+          "custom": false,
+          "map": "64b8e4bd-ed69-4bb2-866f-dd55ff4997fd",
+          "ready": true,
+          "waiting_cpu_sources": false
+        }
+      },
+      "speech": {
+        "fonts": false,
+        "layouts": 0,
+        "messages": 0,
+        "visible": 0
+      },
+      "world": true,
+      "world_sources": {
+        "context_immutable_buffers": {
+          "cached_cpu_bytes": 2240,
+          "cached_gpu_bytes": 2240,
+          "live_allocations": 27,
+          "live_bytes": 2240,
+          "peak_live_bytes": 2240
+        },
+        "context_retained_cache": {
+          "byte_limit": 67108864,
+          "peak_reserved_bytes": 55359080,
+          "rejected_requests": 0,
+          "requests": 2,
+          "reservations": 0,
+          "reserved_bytes": 0
+        },
+        "context_unpooled_images": {
+          "allocations": 98,
+          "live_bytes": 11055356,
+          "live_images": 92,
+          "peak_live_bytes": 11055356
+        },
+        "paint_producers": {
+          "failed_sources": 0,
+          "frame_uploaded_bytes": 0,
+          "gpu_copied_bytes": 0,
+          "gpu_plane_bytes": 0,
+          "gpu_table_bytes": 0,
+          "logical_cpu_page_bytes": 0,
+          "pending_sources": 0,
+          "pending_views": 0,
+          "reused_bindings": 0,
+          "reused_pages": 0,
+          "sources": 0,
+          "uploaded_pages": 0
+        },
+        "pending_frames": false,
+        "scene_preparation_this_frame": {
+          "calls": 0,
+          "cpu_ns": 0,
+          "gpu_copied_bytes": 0,
+          "packed_cpu_bytes": 0,
+          "uploaded_bytes": 0
+        }
+      }
+    },
+    "probe": {
+      "contexts2D": 0,
+      "colorCopies": 0,
+      "assetBakeColorCopies": 8,
+      "groundCopies": 8,
+      "gpuErrors": [],
+      "errors": [],
+      "devices": [
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        }
+      ],
+      "copyDetails": [
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            512,
+            512
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 512,
+            "height": 512,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            512,
+            512
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 512,
+            "height": 512,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            384,
+            384
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 384,
+            "height": 384,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            384,
+            384
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 384,
+            "height": 384,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        }
+      ]
+    },
+    "metrics": {
+      "dpr": 1.5,
+      "focus": true,
+      "inner": [
+        1600,
+        1000
+      ],
+      "canvas": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 1000,
+          "top": 0,
+          "right": 1600,
+          "bottom": 1000,
+          "left": 0
+        }
+      ]
+    },
+    "canvas": [
+      {
+        "width": 2400,
+        "height": 1500
+      }
+    ],
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
+  },
+  "recovered": {
+    "attrs": {
+      "data-eldiron-inspect-view": "",
+      "data-eldiron-state": "editing",
+      "data-eldiron-codec-workers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+      "data-eldiron-cache-usage": "{\"immutable\":{\"allocations\":11,\"byte_limit\":134217728,\"cpu_bytes\":1216,\"entries\":11,\"entry_limit\":16384,\"evictions\":0,\"gpu_bytes\":1216,\"hits\":6,\"live_allocations\":11,\"live_bytes\":1216,\"peak_live_bytes\":1216,\"uploaded_bytes\":1216},\"targets\":{\"allocations\":31,\"byte_limit\":536870912,\"bytes\":433681120,\"entries\":31,\"entry_limit\":64,\"evictions\":0,\"hits\":87,\"live_allocations\":31,\"live_bytes\":433681120,\"peak_live_bytes\":433681120},\"unpooled_images\":{\"allocations\":94,\"live_bytes\":11055356,\"live_images\":92,\"peak_live_bytes\":11055356},\"working\":{\"allocations\":486,\"byte_limit\":134217728,\"bytes\":17357872,\"entries\":64,\"entry_limit\":64,\"evictions\":422,\"hits\":2,\"live_allocations\":222,\"live_bytes\":321322772,\"peak_live_bytes\":339840736}}",
+      "data-eldiron-readback-bytes": "114688",
+      "data-eldiron-asset-bake-readback-bytes": "114688",
+      "data-eldiron-asset-bake-readback-requests": "1",
+      "data-eldiron-gpu-generation": "2",
+      "data-eldiron-root-cpu-bytes": "0",
+      "data-eldiron-document": "ed9ab3c8-170e-406b-b708-669abe6239ee",
+      "data-eldiron-dirty": "false",
+      "data-eldiron-view-source": "{\"bake\":{\"adapter\":false,\"job\":null,\"rendering\":false,\"status\":\"Missing\"},\"bake_pages\":null,\"center\":[20.0,0.5,18.0],\"fly\":false,\"fly_mouse\":false,\"mode\":\"2d\",\"moving\":false,\"navigation\":false,\"paste\":{\"active\":false,\"authored_vertices\":718,\"projected_vertices\":null,\"ready\":false,\"target\":null},\"play_sources\":null,\"position\":[10.0,12.0,28.0],\"source\":{\"context\":\"Region(eafa15fd-80dd-46a6-9641-9252b23736bb)\",\"map\":\"64b8e4bd-ed69-4bb2-866f-dd55ff4997fd\",\"presented\":{\"baked\":false,\"context\":\"Region(eafa15fd-80dd-46a6-9641-9252b23736bb)\",\"custom\":false,\"map\":\"64b8e4bd-ed69-4bb2-866f-dd55ff4997fd\",\"ready\":true,\"waiting_cpu_sources\":false}},\"speech\":{\"fonts\":false,\"layouts\":0,\"messages\":0,\"visible\":0},\"world\":true,\"world_sources\":{\"context_immutable_buffers\":{\"cached_cpu_bytes\":1216,\"cached_gpu_bytes\":1216,\"live_allocations\":11,\"live_bytes\":1216,\"peak_live_bytes\":1216},\"context_retained_cache\":{\"byte_limit\":67108864,\"peak_reserved_bytes\":55359080,\"rejected_requests\":0,\"requests\":1,\"reservations\":0,\"reserved_bytes\":0},\"context_unpooled_images\":{\"allocations\":94,\"live_bytes\":11055356,\"live_images\":92,\"peak_live_bytes\":11055356},\"paint_producers\":{\"failed_sources\":0,\"frame_uploaded_bytes\":0,\"gpu_copied_bytes\":0,\"gpu_plane_bytes\":0,\"gpu_table_bytes\":0,\"logical_cpu_page_bytes\":0,\"pending_sources\":0,\"pending_views\":0,\"reused_bindings\":0,\"reused_pages\":0,\"sources\":0,\"uploaded_pages\":0},\"pending_frames\":false,\"scene_preparation_this_frame\":{\"calls\":0,\"cpu_ns\":0,\"gpu_copied_bytes\":0,\"packed_cpu_bytes\":0,\"uploaded_bytes\":0}}}",
+      "data-eldiron-presentations": "16"
+    },
+    "source": {
+      "bake": {
+        "adapter": false,
+        "job": null,
+        "rendering": false,
+        "status": "Missing"
+      },
+      "bake_pages": null,
+      "center": [
+        20,
+        0.5,
+        18
+      ],
+      "fly": false,
+      "fly_mouse": false,
+      "mode": "2d",
+      "moving": false,
+      "navigation": false,
+      "paste": {
+        "active": false,
+        "authored_vertices": 718,
+        "projected_vertices": null,
+        "ready": false,
+        "target": null
+      },
+      "play_sources": null,
+      "position": [
+        10,
+        12,
+        28
+      ],
+      "source": {
+        "context": "Region(eafa15fd-80dd-46a6-9641-9252b23736bb)",
+        "map": "64b8e4bd-ed69-4bb2-866f-dd55ff4997fd",
+        "presented": {
+          "baked": false,
+          "context": "Region(eafa15fd-80dd-46a6-9641-9252b23736bb)",
+          "custom": false,
+          "map": "64b8e4bd-ed69-4bb2-866f-dd55ff4997fd",
+          "ready": true,
+          "waiting_cpu_sources": false
+        }
+      },
+      "speech": {
+        "fonts": false,
+        "layouts": 0,
+        "messages": 0,
+        "visible": 0
+      },
+      "world": true,
+      "world_sources": {
+        "context_immutable_buffers": {
+          "cached_cpu_bytes": 1216,
+          "cached_gpu_bytes": 1216,
+          "live_allocations": 11,
+          "live_bytes": 1216,
+          "peak_live_bytes": 1216
+        },
+        "context_retained_cache": {
+          "byte_limit": 67108864,
+          "peak_reserved_bytes": 55359080,
+          "rejected_requests": 0,
+          "requests": 1,
+          "reservations": 0,
+          "reserved_bytes": 0
+        },
+        "context_unpooled_images": {
+          "allocations": 94,
+          "live_bytes": 11055356,
+          "live_images": 92,
+          "peak_live_bytes": 11055356
+        },
+        "paint_producers": {
+          "failed_sources": 0,
+          "frame_uploaded_bytes": 0,
+          "gpu_copied_bytes": 0,
+          "gpu_plane_bytes": 0,
+          "gpu_table_bytes": 0,
+          "logical_cpu_page_bytes": 0,
+          "pending_sources": 0,
+          "pending_views": 0,
+          "reused_bindings": 0,
+          "reused_pages": 0,
+          "sources": 0,
+          "uploaded_pages": 0
+        },
+        "pending_frames": false,
+        "scene_preparation_this_frame": {
+          "calls": 0,
+          "cpu_ns": 0,
+          "gpu_copied_bytes": 0,
+          "packed_cpu_bytes": 0,
+          "uploaded_bytes": 0
+        }
+      }
+    },
+    "probe": {
+      "contexts2D": 0,
+      "colorCopies": 0,
+      "assetBakeColorCopies": 12,
+      "groundCopies": 16,
+      "gpuErrors": [],
+      "errors": [],
+      "devices": [
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        },
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        }
+      ],
+      "copyDetails": [
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            512,
+            512
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 512,
+            "height": 512,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            512,
+            512
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 512,
+            "height": 512,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            384,
+            384
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 384,
+            "height": 384,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            384,
+            384
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 384,
+            "height": 384,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        }
+      ]
+    },
+    "metrics": {
+      "dpr": 1.5,
+      "focus": true,
+      "inner": [
+        1600,
+        1000
+      ],
+      "canvas": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 1000,
+          "top": 0,
+          "right": 1600,
+          "bottom": 1000,
+          "left": 0
+        }
+      ]
+    },
+    "canvas": [
+      {
+        "width": 2400,
+        "height": 1500
+      }
+    ],
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
+  },
+  "resized": {
+    "attrs": {
+      "data-eldiron-inspect-view": "",
+      "data-eldiron-state": "editing",
+      "data-eldiron-codec-workers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+      "data-eldiron-cache-usage": "{\"immutable\":{\"allocations\":15,\"byte_limit\":134217728,\"cpu_bytes\":3008,\"entries\":15,\"entry_limit\":16384,\"evictions\":0,\"gpu_bytes\":3008,\"hits\":70,\"live_allocations\":15,\"live_bytes\":3008,\"peak_live_bytes\":3008,\"uploaded_bytes\":3008},\"targets\":{\"allocations\":51,\"byte_limit\":536870912,\"bytes\":506326264,\"entries\":39,\"entry_limit\":64,\"evictions\":12,\"hits\":284,\"live_allocations\":39,\"live_bytes\":506326264,\"peak_live_bytes\":532456332},\"unpooled_images\":{\"allocations\":114,\"live_bytes\":11150284,\"live_images\":104,\"peak_live_bytes\":11150284},\"working\":{\"allocations\":1482,\"byte_limit\":134217728,\"bytes\":16929616,\"entries\":64,\"entry_limit\":64,\"evictions\":1418,\"hits\":8,\"live_allocations\":222,\"live_bytes\":308638204,\"peak_live_bytes\":339840736}}",
+      "data-eldiron-readback-bytes": "573440",
+      "data-eldiron-asset-bake-readback-bytes": "573440",
+      "data-eldiron-asset-bake-readback-requests": "5",
+      "data-eldiron-gpu-generation": "2",
+      "data-eldiron-root-cpu-bytes": "0",
+      "data-eldiron-document": "ed9ab3c8-170e-406b-b708-669abe6239ee",
+      "data-eldiron-dirty": "false",
+      "data-eldiron-view-source": "{\"bake\":{\"adapter\":false,\"job\":null,\"rendering\":false,\"status\":\"Missing\"},\"bake_pages\":null,\"center\":[20.0,0.5,18.0],\"fly\":false,\"fly_mouse\":false,\"mode\":\"2d\",\"moving\":false,\"navigation\":false,\"paste\":{\"active\":false,\"authored_vertices\":718,\"projected_vertices\":null,\"ready\":false,\"target\":null},\"play_sources\":null,\"position\":[10.0,12.0,28.0],\"source\":{\"context\":\"Region(eafa15fd-80dd-46a6-9641-9252b23736bb)\",\"map\":\"64b8e4bd-ed69-4bb2-866f-dd55ff4997fd\",\"presented\":{\"baked\":false,\"context\":\"Region(eafa15fd-80dd-46a6-9641-9252b23736bb)\",\"custom\":false,\"map\":\"64b8e4bd-ed69-4bb2-866f-dd55ff4997fd\",\"ready\":true,\"waiting_cpu_sources\":false}},\"speech\":{\"fonts\":false,\"layouts\":0,\"messages\":0,\"visible\":0},\"world\":true,\"world_sources\":{\"context_immutable_buffers\":{\"cached_cpu_bytes\":3008,\"cached_gpu_bytes\":3008,\"live_allocations\":15,\"live_bytes\":3008,\"peak_live_bytes\":3008},\"context_retained_cache\":{\"byte_limit\":67108864,\"peak_reserved_bytes\":55359080,\"rejected_requests\":0,\"requests\":3,\"reservations\":0,\"reserved_bytes\":0},\"context_unpooled_images\":{\"allocations\":114,\"live_bytes\":11150284,\"live_images\":104,\"peak_live_bytes\":11150284},\"paint_producers\":{\"failed_sources\":0,\"frame_uploaded_bytes\":0,\"gpu_copied_bytes\":0,\"gpu_plane_bytes\":0,\"gpu_table_bytes\":0,\"logical_cpu_page_bytes\":0,\"pending_sources\":0,\"pending_views\":0,\"reused_bindings\":0,\"reused_pages\":0,\"sources\":0,\"uploaded_pages\":0},\"pending_frames\":false,\"scene_preparation_this_frame\":{\"calls\":0,\"cpu_ns\":0,\"gpu_copied_bytes\":0,\"packed_cpu_bytes\":0,\"uploaded_bytes\":0}}}",
+      "data-eldiron-presentations": "22"
+    },
+    "source": {
+      "bake": {
+        "adapter": false,
+        "job": null,
+        "rendering": false,
+        "status": "Missing"
+      },
+      "bake_pages": null,
+      "center": [
+        20,
+        0.5,
+        18
+      ],
+      "fly": false,
+      "fly_mouse": false,
+      "mode": "2d",
+      "moving": false,
+      "navigation": false,
+      "paste": {
+        "active": false,
+        "authored_vertices": 718,
+        "projected_vertices": null,
+        "ready": false,
+        "target": null
+      },
+      "play_sources": null,
+      "position": [
+        10,
+        12,
+        28
+      ],
+      "source": {
+        "context": "Region(eafa15fd-80dd-46a6-9641-9252b23736bb)",
+        "map": "64b8e4bd-ed69-4bb2-866f-dd55ff4997fd",
+        "presented": {
+          "baked": false,
+          "context": "Region(eafa15fd-80dd-46a6-9641-9252b23736bb)",
+          "custom": false,
+          "map": "64b8e4bd-ed69-4bb2-866f-dd55ff4997fd",
+          "ready": true,
+          "waiting_cpu_sources": false
+        }
+      },
+      "speech": {
+        "fonts": false,
+        "layouts": 0,
+        "messages": 0,
+        "visible": 0
+      },
+      "world": true,
+      "world_sources": {
+        "context_immutable_buffers": {
+          "cached_cpu_bytes": 3008,
+          "cached_gpu_bytes": 3008,
+          "live_allocations": 15,
+          "live_bytes": 3008,
+          "peak_live_bytes": 3008
+        },
+        "context_retained_cache": {
+          "byte_limit": 67108864,
+          "peak_reserved_bytes": 55359080,
+          "rejected_requests": 0,
+          "requests": 3,
+          "reservations": 0,
+          "reserved_bytes": 0
+        },
+        "context_unpooled_images": {
+          "allocations": 114,
+          "live_bytes": 11150284,
+          "live_images": 104,
+          "peak_live_bytes": 11150284
+        },
+        "paint_producers": {
+          "failed_sources": 0,
+          "frame_uploaded_bytes": 0,
+          "gpu_copied_bytes": 0,
+          "gpu_plane_bytes": 0,
+          "gpu_table_bytes": 0,
+          "logical_cpu_page_bytes": 0,
+          "pending_sources": 0,
+          "pending_views": 0,
+          "reused_bindings": 0,
+          "reused_pages": 0,
+          "sources": 0,
+          "uploaded_pages": 0
+        },
+        "pending_frames": false,
+        "scene_preparation_this_frame": {
+          "calls": 0,
+          "cpu_ns": 0,
+          "gpu_copied_bytes": 0,
+          "packed_cpu_bytes": 0,
+          "uploaded_bytes": 0
+        }
+      }
+    },
+    "probe": {
+      "contexts2D": 0,
+      "colorCopies": 0,
+      "assetBakeColorCopies": 20,
+      "groundCopies": 24,
+      "gpuErrors": [],
+      "errors": [],
+      "devices": [
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        },
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        }
+      ],
+      "copyDetails": [
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            512,
+            512
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 512,
+            "height": 512,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            512,
+            512
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 512,
+            "height": 512,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            384,
+            384
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 384,
+            "height": 384,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            384,
+            384
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 384,
+            "height": 384,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a985c4)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        },
+        {
+          "label": "renderkit pooled target",
+          "texture": [
+            64,
+            64
+          ],
+          "format": "rgba16float",
+          "size": {
+            "width": 64,
+            "height": 64,
+            "depthOrArrayLayers": 1
+          },
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "destination": "MaterialZ explicit asset readback",
+          "stack": "Error\n    at GPUCommandEncoder.copyTextureToBuffer (<anonymous>:33:202)\n    at http://127.0.0.1:62641/creator/eldiron-creator-web.js:397:18\n    at handleError (http://127.0.0.1:62641/creator/eldiron-creator-web.js:2680:18)\n    at __wbg_copyTextureToBuffer_a9b82ac765521aab (http://127.0.0.1:62641/creator/eldiron-creator-web.js:396:73)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::webgpu_sys::gen_GpuCommandEncoder::GpuCommandEncoder>::copy_texture_to_buffer_with_gpu_extent_3d_dict::__wbg_copyTextureToBuffer_a9b82ac765521aab externref shim (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[41725]:0x20fe245)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::backend::webgpu::WebCommandEncoder as wgpu[168bae808ca33ccc]::dispatch::CommandEncoderInterface>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[26492]:0x1f28c9d)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<wgpu[168bae808ca33ccc]::api::command_encoder::CommandEncoder>::copy_texture_to_buffer (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[43347]:0x21066ab)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold::<(), <core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>> as core[608f92abc48d28da]::iter::traits::iterator::Iterator>::try_fold<(), core[608f92abc48d28da]::iter::traits::iterator::Iterator::try_for_each::call<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>::Break>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>::{closure#0}, core[608f92abc48d28da]::ops::control_flow::ControlFlow<core[608f92abc48d28da]::ops::control_flow::ControlFlow<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)>>> (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[13598]:0x1a18461)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<alloc[cb2b8d99256f33df]::vec::Vec<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize)> as alloc[cb2b8d99256f33df]::vec::spec_from_iter::SpecFromIter<(wgpu[168bae808ca33ccc]::api::buffer::Buffer, usize, usize), core[608f92abc48d28da]::iter::adapters::GenericShunt<core[608f92abc48d28da]::iter::adapters::map::Map<core[608f92abc48d28da]::slice::iter::Iter<denrim_materials[6b3bcf50cd8172d1]::gpu::SurfaceMap>, <eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::readback::{closure#0}::{closure#0}>, core[608f92abc48d28da]::result::Result<core[608f92abc48d28da]::convert::Infallible, alloc[cb2b8d99256f33df]::string::String>>>>::from_iter (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[14473]:0x1a987be)\n    at eldiron_creator_web-1b3ce62d5611ab59.wasm.<eldiron_creator[2eda7ed7300e3126]::procedural_material::asset_bake::Baker>::render::{closure#0} (http://127.0.0.1:62641/creator/eldiron-creator-web_bg.wasm:wasm-function[793]:0x48e60b)"
+        }
+      ]
+    },
+    "metrics": {
+      "dpr": 1.5,
+      "focus": true,
+      "inner": [
+        1237,
+        731
+      ],
+      "canvas": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 1237.3333740234375,
+          "height": 731.3333740234375,
+          "top": 0,
+          "right": 1237.3333740234375,
+          "bottom": 731.3333740234375,
+          "left": 0
+        }
+      ]
+    },
+    "canvas": [
+      {
+        "width": 1856,
+        "height": 1097
+      }
+    ],
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
+  },
+  "scope": "Actual Chrome WebGPU ready scene/game input, real device reconstruction and stable real150% CSS resize. Source cache copy commands traced for Creator terrain. Screenshot via DevTools only. No physical input, monitor transition or cross-browser claim."
+}

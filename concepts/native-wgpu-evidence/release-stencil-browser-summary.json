@@ -1,0 +1,175 @@
+{
+  "source_commit": "53af6e17",
+  "profile": "release",
+  "physical_input_display_verified": false,
+  "cases": [
+    {
+      "case": "creator-3DStarter",
+      "status": "PASS",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "1",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 0
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "3",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 0
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "4",
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ],
+          "ground_copies": 0
+        }
+      ]
+    },
+    {
+      "case": "creator-UnendingNight",
+      "status": "PASS",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "9",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 8
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "16",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 16
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "22",
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ],
+          "ground_copies": 24
+        }
+      ]
+    },
+    {
+      "case": "player-Hideout2D",
+      "status": "PASS",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "25",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 0
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "44",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 0
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "65",
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ],
+          "ground_copies": 0
+        }
+      ]
+    },
+    {
+      "case": "player-UnendingNight",
+      "status": "PASS",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "37",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 0
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "48",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 0
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "73",
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ],
+          "ground_copies": 0
+        }
+      ]
+    }
+  ]
+}

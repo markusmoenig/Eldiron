@@ -1,0 +1,12 @@
+Scepter API listening on http://127.0.0.1:37687/scepter/ping
+Scene manager has started up.
+Scepter API unavailable at 127.0.0.1:37687
+Scepter service: could not start local Scepter API at 127.0.0.1:37687: Address already in use (os error 48)
+Scene manager has started up.
+Scepter API unavailable at 127.0.0.1:37687
+Scepter service: could not start local Scepter API at 127.0.0.1:37687: Address already in use (os error 48)
+Scene manager has started up.
+Independent Creator handles/layers/legacy routing/pending save retirement passed
+Scepter API listening on http://127.0.0.1:37687/scepter/ping
+Scene manager has started up.
+Native Creator CAMetalLayer/handle/document/PNG transactions passed

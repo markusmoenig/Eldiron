@@ -1,0 +1,8 @@
+Scepter API listening on http://127.0.0.1:37687/scepter/ping
+Scepter API unavailable at 127.0.0.1:37687
+Scene manager has started up.
+Scepter service: could not start local Scepter API at 127.0.0.1:37687: Address already in use (os error 48)
+Scene manager has started up.
+Creator window 1 presentations 0 root CPU 0 readback 0
+Creator window 2 presentations 0 root CPU 0 readback 0
+Creator window close ownership passed; physical presentation is not accepted in lifetime-only mode

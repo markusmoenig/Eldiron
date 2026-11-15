@@ -1,0 +1,73 @@
+{
+  "source_commit": "53af6e17",
+  "profile": "release",
+  "steps": [
+    {
+      "step": "boundaries",
+      "exit": 0,
+      "seconds": 4.284403667,
+      "log": "/private/tmp/eldiron-release-stencil-platform-boundaries.log"
+    },
+    {
+      "step": "creator-apple",
+      "exit": 0,
+      "seconds": 129.494430625,
+      "log": "/private/tmp/eldiron-release-stencil-platform-creator-apple.log"
+    },
+    {
+      "step": "player-apple",
+      "exit": 0,
+      "seconds": 70.59781991700001,
+      "log": "/private/tmp/eldiron-release-stencil-platform-player-apple.log"
+    },
+    {
+      "step": "creator-uikit",
+      "exit": 0,
+      "seconds": 165.947715167,
+      "log": "/private/tmp/eldiron-release-stencil-platform-creator-uikit.log"
+    },
+    {
+      "step": "player-uikit",
+      "exit": 0,
+      "seconds": 107.81818479200001,
+      "log": "/private/tmp/eldiron-release-stencil-platform-player-uikit.log"
+    },
+    {
+      "step": "creator-web",
+      "exit": 0,
+      "seconds": 82.81855979099993,
+      "log": "/private/tmp/eldiron-release-stencil-platform-creator-web.log"
+    },
+    {
+      "step": "player-web",
+      "exit": 0,
+      "seconds": 47.55914187500002,
+      "log": "/private/tmp/eldiron-release-stencil-platform-player-web.log"
+    },
+    {
+      "step": "browser",
+      "exit": 0,
+      "seconds": 240.84865066700002,
+      "log": "/private/tmp/eldiron-release-stencil-platform-browser.log"
+    },
+    {
+      "step": "native-launchers",
+      "exit": 0,
+      "seconds": 71.87816370799999,
+      "log": "/private/tmp/eldiron-release-stencil-platform-native-launchers.log"
+    },
+    {
+      "step": "cpu-terminal",
+      "exit": 0,
+      "seconds": 42.74367604100007,
+      "log": "/private/tmp/eldiron-release-stencil-platform-cpu-terminal.log"
+    },
+    {
+      "step": "versioned-launchers",
+      "exit": 0,
+      "seconds": 0.320970041999999,
+      "log": "/private/tmp/eldiron-release-stencil-platform-versioned-launchers.log"
+    }
+  ],
+  "physical_input_display_verified": false
+}

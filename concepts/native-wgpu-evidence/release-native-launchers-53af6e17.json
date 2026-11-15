@@ -1,0 +1,28 @@
+{
+  "source_commit": "53af6e17",
+  "profile": "release",
+  "directory": "/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/target/native-wgpu-release-53af6e17",
+  "isolated_cpu_terminal": true,
+  "files": [
+    {
+      "name": "eldiron-creator",
+      "bytes": 104223568,
+      "sha256": "544da056f024a1c2e66d868d1f2d1a697da1a825aaa277f8e5728b291713fe90"
+    },
+    {
+      "name": "eldiron-client-wgpu",
+      "bytes": 69064656,
+      "sha256": "bdee12047243c27136d84997243910072df4c7839f1f3c5197b65358a8531f0e"
+    },
+    {
+      "name": "eldiron-client",
+      "bytes": 69060896,
+      "sha256": "d9069373480eebf6dfeb69d9798000c35acc8623651fe2ff2861b4f4b6bca11d"
+    },
+    {
+      "name": "eldiron-client-terminal",
+      "bytes": 48920432,
+      "sha256": "4a245a359710ee099674115de05a9e86255089d98745f2e398c771d21a893520"
+    }
+  ]
+}

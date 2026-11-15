@@ -36,7 +36,7 @@ No percentage is mechanically measured; the chat's roughly85% is an estimate.
   and common-player13. Frozen mixed UI RGBA is byte-exact.
   Actual browser four-case source/recovery/150% resize, both optimized Apple
   hosts and both UIKit runtimes pass on3022c8cb before the stencil refinement;
-  current format/platform and launcher refresh follows. All29 isolated
+  current53af6e17 format/platform and all four versioned release launchers pass. All29 isolated
   dependency configurations pass on3022c8cb; no feature/dependency changes since.
   CPU suite has835 passes and the same six shipped-data baseline failures.
   Specialized ignored Creator contracts remain separately inventoried; this is
@@ -18942,3 +18942,93 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   existing completion_wait_ms is a CPU fence wait, not a GPU timestamp. Check
   actual supported adapter features and add optional diagnostic timing only
   if supported; do not confuse instrumented runs with normal release timings.
+
+- Final current-source release platform step boundaries: terminal exit0; /private/tmp/eldiron-release-stencil-platform-boundaries.log. Physical acceptance is not implied.
+
+- Final current-source release platform step creator-apple: terminal exit0; /private/tmp/eldiron-release-stencil-platform-creator-apple.log. Physical acceptance is not implied.
+
+- Final current-source release platform step player-apple: terminal exit0; /private/tmp/eldiron-release-stencil-platform-player-apple.log. Physical acceptance is not implied.
+
+- Final current-source release platform step creator-uikit: terminal exit0; /private/tmp/eldiron-release-stencil-platform-creator-uikit.log. Physical acceptance is not implied.
+
+- Final current-source release platform step player-uikit: terminal exit0; /private/tmp/eldiron-release-stencil-platform-player-uikit.log. Physical acceptance is not implied.
+
+- Final current-source release platform step creator-web: terminal exit0; /private/tmp/eldiron-release-stencil-platform-creator-web.log. Physical acceptance is not implied.
+
+- Final current-source release platform step player-web: terminal exit0; /private/tmp/eldiron-release-stencil-platform-player-web.log. Physical acceptance is not implied.
+
+- Final current-source release platform step browser: terminal exit0; /private/tmp/eldiron-release-stencil-platform-browser.log. Physical acceptance is not implied.
+
+- Final current-source release platform step native-launchers: terminal exit0; /private/tmp/eldiron-release-stencil-platform-native-launchers.log. Physical acceptance is not implied.
+
+- Current53af6e17 actual stencil-format platform checks PASS: both optimized
+  Apple hosts, both owned UIKit runtimes, both optimized browser packages and
+  all four actual Chrome152Metal8storage150%source/recovery/resize cases.
+  CreatorUnending retained-ground store/restore observed before/after loss/resize;
+  normal color readback/copies, Canvas2D, GPU/JS errors0. PhysicalIMEfalse;
+  Macstilllocked, AppKit lifetime-only0presentations is not display proof.
+  Durable release-stencil-browser-summary.json/allstates/images, both
+  release-stencil-uikit JSONs and release-stencil-apple-hosts.json/logs.
+- Serialized platform handle36022 now refreshes native Creator+both graphical
+  launchers, then isolated CPU terminal and copies all four versioned release
+  executables with SHA256 and source guard. No Rust edits or profile process
+  until its terminal state. Xcode Metal System Trace is installed; record the
+  owned release benchmark afterward for GPU/CPU attribution. Normal120sample
+  measurements above remain separate from instrumented trace timing.
+
+- Final current-source release platform step cpu-terminal: terminal exit0; /private/tmp/eldiron-release-stencil-platform-cpu-terminal.log. Physical acceptance is not implied.
+
+- Final current-source release platform step versioned-launchers: terminal exit0; /private/tmp/eldiron-release-stencil-platform-versioned-launchers.log. Physical acceptance is not implied.
+
+- Entire final stencil platform/launcher36022 terminalPASS11steps: both Apple
+  hosts, both owned UIKit runtimes, both web packages, all four actual browser
+  cases, separate native and CPU-terminal release builds, source-guarded copies.
+  Versioned runnable binaries: target/native-wgpu-release-53af6e17 (Creator,
+  both common graphical entry points and independent terminal), SHA256 manifest.
+  Durable release-stencil-platforms.json and release-native-launchers-53af6e17.json.
+- Current owned release Metal System Trace follows with native UnendingNight,
+  actual150%,120frames/mode, last12seconds retained and60s cap. xctrace also
+  supplies sampled CPU attribution. /private/tmp/eldiron-release-metal-trace.log.
+  Instrumented numbers are attribution only, not normal frame-time baseline.
+  No compiler/test/profile overlaps or Rust edits until trace handle terminal.
+
+- Owned Metal trace79407 terminalPASS, actual target21986 exit0 and benchmark
+  PASS1/1 in20.68s; record+TOC+threeexports succeeded. Evidence root
+  /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-release-metal-vwste5yt.
+  Windowed12s request retained only final20.940..21.794s CPU samples(890) and
+  3022owned GPU intervals, so do NOT use it as full pan/zoom attribution.
+  GPU channel intervals and exact encoder IDs are available; Vertex/Fragment
+  overlap and nested depths must not be double-counted. Full capture and
+  test-only phase wall-clock markers follow, with normal timing fields unchanged.
+
+- Test-only optional ELDIRON_BENCH_TRACE_PHASES now adds absolute per-mode
+  wall-clock bounds outside individual samples; normal metrics/production code
+  unchanged. Release compile90518 terminalPASS(1m05s). Full nonwindowed Metal
+  trace1615 terminalPASS record+TOC with phase bounds, root
+  /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-release-metal-full-1bo8v6ih.
+  Source base53af6e17 plus only test-harness marker delta; ship launchers remain53.
+- CPU-only Time Profiler now runs separately with the same owned release
+  benchmark and phase markers, /private/tmp/eldiron-release-cpu-full-trace.log.
+  First windowed Metal sample included substantial kdebug instrumentation
+  overhead, so do not infer production CPU costs from that traced stack share.
+  Do not compile/test or run another profile until current profile terminal.
+
+- Full nonwindowed GPU and separate CPU-only traces terminalPASS; both owned
+  release benchmark children exited0/PASS1. Full data spans all four explicit
+  phase bounds. LLVM tool demangles Rust symbols; analysis resolves XML refs,
+  targetPID only,2ms clock guard, depth0Active GPU intervals, unions overlapping
+  Vertex/Fragment/Compute channels instead of double-counting. Encoder-label
+  join has0unmatched events. WGPU Metal relabels the last command buffer to
+  `(wgpu internal) Signal`, so that label is NOT solely extra fence overhead
+  nor an identified original compute kernel. Stage distributions are encoder
+  intervals, not logical frame times. CPU weights are1ms statistical samples.
+  Durable release-profile-attribution.json, method snapshot, compact normalized
+  CPU/GPU records and both instrumented120sampleJSONs. Private raw traces staytmp.
+- Concrete CPU-only pan finding:3876render-frame samples; immutableRangeCache
+  upload16.95%inclusive, geometry16.49%, SipHasher.write9.49%leaf. RangeCache
+  and dedicatedBufferCache use full-byte SipHash fingerprints AND exact bytes
+  in collision buckets. Replace only the fingerprint with already locked
+  rustc-hash2.1.1 FxHasher; preserve equality checks, usage/length keys, source
+  ownership and every existing cache/physical-page budget. No hash-only keys,
+  shader/data/format changes or speculative renderer rewrite. Verify original
+  ownership/budget/pixel contracts and fresh normal release timings before keep.
