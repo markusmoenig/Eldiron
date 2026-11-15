@@ -6,7 +6,10 @@ use shared::iso_paint_render::stamp_billboards::{
     StampSpritePreparation, StampSpriteRequest, StampSpriteSet,
 };
 #[cfg(not(target_arch = "wasm32"))]
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+#[cfg(not(target_arch = "wasm32"))]
+use super::cpu_jobs::Slot;
 
 type Scope = (Uuid, ProjectContext, Uuid, Option<Uuid>);
 #[derive(Default)]
@@ -150,28 +153,6 @@ impl Owner {
                 }
             }
         }
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-static ACTIVE: AtomicUsize = AtomicUsize::new(0);
-#[cfg(not(target_arch = "wasm32"))]
-struct Slot;
-#[cfg(not(target_arch = "wasm32"))]
-impl Slot {
-    fn acquire() -> Option<Self> {
-        ACTIVE
-            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-                (n < 2).then_some(n + 1)
-            })
-            .ok()
-            .map(|_| Self)
-    }
-}
-#[cfg(not(target_arch = "wasm32"))]
-impl Drop for Slot {
-    fn drop(&mut self) {
-        ACTIVE.fetch_sub(1, Ordering::Release);
     }
 }
 

@@ -47,7 +47,7 @@ pub struct ViewCapture {
 struct SceneView {
     scene: SceneHandler,
     editor_source: Option<Arc<rusterix::scene_build_index::SceneBuildSnapshot>>,
-    game_surface_paint: Option<Arc<rusterix::surface_paint::SurfacePaint>>,
+    surface_paint_source: Option<Arc<rusterix::surface_paint::SurfacePaint>>,
     isometric: bool,
     isometric_renderer: Option<crate::isometric::IsometricSceneRenderer>,
     isometric_frame: Option<crate::isometric::IsometricPreparedFrame>,
@@ -123,7 +123,7 @@ impl SceneViews {
             SceneView {
                 scene: SceneHandler::with_vm(vm),
                 editor_source: None,
-                game_surface_paint: None,
+                surface_paint_source: None,
                 isometric: false,
                 isometric_renderer: None,
                 isometric_frame: None,

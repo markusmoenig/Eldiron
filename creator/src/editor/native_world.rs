@@ -7,6 +7,11 @@ mod paste;
 mod source;
 #[path = "native_world_stamps.rs"]
 mod stamps;
+#[path = "native_world_paint.rs"]
+mod paint;
+#[cfg(not(target_arch = "wasm32"))]
+#[path = "native_world_cpu_jobs.rs"]
+mod cpu_jobs;
 #[path = "native_world_navigation.rs"]
 mod navigation;
 #[path = "native_world_visibility.rs"]
@@ -231,7 +236,7 @@ struct WorldGpu {
     scene_source: Option<Arc<SceneBuildSnapshot>>,
     guides: rusterix::scenebuilder::d2preview::D2PreviewBuilder,
     guide_scene: rusterix::Scene,
-    paint: SharedIsoPaintRenderCache,
+    paint_ready: bool,
     stamp_uploaded: Option<stamps::UploadKey>,
     stamps_ready: bool,
     icons: GpuIcons,
@@ -256,7 +261,7 @@ impl WorldGpu {
             scene_source: None,
             guides: Default::default(),
             guide_scene: Default::default(),
-            paint: Default::default(),
+            paint_ready: true,
             stamp_uploaded: None,
             stamps_ready: true,
             icons: GpuIcons::new(images.context().clone(), 16 * 1024 * 1024, 512)
@@ -375,7 +380,7 @@ pub(super) struct NativeWorldFrame {
     custom_content: Option<u64>,
     source: Arc<SceneBuildSnapshot>,
     ready: bool,
-    waiting_cpu_stamps: bool,
+    waiting_cpu_sources: bool,
     camera: Option<CameraStamp>,
     output: ViewImage,
     baked: bool,
@@ -389,6 +394,7 @@ pub(super) struct NativeWorldFrame {
 pub(crate) struct NativeWorld {
     source: Option<source::Publication>,
     stamps: stamps::Owner,
+    uv: paint::Owner,
     bake_jobs: bake_job::Jobs,
     paste: Option<paste::Preview>,
     binding: Option<Binding>,
@@ -437,6 +443,7 @@ impl Default for NativeWorld {
         Self {
             source: None,
             stamps: Default::default(),
+            uv: Default::default(),
             bake_jobs: Default::default(),
             paste: None,
             binding: None,
@@ -707,12 +714,15 @@ fn isometric_input(
 }
 impl Editor {
     pub(super) fn native_world_waiting(&self) -> bool {
-        self.native_world_owns_viewport()
-            && self.native_viewport.world.binding.is_some()
-            && (self.native_viewport.world.presented.as_ref().map_or(!self.native_viewport.world.stamps.failed(), |frame| {
-                !frame.ready && (!frame.waiting_cpu_stamps || !self.native_viewport.world.stamps.waits_for_wake())
-            })
-                || self.native_viewport.world.gpu.as_ref().is_some_and(|gpu| gpu.bake.waiting()))
+        let world = &self.native_viewport.world;
+        let waits_for_wake = world.gpu.as_ref().is_some_and(|gpu| {
+            (gpu.paint_ready || world.uv.waits_for_wake())
+                && (gpu.stamps_ready || world.stamps.waits_for_wake())
+        });
+        self.native_world_owns_viewport() && world.binding.is_some()
+            && (world.presented.as_ref().map_or(!world.stamps.failed() && !world.uv.failed(), |frame| {
+                !frame.ready && (!frame.waiting_cpu_sources || !waits_for_wake)
+            }) || world.gpu.as_ref().is_some_and(|gpu| gpu.bake.waiting()))
     }
 
     fn bind_native_world(&mut self, next: Option<Binding>, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -1021,6 +1031,7 @@ impl Editor {
         self.bind_native_world(next.clone(), ui, ctx);
         let Some(binding) = next else {
             self.native_viewport.world.stamps.clear();
+            self.native_viewport.world.uv.clear();
             return Ok(None);
         };
         if ctx
@@ -1059,8 +1070,10 @@ impl Editor {
         let world = &mut self.native_viewport.world;
         if binding.mode == EditorViewMode::D2 || binding.custom.is_some() {
             world.stamps.clear();
+            world.uv.clear();
         } else {
             world.stamps.scope((binding.document, binding.context, binding.map, binding.runtime));
+            world.uv.scope((binding.document, binding.context, binding.map, binding.runtime));
         }
         if world
             .gpu
@@ -1117,7 +1130,7 @@ impl Editor {
             gpu.scene_source = None;
             gpu.guides = Default::default();
             gpu.guide_scene = Default::default();
-            gpu.paint = Default::default();
+            gpu.paint_ready = true;
             gpu.stamp_uploaded = None;
             gpu.stamps_ready = true;
         }
@@ -1219,6 +1232,20 @@ impl Editor {
                 .scene_source
                 .as_ref()
                 .is_some_and(|old| Arc::ptr_eq(old, &source));
+        let paint = if camera.is_some() && binding.custom.is_none() {
+            Some(paint::capture(&self.documents.project, &self.server_ctx, map, assets)?)
+        } else { None };
+        if let Some(paint) = &paint {
+            let limit = u64::from(images.registry.context().device.limits().max_storage_buffer_binding_size);
+            let publication = world.uv.request(paint, limit)?;
+            gpu.paint_ready = publication.is_some();
+            if let Some(publication) = publication {
+                gpu.scenes.set_surface_paint_source(gpu.view, publication.source()).map_err(|e| e.to_string())?;
+            }
+        } else {
+            gpu.paint_ready = true;
+            gpu.scenes.set_surface_paint_source(gpu.view, None).map_err(|e| e.to_string())?;
+        }
         if !same_scene {
             if gpu.projection_paste != binding.paste {
                 rusterix::chunkbuilder::terrain_surface::TerrainSurface::invalidate_cached(map.id);
@@ -1284,22 +1311,7 @@ impl Editor {
                         Some(map),
                         paste_ignored.as_deref(),
                     );
-                    let selection = self.server_ctx.shared.curr_map_tool_type == MapToolType::IsoPaint;
-                    let mut paint = if let ProjectContext::Prefab(id) = self.server_ctx.shared.pc {
-                        self.documents.project.block_prop_paint.get(&id)
-                            .map(|paint| paint.presentation_source(selection)).unwrap_or_default()
-                    } else {
-                        let region = self.documents.project.get_region_ctx(&self.server_ctx.shared)
-                            .ok_or("native 3D region removed")?;
-                        let mut paint = region.iso_paint.presentation_source(selection);
-                        crate::block_props::merge_prefab_paint_source_for_map(
-                            &mut paint, map, &assets.block_props,
-                            &self.documents.project.block_prop_paint,
-                            false,
-                        );
-                        paint
-                    };
-                    paint.selection_visible = selection;
+                    let paint = paint.as_ref().ok_or("missing native UV snapshot")?;
                     let has_paint = (paint.visible
                         && (!paint.surface_commit_strokes.is_empty()
                             || !paint.chunks.is_empty()
@@ -1310,9 +1322,8 @@ impl Editor {
                         scene.vm.execute(scenevm::Atom::SetCamera3D {
                             camera: camera_frame,
                         });
-                        IsoPaintRenderer::upload_surface_paint_cached(&mut gpu.paint, &mut paint, &mut scene.vm);
-                        if let Some(sprites) = world.stamps.request(&paint)? {
-                            stamps::upload(&sprites, &paint, &mut scene.vm, camera_frame,
+                        if let Some(sprites) = world.stamps.request(paint)? {
+                            stamps::upload(&sprites, paint, &mut scene.vm, camera_frame,
                                 binding.size.1 as u32, &mut gpu.stamp_uploaded)?;
                             gpu.stamps_ready = true;
                         } else {
@@ -1321,7 +1332,7 @@ impl Editor {
                     } else {
                         scene.vm.execute(scenevm::Atom::ClearRaster3DPaintOverlay);
                         scene.vm.execute(scenevm::Atom::ClearPaintBillboards);
-                        gpu.paint = Default::default();
+                        gpu.paint_ready = true;
                         gpu.stamp_uploaded = None;
                         gpu.stamps_ready = true;
                         world.stamps.clear();
@@ -1589,8 +1600,8 @@ impl Editor {
         view.set_paint_list(Some(list.clone()))
             .map_err(|e| e.to_string())?;
         world.published = Some((binding.view.clone(), list));
-        let waiting_cpu_stamps = ready && !gpu.stamps_ready;
-        let ready = ready && gpu.stamps_ready;
+        let waiting_cpu_sources = ready && (!gpu.stamps_ready || !gpu.paint_ready);
+        let ready = ready && gpu.stamps_ready && gpu.paint_ready;
         Ok(Some(Arc::new(NativeWorldFrame {
             binding,
             target,
@@ -1598,7 +1609,7 @@ impl Editor {
             custom_content,
             source,
             ready,
-            waiting_cpu_stamps,
+            waiting_cpu_sources,
             camera: camera_stamp,
             output,
             baked,

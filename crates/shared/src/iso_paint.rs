@@ -564,7 +564,7 @@ pub struct IsoPaintSelectionChunk {
     pub owner: IsoPaintOwner,
     pub paint_geo: [u32; 4],
     pub origin: [i32; 2],
-    pub mask: Vec<u8>,
+    pub mask: SharedBytes,
 }
 
 impl IsoPaintSelectionChunk {
@@ -576,7 +576,8 @@ impl IsoPaintSelectionChunk {
             mask: vec![
                 0;
                 ISO_PAINT_BAKED_CHUNK_SIZE as usize * ISO_PAINT_BAKED_CHUNK_SIZE as usize
-            ],
+            ]
+            .into(),
         }
     }
 }

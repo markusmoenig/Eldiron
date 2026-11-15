@@ -55,7 +55,7 @@ behavior is ready to verify.
 ## Next work
 
 1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,18 retained standard control families, static collection/property-layout contributions and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
-2. Close live source residency, catalogue capture and remaining UV/player source policy. Player UV pages now share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection and player stamp publication still need ownership integration. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
+2. Close live source residency, catalogue capture and remaining UV/player source policy. Player UV pages share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection now has an owned page publication below. Player stamp publication still needs ownership integration. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
 ## Blockers
@@ -14372,3 +14372,63 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   the native3D upload_surface_paint_cached call with a retained page publication
   and preserving its transient selection composition. GPU residency limits and
   cooperative bulk source scheduling remain distinct open requirements.
+
+## Owned Creator live UV/selection publication (2026-11-15, integration active)
+
+- Previous goal turn was progress (31f9a874/5c0ee776). Tracked worktree clean at
+  preflight; unrelated networking concept untouched/untracked. Continued the
+  real Creator UV source handoff instead of running isolated bake tests.
+- Added camera-independent SurfacePaintRequest/Preparation/Publication. Requests
+  retain only current UV planes, active selection and alpha-owner metadata;
+  equality is exact, not a hash-only cache decision. Preparation classifies
+  original alpha, composes selection in 64-pixel units, initializes metadata in
+  256-slot units, and emits shared original pages with no stitched CPU atlas.
+  Advance checks elapsed time between work units (2ms policy). Final metadata
+  conversion/validation, source capture and bulk GPU upload remain separate
+  scheduling/resource work; no measured latency guarantee is claimed.
+- Selection masks now use the established SharedBytes copy-on-write CPU backing
+  instead of Vec, with the same serde byte-sequence representation. This avoids
+  copying every active mask on camera snapshots. Boundary detection and blue
+  source-over blending were extracted from the existing reference helper and
+  shared with the new preparation path. Hidden-paint selection keeps original
+  alpha classification; malformed mask sizes fail before neighbor sampling.
+- Creator owns the current publication across GPU/camera changes. New requests
+  retire queued/running old work; native CPU jobs publish complete owned results
+  before waking, and browser jobs advance cooperatively. UV/stamp workers now
+  share two global native admission slots rather than adding another worker
+  pool. Cancellation/retirement releases a slot only when the actual job stops.
+- Generalized SceneViews' immutable per-device paint-source binding for editor
+  and game consumers. Canonical Creator3D no longer calls the stitched-atlas
+  upload_surface_paint_cached helper. Pending UV/stamp publications participate
+  in the root frame readiness/input guard and owned worker/deadline scheduling.
+  Document/context/map/runtime, hidden/custom/D2 and GPU generations retain the
+  existing scope rules. Only the authoring update makes paint current; CPU jobs
+  never borrow the live document, VM, widgets or GPU resources.
+- Initial release compilation found an IndexMap iterator inference error and
+  then a UiFrameImages registry-context accessor error; both were corrected.
+  Diagnostics:/private/tmp/eldiron-creator-live-uv-source-release{,-fixed}.log.
+  Integrated native release compilation is pending. No broad functional/GPU/
+  performance suite run per user steering. Current wire compatibility, exact
+  selection/alpha pixels, edit/undo/pending work, scope/device retirement and
+  actual browser/native timing remain integrated acceptance requirements.
+- Full M0-M9 Goal remains active. Live GPU residency, bulk source capture/upload
+  scheduling, player stamps, remaining ownership/adapters and platform/resource/
+  matched release performance acceptance remain open.
+- Integrated canonical four-application release compilation PASS17.73s;
+  isolated shared --no-default-features CPU release PASS3.30s; browser Creator
+  release PASS16.84s. Logs:/private/tmp/eldiron-creator-live-uv-source-release-integrated.log,
+  /private/tmp/eldiron-creator-live-uv-source-release-cpu.log and
+  /private/tmp/eldiron-creator-live-uv-source-release-web.log. Compilation only;
+  no new functional/GPU/performance run or full milestone signoff inferred.
+- Metadata-limit changes now retire/retry pending or failed CPU preparation
+  while retaining a complete camera-independent publication. This prevents a
+  sticky smaller-device limit failure from blocking a later capable device.
+  Final native/browser release checks for this refinement are pending.
+- Final canonical release compilation PASS11.94s and final browser Creator
+  release PASS11.39s after metadata-limit retry handling. Logs:
+  /private/tmp/eldiron-creator-live-uv-source-release-final.log and
+  /private/tmp/eldiron-creator-live-uv-source-release-web-final.log. All compiler
+  handles terminal; git diff --check passes. No functional/GPU/performance suite
+  ran. Continuous paint/selection gestures while UV publications are pending,
+  presented-frame input readiness and current selection serialization must be
+  included in the consolidated acceptance run. Full Goal remains active.

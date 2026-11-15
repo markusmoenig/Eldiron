@@ -138,7 +138,7 @@ impl SceneViews {
             .views
             .values()
             .filter_map(|view| {
-                view.game_surface_paint
+                view.surface_paint_source
                     .as_ref()
                     .map(|source| Arc::as_ptr(source) as usize)
             })
@@ -147,7 +147,8 @@ impl SceneViews {
             .bindings
             .retain(|identity, _| live.contains(identity));
     }
-    pub(crate) fn apply_game_surface_paint(
+    /// Bind immutable CPU paint pages on this view's injected device.
+    pub fn set_surface_paint_source(
         &mut self,
         id: ViewId,
         source: Option<&Arc<SurfacePaint>>,
@@ -156,7 +157,7 @@ impl SceneViews {
             .views
             .get(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
-        let same = match (&view.game_surface_paint, source) {
+        let same = match (&view.surface_paint_source, source) {
             (None, None) => true,
             (Some(old), Some(next)) => Arc::ptr_eq(old, next),
             _ => false,
@@ -178,7 +179,8 @@ impl SceneViews {
                 .vm
                 .execute(scenevm::Atom::ClearRaster3DPaintOverlay);
         }
-        view.game_surface_paint = source.cloned();
+        view.surface_paint_source = source.cloned();
+        view.dirty = true;
         self.retire_unused_surface_paint();
         Ok(())
     }

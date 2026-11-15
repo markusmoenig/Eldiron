@@ -1,5 +1,6 @@
 pub mod stamp_billboards;
 mod stamp_raster;
+pub mod surface_source;
 pub use stamp_raster::{StampRecipe, StampWork};
 use crate::iso_paint::ISO_PAINT_NO_SURFACE_DEPTH;
 use crate::iso_paint_brush::{self, IsoPaintBrushSample};
@@ -328,6 +329,62 @@ impl IsoPaintRenderer {
         chunks
     }
 
+    pub(super) fn selection_chunk_target(
+        chunks: &mut IndexMap<String, IsoPaintBakedChunk>,
+        selection_chunk: &IsoPaintSelectionChunk,
+    ) -> String {
+        let existing_key = chunks.iter().find_map(|(key, chunk)| {
+            (chunk.paint_geo == selection_chunk.paint_geo && chunk.origin == selection_chunk.origin)
+                .then(|| key.clone())
+        });
+        existing_key.unwrap_or_else(|| {
+            let key = format!(
+                "selection:{}:{}:{}:{}:{}:{}",
+                selection_chunk.paint_geo[0],
+                selection_chunk.paint_geo[1],
+                selection_chunk.paint_geo[2],
+                selection_chunk.paint_geo[3],
+                selection_chunk.origin[0],
+                selection_chunk.origin[1]
+            );
+            chunks.insert(
+                key.clone(),
+                IsoPaintBakedChunk::new(
+                    selection_chunk.owner.clone(),
+                    selection_chunk.paint_geo,
+                    selection_chunk.origin,
+                ),
+            );
+            key
+        })
+    }
+    pub(super) fn selection_chunk_pixel(
+        selection: &IsoPaintSelection,
+        selection_chunk: &IsoPaintSelectionChunk,
+        chunk: &mut IsoPaintBakedChunk,
+        index: usize,
+    ) {
+        if selection_chunk.mask[index] == 0 {
+            return;
+        }
+        let chunk_size = ISO_PAINT_BAKED_CHUNK_SIZE as usize;
+        let local_x = index % chunk_size;
+        let local_y = index / chunk_size;
+        let uv_pixel = [
+            selection_chunk.origin[0] + local_x as i32,
+            selection_chunk.origin[1] + local_y as i32,
+        ];
+        let boundary = [(-1, 0), (1, 0), (0, -1), (0, 1)].iter().any(|offset| {
+            !selection.contains(
+                selection_chunk.paint_geo,
+                [uv_pixel[0] + offset.0, uv_pixel[1] + offset.1],
+            )
+        });
+        if boundary {
+            Self::iso_paint_blend_pixel_at(&mut chunk.color_rgba, index * 4, [42, 174, 255, 220]);
+        }
+    }
+
     /// Compose the transient editor selection into a render-only copy of the authored chunks.
     /// The mask lives in the same stable per-face UV space as paint, so this highlight follows
     /// the selected wall surfaces instead of behaving like a screen-space rectangle.
@@ -348,58 +405,10 @@ impl IsoPaintRenderer {
         };
 
         for selection_chunk in selection.chunks.values() {
-            let existing_key = chunks.iter().find_map(|(key, chunk)| {
-                (chunk.paint_geo == selection_chunk.paint_geo
-                    && chunk.origin == selection_chunk.origin)
-                    .then(|| key.clone())
-            });
-            let key = existing_key.unwrap_or_else(|| {
-                let key = format!(
-                    "selection:{}:{}:{}:{}:{}:{}",
-                    selection_chunk.paint_geo[0],
-                    selection_chunk.paint_geo[1],
-                    selection_chunk.paint_geo[2],
-                    selection_chunk.paint_geo[3],
-                    selection_chunk.origin[0],
-                    selection_chunk.origin[1]
-                );
-                chunks.insert(
-                    key.clone(),
-                    IsoPaintBakedChunk::new(
-                        selection_chunk.owner.clone(),
-                        selection_chunk.paint_geo,
-                        selection_chunk.origin,
-                    ),
-                );
-                key
-            });
-            let Some(chunk) = chunks.get_mut(&key) else {
-                continue;
-            };
-            let chunk_size = ISO_PAINT_BAKED_CHUNK_SIZE as usize;
-            for (index, selected) in selection_chunk.mask.iter().copied().enumerate() {
-                if selected == 0 {
-                    continue;
-                }
-                let local_x = index % chunk_size;
-                let local_y = index / chunk_size;
-                let uv_pixel = [
-                    selection_chunk.origin[0] + local_x as i32,
-                    selection_chunk.origin[1] + local_y as i32,
-                ];
-                let boundary = [(-1, 0), (1, 0), (0, -1), (0, 1)].iter().any(|offset| {
-                    !selection.contains(
-                        selection_chunk.paint_geo,
-                        [uv_pixel[0] + offset.0, uv_pixel[1] + offset.1],
-                    )
-                });
-                if boundary {
-                    Self::iso_paint_blend_pixel_at(
-                        &mut chunk.color_rgba,
-                        index * 4,
-                        [42, 174, 255, 220],
-                    );
-                }
+            let key = Self::selection_chunk_target(&mut chunks, selection_chunk);
+            let Some(chunk) = chunks.get_mut(&key) else { continue; };
+            for index in 0..selection_chunk.mask.len() {
+                Self::selection_chunk_pixel(selection, selection_chunk, chunk, index);
             }
             chunk.revision = chunk.revision.wrapping_add(1);
         }
