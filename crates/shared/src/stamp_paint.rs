@@ -3,6 +3,8 @@ use crate::iso_paint::{IsoPaintChunk, IsoPaintLayer, IsoPaintStamp};
 use rusterix::stamp_paint::{StampPaint, StampRecipe};
 use std::sync::Arc;
 use theframework_core::Uuid;
+mod layer;
+pub use layer::StampLayerPreparation;
 
 pub fn sync(assets: &mut rusterix::Assets, map: Uuid, layer: &mut IsoPaintLayer) -> bool {
     if !layer.visible {
@@ -57,34 +59,38 @@ pub fn presentation_layer(source: &StampPaint) -> IsoPaintLayer {
     let mut layer = IsoPaintLayer::default();
     let mut chunk = IsoPaintChunk::new([0; 2]);
     for (order, stamp) in source.stamps.iter().enumerate() {
-        chunk.stamps.push(IsoPaintStamp {
-            source: None,
-            source_image: stamp.source_image.clone(),
-            source_material_pass: stamp.source_material_pass,
-            id: stamp.id,
-            order: order as u64,
-            kind: stamp.kind.clone(),
-            screen: [0; 2],
-            world: stamp.world,
-            surface_uv: stamp.surface_uv,
-            paint_geo: stamp.paint_geo,
-            surface_normal: None,
-            owner: None,
-            sort_depth: 0.,
-            size: stamp.size,
-            camera_scale: stamp.camera_scale,
-            viewport_size: stamp.viewport_size,
-            variant: stamp.variant.clone(),
-            rotation: stamp.rotation,
-            variation: stamp.variation,
-            material_id: stamp.material_id,
-            color: stamp.color,
-            palette_indices: Vec::new(),
-            palette_colors: stamp.palette_colors.clone(),
-            opacity: stamp.opacity,
-            screen_bounds: [0; 4],
-        });
+        chunk.stamps.push(presentation_stamp(stamp, order));
     }
     layer.chunks.insert("runtime-stamps".into(), chunk);
     layer
+}
+
+fn presentation_stamp(stamp: &StampRecipe, order: usize) -> IsoPaintStamp {
+    IsoPaintStamp {
+        source: None,
+        source_image: stamp.source_image.clone(),
+        source_material_pass: stamp.source_material_pass,
+        id: stamp.id,
+        order: order as u64,
+        kind: stamp.kind.clone(),
+        screen: [0; 2],
+        world: stamp.world,
+        surface_uv: stamp.surface_uv,
+        paint_geo: stamp.paint_geo,
+        surface_normal: None,
+        owner: None,
+        sort_depth: 0.,
+        size: stamp.size,
+        camera_scale: stamp.camera_scale,
+        viewport_size: stamp.viewport_size,
+        variant: stamp.variant.clone(),
+        rotation: stamp.rotation,
+        variation: stamp.variation,
+        material_id: stamp.material_id,
+        color: stamp.color,
+        palette_indices: Vec::new(),
+        palette_colors: stamp.palette_colors.clone(),
+        opacity: stamp.opacity,
+        screen_bounds: [0; 4],
+    }
 }

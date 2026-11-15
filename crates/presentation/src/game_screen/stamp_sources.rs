@@ -4,7 +4,7 @@ use super::*;
 use rusterix::stamp_paint::StampPaint;
 use shared::iso_paint::IsoPaintLayer;
 use shared::iso_paint_render::stamp_billboards::{
-    StampSpritePreparation, StampSpriteRequest, StampSpriteSet,
+    StampRequestCapture, StampSpritePreparation, StampSpriteRequest, StampSpriteSet,
 };
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -19,6 +19,8 @@ pub(super) struct Sources {
     scope: Option<(Uuid, Uuid)>,
     source: Option<Arc<StampPaint>>,
     layer: Option<Arc<IsoPaintLayer>>,
+    layer_preparation: Option<shared::stamp_paint::StampLayerPreparation>,
+    capture: Option<StampRequestCapture>,
     request: Option<StampSpriteRequest>,
     ready: Option<Arc<StampSpriteSet>>,
     ready_matches: bool,
@@ -40,6 +42,16 @@ impl Sources {
         }
     }
     pub fn cancel_pending(&mut self) {
+        if self.layer_preparation.is_some() || self.capture.is_some() {
+            // An inactive screen may return with the same published Arc. Force
+            // adaptation to restart rather than matching an abandoned capture.
+            self.source = None;
+            self.layer = None;
+            self.request = None;
+            self.ready_matches = false;
+        }
+        self.layer_preparation = None;
+        self.capture = None;
         self.queued = None;
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -54,6 +66,9 @@ impl Sources {
         self.queued.is_some()
     }
     pub fn pending(&self) -> bool {
+        if self.layer_preparation.is_some() || self.capture.is_some() {
+            return true;
+        }
         if self.failure.is_some() {
             return false;
         }
@@ -79,34 +94,21 @@ impl Sources {
             self.cancel_pending();
             self.failure = None;
             self.source = source.cloned();
-            self.layer =
-                source.map(|source| Arc::new(shared::stamp_paint::presentation_layer(source)));
-            self.request = self
-                .layer
-                .as_ref()
-                .map(|layer| StampSpriteRequest::capture(layer));
-            self.ready_matches = self.request.as_ref().is_some_and(|request| {
-                self.ready
-                    .as_ref()
-                    .is_some_and(|ready| ready.matches(request))
-            });
-            if source.is_none() {
+            self.layer = None;
+            if let Some(source) = source {
+                self.layer_preparation = Some(shared::stamp_paint::StampLayerPreparation::new(
+                    source.clone(),
+                ));
+            } else {
+                self.request = None;
                 self.ready = None;
+                self.ready_matches = false;
             }
             self.changed = true;
         }
-        let Some(request) = &self.request else {
+        self.advance_capture(4096)?;
+        if self.layer_preparation.is_some() || self.capture.is_some() {
             return Ok(None);
-        };
-        if !self.ready_matches && !self.busy() && self.failure.is_none() {
-            let mut prep = request.clone().prepare(self.ready.clone());
-            if request.is_empty() {
-                prep.advance(0)?;
-                self.ready = Some(Arc::new(prep.finish()?));
-                self.ready_matches = true;
-            } else {
-                self.queued = Some(prep);
-            }
         }
         if let Some(error) = &self.failure {
             return Err(error.clone());
@@ -119,6 +121,49 @@ impl Sources {
                 layer: self.layer.as_ref().unwrap().clone(),
                 pixels: pixels.clone(),
             }))
+    }
+
+    fn advance_capture(&mut self, items: usize) -> Result<(), String> {
+        if let Some(preparation) = &mut self.layer_preparation {
+            if !preparation.advance(items) {
+                return Ok(());
+            }
+            let layer = Arc::new(self.layer_preparation.take().unwrap().finish()?);
+            self.capture = Some(StampSpriteRequest::begin_capture_with_previous(
+                &layer,
+                self.request.as_ref(),
+            ));
+            self.layer = Some(layer);
+            // Adaptation and recipe validation each get a separate turn.
+            self.changed = true;
+            return Ok(());
+        }
+        if let Some(capture) = &mut self.capture {
+            if !capture.advance(items) {
+                return Ok(());
+            }
+            let (request, same_visuals) = self.capture.take().unwrap().finish_with_previous()?;
+            if !same_visuals {
+                self.ready_matches = !self.ready_matches
+                    && self.ready.as_ref().is_some_and(|set| set.matches(&request));
+            }
+            self.request = Some(request);
+            self.changed = true;
+        }
+        let Some(request) = &self.request else {
+            return Ok(());
+        };
+        if !self.ready_matches && !self.busy() && self.failure.is_none() {
+            let mut prep = request.clone().prepare(self.ready.clone());
+            if request.is_empty() {
+                prep.advance(0)?;
+                self.ready = Some(Arc::new(prep.finish()?));
+                self.ready_matches = true;
+            } else {
+                self.queued = Some(prep);
+            }
+        }
+        Ok(())
     }
     pub fn has_source(&self) -> bool {
         self.source.is_some()
@@ -138,6 +183,7 @@ impl Sources {
         }
     }
     pub fn advance(&mut self, wake: Option<ApplicationWake>) -> Result<(), String> {
+        self.advance_capture(4096)?;
         #[cfg(not(target_arch = "wasm32"))]
         {
             if let Some(work) = &self.work {
@@ -154,6 +200,8 @@ impl Sources {
                 }
             }
             if self.work.is_none()
+                && self.layer_preparation.is_none()
+                && self.capture.is_none()
                 && self.queued.is_some()
                 && let Some(slot) = Slot::acquire()
             {
@@ -166,7 +214,10 @@ impl Sources {
         #[cfg(target_arch = "wasm32")]
         {
             let _ = wake;
-            if let Some(mut prep) = self.queued.take() {
+            if self.layer_preparation.is_none()
+                && self.capture.is_none()
+                && let Some(mut prep) = self.queued.take()
+            {
                 match prep.advance(1) {
                     Ok(true) => self.complete(prep.finish())?,
                     Ok(false) => self.queued = Some(prep),
@@ -253,5 +304,83 @@ impl Work {
 impl Drop for Work {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn abandoned_layer_restarts_and_pose_only_changes_reuse_artwork() {
+        let recipe = rusterix::stamp_paint::StampRecipe {
+            id: Uuid::new_v4(),
+            kind: "grass".into(),
+            variant: "default".into(),
+            world: Some([0.; 3]),
+            surface_uv: None,
+            paint_geo: None,
+            size: 1.,
+            camera_scale: None,
+            viewport_size: None,
+            rotation: 0.,
+            variation: 0,
+            material_id: 0,
+            color: [255; 4],
+            palette_colors: Vec::new(),
+            opacity: 1.,
+            source_image: None,
+            source_material_pass: false,
+        };
+        let initial = Arc::new(StampPaint {
+            stamps: vec![recipe.clone()],
+        });
+        let layer = Arc::new(shared::stamp_paint::presentation_layer(&initial));
+        let request = StampSpriteRequest::capture(&layer);
+        let mut preparation = request.clone().prepare(None);
+        while !preparation.advance(1).unwrap() {}
+        let ready = Arc::new(preparation.finish().unwrap());
+        let mut owner = Sources {
+            source: Some(initial),
+            layer: Some(layer),
+            request: Some(request),
+            ready: Some(ready.clone()),
+            ready_matches: true,
+            ..Default::default()
+        };
+        let mut moved = recipe;
+        moved.world = Some([1., 2., 3.]);
+        let replacement = Arc::new(StampPaint {
+            stamps: vec![moved; 8193],
+        });
+        assert!(owner.request(Some(&replacement)).unwrap().is_none());
+        assert!(owner.pending());
+        owner.cancel_pending();
+        assert!(!owner.has_source());
+        assert!(owner.request(Some(&replacement)).unwrap().is_none());
+        for _ in 0..10000 {
+            if owner.layer_preparation.is_none() && owner.capture.is_none() {
+                break;
+            }
+            owner.advance_capture(4096).unwrap();
+        }
+        let publication = owner.request(Some(&replacement)).unwrap().unwrap();
+        assert!(Arc::ptr_eq(&publication.pixels, &ready));
+        assert_eq!(
+            publication
+                .layer
+                .chunks
+                .values()
+                .next()
+                .unwrap()
+                .stamps
+                .len(),
+            8193
+        );
+        assert!(!owner.busy());
+        assert!(owner.request(None).unwrap().is_none());
+        assert!(owner.ready.is_none());
+        assert!(owner.request(Some(&replacement)).unwrap().is_none());
+        assert!(owner.request(None).unwrap().is_none());
+        assert!(owner.capture.is_none() && owner.layer_preparation.is_none());
     }
 }

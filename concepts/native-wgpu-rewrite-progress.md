@@ -15947,3 +15947,45 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   shared ownership code through aarch64-apple-ios-sim/Creator staticlib feature
   compilation; no physical wrapper/runtime acceptance is implied. All handles
   terminal; proceed with changed-recipe capture and view-owned placement work.
+
+
+## Cooperative stamp request ownership (2026-11-15, in progress)
+
+- Changed Creator/player stamp sources now freeze original list handles and visit
+  recipes through StampRequestCapture instead of scanning/hash-deduplicating the
+  entire source synchronously. Each call admits at most4096 recipes with a local
+  2ms elapsed check. An immutable visual identity is inherited only after exact,
+  ordered distinct-recipe comparison finishes; hashes remain candidate buckets.
+- Published player StampPaint adaptation now has a retained StampLayerPreparation
+  owner. No partial layer/request can publish old artwork. Cancellation of an
+  inactive screen resets abandoned source identity so returning to the same Arc
+  restarts adaptation. Creator preserves old raster work while a pose-only
+  replacement is being checked. Both owners keep cooperative deadlines active.
+- Finished sprite artwork releases original placement catalogue handles; the
+  request/controller keeps only its own current immutable source identity.
+  Current serialization and authored recipe conversion remain unchanged.
+- Focused CPU release checks PASS2/2 in0.04s (build1m27s):
+  /private/tmp/eldiron-stamp-capture-release-shared-contracts.log. Source freeze,
+  item quota, exact pose proof and reference layer parity are covered. Artwork
+  catalogue-release contract PASS0.00s (build0.19s):
+  /private/tmp/eldiron-stamp-capture-release-shared-owner.log. Player cancellation,
+  restart, pose-only reuse and partial-publication coordinator PASS0.01s
+  (build1m02s): /private/tmp/eldiron-stamp-capture-release-player-owner.log.
+- Initial Creator release compilation PASS30.24s:
+  /private/tmp/eldiron-stamp-capture-release-creator-initial.log. Its focused
+  coordinator release test PASS0.01s (build2m45s):
+  /private/tmp/eldiron-stamp-capture-release-creator-owner.log. Exact old artwork
+  survives pose edits; incomplete recipes cannot publish; visibility replacement
+  retires partial work. Final native/browser release checks follow before this
+  checkpoint is committed. Broad tests remain deferred.
+- Bounds are cooperative local slices, not hard whole-frame preemption: initial
+  chunk-handle capture, one recipe hash/clone/comparison, allocation and a rare
+  older-artwork roundtrip comparison can still be indivisible. Next: retained
+  surface index and view-owned placement cursor; current placement synchronously
+  rescans geometry per UV anchor and recreates all instances/cache keys.
+
+- Final canonical four-application native release check PASS28.54s:
+  /private/tmp/eldiron-stamp-capture-release-native.log. Actual Creator browser-host
+  wasm release check PASS16.39s:
+  /private/tmp/eldiron-stamp-capture-release-wasm.log. All handles terminal. This
+  completes the capture checkpoint only; proceed directly to view-owned placement.

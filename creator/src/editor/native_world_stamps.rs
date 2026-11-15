@@ -3,7 +3,7 @@
 use super::*;
 use shared::iso_paint::IsoPaintLayer;
 use shared::iso_paint_render::stamp_billboards::{
-    StampSpritePreparation, StampSpriteRequest, StampSpriteSet,
+    StampRequestCapture, StampSpritePreparation, StampSpriteRequest, StampSpriteSet,
 };
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,6 +16,7 @@ type Scope = (Uuid, ProjectContext, Uuid, Option<Uuid>);
 pub(super) struct Owner {
     scope: Option<Scope>,
     request: Option<StampSpriteRequest>,
+    capture: Option<StampRequestCapture>,
     ready: Option<Arc<StampSpriteSet>>,
     ready_matches: bool,
     queued: Option<StampSpritePreparation>,
@@ -39,35 +40,25 @@ impl Owner {
         &mut self,
         layer: &IsoPaintLayer,
     ) -> Result<Option<Arc<StampSpriteSet>>, String> {
-        if self
-            .request
-            .as_ref()
-            .is_none_or(|request| !request.same_source(layer))
-        {
-            let request = StampSpriteRequest::capture(layer);
-            let same_visuals = self.request.as_ref().is_some_and(|old| old.same(&request));
-            if !same_visuals {
-                self.queued = None;
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    self.work = None;
-                }
-                self.failure = None;
-                self.ready_matches = self.ready.as_ref().is_some_and(|set| set.matches(&request));
-                if !self.ready_matches {
-                    let mut prep = request.clone().prepare(self.ready.clone());
-                    if request.is_empty() {
-                        prep.advance(0)?;
-                        self.ready = Some(Arc::new(prep.finish()?));
-                        self.ready_matches = true;
-                    } else {
-                        self.queued = Some(prep);
-                    }
-                }
-            }
-            // Keep the latest exact backing even when only placement changed.
-            // Existing work/ready artwork is already proven visually equivalent.
-            self.request = Some(request);
+        let same_source = self.capture.as_ref().map_or_else(
+            || {
+                self.request
+                    .as_ref()
+                    .is_some_and(|request| request.same_source(layer))
+            },
+            |capture| capture.same_source(layer),
+        );
+        if !same_source {
+            self.capture = Some(StampSpriteRequest::begin_capture_with_previous(
+                layer,
+                self.request.as_ref(),
+            ));
+        }
+        self.advance_capture(4096)?;
+        // ready_matches still describes the last fully checked request. An
+        // incomplete replacement cannot publish that artwork into its frame.
+        if self.capture.is_some() {
+            return Ok(None);
         }
         if let Some(error) = &self.failure {
             return Err(error.clone());
@@ -75,9 +66,47 @@ impl Owner {
         Ok(self.ready.as_ref().filter(|_| self.ready_matches).cloned())
     }
 
+    fn advance_capture(&mut self, items: usize) -> Result<bool, String> {
+        let Some(capture) = &mut self.capture else {
+            return Ok(false);
+        };
+        if !capture.advance(items) {
+            return Ok(false);
+        }
+        let (request, same_visuals) = self.capture.take().unwrap().finish_with_previous()?;
+        if !same_visuals {
+            self.queued = None;
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.work = None;
+            }
+            self.failure = None;
+            self.ready_matches =
+                !self.ready_matches && self.ready.as_ref().is_some_and(|set| set.matches(&request));
+        }
+        let busy = self.queued.is_some();
+        #[cfg(not(target_arch = "wasm32"))]
+        let busy = busy || self.work.is_some();
+        if !self.ready_matches && !busy && self.failure.is_none() {
+            let mut prep = request.clone().prepare(self.ready.clone());
+            if request.is_empty() {
+                prep.advance(0)?;
+                self.ready = Some(Arc::new(prep.finish()?));
+                self.ready_matches = true;
+            } else {
+                self.queued = Some(prep);
+            }
+        }
+        self.request = Some(request);
+        Ok(true)
+    }
+
     /// An active native worker will wake its owner. Queued admission and browser
     /// cooperative work still need an application deadline until they finish.
     pub fn waits_for_wake(&self) -> bool {
+        if self.capture.is_some() {
+            return false;
+        }
         if self.failure.is_some() {
             return true;
         }
@@ -92,7 +121,7 @@ impl Owner {
     }
 
     pub fn failed(&self) -> bool {
-        self.failure.is_some()
+        self.capture.is_none() && self.failure.is_some()
     }
 
     fn complete(&mut self, result: Result<StampSpriteSet, String>) {
@@ -107,6 +136,13 @@ impl Owner {
     }
 
     pub fn advance(&mut self, wake: Option<theframework::platform::ApplicationWake>) -> bool {
+        let captured = match self.advance_capture(4096) {
+            Ok(changed) => changed,
+            Err(error) => {
+                self.failure = Some(error);
+                return true;
+            }
+        };
         #[cfg(not(target_arch = "wasm32"))]
         {
             if let Some(work) = &self.work {
@@ -121,10 +157,11 @@ impl Owner {
                         self.failure = Some("Live stamp worker stopped".into());
                         return true;
                     }
-                    Err(std::sync::mpsc::TryRecvError::Empty) => return false,
+                    Err(std::sync::mpsc::TryRecvError::Empty) => return captured,
                 }
             }
-            if self.queued.is_some()
+            if self.capture.is_none()
+                && self.queued.is_some()
                 && let Some(slot) = Slot::acquire()
             {
                 let prep = self.queued.take().unwrap();
@@ -136,13 +173,16 @@ impl Owner {
                     }
                 }
             }
-            false
+            captured
         }
         #[cfg(target_arch = "wasm32")]
         {
             let _ = wake;
+            if self.capture.is_some() {
+                return captured;
+            }
             let Some(mut prep) = self.queued.take() else {
-                return false;
+                return captured;
             };
             match prep.advance(1) {
                 Ok(true) => {
@@ -151,7 +191,7 @@ impl Owner {
                 }
                 Ok(false) => {
                     self.queued = Some(prep);
-                    false
+                    captured
                 }
                 Err(error) => {
                     self.failure = Some(error);
@@ -223,6 +263,54 @@ impl Drop for Work {
 }
 
 pub(super) use shared::iso_paint_render::stamp_billboards::StampUploadKey as UploadKey;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn incomplete_pose_capture_withholds_ready_artwork_and_preserves_its_owner() {
+        let mut layer = IsoPaintLayer::default();
+        layer.active_brush = "grass".into();
+        layer.active_size = 1.;
+        layer.add_stamp(shared::iso_paint::IsoPaintPoint::new(
+            [8, 8],
+            Some(vek::Vec3::zero()),
+            None,
+        ));
+        let request = StampSpriteRequest::capture(&layer);
+        let mut preparation = request.clone().prepare(None);
+        while !preparation.advance(1).unwrap() {}
+        let ready = Arc::new(preparation.finish().unwrap());
+        let mut owner = Owner {
+            request: Some(request),
+            ready: Some(ready.clone()),
+            ready_matches: true,
+            ..Default::default()
+        };
+        let chunk = layer.chunks.values_mut().next().unwrap();
+        let mut stamp = chunk.stamps[0].clone();
+        stamp.world = Some([1., 2., 3.]);
+        chunk.stamps = vec![stamp; 8193].into();
+        assert!(owner.request(&layer).unwrap().is_none());
+        assert!(!owner.waits_for_wake());
+        assert!(!owner.failed());
+        while owner.capture.is_some() {
+            owner.advance_capture(4096).unwrap();
+        }
+        assert!(Arc::ptr_eq(
+            &owner.request(&layer).unwrap().unwrap(),
+            &ready
+        ));
+        assert!(owner.queued.is_none());
+        layer.chunks.values_mut().next().unwrap().stamps[0].kind = "changed".into();
+        assert!(owner.request(&layer).unwrap().is_none());
+        layer.visible = false;
+        let hidden = owner.request(&layer).unwrap().unwrap();
+        assert_ne!(hidden.id(), ready.id());
+        assert!(hidden.sprites().is_empty());
+        assert!(owner.capture.is_none());
+    }
+}
 
 pub(super) fn upload(
     set: &StampSpriteSet,

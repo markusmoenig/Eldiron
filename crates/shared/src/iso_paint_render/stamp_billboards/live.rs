@@ -3,53 +3,25 @@ use super::super::stamp_raster::{NativeSprite, StampWork, native_sprite_work};
 use super::catalog::{same_visual, visual_hash};
 use super::*;
 use std::sync::Arc;
+mod capture;
+pub use capture::StampRequestCapture;
 
 #[derive(Clone, Default)]
 pub struct StampSpriteRequest {
     inputs: Arc<Vec<Arc<IsoPaintStamp>>>,
     visible: bool,
     sources: Arc<Vec<crate::shared_vec::SharedVec<IsoPaintStamp>>>,
+    visual_identity: Arc<()>,
 }
 impl StampSpriteRequest {
     /// Freeze distinct visual recipes and retain their immutable source lists.
     /// UV paint, selections, history and source image pixels are not cloned.
     pub fn capture(layer: &IsoPaintLayer) -> Self {
-        let mut request = Self {
-            visible: layer.visible,
-            sources: Arc::new(if layer.visible {
-                layer
-                    .chunks
-                    .values()
-                    .filter(|chunk| !chunk.stamps.is_empty())
-                    .map(|chunk| chunk.stamps.clone())
-                    .collect()
-            } else {
-                Vec::new()
-            }),
-            ..Default::default()
-        };
-        let mut buckets = HashMap::<u64, Vec<usize>>::new();
-        if layer.visible {
-            for stamp in layer.chunks.values().flat_map(|chunk| &chunk.stamps) {
-                if stamp.world.is_none()
-                    && (stamp.paint_geo.is_none() || stamp.surface_uv.is_none())
-                {
-                    continue;
-                }
-                let bucket = buckets.entry(visual_hash(stamp)).or_default();
-                if bucket
-                    .iter()
-                    .any(|i| same_visual(&request.inputs[*i], stamp))
-                {
-                    continue;
-                }
-                bucket.push(request.inputs.len());
-                Arc::get_mut(&mut request.inputs)
-                    .unwrap()
-                    .push(Arc::new(stamp.clone()));
-            }
-        }
-        request
+        // Explicit synchronous/reference callers can drain the same exact
+        // builder; live owners use begin_capture and retain its bounded cursor.
+        let mut capture = Self::begin_capture(layer);
+        while !capture.advance(4096) {}
+        capture.finish().expect("completed stamp request capture")
     }
 
     /// Exact unchanged recipe backing can be recognized without cloning/hashing
@@ -72,7 +44,8 @@ impl StampSpriteRequest {
         }) && chunks.next().is_none()
     }
     pub fn same(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.inputs, &other.inputs)
+        Arc::ptr_eq(&self.visual_identity, &other.visual_identity)
+            || Arc::ptr_eq(&self.inputs, &other.inputs)
             || self.inputs.len() == other.inputs.len()
                 && self
                     .inputs
@@ -313,9 +286,13 @@ impl StampSpritePreparation {
         if self.cursor != self.request.inputs.len() {
             return Err("Live stamp preparation is incomplete".into());
         }
+        let mut request = self.request;
+        // Artwork needs distinct visual inputs, not every original placement.
+        // The live request owner retains its own latest source identity.
+        request.sources = Arc::default();
         Ok(StampSpriteSet {
             id: Uuid::new_v4(),
-            request: self.request,
+            request,
             entries: self.entries,
             buckets: self.buckets,
             slots: self.slots,
