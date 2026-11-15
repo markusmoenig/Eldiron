@@ -65,6 +65,8 @@ fn resource_stats(context: &renderkit::GpuContext) -> String {
             "allocations": working.allocations, "hits": working.hits, "evictions": working.evictions,
         },
         "immutable": {
+            "live_bytes": immutable.live_bytes, "live_allocations": immutable.live_allocations,
+            "peak_live_bytes": immutable.peak_live_bytes,
             "gpu_bytes": immutable.gpu_bytes, "cpu_bytes": immutable.cpu_bytes,
             "entries": immutable.entries, "byte_limit": immutable.byte_limit,
             "entry_limit": immutable.entry_limit, "allocations": immutable.allocations,

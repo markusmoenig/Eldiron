@@ -969,6 +969,7 @@ dependencies = [
  "half",
  "naga",
  "pollster",
+ "renderkit",
  "serde",
  "serde_json",
  "wgpu",

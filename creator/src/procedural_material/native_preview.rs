@@ -139,7 +139,7 @@ impl Preview {
     pub fn new(context: Arc<GpuContext>) -> Result<Self, String> {
         #[cfg(not(target_arch = "wasm32"))]
         let runtime = Some(Arc::new(
-            pollster::block_on(MaterialZ::new(&context.device, &context.queue))
+            pollster::block_on(MaterialZ::new_with_context(context.clone()))
                 .map_err(|e| e.to_string())?,
         ));
         #[cfg(target_arch = "wasm32")]
@@ -149,7 +149,7 @@ impl Preview {
             let (done, receive) = std::sync::mpsc::channel();
             let context = context.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                let result = MaterialZ::new(&context.device, &context.queue)
+                let result = MaterialZ::new_with_context(context.clone())
                     .await
                     .map(Arc::new)
                     .map_err(|e| e.to_string());
@@ -426,7 +426,7 @@ impl Preview {
                     .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                         label: Some("native material evaluation"),
                     });
-            let ticket = runtime
+            let mut ticket = runtime
                 .encode(
                     &mut encoder,
                     self.compiled.as_ref().unwrap(),
@@ -435,6 +435,7 @@ impl Preview {
                 )
                 .map_err(|e| e.to_string())?;
             self.context.queue.submit([encoder.finish()]);
+            ticket.submitted();
             let status = StatusReadback::map(&self.context, ticket.readback.clone())
                 .map_err(|e| e.to_string())?;
             self.evaluation = Some(Evaluation {

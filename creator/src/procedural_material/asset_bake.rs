@@ -42,7 +42,7 @@ impl Baker {
         let asset = EditableMaterialAsset::reopen(&job.bundle).map_err(|e| e.to_string())?;
         if self.runtime.is_none() {
             self.runtime = Some(
-                MaterialZ::new(&self.context.device, &self.context.queue)
+                MaterialZ::new_with_context(self.context.clone())
                     .await
                     .map_err(|e| e.to_string())?,
             );
@@ -299,7 +299,7 @@ impl Baker {
     async fn readback(
         &self,
         mut encoder: wgpu::CommandEncoder,
-        ticket: RenderTicket,
+        mut ticket: RenderTicket,
         maps: &[SurfaceMap; 5],
         size: [usize; 2],
     ) -> Result<Maps, String> {
@@ -340,6 +340,7 @@ impl Baker {
                 .sum(),
         );
         self.context.queue.submit([encoder.finish()]);
+        ticket.submitted();
         let (done, ready) = futures::channel::oneshot::channel();
         ticket.map_diagnostics(move |result| {
             let _ = done.send(result);

@@ -5,8 +5,14 @@ use eldiron_presentation::SceneViews;
 pub(super) fn snapshot(scenes: &SceneViews) -> serde_json::Value {
     let paint = scenes.surface_paint_stats();
     let images = scenes.image_allocation_usage();
+    let immutable = scenes.context().immutable_buffer_cache_usage();
     serde_json::json!({
         "pending_frames": scenes.has_pending_surface_paint_frames(),
+        "context_immutable_buffers": {
+            "live_bytes": immutable.live_bytes, "live_allocations": immutable.live_allocations,
+            "peak_live_bytes": immutable.peak_live_bytes,
+            "cached_gpu_bytes": immutable.gpu_bytes, "cached_cpu_bytes": immutable.cpu_bytes,
+        },
         "context_unpooled_images": {
             "live_bytes": images.live_bytes, "live_images": images.live_images,
             "peak_live_bytes": images.peak_live_bytes, "allocations": images.allocations,

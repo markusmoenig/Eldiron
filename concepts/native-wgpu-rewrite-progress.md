@@ -16443,3 +16443,107 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   diagnostic fixture retains its required import. Current ownership conversion
   ready for checkpoint. Continue MaterialZ's optional shared-context owners and
   live immutable-buffer counters; no external permission/input blocker.
+
+## MaterialZ context-owned encode resources, in progress (2026-11-15)
+
+- Added optional denrim-materials/shared-gpu feature and
+  MaterialZ::new_with_context. Creator native-render selects it; native/browser
+  material previews, geometry material atlases and explicit material asset bakes
+  now inject their existing GpuContext. Standalone device/queue new() and CPU-only
+  feature paths remain available. Imported-library provenance updated in
+  crates/materialz/UPSTREAM.toml. No authored/project/paint serialization change.
+- Surface/PreviewSurface maps own TargetLeases. Their contents are valid after a
+  successful encode. RenderTicket retains all encoded surface planes, writable
+  field/intermediate/status buffers and immutable parameter/config inputs through
+  submission, even if the original Surface drops. Caller-owned raw encode_into
+  views still require external lease ownership. Recycled scratch is explicitly
+  cleared to preserve new-buffer zero semantics, including diagnostic atomic ORs.
+- submitted() releases temporary ticket resources only after queue submission;
+  surfaces retain their own displayed data. Native atlas/material and bake hosts
+  now signal this before mapping their separate diagnostic readback buffers.
+  Four-byte map-read diagnostic buffers remain request-owned raw resources to
+  preserve cancellation/map lifetimes. No interactive color readback added.
+- First Creator release compile PASS23.96s:
+  /private/tmp/eldiron-materialz-owners-release-native-initial.log. This one check
+  intentionally omitted --locked solely to record the new local optional edge.
+  Cargo.lock diff is exactly one added renderkit dependency in denrim-materials;
+  no resolved versions changed, WGPU remains29.0.3. Subsequent checks use --locked.
+- Immutable context buffer counters now follow each cached/caller-owned GpuBuffer
+  through its final Arc, including evicted and uncached owners. Live bytes/count
+  and peak are separate from retained GPU/CPU cache bytes. Browser resource_stats
+  and native source inspection expose the live fields. Raw queue/driver-only
+  handles remain outside the live-Arc accounting, as with existing target pools.
+  Existing immutable-buffer contract now asserts five distinct20B allocations,
+  duplicate-Arc sharing, eviction survival, final0 and peak20B before queued work.
+- Focused release MaterialZ Metal contract running handle46296:
+  /private/tmp/eldiron-materialz-owners-release-contract.log. Compares all5raw
+  float map outputs with standalone filtered-basketweave, two pending encoders
+  retaining dropped surface planes, reverse submission, warm buffer/map reuse,
+  zero-before-use, final0live owners and replacement context reconstruction.
+  Do not edit Rust while live. Next: fix any contract failure, focused immutable
+  ledger check, existing native atlas/material/bake contracts, final release
+  native/browser/reference/CPU dependency checks, checkpoint then continue audit.
+  Broad assembled workflows/platform/performance acceptance remains deferred.
+- MaterialZ shared-resource release Metal contract PASS1/1,0.47s(build20.07s):
+  /private/tmp/eldiron-materialz-owners-release-contract.log. All5map raw bytes
+  match standalone filtered-basketweave; two dropped-surface tickets retain10
+  distinct planes, reverse submission is correct, warm maps/work reuse without
+  new allocations, final live targets/work/immutable bytes0 and replacement GPU
+  reconstructs identical output. Handle46296 terminal. SurfaceMap now explicitly
+  supports cloning its allocation owner; raw texture/view clones alone do not.
+- Immutable live-owner release Metal contract PASS1/1,0.06s(build1.17s):
+  /private/tmp/eldiron-materialz-owners-release-immutable.log. Confirms padded
+  byte sizes, duplicate Arc sharing, evicted active5allocations/20B, final0live
+  after owners drop, peak20B and queued raw-buffer content survival. Handle73612
+  terminal. Counts intentionally exclude queue/driver-only references.
+- Existing Creator atlas module contracts currently compiling/running handle61692,
+  /private/tmp/eldiron-materialz-owners-release-atlases.log. All other handles
+  terminal. Continue native material and explicit asset bake checks after this,
+  then compile feature/platform paths and inspect CPU-only dependencies.
+- Existing context-adopted Creator atlas release contracts PASS3/3,0.41s
+  (build1m54s): /private/tmp/eldiron-materialz-owners-release-atlases.log. Existing
+  native material preview PASS1/1,0.32s(build0.48s):
+  /private/tmp/eldiron-materialz-owners-release-material-preview.log. Explicit
+  native material asset worker PASS1/1,0.99s(build0.20s):
+  /private/tmp/eldiron-materialz-owners-release-asset-bake.log. Original editable
+  bake pixels, separate diagnostic/readback policy and omitted display maps all
+  preserved. Handles61692/76476 terminal; focused GPU checks complete.
+- Final canonical four-application native release compile running handle5813:
+  /private/tmp/eldiron-materialz-owners-release-native-final.log. Actual browser,
+  reference-only and isolated terminal dependency checks follow. After checkpoint,
+  perform final canonical display/resource owner inventory, classify fixed bounded
+  pipeline/request allocations, and identify any remaining required port edits.
+  Begin broad acceptance only after that implementation inventory is closed.
+  No performance speedup claim from ownership/allocations alone.
+- Final canonical four-application native release compile PASS26.46s:
+  /private/tmp/eldiron-materialz-owners-release-native-final.log. Actual Creator
+  browser-host wasm release compile PASS25.86s:
+  /private/tmp/eldiron-materialz-owners-release-wasm.log. Reference-only Creator
+  release compile PASS23.14s:
+  /private/tmp/eldiron-materialz-owners-release-reference.log. MaterialZ CPU-only
+  integration-feature release compile PASS4.90s:
+  /private/tmp/eldiron-materialz-owners-release-cpu.log. All handles terminal.
+- Isolated terminal reverse WGPU tree reports package not present (expected
+  cargo101), /private/tmp/eldiron-materialz-owners-terminal-gpu-tree.log. Isolated
+  runtime reverse TheFramework tree likewise reports package not present,
+  /private/tmp/eldiron-materialz-owners-runtime-ui-tree.log. Optional shared-gpu
+  feature adds no CPU-only dependency edge. Lock diff remains one local renderkit
+  dependency, no version changes. MaterialZ/live-buffer owner batch checkpoint-
+  ready. No broader tests have been run.
+- Final display call inventory:73matches retained in
+  /private/tmp/eldiron-port-final-display-inventory.txt. Most are explicit
+  reference/client loops, guarded previews, tests or comments. Action minimap
+  hooks have no implementing overrides (only default false/empty methods);
+  get_map_context currently returns only Region/Screen, so Character/Item enum
+  cases are dormant, not independent missing live ports. minimap_bbox_for_map
+  always returns Some, so an apparent missing-bounds escape was a false lead.
+- Concrete remaining port work: native_scene::overview_map restricts Screen to
+  D2/no-editing-surface, while reference get_map supports other screen view modes
+  through its existing parent-map policy. Those valid transitions fall through
+  Sidebar's generic CPU minimap adapter. Extend native source policy to the same
+  project.get_map result in every screen mode, then make canonical command-paint
+  minimap handling terminal (explicit empty output when no source), preserving
+  reference-only raster rendering. WidgetResized with no regions also currently
+  creates/scales a CPU logo buffer before native_empty_viewport clears it; skip
+  this discarded display allocation in command paint. Verify these policies and
+  current navigation/ownership without starting broad acceptance prematurely.

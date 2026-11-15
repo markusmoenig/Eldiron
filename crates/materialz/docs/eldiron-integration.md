@@ -193,3 +193,29 @@ metadata without shader compilation, and WGSL lowering for all built-in sources.
 Run `cargo test --features wgpu --test wgpu_runtime -- --ignored --nocapture` on a
 machine with a GPU for map values, CPU comparisons, continuous tile boundaries,
 cached filters, emission strength, opacity, live updates, and queued snapshots.
+
+### Shared GPU resource ownership
+
+Native Eldiron hosts enable `shared-gpu` and construct
+`MaterialZ::new_with_context(context.clone()).await`. This uses the existing
+renderkit device domain and resource pools. CPU-only builds do not enable this
+feature; standalone GPU tools can continue using `MaterialZ::new(device, queue)`.
+
+A `SurfaceMap` owns its allocation lease and can be cloned to retain that lease.
+Its contents become valid after a successful encode. Retain maps while their
+views can be used by unsubmitted work; raw texture/view clones do not prevent
+pooled storage reuse. `encode` and `encode_preview` also retain their output
+planes in the returned `RenderTicket`, protecting an encoder whose original
+surface has already been dropped. Caller-provided `encode_into` views require
+the caller to retain their allocation owners.
+
+Keep the ticket until the encoder is submitted or discarded. After submitting,
+call `ticket.submitted()` to release temporary input/scratch/output leases before
+mapping diagnostics. Displayed surfaces retain their own map leases. Recycled
+scratch and atomic diagnostic flags are cleared before use. The four-byte
+map-read diagnostic buffer remains ticket-owned and preserves the existing
+host-controlled map/poll/cancellation lifecycle.
+
+Pool retention limits and live allocation-owner counters are distinct. Evicted
+allocations can remain live through map/ticket owners; raw handles retained only
+by queued commands and driver overhead are outside these counters.

@@ -22,10 +22,13 @@ serde_json = { version = "1", optional = true }
 wgpu = { version = "29.0.3", optional = true }
 naga = { version = "29.0.3", features = ["glsl-in", "wgsl-out"], optional = true }
 
+renderkit = { path = "../renderkit", optional = true }
+
 [features]
 default = []
 integration = ["dep:serde", "dep:serde_json"]
 wgpu = ["integration", "dep:wgpu", "dep:naga"]
+shared-gpu = ["wgpu", "dep:renderkit"]
 
 [dev-dependencies]
 pollster = "0.4"

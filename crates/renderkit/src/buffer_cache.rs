@@ -12,10 +12,15 @@ use wgpu::util::DeviceExt;
 const BYTE_LIMIT: u64 = 128 * 1024 * 1024;
 const ENTRY_LIMIT: usize = 16_384;
 
-/// Retained GPU allocation sizes plus exact CPU comparison bytes. Active owners
-/// and submitted commands may outlive eviction; driver memory is not included.
+/// Retained GPU/CPU cache bytes plus all live immutable allocation owners.
+/// Caller Arcs may outlive eviction. Raw queued/driver-only handles are excluded.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BufferCacheUsage {
+    /// All cached or caller-owned immutable allocations. Raw queued/driver-only
+    /// buffer handles are excluded; gpu_bytes below is the cached subset.
+    pub live_bytes: u64,
+    pub live_allocations: u64,
+    pub peak_live_bytes: u64,
     pub gpu_bytes: u64,
     pub cpu_bytes: u64,
     pub entries: usize,
@@ -31,6 +36,7 @@ pub struct BufferCacheUsage {
 /// writing through a shader would invalidate the shared-content contract.
 /// COPY_DST/MAP_WRITE usages are rejected. Retain this Arc through submission.
 pub struct GpuBuffer {
+    _allocation: crate::allocation_usage::AllocationCharge,
     buffer: wgpu::Buffer,
     generation: u64,
 }
@@ -93,10 +99,16 @@ impl Cache {
     }
 }
 #[derive(Default)]
-pub(crate) struct BufferCache(Mutex<Cache>);
+pub(crate) struct BufferCache(Mutex<Cache>, Arc<crate::allocation_usage::AllocationUsage>);
 impl BufferCache {
     pub fn usage(&self) -> BufferCacheUsage {
-        self.0.lock().unwrap().usage
+        let mut usage = self.0.lock().unwrap().usage;
+        (
+            usage.live_bytes,
+            usage.live_allocations,
+            usage.peak_live_bytes,
+        ) = self.1.snapshot();
+        usage
     }
     pub fn set_limits(&self, bytes: u64, entries: usize) {
         let mut cache = self.0.lock().unwrap();
@@ -193,6 +205,7 @@ impl BufferCache {
                 })
         };
         let buffer = Arc::new(GpuBuffer {
+            _allocation: self.1.charge(size),
             buffer,
             generation: context.generation(),
         });

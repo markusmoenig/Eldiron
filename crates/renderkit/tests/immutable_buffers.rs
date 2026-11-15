@@ -65,7 +65,14 @@ fn immutable_inputs_share_exact_contents_and_survive_eviction_before_submit() {
     context.set_immutable_buffer_cache_limits(0, 0);
     assert_eq!(context.immutable_buffer_cache_usage().gpu_bytes, 0);
     assert_eq!(context.immutable_buffer_cache_usage().cpu_bytes, 0);
+    let owners = context.immutable_buffer_cache_usage();
+    assert_eq!(owners.live_bytes, 20);
+    assert_eq!(owners.live_allocations, 5);
+    assert_eq!(owners.peak_live_bytes, 20);
     drop((first, second, third, vertex, shared, recent, empty));
+    assert_eq!(context.immutable_buffer_cache_usage().live_bytes, 0);
+    assert_eq!(context.immutable_buffer_cache_usage().live_allocations, 0);
+    assert_eq!(context.immutable_buffer_cache_usage().peak_live_bytes, 20);
     context.queue.submit([encoder.finish()]);
     let (tx, rx) = mpsc::channel();
     staging

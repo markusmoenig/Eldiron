@@ -10,7 +10,8 @@ use std::{
     borrow::Cow,
     sync::atomic::{AtomicU64, Ordering},
 };
-use wgpu::util::DeviceExt;
+mod resources;
+use resources::EncodedResources;
 
 const CHANNELS: [Channel; 6] = [
     Channel::BaseColor,
@@ -128,10 +129,15 @@ fn channel_layout(channel: Channel) -> OutputLayout {
         },
     }
 }
+/// GPU output plus its allocation lease. Clone the map to retain its storage;
+/// cloning a raw texture/view alone does not prevent pooled storage reuse.
+#[derive(Clone)]
 pub struct SurfaceMap {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub layout: OutputLayout,
+    #[cfg(feature = "shared-gpu")]
+    _allocation: Option<renderkit::TargetLease>,
 }
 pub struct Surface {
     pub maps: [SurfaceMap; 5],
@@ -255,6 +261,8 @@ impl MaterialInstance {
 }
 
 pub struct MaterialZ {
+    #[cfg(feature = "shared-gpu")]
+    context: Option<std::sync::Arc<renderkit::GpuContext>>,
     device: wgpu::Device,
     // Retains the host queue; encoding stages immutable snapshots on its encoder.
     _queue: wgpu::Queue,
@@ -346,6 +354,8 @@ impl MaterialZ {
         .await?;
         let mip = pipeline(device, MIP, None, location).await?;
         Ok(Self {
+            #[cfg(feature = "shared-gpu")]
+            context: None,
             device: device.clone(),
             _queue: queue.clone(),
             owner: NEXT.fetch_add(1, Ordering::Relaxed),
@@ -355,6 +365,17 @@ impl MaterialZ {
             pack_scalar,
             mip,
         })
+    }
+    /// Use the host's device-domain resource pools. Hosts retain surfaces and
+    /// encode tickets through submission; no presentation/window owner is added.
+    #[cfg(feature = "shared-gpu")]
+    pub async fn new_with_context(context: std::sync::Arc<renderkit::GpuContext>) -> Result<Self> {
+        if context.is_lost() {
+            return Err(Diagnostic::new("initialize", Location::asset("MaterialZ runtime"), "Injected GPU context was lost"));
+        }
+        let mut runtime = Self::new(&context.device, &context.queue).await?;
+        runtime.context = Some(context);
+        Ok(runtime)
     }
     pub async fn compile(
         &self,
@@ -451,7 +472,7 @@ impl MaterialZ {
     }
     pub fn create_surface(&self, request: &RenderRequest) -> Result<Surface> {
         self.check_request(request)?;
-        let maps = output_layout().map(|layout| self.create_map(request, layout));
+        let maps = self.create_maps(request, output_layout())?;
         Ok(Surface {
             maps,
             resolution: request.resolution,
@@ -461,42 +482,10 @@ impl MaterialZ {
     pub fn create_preview_surface(&self, request: &RenderRequest) -> Result<PreviewSurface> {
         self.check_request(request)?;
         Ok(PreviewSurface {
-            maps: preview_output_layout().map(|layout| self.create_map(request, layout)),
+            maps: self.create_maps(request, preview_output_layout())?,
             resolution: request.resolution,
             owner: self.owner,
         })
-    }
-    fn create_map(&self, request: &RenderRequest, layout: OutputLayout) -> SurfaceMap {
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(layout.channel.name()),
-            size: wgpu::Extent3d {
-                width: request.resolution[0],
-                height: request.resolution[1],
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: layout.format,
-            usage: wgpu::TextureUsages::STORAGE_BINDING
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
-        let view = texture.create_view(&Default::default());
-        SurfaceMap {
-            texture,
-            view,
-            layout,
-        }
-    }
-    fn buffer(&self, label: &str, content: &[u8]) -> wgpu::Buffer {
-        self.device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(label),
-                contents: content,
-                usage: wgpu::BufferUsages::STORAGE,
-            })
     }
     pub fn encode(
         &self,
@@ -511,12 +500,14 @@ impl MaterialZ {
                 "Output surface belongs to another runtime or resolution",
             ));
         }
-        self.encode_into(
+        let mut ticket = self.encode_into(
             encoder,
             material,
             request,
             std::array::from_fn(|i| &surface.maps[i].view),
-        )
+        )?;
+        ticket.resources.retain_maps(&surface.maps);
+        Ok(ticket)
     }
     pub fn encode_preview(
         &self,
@@ -532,15 +523,18 @@ impl MaterialZ {
             ));
         }
         let targets = surface.maps.iter().map(|map| &map.view).collect::<Vec<_>>();
-        self.encode_targets(
+        let mut ticket = self.encode_targets(
             encoder,
             material,
             request,
             &targets,
             &preview_output_layout(),
-        )
+        )?;
+        ticket.resources.retain_maps(&surface.maps);
+        Ok(ticket)
     }
     /// Caller-owned full 2D views in output_layout() order, with matching formats.
+    /// Keep any external allocation leases alive through submission.
     pub fn encode_into(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -638,25 +632,18 @@ impl MaterialZ {
                 "Render exceeds the 256 MB working budget or storage-buffer limits",
             ));
         }
+        let mut resources = EncodedResources::default();
         let mut outputs = vec![];
         for (field, plan) in material.fields.iter().zip(plans) {
-            let output = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("MaterialZ field"),
-                size: pixel_bytes,
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-                mapped_at_creation: false,
-            });
-            let cache = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("MaterialZ intermediates"),
-                size: plan.bytes.max(16),
-                usage: wgpu::BufferUsages::STORAGE,
-                mapped_at_creation: false,
-            });
+            let output = self.working_buffer(encoder, "MaterialZ field", pixel_bytes,
+                wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC, &mut resources)?;
+            let cache = self.working_buffer(encoder, "MaterialZ intermediates", plan.bytes.max(16),
+                wgpu::BufferUsages::STORAGE, &mut resources)?;
             let mut parameter_bytes = field.shader.parameter_bytes();
             if parameter_bytes.is_empty() {
                 parameter_bytes.resize(16, 0);
             }
-            let parameters = self.buffer("MaterialZ immutable parameters", &parameter_bytes);
+            let parameters = self.buffer("MaterialZ immutable parameters", &parameter_bytes, &mut resources)?;
             for (i, pipeline) in field.passes.iter().enumerate() {
                 let config = self.buffer(
                     "MaterialZ cache domain",
@@ -665,7 +652,8 @@ impl MaterialZ {
                         SurfaceDomain::rect(plan.origin, plan.span),
                         request.time,
                     )),
-                );
+                    &mut resources,
+                )?;
                 self.dispatch(
                     encoder,
                     pipeline,
@@ -688,7 +676,8 @@ impl MaterialZ {
                             0,
                             0,
                         ]),
-                    );
+                        &mut resources,
+                    )?;
                     let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                         label: Some("MaterialZ mip"),
                         layout: &self.mip.get_bind_group_layout(0),
@@ -719,7 +708,8 @@ impl MaterialZ {
             let config = self.buffer(
                 "MaterialZ output domain",
                 &bytes(&plan.config(mapped.resolution, mapped.domain, request.time)),
-            );
+                &mut resources,
+            )?;
             self.dispatch(
                 encoder,
                 &field.pipeline,
@@ -731,12 +721,8 @@ impl MaterialZ {
             );
             outputs.push(output);
         }
-        let status = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("MaterialZ diagnostic flags"),
-            size: 4,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false,
-        });
+        let status = self.working_buffer(encoder, "MaterialZ diagnostic flags", 4,
+            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC, &mut resources)?;
         for (i, layout) in layouts.iter().enumerate() {
             let rgb = layout.format == wgpu::TextureFormat::Rgba16Float;
             let pipeline = if rgb {
@@ -752,7 +738,8 @@ impl MaterialZ {
                     i as u32,
                     u32::from(layout.channel == Channel::Emission),
                 ]),
-            );
+                &mut resources,
+            )?;
             let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("MaterialZ output packing"),
                 layout: &pipeline.get_bind_group_layout(0),
@@ -799,6 +786,7 @@ impl MaterialZ {
         });
         encoder.copy_buffer_to_buffer(&status, 0, &readback, 0, 4);
         Ok(RenderTicket {
+            resources,
             readback,
             location: material.asset.error("render", "").location,
         })
@@ -832,11 +820,21 @@ impl MaterialZ {
         pass.dispatch_workgroups(size[0].div_ceil(8), size[1].div_ceil(8), 1);
     }
 }
+/// Retain until the encoder is submitted or discarded. Raw GPU handles alone
+/// cannot prevent pooled working storage from being recycled by another encode.
+#[must_use = "retain the render ticket through command submission"]
 pub struct RenderTicket {
+    resources: EncodedResources,
     pub readback: wgpu::Buffer,
     location: Location,
 }
 impl RenderTicket {
+    /// Release temporary encode leases after the host submits their encoder.
+    /// The queue preserves command order; displayed surfaces retain their own
+    /// plane leases independently. Diagnostics/readback ownership stays intact.
+    pub fn submitted(&mut self) {
+        self.resources = EncodedResources::default();
+    }
     /// Decode the existing four-byte diagnostic flags for callers that own a
     /// cancellable asynchronous map/poll lifecycle instead of a callback reader.
     pub fn check_diagnostics(&self, flags:u32) -> Result<()> {

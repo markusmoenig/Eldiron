@@ -197,7 +197,8 @@ impl GpuTextures {
         if let Some(atlas) = &mut self.atlas {
             atlas.submitted = true;
         }
-        for ticket in self.queued.drain(..) {
+        for mut ticket in self.queued.drain(..) {
+            ticket.submitted();
             match StatusReadback::map(&self.context, ticket.readback.clone()) {
                 Ok(reader) => {
                     self.mapping.push(DiagnosticMap { ticket, reader });
@@ -405,10 +406,7 @@ impl GpuTextures {
                 let asset = super::textures::asset(spec, palette, None)?;
                 if self.runtime.is_none() {
                     self.runtime = Some(
-                        pollster::block_on(MaterialZ::new(
-                            &self.context.device,
-                            &self.context.queue,
-                        ))
+                        pollster::block_on(MaterialZ::new_with_context(self.context.clone()))
                         .map_err(|e| e.to_string())?,
                     );
                 }
