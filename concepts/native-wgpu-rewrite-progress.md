@@ -15103,3 +15103,28 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Browser Creator release compilation PASS27.98s:
   /private/tmp/eldiron-residency-preparation-release-web.log. All compiler handles
   terminal; diff whitespace check passes. Concurrent concept remains untouched.
+
+
+## Compute-mode private frame history (2026-11-15, integration continuing)
+
+- Before selecting bounded residency in canonical live sources, extended the
+  private 3D frame owner to accept Compute3D as well as Raster3D. Existing module/
+  type paths stay available. Compute ping-pong attempts retain their actual
+  previous-sample checkpoint with the receipt, restore it after a fault and before
+  each subsequent region, and preserve the completed working front only for final
+  composition. Missing/invalid history fails without exposing a partial frame.
+  This follows the already established private compute-bake replay contract.
+- Presentation release compile PASS16.17s:
+  /private/tmp/eldiron-private-paint-owner-release-compute.log.
+  Focused Compute3D three-page/two-slot fixture, with ping-pong sample0 and the
+  exhausted-source-budget phase, is in flight. Do not count it as verified until
+  its terminal result is recorded. Broad suites remain deferred. Next remains
+  source selection + SceneOwner activation and player/editor frozen-scope guards.
+- Focused Compute3D spatial replay PASS0.12s, release build9.48s:
+  /private/tmp/eldiron-private-paint-owner-release-compute-spatial.log. The same
+  original channels, ping-pong sample0, staged initialization and zero-budget
+  source phase complete through two slots with byte-exact output. This verifies
+  sample0 partition/history leases only; previous nonzero progressive samples,
+  indirect dependencies and complete overlay/cancellation workflows remain gates.
+  All compiler handles terminal; browser/native application checks will accompany
+  live source activation. Source selection/frozen-scope integration still pending.

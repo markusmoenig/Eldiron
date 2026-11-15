@@ -1,4 +1,4 @@
-//! A frozen private raster frame: scene, camera, target, residency and receipt
+//! A frozen private 3D paint frame: scene, camera, target, residency and receipt
 //! share one lifetime. No mutable scene borrow or output escapes while pending.
 use crate::orthographic_bake::{PaintPageRequest, PaintPageResidency, PaintResidencyUsage};
 use renderkit::{GpuContext, RenderError, Result};
@@ -6,7 +6,7 @@ use rusterix::SceneHandler;
 use scenevm::{
     RenderMode,
     paint_feedback::{PaintPageReadback, PaintPageStatus},
-    paint_pages::PaintDispatchRegion,
+    paint_pages::{LayerHistoryCheckpoint, PaintDispatchRegion},
     render_output::{SceneOutput, SceneRenderTarget},
 };
 use std::sync::Arc;
@@ -18,7 +18,10 @@ pub enum RasterPaintAdvance {
 }
 enum Phase {
     Draw,
-    Receipt(PaintPageReadback),
+    Receipt {
+        status: PaintPageReadback,
+        history: Option<LayerHistoryCheckpoint>,
+    },
     Source(u32),
     Compose,
     Complete(SceneOutput),
@@ -27,6 +30,8 @@ enum Phase {
 /// Move a fully prepared scene into this owner; dropping cancels the private
 /// request. Keep ordinary previous outputs separately until Complete. The host
 /// polls its device and schedules advances; this owner never waits for the GPU.
+/// Raster3D retains raw regions; Compute3D restores the same previous sample
+/// lease after a failed or intermediate region attempt.
 pub struct RasterPaintFrame {
     context: Arc<GpuContext>,
     scene: SceneHandler,
@@ -57,7 +62,10 @@ impl RasterPaintFrame {
     ) -> Result<()> {
         if context.is_lost()
             || scene.vm.device_generation() != Some(context.generation())
-            || scene.vm.vm.render_mode != RenderMode::Raster3D
+            || !matches!(
+                scene.vm.vm.render_mode,
+                RenderMode::Raster3D | RenderMode::Compute3D
+            )
             || !scene.vm.vm.is_enabled()
             || scene.vm.layer_has_frozen_rgba(0)
             || target.image().device_generation() != context.generation()
@@ -128,22 +136,40 @@ impl RasterPaintFrame {
                         .vm
                         .set_layer_paint_dispatch(0, Some(self.current));
                     self.scene.vm.render_base_gpu(&mut self.target)?;
+                    let history = self.scene.vm.take_layer_attempt_history(0);
+                    if self.scene.vm.vm.render_mode == RenderMode::Compute3D
+                        && self.scene.vm.vm.ping_pong_enabled()
+                        && history.is_none()
+                    {
+                        return Err(RenderError(
+                            "private compute paint attempt lost its previous sample lease".into(),
+                        ));
+                    }
                     if let Some(receipt) =
                         self.scene.vm.vm.capture_paint_page_status(&self.context)?
                     {
-                        self.phase = Phase::Receipt(receipt);
+                        self.phase = Phase::Receipt {
+                            status: receipt,
+                            history,
+                        };
                     } else {
-                        self.finish_region();
+                        self.finish_region(history)?;
                     }
                     return Ok(RasterPaintAdvance::Pending);
                 }
-                Phase::Receipt(mut receipt) => match receipt.try_finish(&self.context)? {
+                Phase::Receipt {
+                    mut status,
+                    history,
+                } => match status.try_finish(&self.context)? {
                     None => {
-                        self.phase = Phase::Receipt(receipt);
+                        self.phase = Phase::Receipt { status, history };
                         return Ok(RasterPaintAdvance::Pending);
                     }
-                    Some(PaintPageStatus::Ready) => self.finish_region(),
-                    Some(PaintPageStatus::MissingEntry(index)) => self.phase = Phase::Source(index),
+                    Some(PaintPageStatus::Ready) => self.finish_region(history)?,
+                    Some(PaintPageStatus::MissingEntry(index)) => {
+                        self.restore_history(history)?;
+                        self.phase = Phase::Source(index);
+                    }
                 },
                 Phase::Source(index) if available_bytes < 64 * 64 * 8 + 32 => {
                     // Reserve the original plane pair and both possible lookup
@@ -161,7 +187,7 @@ impl RasterPaintFrame {
                     }
                     PaintPageRequest::WorkingSetFull => {
                         let [first, second] = self.current.split().ok_or_else(|| RenderError(
-                                "single-pixel raster paint working set exceeds capacity; frame withheld".into()))?;
+                                "single-pixel 3D paint working set exceeds capacity; frame withheld".into()))?;
                         self.current = first;
                         self.waiting.push(second);
                         self.pages.begin_dispatch();
@@ -170,7 +196,7 @@ impl RasterPaintFrame {
                     }
                     PaintPageRequest::Resident => {
                         return Err(RenderError(
-                            "raster dependency receipt names an already resident source".into(),
+                            "3D paint dependency receipt names an already resident source".into(),
                         ));
                     }
                 },
@@ -192,14 +218,26 @@ impl RasterPaintFrame {
         }
         Ok(RasterPaintAdvance::Pending)
     }
-    fn finish_region(&mut self) {
+    fn restore_history(&mut self, history: Option<LayerHistoryCheckpoint>) -> Result<()> {
+        if let Some(history) = history
+            && !self.scene.vm.restore_layer_history(0, history)
+        {
+            return Err(RenderError(
+                "private paint replay lost its valid previous sample".into(),
+            ));
+        }
+        Ok(())
+    }
+    fn finish_region(&mut self, history: Option<LayerHistoryCheckpoint>) -> Result<()> {
         if let Some(next) = self.waiting.pop() {
+            self.restore_history(history)?;
             self.current = next;
             self.pages.begin_dispatch();
             self.phase = Phase::Draw;
         } else {
             self.phase = Phase::Compose;
         }
+        Ok(())
     }
     pub fn output(&self) -> Option<&SceneOutput> {
         if !self.context.is_lost()

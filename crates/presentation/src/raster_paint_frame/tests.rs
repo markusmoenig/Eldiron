@@ -29,6 +29,14 @@ fn finish(context: &GpuContext, mut ticket: ReadbackTicket) -> Vec<u8> {
 #[test]
 #[ignore = "native GPU; private raster pressure/replay must match resident original paint"]
 fn private_raster_pressure_matches_resident_frame() {
+    pressure_fixture(RenderMode::Raster3D);
+}
+#[test]
+#[ignore = "native GPU; private compute regions must restore their sample lease through pressure"]
+fn private_compute_pressure_matches_resident_frame() {
+    pressure_fixture(RenderMode::Compute3D);
+}
+fn pressure_fixture(mode: RenderMode) {
     let context = futures::executor::block_on(GpuContext::headless()).unwrap();
     let size = (96, 64);
     let atlas = SharedAtlas::new(64, 64);
@@ -51,7 +59,11 @@ fn private_raster_pressure_matches_resident_frame() {
             size.1,
             atlas.clone(),
         ));
-        scene.vm.execute(Atom::SetRenderMode(RenderMode::Raster3D));
+        scene.vm.execute(Atom::SetRenderMode(mode));
+        if mode == RenderMode::Compute3D {
+            scene.vm.set_layer_ping_pong_enabled(0, true);
+            scene.vm.set_layer_progressive_sample_index(0, Some(0));
+        }
         scene.vm.execute(Atom::SetRaster3DMsaaSamples(4));
         scene.vm.set_background_lighting(false);
         scene.vm.execute(Atom::SetCamera3D {
