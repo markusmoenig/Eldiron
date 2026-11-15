@@ -1,0 +1,100 @@
+{
+  "profile": "release",
+  "frames_per_mode": 120,
+  "metadata_equal": {
+    "project": true,
+    "logical_size": true,
+    "physical_size": true,
+    "density": true,
+    "viewport": true,
+    "view_mode": true,
+    "map_camera": true,
+    "initial_camera": true,
+    "gpu_adapter": true
+  },
+  "timing_ms": {
+    "hover": {
+      "native": {
+        "mean": 7.304196216666663,
+        "p50": 7.178791,
+        "p95": 8.53675,
+        "p99": 8.782417
+      },
+      "reference": {
+        "mean": 7.666451366666666,
+        "p50": 7.598458,
+        "p95": 8.241458,
+        "p99": 8.278416
+      }
+    },
+    "idle": {
+      "native": {
+        "mean": 7.17009445,
+        "p50": 7.08225,
+        "p95": 7.801875,
+        "p99": 8.643917
+      },
+      "reference": {
+        "mean": 7.58074485,
+        "p50": 7.526,
+        "p95": 8.093124999999999,
+        "p99": 8.16225
+      }
+    },
+    "pan": {
+      "native": {
+        "mean": 8.334660074999997,
+        "p50": 8.230958,
+        "p95": 8.931166000000001,
+        "p99": 9.653208
+      },
+      "reference": {
+        "mean": 7.5994093333333295,
+        "p50": 7.545125,
+        "p95": 7.989958000000001,
+        "p99": 8.328417
+      }
+    },
+    "zoom": {
+      "native": {
+        "mean": 7.983332699999997,
+        "p50": 8.176792,
+        "p95": 8.973542,
+        "p99": 9.127125
+      },
+      "reference": {
+        "mean": 7.534436483333332,
+        "p50": 7.502959,
+        "p95": 7.81075,
+        "p99": 7.872292
+      }
+    }
+  },
+  "native_binding_cache": {
+    "before": {
+      "byte_limit": 67108864,
+      "created": 336,
+      "estimated_bytes": 8756444,
+      "evictions": 2,
+      "group_limit": 2048,
+      "groups": 127,
+      "hits": 22305
+    },
+    "after": {
+      "byte_limit": 67108864,
+      "created": 3696,
+      "estimated_bytes": 8756444,
+      "evictions": 2,
+      "group_limit": 2048,
+      "groups": 127,
+      "hits": 383025
+    }
+  },
+  "scope": "Offscreen input through GPU completion. CPU reference uses persistent RGBA upload plus shared compositor; excludes native window/acquisition/display, physical input latency and driver-wide memory. Phase CPU timings are not GPU timestamps.",
+  "limits": [
+    "One matched offscreen pair, not whole-application or physical-input/display acceptance.",
+    "Pan/zoom medians remain about 9% slower; some native tail percentiles also regress.",
+    "Original/new screenshots visually inspected. UI and static scene pixels match; differences remain in animated water and its minimap projection. Assembled GPU regression and exact paint-contract references pass.",
+    "Counters do not measure total GPU driver memory; CPU reference legacy SceneVM transfers are not exhaustively instrumented."
+  ]
+}

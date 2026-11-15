@@ -212,6 +212,12 @@ fn resources(gpu: &GpuContext) -> Json {
         "source_pool":format!("{:?}",gpu.source_pool_usage()),
         "working_buffers":format!("{:?}",gpu.working_buffer_pool_usage())})
 }
+fn binding_usage(renderer: &PaintRenderer) -> Json {
+    let usage = renderer.binding_cache_usage();
+    json!({"groups":usage.groups,"estimated_bytes":usage.estimated_bytes,
+        "group_limit":usage.group_limit,"byte_limit":usage.byte_limit,
+        "created":usage.created,"hits":usage.hits,"evictions":usage.evictions})
+}
 
 #[test]
 #[ignore = "matched offscreen release profiling; requires ELDIRON_BENCH_PROJECT_PATH and a native GPU"]
@@ -336,6 +342,7 @@ fn benchmark_creator_release_paths() {
         .unwrap();
     }
     let before = resources(&gpu);
+    let bindings_before = binding_usage(&renderer);
     let glyphs_before = renderer.glyphs.rasterizations;
     let (editor, _, _) = application.parts();
     let region = &editor.documents.project.regions[0];
@@ -405,6 +412,7 @@ fn benchmark_creator_release_paths() {
         "gpu_adapter":format!("{:?}",gpu.adapter.get_info()),
         "device_init_ms":device_ms,"first_complete_view_ms":first_ready_ms,
         "warmup_frames":warmup_frames,"resources_before":before,"resources_after":resources(&gpu),
+        "bindings_before":bindings_before,"bindings_after":binding_usage(&renderer),
         "modes":modes,"scope":"Offscreen input through GPU completion. CPU reference uses persistent RGBA upload plus shared compositor; excludes native window/acquisition/display, physical input latency and driver-wide memory. Phase CPU timings are not GPU timestamps."});
     let destination = std::env::var("ELDIRON_BENCH_OUTPUT").unwrap();
     std::fs::write(&destination, serde_json::to_vec_pretty(&result).unwrap()).unwrap();

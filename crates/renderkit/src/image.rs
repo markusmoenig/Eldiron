@@ -31,6 +31,7 @@ pub struct GpuImage {
     device_generation: u64,
     _target_lease: Option<crate::TargetLease>,
     _allocation: Option<crate::allocation_usage::AllocationCharge>,
+    source_asset: bool,
 }
 impl GpuImage {
     pub fn new(context: &GpuContext, descriptor: ImageDescriptor) -> Result<Arc<Self>> {
@@ -90,6 +91,7 @@ impl GpuImage {
         Ok(Arc::new(Self {
             texture: lease.texture().clone(), view: lease.view().clone(), descriptor,
             device_generation: context.generation(), _target_lease: Some(lease), _allocation: None,
+            source_asset: false,
         }))
     }
     /// The supplied texture must have been created on this context's device.
@@ -115,10 +117,16 @@ impl GpuImage {
             device_generation: context.generation(),
             _target_lease: None,
             _allocation: None,
+            source_asset: false,
         })
     }
     pub fn device_generation(&self) -> u64 {
         self.device_generation
+    }
+    /// Allocated by a CPU asset upload rather than a producer target. Binding
+    /// caches may retain this owner without extending a producer target lease.
+    pub fn is_source_asset(&self) -> bool {
+        self.source_asset
     }
 }
 struct Slot {
@@ -203,7 +211,7 @@ impl ImageRegistry {
     /// For RGBA8 inputs, Premultiplied means RGB is multiplied in the tagged
     /// source color space. The GPU result is always RGBA16F linear premultiplied.
     pub fn upload_linear(&mut self, source: &ImageAsset) -> Result<ImageHandle> {
-        let image = GpuImage::new(
+        let mut image = GpuImage::new(
             &self.context,
             ImageDescriptor {
                 width: source.width(),
@@ -213,6 +221,7 @@ impl ImageRegistry {
                 alpha_mode: AlphaMode::Premultiplied,
             },
         )?;
+        Arc::get_mut(&mut image).unwrap().source_asset = true;
         let pixels = linear_premultiplied_pixels(source);
         self.context.record_upload(pixels.len() as u64);
         self.context.queue.write_texture(
@@ -242,7 +251,8 @@ impl ImageRegistry {
         if source.color_space == ColorSpace::Linear {
             descriptor.format = wgpu::TextureFormat::Rgba8Unorm;
         }
-        let image = GpuImage::new(&self.context, descriptor)?;
+        let mut image = GpuImage::new(&self.context, descriptor)?;
+        Arc::get_mut(&mut image).unwrap().source_asset = true;
         self.context.record_upload(source.pixels().len() as u64);
         self.context.queue.write_texture(
             wgpu::TexelCopyTextureInfo {

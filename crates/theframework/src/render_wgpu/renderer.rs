@@ -1,5 +1,6 @@
 use super::{
     atlas::GlyphAtlas,
+    bindings::{self, Bindings},
     mesh::{self, Vertex},
 };
 use crate::{paint::*, text::GlyphCache};
@@ -143,6 +144,7 @@ pub struct PaintRenderer {
     legacy_display: bool,
     display_target: Option<Arc<GpuImage>>,
     display_pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
+    bindings: Bindings,
 }
 impl PaintRenderer {
     pub fn new(context: Arc<GpuContext>) -> Result<Self> {
@@ -269,6 +271,7 @@ impl PaintRenderer {
             legacy_display: false,
             display_target: None,
             display_pipelines: HashMap::new(),
+            bindings: Bindings::default(),
         })
     }
     fn color(&self, color: Color) -> Color {
@@ -280,6 +283,9 @@ impl PaintRenderer {
     }
     pub fn frame_stats(&self) -> FrameStats {
         self.stats
+    }
+    pub fn binding_cache_usage(&self) -> super::BindingCacheUsage {
+        self.bindings.usage()
     }
 
     fn glyph_draw(&self, batch: GlyphBatch, size: (u32, u32), level: u32) -> Result<Draw> {
@@ -630,7 +636,8 @@ impl PaintRenderer {
         }
         let uniform = self.context.upload_immutable_buffer(bytemuck::bytes_of(&params), wgpu::BufferUsages::UNIFORM)?;
         let texture = image.map_or(&self.white, |(image, _)| image);
-        let sampler = &self.samplers[&image.map(|(_, s)| s).unwrap_or(Sampling::Linear)];
+        let sampling = image.map(|(_, s)| s).unwrap_or(Sampling::Linear);
+        let sampler = &self.samplers[&sampling];
         let mut field_data = field.map(|field| match field {
             Field::HueLightness(..) => Vec::new(),
             Field::Distance(field, _) => distance_data(field, self.legacy_display),
@@ -648,7 +655,16 @@ impl PaintRenderer {
         let field_buffer = field_data.as_ref().filter(|v| !v.is_empty()).map(|data| {
             self.context.upload_immutable_buffer(bytemuck::cast_slice(data), wgpu::BufferUsages::STORAGE)
         }).transpose()?;
-        let bind = self
+        // Reuse asset/glyph/solid bindings without retaining producer or opacity
+        // targets past submission. Unused source owners leave with this frame.
+        let key = (texture.is_source_asset()
+            || Arc::ptr_eq(texture, &self.white)
+            || self.atlas.owns_image(texture))
+        .then(|| bindings::Key::new(&uniform, field_buffer.as_ref(), texture, sampling));
+        let bind = if let Some(bind) = key.and_then(|key| self.bindings.get(&key)) {
+            bind
+        } else {
+            let bind = self
             .context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -676,6 +692,9 @@ impl PaintRenderer {
                     },
                 ],
             });
+            self.bindings.created(key, &bind, &uniform, field_buffer.as_ref(), texture);
+            bind
+        };
         Ok(Draw {
             geometry,
             bind,
@@ -717,19 +736,27 @@ impl PaintRenderer {
                 DisplayCompositing::LegacyOpaque
             ))
         );
-        if self.legacy_display {
-            return self.render_display(list, images, target, format, size, density, clear);
-        }
-        self.render_ops(
-            &list.ops,
-            images,
-            target,
-            format,
-            size,
-            density,
-            clear,
-            Transform::default(),
-        )
+        self.bindings.begin_frame();
+        let result = if self.legacy_display {
+            self.render_display(list, images, target, format, size, density, clear)
+        } else {
+            self.render_ops(
+                &list.ops,
+                images,
+                target,
+                format,
+                size,
+                density,
+                clear,
+                Transform::default(),
+            )
+        };
+        self.bindings.finish_frame(|image| {
+            image.is_source_asset()
+                || Arc::ptr_eq(image, &self.white)
+                || self.atlas.owns_image(image)
+        });
+        result
     }
     fn render_display(
         &mut self,

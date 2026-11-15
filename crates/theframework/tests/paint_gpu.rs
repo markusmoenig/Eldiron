@@ -56,6 +56,7 @@ fn ordered_paint_clips_groups_and_swash_blits() {
     let uploads = ctx.transfers().uploaded_bytes;
     let count = renderer.glyphs.rasterizations;
     let targets = ctx.target_pool_usage();
+    let bindings = renderer.binding_cache_usage();
     assert!(count > 0);
     renderer
         .render(
@@ -73,6 +74,11 @@ fn ordered_paint_clips_groups_and_swash_blits() {
     assert!(ctx.target_pool_usage().hits > targets.hits);
     assert_eq!(ctx.transfers().uploaded_bytes, uploads);
     assert_eq!(ctx.transfers().readback_bytes, 0);
+    let repeated_bindings = renderer.binding_cache_usage();
+    assert!(repeated_bindings.hits > bindings.hits);
+    assert!(repeated_bindings.created - bindings.created < renderer.frame_stats().draw_calls as u64);
+    assert!(repeated_bindings.groups <= repeated_bindings.group_limit);
+    assert!(repeated_bindings.estimated_bytes <= repeated_bindings.byte_limit);
     let mut capture = ReadbackTicket::capture(&ctx, output).unwrap();
     ctx.device
         .poll(wgpu::PollType::Wait {

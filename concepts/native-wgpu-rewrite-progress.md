@@ -34,9 +34,10 @@ No percentage is mechanically measured; the chat's roughly85% is an estimate.
 - Canonical Creator/player/browser/Apple share explicit presentation owners.
   Creator foreign handles/layers and Swift close approvals are per owner; actual
   optimized detached multi-host and retained-window lifetime checks pass.
-- iOS simulator runtime acceptance found an actual shared device-limit issue
-  (request16 inter-stage variables versus Metal15). Correction is under release
-  runtime verification; successful SDK builds were insufficient to reveal it.
+- iOS simulator runtime acceptance found and corrected an actual shared
+  device-limit issue (request16 inter-stage variables versus Metal15). Actual
+  optimized player/Creator UIKit presentation and Creator Release Xcode bundle
+  pass; SDK builds alone had been insufficient to reveal the issue.
 - M0 performance baselines and M5/M6/M7/M8/M9 full functional/platform/resource
   gates remain open. Physical macOS input/presentation, monitor/clipboard/IME,
   Windows/Linux and physical mobile checks are not replaced by offscreen tests.
@@ -17355,3 +17356,63 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   startup work, not as an already-fixed renderer regression.
 
 - Captured main viewport before/after residency fix is byte-identical (RGBA maximum delta0). Root/minimap ROI comparisons are separately reported; assembled GPU tests already retain exact independent minimap references.
+
+- Entire Hideout2D root image, including minimap ROI, is byte-identical before/
+  after retained-source fix (RGBA maxdelta0). Checkpoint aa4dde00 stores the
+  verified ownership fix and partial performance improvement; CPU reference
+  is still faster, so no completion claim.
+- Removed a duplicate full content check immediately after publishing the same
+  borrowed immutable source. Navigation still performs its own fresh comparison
+  before accepting a presented frame. This preserves direct prepare/input guards.
+- Measured compositor CPU submission still~2.8ms with~759draws; sampling shows
+  repeated WGPU binding creation. Added bounded per-renderer binding reuse keyed
+  by pinned immutable uniform/field buffers, exact image owner and sampler.
+  Admit only CPU asset uploads, solid white and current glyph pages; producer/
+  opacity/display targets remain unretained by this cache. Unused/retired entries
+  leave at root-frame end;2048groups/64MiB estimated input retention cap, excluding
+  driver memory. Asset origin is GPU-only metadata and changes no saved format.
+  Extended existing GPU clip/group/text contract for reuse and bounded storage;
+  profiler now records binding creations/hits. Focused release compilation/GPU
+  checks required before new timing evidence.
+
+- Bounded immutable binding reuse passes actual Metal paint GPU contracts12/12,
+  release build12.49s/runtime0.57s; /private/tmp/eldiron-binding-residency-paint-gpu.log;
+  42008terminal. Warm cache hits increase with fewer creations than compositor
+  draws, input retention stays within declared caps, producer-target allocations
+  remain warm-reusable, zero additional source uploads/glyph rasterization, and
+  all original clip/group/display blending/text/filter/DPI/receipt assertions pass.
+  New Creator release compilation95689 is in progress; no Rust edits during it.
+  Next fresh assembled GPU gate, exact root-pixel comparison and matched Hideout
+  timing. Chat estimate remains roughly85%, not a measured completion fraction;
+  performance and unavailable physical/platform acceptance gates stay open.
+
+- Current Creator release compilePASS1m53s,95689terminal, log
+  /private/tmp/eldiron-binding-residency-creator-build.log. Fresh assembled native
+  Creator GPU gatePASS1/1,23.85s,17726terminal, log
+  /private/tmp/eldiron-binding-residency-assembled.log. All existing exact minimap/
+  scope/navigation/paint/document/runtime assertions remain intact.
+- Fresh matched Hideout release pairPASS53757/41173terminal,120samples per mode,
+  1600×1000@1; equal project/camera/layout/density/adapter metadata. Native p50
+  idle7.08/hover7.18/pan8.23/zoom8.18ms; CPU reference7.53/7.60/7.55/7.50ms.
+  Idle/hover now~6% faster, pan/zoom still~9% slower; some native p95/p99 regress.
+  This is one offscreen pair, not final performance or physical-latency acceptance.
+- Native binding hits+360720 across480frames, groups127/2048, estimated retained
+  inputs8756444B/64MiB, binding creations+3360 (producer/display groups deliberately
+  uncached). Timed normal capture/readback delta0; source upload delta4712B.
+  Full source screenshots visually inspected. Static UI/scene pixels agree;
+  changed water animation and its minimap prevent whole-root byte equality in
+  this pair. Exact paint GPU and assembled independent references already pass.
+  Durable release-perf-hideout-bindings-{native,reference,summary}.json and PNGs.
+- Diagnostic-only warm release CPU sampling56868 now in progress, separate from
+  numerical timing claims, to identify remaining pan/zoom preparation work before
+  another production change. No Rust edits while it runs.
+
+- Diagnostic sampling56868terminalPASS, ownedPID94193;
+  /private/tmp/eldiron-binding-residency-hideout-sampled.{txt,log,json}. No sampled
+  numerical result used for performance acceptance.379/408 native preparation
+  samples are overview source comparisons,369 in linedef properties with large
+  HashMap/string/Value equality. Main scene rendering contributes1 sample.
+  Next use copy-on-write property storage so retained CPU sources share unchanged
+  values and detect shared equality exactly. Preserve every mutation/fingerprint
+  invalidation, nonreflexive float equality, and serialized field/map shape; then
+  run CPU data/session contracts plus fresh assembled/pair release checks.

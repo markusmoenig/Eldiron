@@ -31,6 +31,9 @@ impl Default for GlyphAtlas {
     }
 }
 impl GlyphAtlas {
+    pub(super) fn owns_image(&self, image: &Arc<GpuImage>) -> bool {
+        self.pages.iter().any(|page| Arc::ptr_eq(&page.image, image))
+    }
     pub fn get(&self, key: &GlyphKey) -> Option<Entry> {
         self.entries.get(key).cloned()
     }

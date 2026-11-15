@@ -184,11 +184,12 @@ fn separate_source(project: &Project, server: &CreatorContext, map: &Map) -> boo
                 .is_none_or(|editing| editing.id != map.id))
 }
 impl SceneOverview {
-    fn refresh_source(&mut self, project: &Project, server: &CreatorContext) {
+    fn refresh_source(&mut self, project: &Project, server: &CreatorContext) -> Option<source_cache::Snapshot> {
         if let Some((map, _)) = overview_map(project, server) {
-            self.source_cache.publish(server.shared.document_instance, map);
+            Some(self.source_cache.publish(server.shared.document_instance, map))
         } else {
             self.source_cache.clear();
+            None
         }
     }
     pub(crate) fn advance_source(
@@ -219,11 +220,11 @@ impl SceneOverview {
         self.source.as_mut().unwrap().advance()
     }
     fn binding(
-        &self,
         project: &Project,
         server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
+        snapshot: source_cache::Snapshot,
     ) -> Option<(Binding, Arc<Map>)> {
         let (original, region) = overview_map(project, server)?;
         let view = ui.get_render_view("MiniMap")?;
@@ -231,7 +232,11 @@ impl SceneOverview {
         if dim.width <= 0 || dim.height <= 0 {
             return None;
         }
-        let snapshot = self.source_cache.current(server.shared.document_instance, original)?;
+        // The producer has already checked this immutable publication against
+        // the borrowed project. Input obtains it through a fresh content check.
+        if snapshot.document != server.shared.document_instance || snapshot.map.id != original.id {
+            return None;
+        }
         let map = snapshot.map;
         let source = u64::from(snapshot.revision);
         Some((
@@ -263,8 +268,8 @@ impl SceneOverview {
         {
             return false;
         }
-        self.refresh_source(project, server);
-        if self.binding(project, server, ui, ctx).is_none() { return false; }
+        let Some(snapshot) = self.refresh_source(project, server) else { return false; };
+        if Self::binding(project, server, ui, ctx, snapshot).is_none() { return false; }
         if !self.enabled {
             self.invalidate(ui);
             ui.get_render_view("MiniMap")
@@ -305,8 +310,8 @@ impl SceneOverview {
             self.gpu = None;
             return Ok(None);
         }
-        self.refresh_source(project, server);
-        let Some((binding, map)) = self.binding(project, server, ui, ctx) else {
+        let snapshot = self.refresh_source(project, server);
+        let Some((binding, map)) = snapshot.and_then(|snapshot| Self::binding(project, server, ui, ctx, snapshot)) else {
             self.invalidate(ui);
             return Ok(None);
         };
@@ -667,10 +672,9 @@ impl SceneOverview {
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> Result<Option<Vec2<f32>>, ()> {
-        if overview_map(project, server).is_none() {
-            return Ok(None);
-        }
-        let (binding, _) = self.binding(project, server, ui, ctx).ok_or(())?;
+        let Some((original, _)) = overview_map(project, server) else { return Ok(None); };
+        let snapshot = self.source_cache.current(server.shared.document_instance, original).ok_or(())?;
+        let (binding, _) = Self::binding(project, server, ui, ctx, snapshot).ok_or(())?;
         let frame = self.presented.as_ref().ok_or(())?;
         if frame.binding != binding || frame.binding.view != *id {
             return Err(());

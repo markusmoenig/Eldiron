@@ -1,5 +1,7 @@
 //! GPU execution of ordered paint lists, with stencil clips and isolated opacity.
 mod atlas;
+mod bindings;
+pub use bindings::BindingCacheUsage;
 mod mesh;
 mod renderer;
 pub use renderer::{FrameStats, PaintRenderer};

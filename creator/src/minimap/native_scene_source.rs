@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub(super) struct Snapshot {
-    document: Uuid,
+    pub(super) document: Uuid,
     pub(super) revision: u32,
     pub(super) map: Arc<Map>,
 }
