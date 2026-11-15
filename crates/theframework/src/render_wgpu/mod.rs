@@ -4,6 +4,7 @@ mod bindings;
 pub use bindings::BindingCacheUsage;
 mod mesh;
 mod sampled_lines;
+mod pixel_images;
 mod renderer;
 pub use renderer::{FrameStats, PaintRenderer};
 

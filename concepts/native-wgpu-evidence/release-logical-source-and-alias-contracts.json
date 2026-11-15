@@ -1,0 +1,231 @@
+{
+  "scope": "Targeted release implementation contracts plus guarded 30-sample pilot; no full-image byte equality or final performance/platform acceptance claimed. Root draw counters exclude offscreen logical layer draws.",
+  "contracts": [
+    {
+      "check": "renderkit target_pool",
+      "passed": 4,
+      "log": "/private/tmp/eldiron-image-alias-target-contracts.log"
+    },
+    {
+      "check": "framework original paint_gpu",
+      "passed": 12,
+      "log": "/private/tmp/eldiron-pixel-image-paint-regressions.log"
+    },
+    {
+      "check": "actual CPU direct and nested pixel composition, five DPIs",
+      "passed": 2,
+      "log": "/private/tmp/eldiron-pixel-image-local-parent-composition.log"
+    },
+    {
+      "check": "Creator fractional source layer immutability, exact command/output reuse, producer revision, density changes, clear",
+      "passed": 1,
+      "log": "/private/tmp/eldiron-logical-isometric-local-grid-creator.log"
+    },
+    {
+      "check": "full assembled Creator original workflow and source comparisons, guide execution/presentation proof adapted to logical layer",
+      "passed": 1,
+      "runtime_seconds": 23.82,
+      "log": "/private/tmp/eldiron-logical-isometric-local-grid-assembled.log"
+    }
+  ],
+  "guard": {
+    "exit": 0,
+    "problem": null,
+    "wall_seconds": 12.769705167,
+    "child_max_rss_reported": 3512188928
+  },
+  "comparison_reference": "/private/tmp/eldiron-isometric-streamed-project-reference.png",
+  "comparison_crop_physical": [
+    77,
+    131,
+    1830,
+    1089
+  ],
+  "comparison": {
+    "whole": {
+      "bounds_viewport_pixels": [
+        0,
+        0,
+        1753,
+        958
+      ],
+      "mean_abs_rgb": [
+        0.3632591668085846,
+        0.4012518950513703,
+        0.3843682229211599
+      ],
+      "extrema": [
+        [
+          0,
+          236
+        ],
+        [
+          0,
+          216
+        ],
+        [
+          0,
+          181
+        ]
+      ],
+      "pixels": 1679374,
+      "changed_pixels": 68345,
+      "percent_max_channel_delta_over_one": 3.687921808959767
+    },
+    "top_hud_strip": {
+      "bounds_viewport_pixels": [
+        0,
+        0,
+        1753,
+        100
+      ],
+      "mean_abs_rgb": [
+        2.8977866514546493,
+        2.744814603536794,
+        2.743844837421563
+      ],
+      "extrema": [
+        [
+          0,
+          232
+        ],
+        [
+          0,
+          216
+        ],
+        [
+          0,
+          181
+        ]
+      ],
+      "pixels": 175300,
+      "changed_pixels": 59629,
+      "percent_max_channel_delta_over_one": 31.014261266400457
+    },
+    "bottom_strip": {
+      "bounds_viewport_pixels": [
+        0,
+        898,
+        1753,
+        958
+      ],
+      "mean_abs_rgb": [
+        0.2586993725042784,
+        0.5026430880395513,
+        0.4297585092222856
+      ],
+      "extrema": [
+        [
+          0,
+          14
+        ],
+        [
+          0,
+          27
+        ],
+        [
+          0,
+          23
+        ]
+      ],
+      "pixels": 105180,
+      "changed_pixels": 2069,
+      "percent_max_channel_delta_over_one": 1.967104012169614
+    },
+    "left_strip": {
+      "bounds_viewport_pixels": [
+        0,
+        100,
+        60,
+        898
+      ],
+      "mean_abs_rgb": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "extrema": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "pixels": 47880,
+      "changed_pixels": 0,
+      "percent_max_channel_delta_over_one": 0.0
+    },
+    "right_strip": {
+      "bounds_viewport_pixels": [
+        1633,
+        100,
+        1753,
+        898
+      ],
+      "mean_abs_rgb": [
+        0.3927422723475355,
+        0.7629385964912281,
+        0.652422723475355
+      ],
+      "extrema": [
+        [
+          0,
+          14
+        ],
+        [
+          0,
+          27
+        ],
+        [
+          0,
+          23
+        ]
+      ],
+      "pixels": 95760,
+      "changed_pixels": 2862,
+      "percent_max_channel_delta_over_one": 2.988721804511278
+    },
+    "interior": {
+      "bounds_viewport_pixels": [
+        60,
+        100,
+        1633,
+        898
+      ],
+      "mean_abs_rgb": [
+        0.029672878955175605,
+        0.05318365844681634,
+        0.04526892565170077
+      ],
+      "extrema": [
+        [
+          0,
+          236
+        ],
+        [
+          0,
+          184
+        ],
+        [
+          0,
+          146
+        ]
+      ],
+      "pixels": 1255254,
+      "changed_pixels": 3785,
+      "percent_max_channel_delta_over_one": 0.20991767403250658
+    }
+  },
+  "remaining": [
+    "classify residual large-scene HUD/source differences; no full-image exact claim",
+    "pan and zoom slower than matched CPU reference in diagnostic",
+    "final broad release/dependency/platform checks still pending"
+  ]
+}

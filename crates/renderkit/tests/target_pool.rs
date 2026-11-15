@@ -145,6 +145,58 @@ fn source_array_layers_and_mips_are_separate_owned_storage() {
 }
 
 #[test]
+#[ignore = "native GPU; metadata aliases retain their producer allocation"]
+fn alpha_metadata_alias_pins_pooled_and_unpooled_source_storage() {
+    let context = pollster::block_on(GpuContext::headless()).unwrap();
+    let descriptor = ImageDescriptor {
+        width: 8,
+        height: 8,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        color_space: ColorSpace::Srgb,
+        alpha_mode: AlphaMode::Straight,
+    };
+    let first = GpuImage::render_target(&context, descriptor).unwrap();
+    clear(&context, &first, wgpu::Color::RED);
+    let alias = first.with_alpha_mode(AlphaMode::Opaque);
+    let owner = Arc::downgrade(&first);
+    drop(first);
+    assert!(owner.upgrade().is_some());
+    assert_eq!(alias.descriptor.alpha_mode, AlphaMode::Opaque);
+    assert_eq!(context.target_pool_usage().live_allocations, 1);
+    let second = GpuImage::render_target(&context, descriptor).unwrap();
+    clear(&context, &second, wgpu::Color::GREEN);
+    assert_eq!(context.target_pool_usage().allocations, 2);
+    assert_eq!(
+        context.target_pool_usage().hits,
+        0,
+        "live alias cannot return a producer target to the pool"
+    );
+    assert_eq!(context.transfers().readback_bytes, 0);
+    assert_eq!(pixel(&context, alias.clone()), [255, 0, 0, 255]);
+    drop(alias);
+    assert!(owner.upgrade().is_none());
+    let reused = GpuImage::render_target(&context, descriptor).unwrap();
+    assert_eq!(context.target_pool_usage().hits, 1);
+    drop(reused);
+    drop(second);
+    context.set_target_cache_limits(0, 0);
+    assert_eq!(context.target_pool_usage().live_allocations, 0);
+
+    let first = GpuImage::new(&context, descriptor).unwrap();
+    let usage = context.image_allocation_usage();
+    let alias = first.with_alpha_mode(AlphaMode::Opaque);
+    drop(first);
+    assert_eq!(
+        context.image_allocation_usage(),
+        usage,
+        "alias keeps original charge, without charging twice"
+    );
+    drop(alias);
+    assert_eq!(context.image_allocation_usage().live_images, 0);
+    assert_eq!(context.image_allocation_usage().live_bytes, 0);
+}
+
+#[test]
 #[ignore = "native GPU; compatible storage/sRGB array views"]
 fn source_color_views_preserve_bytes_and_sampling_without_duplicate_storage() {
     let context = pollster::block_on(GpuContext::headless()).unwrap();

@@ -19,7 +19,7 @@ Started: 2026-11-11 (Asia/Bangkok). Objective unfinished; full M0–M9 scope rem
 - Preserve serialized legacy core values through identity-compatible re-exports; new CPU image data has size/pixels without UI position/display scale.
 - User instruction (2026-11-14): older experimental paint algorithm versions do not require backwards compatibility. Preserve current paint/project serialization; do not add legacy paint replay requirements to native producers.
 
-## Current acceptance checkpoint (2026-11-15)
+## Current acceptance checkpoint (2026-11-16)
 
 Implementation is connected across M0–M9; the complete objective is still open.
 The remaining known work is acceptance/fixes, measured release performance and
@@ -27,7 +27,7 @@ platform validation. Earlier per-milestone inventories below are historical;
 later implementation/evidence entries supersede their old remaining-caller lists.
 No percentage is mechanically measured; the chat's roughly85% is an estimate.
 
-- Current release passes: Renderkit12, Framework296, SceneVM77, presentation216,
+- Earlier broad release passes (not a fresh final matrix): Renderkit12, Framework296, SceneVM77, presentation216,
   CPU core/shared/runtime205, Creator nonignored641, common player13, assembled
   Creator1 and large native bake1. Twenty-nine isolated dependency configurations
   pass. Ignored specialized Creator contracts are inventoried separately.
@@ -43,6 +43,11 @@ No percentage is mechanically measured; the chat's roughly85% is an estimate.
   Windows/Linux and physical mobile checks are not replaced by offscreen tests.
 - Maintain release-only builds. Preserve current projects/paint serialization and
   concurrent work. Continue available work without waiting for routine approval.
+- Current implementation work: live sprite/alpha ownership and strict nested
+  overview source guards now pass targeted release checks. Logical isometric
+  GPU layer/fractional-DPI scaling and minimap pooled-image alias ownership are
+  under current Creator integration verification; final performance still open.
+  See the latest chronological entries for exact binaries, evidence and blockers.
 
 ## Historical milestone inventory
 
@@ -18163,3 +18168,107 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   rounding. CPU compositing itself uses integer left-edge source lookup. Next
   explicit GPU logical source layer + matched pixel scaling contract, retaining
   device-density HUD/text, then current Creator integration/performance.
+
+
+## Logical isometric source scaling (2026-11-15, implementation ongoing)
+
+- PixelImage positive axis-aligned quads now round physical endpoints using f64
+  products, matching RasterScale.pixel_rect. General affine placements retain
+  their previous geometry. Integer-sized destinations use exact bounded u32
+  left-edge division; other extents retain float lookup. Original SpriteImage/
+  SampledLine contracts unchanged. New small render_wgpu/pixel_images.rs helper.
+- New exact comparison uses actual TheRGBABuffer.scaled_into_using_dim, not a
+  duplicated expected sampling formula: equal-sized RenderView sources at all
+  five required densities plus resized/clipped inputs above unit DPI. Initial
+  compile used nonexistent Transform::translation; corrected to translate. The
+  first test then exposed the CPU helper's SEPARATE unit-density explicit resize
+  fallback (round sampling). Fixture now exercises actual RenderView composite
+  path at unit scale, keeps resized/clipped fractional cases, and leaves the
+  existing PixelImage left-edge resize fixture unchanged. No pixel tolerance
+  relaxed:97587terminalPASS1/1, all RGBA exact across22settings in0.11s.
+  /private/tmp/eldiron-pixel-image-render-view-composition.log.
+- Main isometric scene+guides now compose into a logical-size pooled GPU target
+  on the same injected context, then emit one PixelImage. HUD/speech/text remain
+  host-density paint. Cache compares complete source commands plus output
+  revision and dimensions; no digest-only reuse, CPU destination or readback.
+  Re-render publishes a fresh target, retires old handle, external old image
+  leases remain immutable. Scope/mode/device changes clear layer ownership.
+- Release Creator14206 currently compiling targeted layer ownership test.
+  /private/tmp/eldiron-logical-isometric-layer-ownership.log. After terminal, run
+  original full assembled Creator integration and fresh matched large150%DPI
+  pilot before claiming fractional parity/performance. Existing full benchmarks
+  are STALE for this source layer. Original paint GPU regression checks pending.
+- Audit identified another concrete ownership follow-up: minimap opaque metadata
+  alias uses GpuImage::from_texture on a pooled producer texture, dropping its
+  allocation lease. Must replace with an alias that retains the source image
+  and prove no pool reuse while alias is live. Do not claim residency finished.
+
+- Logical layer14206terminalPASS1/1 (release build1m55s, runtime0.18s). Original
+  assembled52199 then stopped after2.53s at its old assertion that isometric
+  guides appear directly in the root. Guides now execute in the logical GPU
+  layer by design. Updated assertion checks retained guide commands + executed
+  layer draw count, and exact layer image handle in root PixelImage. Original
+  source RGB<=1 and all other workflow assertions unchanged. Fresh Creator
+  release31937 now compiling; /private/tmp/eldiron-logical-isometric-alias-creator.log.
+- GpuImage::with_alpha_mode now retains its source Arc, target lease and original
+  accounting charge while sharing texture/view. Minimap uses it instead of raw
+  texture reimport. Initial test incorrectly expected cached pool allocations to
+  disappear without evicting the pool; corrected to explicit zero pool limits.
+ 60725terminalPASS4/4 original target/source/pool contracts plus new alias test:
+  two live producer allocations cannot alias, old red survives new green clear,
+  reuse only after alias drops, unpooled charge retained once and released on last
+  alias. /private/tmp/eldiron-image-alias-target-contracts.log.
+- Focused framework66021terminalPASS13/13 actual Metal (original12paint contracts
+  and new exact actual-CPU pixel composition contract). Existing resize, color/
+  alpha/group, Swash and glyph/source/threshold expectations unchanged.
+  /private/tmp/eldiron-pixel-image-paint-regressions.log. Broad tests remain deferred.
+
+- Fresh Creator31937terminalPASS1/1 layer contract (release1m57s); assembled
+ 58350terminalPASS1/1 in23.59s, original custom/isometric/visibility/palette/Play/
+  native source RGB<=1 checks all retained. /private/tmp/eldiron-logical-isometric-assembled-fixed.log.
+- First-stage-only logical source pilot69565terminalPASS12.78s/owned5851,
+  peak3568680960B. P50 idle8.86/hover8.47/pan43.98/zoom63.79ms. Normal color
+  readback delta0. This is30sample/guarded diagnostic, not final p99 or physical
+  input latency; root draw counts exclude offscreen layer draws.
+- Whole world150%mean RGB6.97/6.90/5.67,46.76%pixels>1: improved but not accepted
+  parity. Source trace identifies omitted local canvas stage: logical1169x639
+  first expands to1754x959 in local CPU canvas, then parent copy at odd origin
+  yields1753x958. Direct logical→global sampling cannot reproduce both steps.
+  CPU reference image + density1 native source simulation with BOTH integer
+  stages reduces meanRGB to0.180/0.245/0.217 (interior0.030/0.053/0.045), matching
+  unit-scale residuals. No source pixel or authored content changes required.
+- Added fractional local physical GPU target before root PixelImage; integral
+  density keeps equivalent single-stage path. Cache now includes density. No CPU
+  destination/full-window image, readback or second device. Intermediate source
+  handle is removed on success or error; target leases retain queued work.
+- Actual Metal5921terminalPASS2/2 pixel-image tests (0.13s): actual CPU direct
+  RenderView composite22settings and actual CPU local-canvas→parent copy at all
+  five densities, ALL RGBA exact. /private/tmp/eldiron-pixel-image-local-parent-composition.log.
+- Updated layer ownership test to fractional1.5, density change1.25 and integral
+  fast path2; stronger assembled proof requires>3 source draws (clear+sprite+
+  present alone cannot pass). Fresh release Creator21147 currently building;
+  /private/tmp/eldiron-logical-isometric-local-grid-creator.log. Next original full
+  assembled integration + fresh guarded150% native pilot, inspect image and
+  compare exact current source/residual/performance before checkpoint commit.
+
+- Corrected local-grid Creator21147terminalPASS1/1 (release1m03s; fractional
+  layer ownership runtime0.08s). Both-step assembled3870terminalPASS1/1 in23.82s,
+  stronger actual-guide execution proof and original reference RGB<=1/workflow
+  assertions intact. /private/tmp/eldiron-logical-isometric-local-grid-assembled.log.
+- Same serialized handle3870 then ran guarded native owned6206 terminalPASS12.77s,
+  peak3512188928B. Durable release-unending-logical-source-native JSON/PNG; image
+  visually inspected: crisp terrain/trees/blue authoring character/black canvas,
+  no missing world or overlays. Whole world150%meanRGB0.363/0.401/0.384,3.688%
+  pixels>1 versus pre-layer13.4/13.2/11.0,82.58%>1. Interior meanRGB0.0297/0.0532/
+  0.0453; matches unit-scale source residuals. No full-image byte-equality claim;
+  margins/tool HUD still contribute large deltas and need classification.
+- Current30sample diagnostic p50 idle8.87/hover8.41/pan44.43/zoom64.54ms; warm
+  normal color readback delta0, source upload+676105684B/120frames. Pan/zoom
+  remain slower than CPU reference27.86/41.38; idle/hover faster in this pair.
+  Guarded trace and root-only draw counts do not establish final p99, physical
+  latency, complete GPU pass counts or driver-wide memory.
+- Durable release-logical-source-and-alias-contracts.json records targeted
+  results, actual cropped source comparisons and residual region statistics.
+  Next: checkpoint these verified source/alias changes, classify remaining HUD
+  and source residuals and remaining implementation/ownership inventory before
+  final broad release/platform checks. Full M0–M9 objective remains unfinished.

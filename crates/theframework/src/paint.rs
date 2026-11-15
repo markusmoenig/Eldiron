@@ -404,6 +404,7 @@ pub enum PaintOp {
     /// Full source image, using top-left aligned nearest sampling in destination
     /// physical pixels. Matches explicit CPU left-edge image resizing without
     /// allocating a resized source image or relying on half-texel UV biases.
+    /// Positive axis-aligned placements round both physical endpoints first.
     PixelImage {
         image: ImageHandle,
         rect: Rect,

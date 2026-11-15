@@ -399,7 +399,7 @@ impl Editor {
         list.ops.extend(source_ops.take_while(|op| {
                     matches!(
                         op,
-                        PaintOp::SpriteImage { .. } | PaintOp::SampledLine { .. }
+                        PaintOp::SpriteImage { .. } | PaintOp::PixelImage { .. } | PaintOp::SampledLine { .. }
                     )
                 })
                 .cloned(),

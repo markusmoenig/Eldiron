@@ -947,12 +947,15 @@ mod tests {
                 assert!(app.application.editor.native_world_has_ray_for_test());
             }
             if camera_index == 1 {
+                let (image, guides, draws) = app.application.editor
+                    .native_world_logical_guides_for_test().expect("isometric logical GPU layer");
+                assert!(guides > 0 && draws > 3, "iso guides execute as real commands in the logical GPU layer");
                 assert!(
                     world
                         .ops
                         .iter()
-                        .any(|op| matches!(op, theframework::paint::PaintOp::SampledLine { .. })),
-                    "iso guides are real GPU commands in the root"
+                        .any(|op| matches!(op, theframework::paint::PaintOp::PixelImage { image: id, .. } if *id == image)),
+                    "root presents the GPU layer containing the actual iso guides"
                 );
                 let vertices = app.application.editor.native_world_vertices_for_test();
                 app.session.ui.shift = true;

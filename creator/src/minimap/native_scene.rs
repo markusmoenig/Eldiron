@@ -529,17 +529,7 @@ impl SceneOverview {
                 images.remove(image);
             }
             let source = images.get(output.image).ok_or("minimap image missing")?;
-            let image = Arc::new(
-                renderkit::GpuImage::from_texture(
-                    images.context(),
-                    source.texture.clone(),
-                    renderkit::ImageDescriptor {
-                        alpha_mode: renderkit::AlphaMode::Opaque,
-                        ..source.descriptor
-                    },
-                )
-                .map_err(|e| e.to_string())?,
-            );
+            let image = source.with_alpha_mode(renderkit::AlphaMode::Opaque);
             let image = images.insert(image).map_err(|e| e.to_string())?;
             gpu.opaque = Some((output.image, image));
             image

@@ -16,6 +16,8 @@ mod cpu_jobs;
 mod navigation;
 #[path = "native_world_visibility.rs"]
 mod visibility;
+#[path = "native_world_pixels.rs"]
+mod pixels;
 #[path = "native_world_speech.rs"]
 mod speech;
 #[path = "native_world_scope.rs"]
@@ -274,6 +276,7 @@ struct WorldGpu {
     last_root_images: PaintList,
     custom: custom::Gpu,
     bake: bake::Gpu,
+    pixels: pixels::Gpu,
 }
 impl WorldGpu {
     fn new(images: &renderkit::ImageRegistry) -> Result<Self, String> {
@@ -299,6 +302,7 @@ impl WorldGpu {
             last_root_images: PaintList::default(),
             custom: Default::default(),
             bake: Default::default(),
+            pixels: Default::default(),
         })
     }
     fn query(
@@ -1147,6 +1151,7 @@ impl Editor {
             gpu.scope = Some(scope);
             gpu.custom.clear(images.registry);
             gpu.bake.clear(images.registry);
+            gpu.pixels.clear(images.registry);
             gpu.scenes
                 .remove(gpu.view, images.registry)
                 .map_err(|e| e.to_string())?;
@@ -1605,6 +1610,13 @@ impl Editor {
                     })
                 },
             );
+        }
+        if isometric.is_some() && binding.mode == EditorViewMode::D2 {
+            // The reference scales the completed logical scene+guides buffer.
+            // Keep that operation on the shared GPU; HUD/text remain at host DPI.
+            list = gpu.pixels.compose(list, output, binding.size, f32::from_bits(binding.density), images.registry)?;
+        } else {
+            gpu.pixels.clear(images.registry);
         }
         if let Some(runtime) = self.play_session.as_ref().filter(|play| {
             play.document == binding.document

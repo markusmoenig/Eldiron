@@ -31,6 +31,7 @@ pub struct GpuImage {
     device_generation: u64,
     _target_lease: Option<crate::TargetLease>,
     _allocation: Option<crate::allocation_usage::AllocationCharge>,
+    _source_image: Option<Arc<GpuImage>>,
     source_asset: bool,
 }
 impl GpuImage {
@@ -91,6 +92,7 @@ impl GpuImage {
         Ok(Arc::new(Self {
             texture: lease.texture().clone(), view: lease.view().clone(), descriptor,
             device_generation: context.generation(), _target_lease: Some(lease), _allocation: None,
+            _source_image: None,
             source_asset: false,
         }))
     }
@@ -117,11 +119,26 @@ impl GpuImage {
             device_generation: context.generation(),
             _target_lease: None,
             _allocation: None,
+            _source_image: None,
             source_asset: false,
         })
     }
     pub fn device_generation(&self) -> u64 {
         self.device_generation
+    }
+    /// Reinterpret stored alpha without copying pixels or releasing the source's
+    /// allocation/target lease. A raw texture clone cannot preserve that lease.
+    pub fn with_alpha_mode(self: &Arc<Self>, alpha_mode: AlphaMode) -> Arc<Self> {
+        Arc::new(Self {
+            texture: self.texture.clone(),
+            view: self.view.clone(),
+            descriptor: ImageDescriptor { alpha_mode, ..self.descriptor },
+            device_generation: self.device_generation,
+            _target_lease: None,
+            _allocation: None,
+            _source_image: Some(self.clone()),
+            source_asset: self.source_asset,
+        })
     }
     /// Allocated by a CPU asset upload rather than a producer target. Binding
     /// caches may retain this owner without extending a producer target lease.

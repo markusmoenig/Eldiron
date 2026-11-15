@@ -1365,13 +1365,10 @@ impl PaintRenderer {
                     let image = images.get(*image).ok_or_else(|| {
                         RenderError("paint references a stale image handle".into())
                     })?;
-                    if rect.width > 0. && rect.height > 0. {
-                        let size_physical = [
-                            rect.width * transform.0[0].hypot(transform.0[1]) * density,
-                            rect.height * transform.0[2].hypot(transform.0[3]) * density,
-                        ];
-                        let (vertices, indices) =
-                            mesh::quad(*rect, Rect::new(0., 0., 1., 1.), transform, density);
+                    if rect.width > 0. && rect.height > 0.
+                        && let Some((vertices, indices, size_physical)) =
+                            super::pixel_images::quad(*rect, transform, density)
+                    {
                         draws.push(self.draw_with_effects(
                             self.geometry(&vertices, &indices)?,
                             &Brush::Solid(*tint),

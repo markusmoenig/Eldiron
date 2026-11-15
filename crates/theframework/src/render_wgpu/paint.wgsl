@@ -311,7 +311,13 @@ fn triangle_coverage(p:vec2<f32>)->bool {
         let source=vec2<f32>(textureDimensions(image));
         let destination=max(params.gradient.xy,vec2<f32>(0.000001));
         let pixel=max(floor(i.uv*destination),vec2<f32>(0.));
-        let position=vec2<i32>(min(floor(pixel*(source/destination)),source-vec2<f32>(1.)));
+        var position=vec2<i32>(min(floor(pixel*(source/destination)),source-vec2<f32>(1.)));
+        // Snapped axis-aligned pixel rectangles use integer left-edge division,
+        // exactly as CPU source-buffer composition. Bound products to u32;
+        // general affine/fractional extents retain their floating lookup.
+        if(all(destination==floor(destination)) && all(destination<=vec2<f32>(65535.)) && all(source<=vec2<f32>(65535.))){
+            position=vec2<i32>(min(vec2<u32>(pixel)*vec2<u32>(source)/vec2<u32>(destination),vec2<u32>(source)-vec2<u32>(1u)));
+        }
         let tex=target_image(normalized_texel(textureLoad(image,position,0)));
         return vec4<f32>(tex.rgb*c.rgb*c.a,tex.a*c.a);
     }
