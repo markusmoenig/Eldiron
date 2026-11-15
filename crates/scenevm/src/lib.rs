@@ -1209,6 +1209,9 @@ impl SceneVM {
         composite_rgba_overlay_in_scene: bool,
         base_prepared: bool,
     ) -> SceneVMResult<()> {
+        // Injected views allocate only their explicit output. The legacy
+        // composition/capture adapter initializes its destination on request.
+        surface.ensure_gpu_with(device);
         let debug_total_start = instant::Instant::now();
         let mut debug_composited_layers = 0u32;
 
@@ -2325,7 +2328,12 @@ impl SceneVM {
         _buf_w: u32,
         _buf_h: u32,
     ) {
-        if let Some(g) = self.gpu.as_ref() {
+        if let Some(g) = self.gpu.as_mut() {
+            if let Some(generation) = g.context_generation {
+                g.surface.ensure_gpu_in_domain(&g.device, generation);
+            } else {
+                g.surface.ensure_gpu_with(&g.device);
+            }
             tex.gpu_blit_to_storage(g, &g.surface.gpu.as_ref().unwrap().texture);
         }
     }

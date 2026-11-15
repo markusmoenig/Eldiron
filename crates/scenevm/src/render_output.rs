@@ -125,6 +125,14 @@ impl SceneVM {
                 .sum::<usize>()
     }
 
+    /// Canonical view outputs use their explicit SceneRenderTarget. This reports
+    /// storage requested by the separate legacy capture/window/blit adapter.
+    pub fn has_compatibility_target_storage(&self) -> bool {
+        self.gpu.as_ref().is_some_and(|gpu| {
+            gpu.surface.gpu.is_some() || !gpu.surface.data.is_empty()
+        })
+    }
+
     /// Construct a renderer on the host's device, without creating a window or
     /// consulting the compatibility global GPU singleton.
     pub fn new_with_context(context: Arc<GpuContext>, width: u32, height: u32) -> Self {
@@ -136,8 +144,7 @@ impl SceneVM {
         height: u32,
         atlas: SharedAtlas,
     ) -> Self {
-        let mut surface = Texture::render_target(width.max(1), height.max(1));
-        surface.ensure_gpu_in_domain(&context.device, context.generation());
+        let surface = Texture::render_target(width.max(1), height.max(1));
         let gpu = GPUState {
             context_generation: Some(context.generation()),
             _instance: context.instance.clone(),
@@ -194,8 +201,7 @@ impl SceneVM {
         if self.device_generation() == Some(generation) {
             return;
         }
-        let mut surface = Texture::render_target(self.size.0.max(1), self.size.1.max(1));
-        surface.ensure_gpu_in_domain(&context.device, generation);
+        let surface = Texture::render_target(self.size.0.max(1), self.size.1.max(1));
         self.vm.reset_gpu_domain(generation);
         self.vm.target_context = Some(context.clone());
         for vm in &mut self.overlay_vms {

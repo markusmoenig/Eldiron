@@ -15882,3 +15882,30 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Actual wasm Creator browser-host release compile passes:
   /private/tmp/eldiron-raster-attachments-owner-release-wasm.log. All handles
   terminal, diff whitespace clean. Continue directly with lazy adapter storage.
+
+## Lazy legacy target for injected views (2026-11-15)
+
+- Injected construction and context replacement no longer allocate GPUState's
+  unused full-size legacy surface. Normal view outputs keep using their explicit
+  SceneRenderTarget. The legacy composition/capture entry and explicit blit now
+  ensure that separate destination when requested, including first use at the
+  unchanged initial dimensions. Added a read-only storage diagnostic; API and
+  pixel behavior of explicit capture/blit remain available.
+- Library release check PASS1.59s; canonical four-application native release check
+  PASS24.35s: /private/tmp/eldiron-lazy-adapter-target-release-native.log. Focused
+  injected output/recovery/capture/blit contract PASS0.08s (release build6.19s):
+  /private/tmp/eldiron-lazy-adapter-target-release-contract.log. Normal two-view
+  output and recovery keep the adapter absent; explicit CPU capture returns the
+  expected red pixels and initializes its storage; a fresh explicit blit also
+  initializes successfully without looking up the global compatibility device.
+  Actual wasm release check in flight; broad acceptance is still deferred.
+- Next startup ownership gap confirmed: SharedAtlas::new eagerly allocates both
+  requested CPU planes (128MiB for the default4096x4096 hint), then automatic sizing
+  commonly replaces them with256x256 planes. Several canonical preview constructors
+  use that default. Make unbuilt derived planes lazy, preserve explicit pixel/copy
+  semantics and fixed resize behavior, and allocate only after actual layout sizing.
+  This finding is allocation evidence, not a measured application speedup.
+
+- Actual wasm Creator browser-host release compile PASS22.85s:
+  /private/tmp/eldiron-lazy-adapter-target-release-wasm.log. All handles terminal;
+  diff whitespace clean. Continue with lazy derived atlas planes.
