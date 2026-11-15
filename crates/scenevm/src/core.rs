@@ -511,6 +511,11 @@ pub enum Atom {
         sprites: Vec<OrganicBillboardSprite>,
         instances: Vec<OrganicBillboardInstance>,
     },
+    /// Replace placements while retaining the current paint sprite sources.
+    /// Invalid placements reject the update as a set, preserving source indices.
+    SetPaintBillboardInstances {
+        instances: Vec<OrganicBillboardInstance>,
+    },
     ClearPaintBillboards,
     RemoveAvatarBillboardData {
         id: GeoId,

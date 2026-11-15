@@ -55,7 +55,7 @@ behavior is ready to verify.
 ## Next work
 
 1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,16 retained standard control families and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
-2. Close cooperative per-recipe browser work, live source residency/instance uploads and remaining UV/player source policy. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
+2. Close cooperative per-recipe browser work, live source residency and remaining UV/player source policy. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
 ## Blockers
@@ -14148,3 +14148,35 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   /private/tmp/eldiron-live-stamp-worker-port-release-worker-final.log.
   All compiler handles terminal. No functional/GPU/performance suite run, and
   all full-platform/resource/timing/visual M0-M9 acceptance gates remain open.
+
+## Retained billboard sources and placement-only uploads (2026-11-15)
+
+- Answered the user's remaining-port question from the milestone ledger: retained
+  layouts/collections, live source residency/publication, cooperative large
+  recipes, remaining canonical ownership/adapters and platform lifecycle work
+  are implementation gaps. Full workflow/resource/platform and matched release
+  performance gates remain separate, unverified acceptance work. No new
+  completion percentage. The full M0-M9 Goal remains active.
+- Added SetPaintBillboardInstances for placements against retained paint source
+  indices. Nonfinite, nonpositive and out-of-range placements reject the whole
+  update. Creator sends placements only when its exact source identity remains
+  resident; empty-to-nonempty and new-source/device transitions reinstall full
+  sources. Current project/paint serialization and shader layout are unchanged.
+- Split retained CPU organic words into header/instance and source metadata/pixel
+  spans. HDR and compute auxiliary GPU owners independently retain both spans.
+  Same-count placement updates write the prefix into existing storage rather
+  than repacking source pixels or replacing the buffer. Source replacement,
+  changed instance counts/source offsets, moved surface lookup segments and new
+  GPU owners each rebuild/rewrite the affected spans. Removed obsolete aggregate
+  dirty flags; retained span identity governs uploads for each consumer.
+- Canonical Creator/classic/WGPU/terminal client release compilation PASS27.79s;
+  browser Creator release compilation PASS26.81s. Logs:
+  /private/tmp/eldiron-billboard-instance-spans-release.log and
+  /private/tmp/eldiron-billboard-instance-spans-release-web.log. All compiler
+  handles terminal. git diff --check passed. Per user steering, no broad functional/GPU/
+  performance suite or isolated bake-edge-case run is scheduled in this batch.
+  Consolidated acceptance must verify camera-only upload counters, exact packed
+  offsets across ordinary/chunk/paint sources, ordered alpha parity, placement
+  count/empty/source changes and compute/HDR/device reconstruction. Large-source
+  live residency, cooperative per-recipe work, UV/player policies and the other
+  full-plan gates remain open. Concurrent networking concept remains untouched.

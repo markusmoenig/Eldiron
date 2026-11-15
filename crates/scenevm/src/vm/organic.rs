@@ -1,15 +1,71 @@
 //! Retained CPU billboard descriptions and segmented compute metadata uploads.
 use super::*;
 
+/// The shader's unchanged contiguous layout, retained as independent CPU spans.
+/// Source metadata/pixels survive placement updates; GPU owners track each span.
+#[derive(Clone)]
+pub(super) struct Words {
+    instances: Arc<[u32]>,
+    sources: Arc<[u32]>,
+}
+
+impl Words {
+    fn len(&self) -> usize {
+        self.instances.len() + self.sources.len()
+    }
+
+    fn append_to(&self, words: &mut Vec<u32>) {
+        words.extend_from_slice(&self.instances);
+        words.extend_from_slice(&self.sources);
+    }
+
+    fn write_changes(
+        &self,
+        queue: &wgpu::Queue,
+        buffer: &wgpu::Buffer,
+        offset: u64,
+        previous: Option<&Self>,
+    ) {
+        if previous.is_none_or(|old| !Arc::ptr_eq(&old.instances, &self.instances)) {
+            queue.write_buffer(buffer, offset, bytemuck::cast_slice(&self.instances));
+        }
+        // A different instance count moves the retained source span as well.
+        if !self.sources.is_empty()
+            && previous.is_none_or(|old| {
+                old.instances.len() != self.instances.len()
+                    || !Arc::ptr_eq(&old.sources, &self.sources)
+            })
+        {
+            queue.write_buffer(
+                buffer,
+                offset + self.instances.len() as u64 * 4,
+                bytemuck::cast_slice(&self.sources),
+            );
+        }
+    }
+}
+
 impl VM {
     pub(super) fn invalidate_organic_source(&mut self) {
         self.cached_organic_words = None;
-        self.organic_billboards.dirty = true;
     }
-    fn organic_words(&mut self) -> Arc<[u32]> {
-        if self.cached_organic_words.is_none() {
-            self.cached_organic_words = Some(self.build_organic_billboard_words().into());
+    fn organic_words(&mut self) -> Words {
+        if let Some(old) = &self.cached_organic_words {
+            if !self.organic_instances_dirty {
+                return old.clone();
+            }
+            let sources = old.sources.clone();
+            self.cached_organic_words = Some(Words {
+                instances: self.build_organic_instance_words().into(),
+                sources,
+            });
+        } else {
+            self.cached_organic_words = Some(Words {
+                instances: self.build_organic_instance_words().into(),
+                sources: self.build_organic_sprite_words().into(),
+            });
         }
+        self.organic_instances_dirty = false;
         self.cached_organic_words.as_ref().unwrap().clone()
     }
     pub fn compute_organic_source_bytes(&self) -> u64 {
@@ -49,7 +105,7 @@ impl VM {
             .saturating_add(pixels)
     }
 
-    pub(super) fn build_organic_billboard_words(&self) -> Vec<u32> {
+    fn build_organic_instance_words(&self) -> Vec<u32> {
         let chunk_sprite_count: usize = self
             .chunks_map
             .values()
@@ -124,6 +180,11 @@ impl VM {
             ]);
         }
 
+        words
+    }
+
+    fn build_organic_sprite_words(&self) -> Vec<u32> {
+        let mut words = Vec::new();
         let mut pixel_words = Vec::new();
         for sprite in &self.organic_billboards.sprites {
             let offset_pixels = pixel_words.len() as u32;
@@ -160,61 +221,40 @@ impl VM {
         }
         words.extend_from_slice(&pixel_words);
 
-        if words.is_empty() {
-            words.push(0);
-        }
         words
     }
 
     pub(super) fn upload_organic_billboard_ssbo(
         &mut self,
         device: &wgpu::Device,
-        _queue: &wgpu::Queue,
+        queue: &wgpu::Queue,
     ) {
         use wgpu::util::DeviceExt;
 
         let organic_words = self.organic_words();
-        let organic_bytes: &[u8] = bytemuck::cast_slice(&organic_words);
-        let organic_byte_len = organic_bytes.len().max(std::mem::size_of::<u32>());
-        let instance_count =
-            self.organic_billboards
-                .instances
-                .len()
-                .saturating_add(
-                    self.chunks_map
-                        .values()
-                        .map(|chunk| chunk.organic_billboard_instances.len())
-                        .sum::<usize>(),
-                )
-                .saturating_add(self.paint_billboards.instances.len()) as u32;
-        let needs_recreate = if let Some(g) = self.gpu.as_ref() {
-            self.organic_billboards.dirty
-                || self.paint_billboards.dirty
-                || g.organic_billboard_ssbo.is_none()
-                || g.organic_billboard_ssbo_size != organic_byte_len
-        } else {
-            true
-        };
-
-        if !needs_recreate {
-            if let Some(g) = self.gpu.as_mut() {
-                g.organic_billboard_count = instance_count;
-            }
-            return;
-        }
-
+        let organic_byte_len = organic_words.len() * 4;
         let g = self.gpu.as_mut().unwrap();
-        g.organic_billboard_ssbo = Some(device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("vm-organic-billboards"),
-                contents: organic_bytes,
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            },
-        ));
+        if g.organic_billboard_ssbo.is_none() || g.organic_billboard_ssbo_size != organic_byte_len {
+            let mut words = Vec::with_capacity(organic_words.len());
+            organic_words.append_to(&mut words);
+            g.organic_billboard_ssbo = Some(device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("vm-organic-billboards"),
+                    contents: bytemuck::cast_slice(&words),
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                },
+            ));
+        } else {
+            organic_words.write_changes(
+                queue,
+                g.organic_billboard_ssbo.as_ref().unwrap(),
+                0,
+                g.organic_billboard_words.as_ref(),
+            );
+        }
         g.organic_billboard_ssbo_size = organic_byte_len;
-        g.organic_billboard_count = instance_count;
-        self.organic_billboards.dirty = false;
-        self.paint_billboards.dirty = false;
+        g.organic_billboard_count = organic_words.instances[2];
+        g.organic_billboard_words = Some(organic_words);
     }
     pub(super) fn upload_compute3d_aux_ssbo(
         &mut self,
@@ -267,19 +307,15 @@ impl VM {
         ];
         let gpu = self.gpu.as_mut().unwrap();
         let recreate = gpu.compute3d_aux_ssbo.is_none() || gpu.compute3d_aux_ssbo_size != byte_len;
-        let organic_changed = gpu
-            .compute3d_aux_organic
+        let organic_moved = gpu
+            .compute3d_aux_surface
             .as_ref()
-            .is_none_or(|old| !Arc::ptr_eq(old, &organic))
-            || gpu
-                .compute3d_aux_surface
-                .as_ref()
-                .is_none_or(|old| old.len() != surface.len());
+            .is_none_or(|old| old.len() != surface.len());
         if recreate {
             let mut words = Vec::with_capacity(word_len);
             words.extend_from_slice(&header);
             words.extend_from_slice(surface_words);
-            words.extend_from_slice(&organic);
+            organic.append_to(&mut words);
             gpu.compute3d_aux_ssbo = Some(device.create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
                     label: Some("vm-compute3d-aux"),
@@ -298,13 +334,16 @@ impl VM {
             if surface_changed {
                 queue.write_buffer(buffer, 20, bytemuck::cast_slice(surface_words));
             }
-            if organic_changed {
-                queue.write_buffer(
-                    buffer,
-                    (1 + organic_offset) as u64 * 4,
-                    bytemuck::cast_slice(organic.as_ref()),
-                );
-            }
+            organic.write_changes(
+                queue,
+                buffer,
+                (1 + organic_offset) as u64 * 4,
+                if organic_moved {
+                    None
+                } else {
+                    gpu.compute3d_aux_organic.as_ref()
+                },
+            );
         }
         gpu.compute3d_aux_surface = Some(surface);
         gpu.compute3d_aux_organic = Some(organic);

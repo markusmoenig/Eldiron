@@ -272,6 +272,11 @@ pub(super) fn upload(
     }
     if instances.is_empty() {
         vm.execute(scenevm::Atom::ClearPaintBillboards);
+    } else if uploaded
+        .as_ref()
+        .is_some_and(|old| old.source == key.source && !old.instances.is_empty())
+    {
+        vm.execute(scenevm::Atom::SetPaintBillboardInstances { instances });
     } else {
         vm.execute(scenevm::Atom::SetPaintBillboards {
             sprites: set.sprites(),

@@ -558,7 +558,6 @@ struct OrganicBillboardData {
     sprites: Vec<OrganicBillboardSprite>,
     paged_sprites: Vec<PagedBillboardSprite>,
     instances: Vec<OrganicBillboardInstance>,
-    dirty: bool,
 }
 
 #[allow(dead_code)]
@@ -669,6 +668,7 @@ pub struct VMGpu {
     pub organic_billboard_ssbo: Option<wgpu::Buffer>,
     pub organic_billboard_ssbo_size: usize,
     pub organic_billboard_count: u32,
+    organic_billboard_words: Option<organic::Words>,
     pub irradiance_grid_ssbo: Option<wgpu::Buffer>,
     pub irradiance_grid_ssbo_size: usize,
     pub material_table_ssbo: Option<wgpu::Buffer>,
@@ -676,7 +676,7 @@ pub struct VMGpu {
     pub compute3d_aux_ssbo: Option<wgpu::Buffer>,
     pub compute3d_aux_ssbo_size: usize,
     compute3d_aux_surface: Option<Arc<[Raster3DSurfacePaintEntry]>>,
-    compute3d_aux_organic: Option<Arc<[u32]>>,
+    compute3d_aux_organic: Option<organic::Words>,
     pub raster3d_paint_color_tex: Option<wgpu::Texture>,
     pub raster3d_paint_color_view: Option<wgpu::TextureView>,
     pub raster3d_paint_material_tex: Option<wgpu::Texture>,
@@ -3786,7 +3786,8 @@ pub struct VM {
     cached_tile_emissive_content_version: u64,
     tile_gpu_dirty: bool,
     cached_scene_data_hash: u64,
-    cached_organic_words: Option<Arc<[u32]>>,
+    cached_organic_words: Option<organic::Words>,
+    organic_instances_dirty: bool,
     irradiance_grid_dirty: bool,
     cached_irradiance_grid_data: Vec<[f32; 4]>,
     cached_irradiance_input_hash: Option<u64>,
@@ -5703,6 +5704,7 @@ impl VM {
             tile_gpu_dirty: true,
             cached_scene_data_hash: 0,
             cached_organic_words: None,
+            organic_instances_dirty: false,
             irradiance_grid_dirty: true,
             cached_irradiance_grid_data: Self::disabled_irradiance_grid_data(),
             cached_irradiance_input_hash: None,
@@ -6254,10 +6256,7 @@ impl VM {
                 self.dropped_dynamic_particles = 0;
                 self.dynamic_avatar_objects.clear();
                 self.dynamic_avatar_data.clear();
-                self.organic_billboards = OrganicBillboardData {
-                    dirty: true,
-                    ..OrganicBillboardData::default()
-                };
+                self.organic_billboards = OrganicBillboardData::default();
                 self.invalidate_organic_source();
             }
             Atom::ClearTiles => {
@@ -6268,10 +6267,7 @@ impl VM {
                 self.dynamic_particle_count = 0;
                 self.dropped_dynamic_particles = 0;
                 self.dynamic_avatar_objects.clear();
-                self.organic_billboards = OrganicBillboardData {
-                    dirty: true,
-                    ..OrganicBillboardData::default()
-                };
+                self.organic_billboards = OrganicBillboardData::default();
                 self.invalidate_organic_source();
             }
             Atom::ClearGeometry => {
@@ -6284,10 +6280,7 @@ impl VM {
                 self.dynamic_particle_count = 0;
                 self.dropped_dynamic_particles = 0;
                 self.dynamic_avatar_objects.clear();
-                self.organic_billboards = OrganicBillboardData {
-                    dirty: true,
-                    ..OrganicBillboardData::default()
-                };
+                self.organic_billboards = OrganicBillboardData::default();
                 self.invalidate_organic_source();
             }
             Atom::SetBackground(v) => {
@@ -6422,15 +6415,11 @@ impl VM {
                     sprites: sanitized_sprites,
                     paged_sprites: Vec::new(),
                     instances: sanitized_instances,
-                    dirty: true,
                 };
                 self.invalidate_organic_source();
             }
             Atom::ClearOrganicBillboards => {
-                self.organic_billboards = OrganicBillboardData {
-                    dirty: true,
-                    ..OrganicBillboardData::default()
-                };
+                self.organic_billboards = OrganicBillboardData::default();
                 self.invalidate_organic_source();
             }
             Atom::SetPagedPaintBillboards { sprites, instances } => {
@@ -6443,7 +6432,7 @@ impl VM {
                         || !instance.height.is_finite() || instance.height <= 0.
                         || !instance.center.iter().all(|value| value.is_finite())) { return; }
                 self.paint_billboards = OrganicBillboardData {
-                    sprites: Vec::new(), paged_sprites: sprites, instances, dirty: true,
+                    sprites: Vec::new(), paged_sprites: sprites, instances,
                 };
                 self.invalidate_organic_source();
             }
@@ -6475,15 +6464,27 @@ impl VM {
                     sprites: sanitized_sprites,
                     paged_sprites: Vec::new(),
                     instances: sanitized_instances,
-                    dirty: true,
                 };
                 self.invalidate_organic_source();
             }
+            Atom::SetPaintBillboardInstances { instances } => {
+                let sprite_count = self.paint_billboards.sprites.len()
+                    + self.paint_billboards.paged_sprites.len();
+                if instances.iter().any(|instance| {
+                    instance.sprite_index as usize >= sprite_count
+                        || !instance.width.is_finite()
+                        || instance.width <= 0.0
+                        || !instance.height.is_finite()
+                        || instance.height <= 0.0
+                        || !instance.center.iter().all(|value| value.is_finite())
+                }) {
+                    return;
+                }
+                self.paint_billboards.instances = instances;
+                self.organic_instances_dirty = true;
+            }
             Atom::ClearPaintBillboards => {
-                self.paint_billboards = OrganicBillboardData {
-                    dirty: true,
-                    ..OrganicBillboardData::default()
-                };
+                self.paint_billboards = OrganicBillboardData::default();
                 self.invalidate_organic_source();
             }
             Atom::RemoveAvatarBillboardData { id } => {
@@ -6759,6 +6760,7 @@ impl VM {
             organic_billboard_ssbo: None,
             organic_billboard_ssbo_size: 0,
             organic_billboard_count: 0,
+            organic_billboard_words: None,
             irradiance_grid_ssbo: None,
             irradiance_grid_ssbo_size: 0,
             material_table_ssbo: None,
