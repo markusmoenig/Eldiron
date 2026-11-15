@@ -1,6 +1,6 @@
 # Native WGPU rewrite progress
 
-Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope remains.
+Started: 2026-11-11 (Asia/Bangkok). Objective unfinished; full M0–M9 scope remains. Live goal record checked 2026-11-15: `usageLimited`, not `complete`. Current user-authorized implementation continues; the available goal tools cannot resume/reset that status or guarantee automatic continuation.
 
 ## Baseline and isolation
 
@@ -14822,3 +14822,44 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   moving instance metadata, and concrete canonical/platform ownership gaps.
   Keep all full-plan acceptance/performance gates open until the consolidated
   release run proves them; do not treat these source policies as measured bounds.
+
+
+## Raster paint dependency ownership (2026-11-15, implementation continuing)
+
+- Corrected the current goal status above after reading the authoritative goal
+  record: usageLimited, 12,243,760 tokens and 151,953 seconds used. Earlier
+  statements that the stored Goal remained active were inaccurate. The objective
+  is unfinished; this is an execution-engine limit, not an acceptance result.
+  The available goal tools cannot reset/resume it. Continue the current authorized
+  request without routine permission waits; do not promise automatic subsequent
+  turns while that flag remains set. No implementation blocker from this flag.
+- Added independent four-byte raster fault storage per VM/view. The shared
+  immutable source lookup stays read-only; separate cameras cannot overwrite
+  each other's request. Existing compute receipts and ownership stay intact.
+  Explicit capture accepts raster/compute 3D only and only missing-page sources;
+  ordinary resident rendering allocates no readback. Fragment storage is eight
+  bindings on paged material pipelines; shadow shaders do not sample paint.
+- Resident material/entity pipelines strip the atomic statement; paged variants
+  report the first missing source table slot. Cache specialization follows the
+  binding. Missing raster entries now return no pixel instead of reading atlas
+  origin zero. Pending state propagates through four/nine-tap paint filtering,
+  suppressing speculative legacy fallback requests until primary taps resolve.
+  Original resident filter arithmetic/order is retained. Serialization unchanged.
+- Focused release example validate_raster_paint constructs resident/paged/resident
+  material pipelines and verifies the per-view receipt lifecycle with empty
+  geometry. Canonical four-application release compile PASS27.79s:
+  /private/tmp/eldiron-raster-paint-dependency-release.log.
+  Example release compile PASS37.93s; initial sandbox execution had no Metal
+  adapter. Approved GPU-access rerun PASS with the same release artifact:
+  /private/tmp/eldiron-raster-paint-shader-release-gpu.log.
+  This verifies shader/layout compilation and empty-scene status, not fragment
+  faults, visible parity, replay/residency completeness or performance. Broad
+  suites remain deferred until implementation is finished per user instruction.
+- Live working-set residency still needs private exact-frame replay, pressure
+  subdivision/composition, resource retirement and publication/input gating.
+  This receipt foundation alone does not retire the full live atlas allocation.
+  Next: residency metadata ownership and remaining live integration. Preserve the
+  concurrent networking concept; no completion claim for any acceptance gate.
+- Browser Creator release compilation also PASS28.53s:
+  /private/tmp/eldiron-raster-paint-dependency-release-web.log. All compiler handles
+  terminal before the next implementation edits. Broad acceptance remains open.

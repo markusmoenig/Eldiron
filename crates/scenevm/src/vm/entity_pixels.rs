@@ -1,7 +1,7 @@
 //! Characters and ground items keep real meshes, lighting and shadows, but rasterize
 //! on a coarse screen grid. The expansion pass writes their sampled depth into the
 //! full-resolution world depth buffer, so walls and other surfaces still occlude them.
-use super::{SCENEVM_3D_RASTER_WGSL, Vert3DPod};
+use super::{Vert3DPod, raster3d_material_source};
 use wgpu::util::DeviceExt;
 
 const COMPOSITE: &str = r#"
@@ -38,6 +38,7 @@ pub(super) struct EntityPixelPass {
     size: (u32, u32),
     block: u32,
     samples: u32,
+    paint_paging: bool,
 }
 impl EntityPixelPass {
     fn targets(
@@ -102,12 +103,16 @@ impl EntityPixelPass {
         height: u32,
         block: u32,
         samples: u32,
+        paint_paging: bool,
         indices: &[u32],
     ) {
-        if slot.as_ref().is_none_or(|p| p.samples != samples) {
+        if slot
+            .as_ref()
+            .is_none_or(|p| p.samples != samples || p.paint_paging != paint_paging)
+        {
             let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("entity-pixels-material"),
-                source: wgpu::ShaderSource::Wgsl(SCENEVM_3D_RASTER_WGSL.into()),
+                source: wgpu::ShaderSource::Wgsl(raster3d_material_source(paint_paging)),
             });
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("entity-pixels-material-layout"),
@@ -305,6 +310,7 @@ impl EntityPixelPass {
                 size: (width, height),
                 block,
                 samples,
+                paint_paging,
             });
         }
         let pass = slot.as_mut().unwrap();

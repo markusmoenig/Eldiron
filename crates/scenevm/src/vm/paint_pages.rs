@@ -34,6 +34,44 @@ pub(super) fn upload_entries(
     g.raster3d_surface_paint_entries_shared = false;
 }
 impl VM {
+    pub(super) fn paint_has_missing_pages(&self) -> bool {
+        self.paged_surface_paint.as_ref().map_or_else(
+            || {
+                self.paint_entries().is_some_and(|entries| {
+                    entries.iter().any(|entry| {
+                        entry.uv_size.iter().all(|size| *size > 0)
+                            && (entry.atlas_rect[2] == 0 || entry.atlas_rect[3] == 0)
+                    })
+                })
+            },
+            |binding| binding.has_missing,
+        )
+    }
+    pub(super) fn prepare_raster_paint_feedback(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) {
+        use wgpu::util::DeviceExt;
+        let gpu = self.gpu.as_mut().unwrap();
+        let ready = u32::MAX.to_le_bytes();
+        if let Some(buffer) = &gpu.raster3d_paint_feedback {
+            queue.write_buffer(buffer, 0, &ready);
+        } else {
+            gpu.raster3d_paint_feedback = Some(device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("per-view raster paint dependency"),
+                    contents: &ready,
+                    usage: wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::COPY_SRC
+                        | wgpu::BufferUsages::COPY_DST,
+                },
+            ));
+        }
+        if let Some(context) = &self.target_context {
+            context.record_upload(4);
+        }
+    }
     pub(crate) fn set_paint_dispatch(
         &mut self,
         region: Option<crate::paint_pages::PaintDispatchRegion>,

@@ -686,6 +686,8 @@ pub struct VMGpu {
     pub raster3d_surface_paint_entries_ssbo: Option<wgpu::Buffer>,
     pub raster3d_surface_paint_entries_size: usize,
     raster3d_surface_paint_entries_shared: bool,
+    raster3d_paint_feedback: Option<wgpu::Buffer>,
+    raster3d_paint_paging: bool,
     pub paint_surface_world_tex: Option<wgpu::Texture>,
     pub paint_surface_world_view: Option<wgpu::TextureView>,
     pub paint_surface_normal_tex: Option<wgpu::Texture>,
@@ -1541,6 +1543,7 @@ fn fs_main(in: VsOut) -> FsOut {
 
 pub const SCENEVM_3D_RASTER_WGSL: &str = r#"
 override ENTITY_PIXEL_ART: bool = false;
+const PAINT_PAGING: bool = false;
 struct U {
     cam_pos: vec4<f32>,
     cam_fwd: vec4<f32>,
@@ -1603,6 +1606,8 @@ struct SurfacePaintEntry {
 };
 struct SurfacePaintEntries { data: array<SurfacePaintEntry> };
 @group(0) @binding(15) var<storage, read> surface_paint_entries: SurfacePaintEntries;
+struct PaintPageFeedback { missing: atomic<u32> };
+@group(0) @binding(17) var<storage, read_write> paint_page_feedback: PaintPageFeedback;
 
 struct TileAnimMeta { first_frame: u32, frame_count: u32, _pad0: u32, _pad1: u32 };
 struct TileFrame { ofs: vec2<f32>, scale: vec2<f32> };
@@ -1988,6 +1993,12 @@ fn surface_paint_entry_index(paint_px: vec2<i32>, paint_geo: vec4<u32>) -> i32 {
     return -1;
 }
 
+fn surface_paint_entry_pending(entry_index: i32) -> bool {
+    if (!PAINT_PAGING || entry_index < 0) { return false; }
+    let rect = surface_paint_entries.data[u32(entry_index)].atlas_rect;
+    return rect.z == 0u || rect.w == 0u;
+}
+
 fn surface_paint_atlas_pixel(entry_index: i32, paint_px: vec2<i32>) -> vec2<i32> {
     if (entry_index < 0) {
         return vec2<i32>(-1, -1);
@@ -1996,15 +2007,20 @@ fn surface_paint_atlas_pixel(entry_index: i32, paint_px: vec2<i32>) -> vec2<i32>
     if (!surface_paint_entry_contains(entry, paint_px)) {
         return vec2<i32>(-1, -1);
     }
+    if (entry.atlas_rect.z == 0u || entry.atlas_rect.w == 0u) {
+        if (PAINT_PAGING) { atomicMin(&paint_page_feedback.missing, u32(entry_index)); }
+        return vec2<i32>(-1, -1);
+    }
     let local = vec2<u32>(paint_px - entry.uv_origin);
     return vec2<i32>(entry.atlas_rect.xy + local);
 }
 
+struct SurfacePaintColor { color: vec4<f32>, pending: bool };
 fn surface_paint_color_at(
     paint_px: vec2<i32>,
     paint_geo: vec4<u32>,
     preferred_entry: i32,
-) -> vec4<f32> {
+) -> SurfacePaintColor {
     var entry_index = preferred_entry;
     if (entry_index < 0 ||
         !surface_paint_entry_contains(surface_paint_entries.data[u32(entry_index)], paint_px)) {
@@ -2012,14 +2028,15 @@ fn surface_paint_color_at(
     }
     let atlas_px = surface_paint_atlas_pixel(entry_index, paint_px);
     if (atlas_px.x < 0 || atlas_px.y < 0) {
-        return vec4<f32>(0.0);
+        return SurfacePaintColor(vec4<f32>(0.0), surface_paint_entry_pending(entry_index));
     }
-    return textureLoad(paint_color_tex, atlas_px, 0);
+    return SurfacePaintColor(textureLoad(paint_color_tex, atlas_px, 0), false);
 }
 
 struct SurfacePaintSample {
     overlay: vec4<f32>,
     material: vec4<u32>,
+    pending: bool,
 };
 
 fn surface_paint_alpha_correct_filter(
@@ -2052,103 +2069,122 @@ fn surface_paint_minification_filter(
     paint_dy: vec2<f32>,
     paint_geo: vec4<u32>,
     entry_index: i32,
-) -> vec4<f32> {
+) -> SurfacePaintColor {
     var premultiplied = vec3<f32>(0.0);
     var alpha_sum = 0.0;
+    var pending = false;
     // Keep the fixed 3x3 kernel explicit. Dawn/Metal can stall when a filter
     // loop calls the open-addressed paint lookup, even for an empty table.
     // Preserve row-major accumulation and the original alpha-correct weights.
     {
         let offset = paint_dx * (f32(-1) * 0.3333333) +
             paint_dy * (f32(-1) * 0.3333333);
-        let color = surface_paint_color_at(
+        let sample = surface_paint_color_at(
             vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        let color = sample.color;
+        pending = pending || sample.pending;
         premultiplied += color.rgb * color.a;
         alpha_sum += color.a;
     }
     {
         let offset = paint_dx * (f32(0) * 0.3333333) +
             paint_dy * (f32(-1) * 0.3333333);
-        let color = surface_paint_color_at(
+        let sample = surface_paint_color_at(
             vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        let color = sample.color;
+        pending = pending || sample.pending;
         premultiplied += color.rgb * color.a;
         alpha_sum += color.a;
     }
     {
         let offset = paint_dx * (f32(1) * 0.3333333) +
             paint_dy * (f32(-1) * 0.3333333);
-        let color = surface_paint_color_at(
+        let sample = surface_paint_color_at(
             vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        let color = sample.color;
+        pending = pending || sample.pending;
         premultiplied += color.rgb * color.a;
         alpha_sum += color.a;
     }
     {
         let offset = paint_dx * (f32(-1) * 0.3333333) +
             paint_dy * (f32(0) * 0.3333333);
-        let color = surface_paint_color_at(
+        let sample = surface_paint_color_at(
             vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        let color = sample.color;
+        pending = pending || sample.pending;
         premultiplied += color.rgb * color.a;
         alpha_sum += color.a;
     }
     {
         let offset = paint_dx * (f32(0) * 0.3333333) +
             paint_dy * (f32(0) * 0.3333333);
-        let color = surface_paint_color_at(
+        let sample = surface_paint_color_at(
             vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        let color = sample.color;
+        pending = pending || sample.pending;
         premultiplied += color.rgb * color.a;
         alpha_sum += color.a;
     }
     {
         let offset = paint_dx * (f32(1) * 0.3333333) +
             paint_dy * (f32(0) * 0.3333333);
-        let color = surface_paint_color_at(
+        let sample = surface_paint_color_at(
             vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        let color = sample.color;
+        pending = pending || sample.pending;
         premultiplied += color.rgb * color.a;
         alpha_sum += color.a;
     }
     {
         let offset = paint_dx * (f32(-1) * 0.3333333) +
             paint_dy * (f32(1) * 0.3333333);
-        let color = surface_paint_color_at(
+        let sample = surface_paint_color_at(
             vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        let color = sample.color;
+        pending = pending || sample.pending;
         premultiplied += color.rgb * color.a;
         alpha_sum += color.a;
     }
     {
         let offset = paint_dx * (f32(0) * 0.3333333) +
             paint_dy * (f32(1) * 0.3333333);
-        let color = surface_paint_color_at(
+        let sample = surface_paint_color_at(
             vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        let color = sample.color;
+        pending = pending || sample.pending;
         premultiplied += color.rgb * color.a;
         alpha_sum += color.a;
     }
     {
         let offset = paint_dx * (f32(1) * 0.3333333) +
             paint_dy * (f32(1) * 0.3333333);
-        let color = surface_paint_color_at(
+        let sample = surface_paint_color_at(
             vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        let color = sample.color;
+        pending = pending || sample.pending;
         premultiplied += color.rgb * color.a;
         alpha_sum += color.a;
     }
     if (alpha_sum <= 0.00001) {
-        return vec4<f32>(0.0);
+        return SurfacePaintColor(vec4<f32>(0.0), pending);
     }
-    return vec4<f32>(premultiplied / alpha_sum, alpha_sum * (1.0 / 9.0));
+    return SurfacePaintColor(vec4<f32>(premultiplied / alpha_sum, alpha_sum * (1.0 / 9.0)), pending);
 }
 
 fn sample_surface_paint(paint_coord: vec2<f32>, paint_geo: vec4<u32>, paint_dx: vec2<f32>, paint_dy: vec2<f32>) -> SurfacePaintSample {
-    let empty = SurfacePaintSample(vec4<f32>(0.0), vec4<u32>(0u));
     let paint_pos = paint_coord * 32.0;
     let center_px = vec2<i32>(floor(paint_pos));
     let entry_index = surface_paint_entry_index(center_px, paint_geo);
     let center_atlas_px = surface_paint_atlas_pixel(entry_index, center_px);
     if (center_atlas_px.x < 0 || center_atlas_px.y < 0) {
-        return empty;
+        return SurfacePaintSample(vec4<f32>(0.0), vec4<u32>(0u), surface_paint_entry_pending(entry_index));
     }
 
     let material = textureLoad(paint_material_tex, center_atlas_px, 0);
     let footprint = max(length(paint_dx), length(paint_dy));
     var overlay: vec4<f32>;
+    var pending = false;
     if (footprint <= 1.0) {
         // Keep pixel-art texel interiors flat and sharp. Only blend through a narrow transition
         // at texel boundaries, approximately one screen pixel wide.
@@ -2164,14 +2200,17 @@ fn sample_surface_paint(paint_coord: vec2<f32>, paint_geo: vec4<u32>, paint_dx: 
         let c10 = surface_paint_color_at(base + vec2<i32>(1, 0), paint_geo, entry_index);
         let c01 = surface_paint_color_at(base + vec2<i32>(0, 1), paint_geo, entry_index);
         let c11 = surface_paint_color_at(base + vec2<i32>(1, 1), paint_geo, entry_index);
-        overlay = surface_paint_alpha_correct_filter(c00, c10, c01, c11, blend);
+        overlay = surface_paint_alpha_correct_filter(c00.color, c10.color, c01.color, c11.color, blend);
+        pending = c00.pending || c10.pending || c01.pending || c11.pending;
     } else {
         // A regular 3x3 footprint is important for periodic details such as brick mortar: four
         // corner taps can synchronize with the pattern and still flicker as the camera moves.
-        overlay = surface_paint_minification_filter(
+        let filtered = surface_paint_minification_filter(
             paint_pos, paint_dx, paint_dy, paint_geo, entry_index);
+        overlay = filtered.color;
+        pending = filtered.pending;
     }
-    return SurfacePaintSample(overlay, material);
+    return SurfacePaintSample(overlay, material, pending);
 }
 
 fn unpack_material_normal_ts(m: vec4<f32>) -> vec3<f32> {
@@ -2583,7 +2622,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     var paint_sample = sample_surface_paint(in.paint_uv, in.paint_geo, paint_dx, paint_dy);
     // Geometry painted before persistent face IDs used a world-plane key. Keep it visible until
     // it is explicitly migrated, while all newly-authored paint uses the stable primary key.
-    if (any(in.paint_geo_fallback != vec4<u32>(0u)) &&
+    if (!paint_sample.pending && any(in.paint_geo_fallback != vec4<u32>(0u)) &&
         paint_sample.overlay.a <= 0.00001 && paint_sample.material.a == 0u) {
         paint_sample = sample_surface_paint(
             fallback_paint_coord,
@@ -3164,6 +3203,17 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     return in.color;
 }
 "#;
+
+fn raster3d_material_source(paging: bool) -> std::borrow::Cow<'static, str> {
+    if paging {
+        std::borrow::Cow::Owned(SCENEVM_3D_RASTER_WGSL.replace("const PAINT_PAGING: bool = false;", "const PAINT_PAGING: bool = true;"))
+    } else {
+        // Fully resident views keep fragment storage writes out of their shader,
+        // rather than relying on a backend to remove the constant-false branch.
+        std::borrow::Cow::Owned(SCENEVM_3D_RASTER_WGSL.replace(
+            "if (PAINT_PAGING) { atomicMin(&paint_page_feedback.missing, u32(entry_index)); }", ""))
+    }
+}
 
 fn raster3d_post_source(samples: u32) -> String {
     SCENEVM_3D_POST_WGSL
@@ -5512,7 +5562,7 @@ impl VM {
     }
 
 
-    /// Capture the last submitted compute pass's dependency prefix only when
+    /// Capture the last submitted 3D pass's per-view dependency prefix only when
     /// the authored key table contains unloaded pages. Full resident sources
     /// perform no metadata readback. The requesting job owns the receipt.
     pub fn capture_paint_page_status(
@@ -5524,33 +5574,16 @@ impl VM {
                 "paint status belongs to a different or lost device".into(),
             ));
         }
-        if self.render_mode != RenderMode::Compute3D {
-            return Err(renderkit::RenderError(
-                "paint status requires Compute3D".into(),
-            ));
+        if !matches!(self.render_mode, RenderMode::Compute3D | RenderMode::Raster3D) {
+            return Err(renderkit::RenderError("paint status requires a 3D pass".into()));
         }
-        let Some(entries) = self.paint_entries() else {
-            return Ok(None);
-        };
-        let missing = self.paged_surface_paint.as_ref().map_or_else(
-            || {
-                entries.iter().any(|entry| {
-                    entry.uv_size.iter().all(|size| *size > 0)
-                        && (entry.atlas_rect[2] == 0 || entry.atlas_rect[3] == 0)
-                })
-            },
-            |paint| paint.has_missing,
-        );
-        if !missing {
-            return Ok(None);
-        }
-        let buffer = self
-            .gpu
-            .as_ref()
-            .and_then(|gpu| gpu.compute3d_aux_ssbo.as_ref())
-            .ok_or_else(|| {
-                renderkit::RenderError("paint status requires a submitted compute pass".into())
-            })?;
+        let Some(entries) = self.paint_entries() else { return Ok(None); };
+        if !self.paint_has_missing_pages() { return Ok(None); }
+        let buffer = self.gpu.as_ref().and_then(|gpu| match self.render_mode {
+            RenderMode::Compute3D => gpu.compute3d_aux_ssbo.as_ref(),
+            RenderMode::Raster3D => gpu.raster3d_paint_feedback.as_ref(),
+            _ => None,
+        }).ok_or_else(|| renderkit::RenderError("paint status requires a submitted 3D pass".into()))?;
         let count = u32::try_from(entries.len())
             .map_err(|_| renderkit::RenderError("paint source index exceeds u32 range".into()))?;
         crate::paint_feedback::PaintPageReadback::capture(context, buffer, count).map(Some)
@@ -6794,6 +6827,8 @@ impl VM {
             raster3d_surface_paint_entries_ssbo: None,
             raster3d_surface_paint_entries_size: 0,
             raster3d_surface_paint_entries_shared: false,
+            raster3d_paint_feedback: None,
+            raster3d_paint_paging: false,
             paint_surface_world_tex: None,
             paint_surface_world_view: None,
             paint_surface_normal_tex: None,
@@ -7627,8 +7662,10 @@ impl VM {
         }
         self.upload_tile_metadata_to_gpu(device);
         let raster_samples = self.raster3d_effective_samples();
+        let paint_paging = self.paint_has_missing_pages();
         let g = self.gpu.as_mut().unwrap();
-        if g.raster3d_pipeline.is_some()
+        if g.raster3d_paint_paging == paint_paging
+            && g.raster3d_pipeline.is_some()
             && g.raster3d_alpha_pipeline.is_some()
             && g.raster3d_paint_alpha_pipeline.is_some()
             && g.raster3d_line_pipeline.is_some()
@@ -7788,6 +7825,13 @@ impl VM {
                         min_binding_size: None,
                     },
                     count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 17, visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false, min_binding_size: wgpu::BufferSize::new(4),
+                    }, count: None,
                 },
             ],
         });
@@ -7955,7 +7999,7 @@ impl VM {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("vm-3d-raster-shader"),
-            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SCENEVM_3D_RASTER_WGSL)),
+            source: wgpu::ShaderSource::Wgsl(raster3d_material_source(paint_paging)),
         });
         let post_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("vm-3d-post-shader"),
@@ -8682,6 +8726,7 @@ impl VM {
         g.u_raster3d_shadow_bgl = Some(u_raster3d_shadow_bgl);
         g.u_raster3d_post_bgl = Some(u_raster3d_post_bgl);
         g.u_raster3d_buf = Some(u_raster3d_buf);
+        g.raster3d_paint_paging = paint_paging;
         g.raster3d_pipeline = Some(raster3d_pipeline);
         g.raster3d_alpha_pipeline = Some(raster3d_alpha_pipeline);
         g.raster3d_paint_alpha_pipeline = Some(raster3d_paint_alpha_pipeline);
@@ -12009,6 +12054,7 @@ impl VM {
         let full_geometry_upload;
         {
             self.upload_organic_billboard_ssbo(device, queue)?;
+            self.prepare_raster_paint_feedback(device, queue);
             organic_ms = upload_elapsed();
             self.upload_irradiance_grid_ssbo(device, queue);
             irradiance_ms = upload_elapsed();
@@ -12323,6 +12369,9 @@ impl VM {
                                 .unwrap()
                                 .as_entire_binding(),
                         },
+                        wgpu::BindGroupEntry {
+                            binding: 17, resource: g.raster3d_paint_feedback.as_ref().unwrap().as_entire_binding(),
+                        },
                     ],
                 }),
             );
@@ -12338,6 +12387,7 @@ impl VM {
                 fb_h,
                 self.entity_pixel_size_3d,
                 raster_samples,
+                g.raster3d_paint_paging,
                 &entity_indices,
             );
         }
