@@ -139,3 +139,77 @@ fn geometry_growth_mode_switches_and_retirement_keep_visible_contents() {
     }
     assert!(!SceneVM::compatibility_gpu_initialized());
 }
+
+#[test]
+#[ignore = "native GPU; derived SDF table allocation and dummy ownership"]
+fn sdf_table_growth_and_empty_sentinels_retire_with_the_scene() {
+    let context = pollster::block_on(GpuContext::headless()).unwrap();
+    let mut scene =
+        SceneVM::new_with_context_and_atlas(context.clone(), 17, 9, SharedAtlas::new(64, 64));
+    let tile = uuid::Uuid::new_v4();
+    scene.execute(Atom::AddTile {
+        id: tile,
+        width: 1,
+        height: 1,
+        frames: vec![vec![210, 30, 20, 255]],
+        material_frames: None,
+    });
+    scene.execute(Atom::BuildAtlas);
+    let rect = scene.atlas_sdf_uv4(&tile, 0).unwrap();
+    scene.execute(Atom::SetRenderMode(RenderMode::Sdf));
+    scene.execute(Atom::SetGP3(Vec4::new(0.5, 0.5, 0.25, 0.15)));
+    scene.execute(Atom::SetBackground(Vec4::new(0., 0., 0., 1.)));
+    let mut target = SceneRenderTarget::new(context.clone(), 17, 9).unwrap();
+    let mut baseline = None;
+    for count in [0, 1, 48, 1, 0] {
+        scene.execute(Atom::SetSdfData(vec![rect; count]));
+        let output = scene.render_gpu(&mut target, count as u64).unwrap();
+        assert_eq!(
+            scene
+                .vm
+                .gpu
+                .as_ref()
+                .unwrap()
+                .sdf_data_ssbo
+                .as_ref()
+                .unwrap()
+                .size(),
+            count.max(1) as u64 * 16
+        );
+        let allocations = context.working_buffer_pool_usage().allocations;
+        scene.render_gpu(&mut target, 100 + count as u64).unwrap();
+        assert_eq!(context.working_buffer_pool_usage().allocations, allocations);
+        let mut ticket = ReadbackTicket::capture(&context, output.image).unwrap();
+        context
+            .device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(20)),
+            })
+            .unwrap();
+        let pixels = ticket
+            .try_finish(&context)
+            .unwrap()
+            .unwrap()
+            .pixels()
+            .to_vec();
+        if count == 0 {
+            assert!(pixels.chunks_exact(4).all(|p| p == [0, 0, 0, 255]));
+        } else {
+            assert!(
+                pixels
+                    .chunks_exact(4)
+                    .any(|p| p[0] as u32 > p[1] as u32 + 20)
+            );
+            if let Some(baseline) = &baseline {
+                assert_eq!(&pixels, baseline);
+            } else {
+                baseline = Some(pixels);
+            }
+        }
+    }
+    drop((scene, target));
+    context.set_working_buffer_cache_limits(0, 0);
+    assert_eq!(context.working_buffer_pool_usage().live_bytes, 0);
+    assert_eq!(context.working_buffer_pool_usage().live_allocations, 0);
+}

@@ -19,12 +19,37 @@ pub(super) enum Kind {
     TileTriangles,
     GridHeader,
     GridData,
+    SceneData,
+    TileMetadata,
+    TileFrames,
+    SdfData,
+    MaterialTable,
+    IrradianceGrid,
+}
+impl Kind {
+    const COUNT: usize = Self::IrradianceGrid as usize + 1;
 }
 #[derive(Default)]
 pub(super) struct GeometryStorage {
-    leases: [Option<WorkingBufferLease>; 14],
+    leases: [Option<WorkingBufferLease>; Kind::COUNT],
 }
 impl GeometryStorage {
+    /// Pipeline initialization has a device before the reference caller supplies
+    /// its queue. Injected table owners already know the canonical queue.
+    pub fn create_table(
+        &mut self,
+        device: &wgpu::Device,
+        context: Option<&GpuContext>,
+        kind: Kind,
+        descriptor: &wgpu::util::BufferInitDescriptor<'_>,
+    ) -> crate::SceneVMResult<wgpu::Buffer> {
+        if let Some(context) = context {
+            self.create_init(device, &context.queue, Some(context), kind, descriptor)
+        } else {
+            self.leases[kind as usize] = None;
+            Ok(device.create_buffer_init(descriptor))
+        }
+    }
     pub fn create(
         &mut self,
         device: &wgpu::Device,

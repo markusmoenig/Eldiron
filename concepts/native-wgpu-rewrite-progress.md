@@ -15819,3 +15819,32 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   padding/sentinel. Focused final geometry contract PASS0.15s (build5.96s):
   /private/tmp/eldiron-geometry-owner-release-contract-final.log. All handles
   terminal. Proceed immediately with scene and material/SDF/irradiance tables.
+
+## Derived VM scene/table storage ownership (2026-11-15)
+
+- Expanded semantic buffer ownership to scene-data blobs, tile metadata/frame
+  tables, SDF data, material lookup and irradiance grids. All20 roles retain their
+  actual canonical allocation leases; reference initialization keeps dedicated
+  storage. Device-only pipeline initialization uses the injected queue for table
+  uploads. Allocation failures now propagate through rendering/pipeline setup
+  before a partial frame can publish; dirty flags/hash/size updates follow success.
+- Existing full replacements upload every allocated byte without an extra clear
+  submission; partial and empty/dummy allocations preserve initialized padding.
+  No normal color readback, schema change or new legacy paint replay requirement.
+- Library release check PASS1.42s; canonical four-application native release check
+  PASS23.74s: /private/tmp/eldiron-scene-table-owner-release-native.log. Focused
+  release Metal source/geometry/table contracts PASS2/2 in0.15s (build5.95s):
+  /private/tmp/eldiron-scene-table-owner-release-contract.log. Existing all4-mode
+  geometry/mode-switch/retirement behavior remains exact. New default SDF fixture
+  covers0/1/48/1/0 rows, visible atlas sampling, warm reuse, exact nonempty output,
+  initialized empty sentinels and zero active buffer bytes after scene retirement.
+- Actual wasm release check in flight. Next large allocation gap is the Raster3D
+  private scene/bloom/MSAA/depth/shadow attachment group, still raw textures in
+  vm/raster3d.rs. Move canonical targets into leases with matching formats/usages/
+  sample counts, retain complete groups through partial paint replay, and leave
+  explicit reference owners isolated. Then continue source quotas/adapter inventory
+  before consolidated M0–M9 workflow/platform/resource/performance acceptance.
+
+- Actual wasm Creator browser-host release compile PASS22.87s:
+  /private/tmp/eldiron-scene-table-owner-release-wasm.log. All handles terminal;
+  diff whitespace clean. Proceed with the Raster3D attachment group.

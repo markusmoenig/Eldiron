@@ -5134,8 +5134,7 @@ impl VM {
         blob
     }
 
-    fn upload_scene_data_ssbo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
-        use wgpu::util::DeviceExt;
+    fn upload_scene_data_ssbo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) -> crate::SceneVMResult<()> {
 
         let scene_data = self.build_scene_data_blob();
         let mut hasher = rustc_hash::FxHasher::default();
@@ -5148,23 +5147,24 @@ impl VM {
         };
 
         if !needs_recreate && self.cached_scene_data_hash == scene_data_hash {
-            return;
+            return Ok(());
         }
 
         let g = self.gpu.as_mut().unwrap();
         if needs_recreate {
-            g.scene_data_ssbo = Some(device.create_buffer_init(
+            g.scene_data_ssbo = Some(g.geometry_storage.create_table(device, self.target_context.as_deref(), GeometryBufferKind::SceneData,
                 &wgpu::util::BufferInitDescriptor {
                     label: Some("vm-scene-data-ssbo"),
                     contents: &scene_data,
                     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 },
-            ));
+            )?);
             g.scene_data_ssbo_size = scene_data.len();
         } else if let Some(buf) = g.scene_data_ssbo.as_ref() {
             queue.write_buffer(buf, 0, &scene_data);
         }
         self.cached_scene_data_hash = scene_data_hash;
+        Ok(())
     }
 
 
@@ -5322,12 +5322,11 @@ impl VM {
         ));
     }
 
-    fn upload_tile_metadata_to_gpu(&mut self, device: &wgpu::Device) {
+    fn upload_tile_metadata_to_gpu(&mut self, device: &wgpu::Device) -> crate::SceneVMResult<()> {
         if self.gpu.is_none() {
-            return;
+            return Ok(());
         }
         self.ensure_tile_metadata();
-        use wgpu::util::DeviceExt;
         let g = self.gpu.as_mut().unwrap();
 
         let meta_slice: &[TileAnimMetaPod] = if self.cached_tile_anim_meta.is_empty() {
@@ -5337,11 +5336,11 @@ impl VM {
         };
         if self.tile_gpu_dirty || g.tile_meta_ssbo.is_none() {
             g.tile_meta_ssbo = Some(
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                g.geometry_storage.create_table(device, self.target_context.as_deref(), GeometryBufferKind::TileMetadata, &wgpu::util::BufferInitDescriptor {
                     label: Some("vm-tile-meta-ssbo"),
                     contents: bytemuck::cast_slice(meta_slice),
                     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                }),
+                })?,
             );
         }
 
@@ -5351,26 +5350,26 @@ impl VM {
             &self.cached_tile_frame_data
         };
         if self.tile_gpu_dirty || g.tile_frames_ssbo.is_none() {
-            g.tile_frames_ssbo = Some(device.create_buffer_init(
+            g.tile_frames_ssbo = Some(g.geometry_storage.create_table(device, self.target_context.as_deref(), GeometryBufferKind::TileFrames,
                 &wgpu::util::BufferInitDescriptor {
                     label: Some("vm-tile-frame-ssbo"),
                     contents: bytemuck::cast_slice(frame_slice),
                     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 },
-            ));
+            )?);
         }
 
         if self.tile_gpu_dirty {
             self.log_layer("Uploaded tile metadata buffers");
         }
         self.tile_gpu_dirty = false;
+        Ok(())
     }
 
-    fn upload_sdf_data_to_gpu(&mut self, device: &wgpu::Device) {
+    fn upload_sdf_data_to_gpu(&mut self, device: &wgpu::Device) -> crate::SceneVMResult<()> {
         if self.gpu.is_none() {
-            return;
+            return Ok(());
         }
-        use wgpu::util::DeviceExt;
         let g = self.gpu.as_mut().unwrap();
         let data_slice: &[[f32; 4]] = if self.sdf_data.is_empty() {
             &[[0.0; 4]]
@@ -5380,14 +5379,15 @@ impl VM {
 
         if self.sdf_data_dirty || g.sdf_data_ssbo.is_none() {
             g.sdf_data_ssbo = Some(
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                g.geometry_storage.create_table(device, self.target_context.as_deref(), GeometryBufferKind::SdfData, &wgpu::util::BufferInitDescriptor {
                     label: Some("vm-sdf-data-ssbo"),
                     contents: bytemuck::cast_slice(data_slice),
                     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                }),
+                })?,
             );
             self.sdf_data_dirty = false;
         }
+        Ok(())
     }
 
     fn default_material_table() -> Vec<[f32; 4]> {
@@ -5409,9 +5409,9 @@ impl VM {
         defaults
     }
 
-    fn upload_material_table_ssbo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+    fn upload_material_table_ssbo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) -> crate::SceneVMResult<()> {
         if self.gpu.is_none() {
-            return;
+            return Ok(());
         }
         if self.material_table.is_empty() {
             self.material_table = Self::default_material_table();
@@ -5425,24 +5425,24 @@ impl VM {
             .map(|g| g.material_table_ssbo.is_none() || g.material_table_ssbo_size != byte_len)
             .unwrap_or(true);
         if !self.material_table_dirty && !needs_recreate {
-            return;
+            return Ok(());
         }
         let bytes: &[u8] = bytemuck::cast_slice(&self.material_table);
         let g = self.gpu.as_mut().unwrap();
         if needs_recreate {
-            use wgpu::util::DeviceExt;
-            g.material_table_ssbo = Some(device.create_buffer_init(
+            g.material_table_ssbo = Some(g.geometry_storage.create_table(device, self.target_context.as_deref(), GeometryBufferKind::MaterialTable,
                 &wgpu::util::BufferInitDescriptor {
                     label: Some("vm-raster3d-material-table"),
                     contents: bytes,
                     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 },
-            ));
+            )?);
             g.material_table_ssbo_size = byte_len;
         } else if let Some(buf) = g.material_table_ssbo.as_ref() {
             queue.write_buffer(buf, 0, bytes);
         }
         self.material_table_dirty = false;
+        Ok(())
     }
 
     fn upload_raster3d_paint_overlay(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
@@ -7500,7 +7500,7 @@ impl VM {
         if self.gpu.is_none() {
             self.init_gpu(device)?;
         }
-        self.upload_tile_metadata_to_gpu(device);
+        self.upload_tile_metadata_to_gpu(device)?;
         let g = self.gpu.as_mut().unwrap();
         if g.raster2d_pipeline.is_some() && g.u_raster2d_bgl.is_some() && g.u_raster2d_buf.is_some()
         {
@@ -7675,7 +7675,7 @@ impl VM {
         if self.gpu.is_none() {
             self.init_gpu(device)?;
         }
-        self.upload_tile_metadata_to_gpu(device);
+        self.upload_tile_metadata_to_gpu(device)?;
         let raster_samples = self.raster3d_effective_samples();
         let paint_paging = self.paint_has_missing_pages();
         let g = self.gpu.as_mut().unwrap();
@@ -10044,9 +10044,9 @@ impl VM {
         Some(out)
     }
 
-    fn upload_irradiance_grid_ssbo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+    fn upload_irradiance_grid_ssbo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) -> crate::SceneVMResult<()> {
         if self.gpu.is_none() {
-            return;
+            return Ok(());
         }
         if EMISSIVE_SURFACE_IRRADIANCE_ENABLED
             && self.cached_tile_emissive_content_version != self.shared_atlas.content_version()
@@ -10095,25 +10095,25 @@ impl VM {
             .map(|g| g.irradiance_grid_ssbo.is_none() || g.irradiance_grid_ssbo_size != byte_len)
             .unwrap_or(true);
         if !rebuilt && !needs_recreate {
-            return;
+            return Ok(());
         }
         let bytes: &[u8] = bytemuck::cast_slice(&self.cached_irradiance_grid_data);
         let g = self.gpu.as_mut().unwrap();
         if needs_recreate {
-            use wgpu::util::DeviceExt;
-            g.irradiance_grid_ssbo = Some(device.create_buffer_init(
+            g.irradiance_grid_ssbo = Some(g.geometry_storage.create_table(device, self.target_context.as_deref(), GeometryBufferKind::IrradianceGrid,
                 &wgpu::util::BufferInitDescriptor {
                     label: Some("vm-raster3d-irradiance-grid"),
                     contents: bytes,
                     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 },
-            ));
+            )?);
             g.irradiance_grid_ssbo_size = byte_len;
         } else if rebuilt {
             if let Some(buf) = g.irradiance_grid_ssbo.as_ref() {
                 queue.write_buffer(buf, 0, bytes);
             }
         }
+        Ok(())
     }
 
     /// Dispatches 2D compute pipeline into a storage-capable surface.
@@ -10129,7 +10129,7 @@ impl VM {
             self.init_gpu(device)?;
         }
         self.init_raster2d(device)?;
-        self.upload_tile_metadata_to_gpu(device);
+        self.upload_tile_metadata_to_gpu(device)?;
         let (write_view, _prev_view, next_front) =
             self.prepare_layer_views(device, queue, fb_w, fb_h)?;
 
@@ -10317,7 +10317,7 @@ impl VM {
             }
         }
 
-        self.upload_scene_data_ssbo(device, queue);
+        self.upload_scene_data_ssbo(device, queue)?;
         self.upload_atlas_to_gpu_with(device, queue);
         let (atlas_view, atlas_mat_view) = self
             .shared_atlas
@@ -10570,7 +10570,7 @@ impl VM {
             self.init_gpu(device)?;
         }
         self.init_compute(device)?;
-        self.upload_tile_metadata_to_gpu(device);
+        self.upload_tile_metadata_to_gpu(device)?;
         // Ensure layer texture exists and matches size
         let (write_view, prev_view, next_front) =
             self.prepare_layer_views(device, queue, fb_w, fb_h)?;
@@ -10638,7 +10638,7 @@ impl VM {
             }
         }
 
-        self.upload_scene_data_ssbo(device, queue);
+        self.upload_scene_data_ssbo(device, queue)?;
 
         let mut uploaded_geometry = false;
         {
@@ -10858,8 +10858,8 @@ impl VM {
         }
         self.init_compute(device)?;
         self.ensure_compute3d_pipeline(device)?;
-        self.upload_tile_metadata_to_gpu(device);
-        self.upload_material_table_ssbo(device, queue);
+        self.upload_tile_metadata_to_gpu(device)?;
+        self.upload_material_table_ssbo(device, queue)?;
         self.upload_raster3d_paint_overlay(device, queue);
         self.upload_compute3d_aux_ssbo(device, queue)?;
         let (write_view, prev_view, next_front) =
@@ -10921,7 +10921,7 @@ impl VM {
             .texture_views()
             .expect("atlas GPU resources missing");
 
-        self.upload_scene_data_ssbo(device, queue);
+        self.upload_scene_data_ssbo(device, queue)?;
 
         // --- Build 3D geometry only when accel_dirty says so ---
         let mut geometry_changed = false;
@@ -11408,8 +11408,8 @@ impl VM {
         let debug_init_ms = debug_init_start.elapsed().as_secs_f64() * 1000.0;
 
         let debug_prepare_start = instant::Instant::now();
-        self.upload_tile_metadata_to_gpu(device);
-        self.upload_scene_data_ssbo(device, queue);
+        self.upload_tile_metadata_to_gpu(device)?;
+        self.upload_scene_data_ssbo(device, queue)?;
         let (write_view, _prev_view, next_front) =
             self.prepare_layer_views(device, queue, fb_w, fb_h)?;
 
@@ -11871,7 +11871,7 @@ impl VM {
 
         // Keep static atlas/tile metadata in sync.
         self.upload_atlas_to_gpu_with(device, queue);
-        self.upload_tile_metadata_to_gpu(device);
+        self.upload_tile_metadata_to_gpu(device)?;
 
         let (atlas_view, atlas_mat_view) = self
             .shared_atlas
@@ -12072,9 +12072,9 @@ impl VM {
             self.upload_organic_billboard_ssbo(device, queue)?;
             self.prepare_raster_paint_feedback(device, queue);
             organic_ms = upload_elapsed();
-            self.upload_irradiance_grid_ssbo(device, queue);
+            self.upload_irradiance_grid_ssbo(device, queue)?;
             irradiance_ms = upload_elapsed();
-            self.upload_material_table_ssbo(device, queue);
+            self.upload_material_table_ssbo(device, queue)?;
             self.upload_raster3d_paint_overlay(device, queue);
             tables_ms = upload_elapsed();
             let g = self.gpu.as_mut().unwrap();
@@ -12904,7 +12904,7 @@ impl VM {
             queue.write_buffer(g.u_sdf_buf.as_ref().unwrap(), 0, bytemuck::bytes_of(&u));
         }
 
-        self.upload_sdf_data_to_gpu(device);
+        self.upload_sdf_data_to_gpu(device)?;
 
         let g = self.gpu.as_mut().unwrap();
         let (atlas_tex_view, _atlas_mat_tex_view) = self
