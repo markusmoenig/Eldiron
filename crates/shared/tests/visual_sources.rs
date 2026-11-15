@@ -5,7 +5,7 @@ use vek::Vec3;
 #[test]
 fn paint_wire_fields_and_terrain_publications_keep_frozen_pixel_ownership() {
     use eldiron_shared::{
-        iso_paint::{IsoPaintBakedChunk, IsoPaintLayer, IsoPaintOwner},
+        iso_paint::{IsoPaintBakedChunk, IsoPaintLayer, IsoPaintOwner, IsoPaintSelection},
         iso_paint_terrain,
     };
     use rusterix::isometric::paint::TERRAIN_PAINT_GEO;
@@ -26,6 +26,31 @@ fn paint_wire_fields_and_terrain_publications_keep_frozen_pixel_ownership() {
     assert_eq!(restored, chunk);
     let mut layer = IsoPaintLayer::default();
     layer.baked_chunks.insert("original".into(), chunk);
+    let mut selection = IsoPaintSelection::new(IsoPaintOwner::Terrain { x: 0, z: 0 });
+    selection.set_pixel(
+        IsoPaintOwner::Terrain { x: 0, z: 0 },
+        TERRAIN_PAINT_GEO,
+        [0, 0],
+    );
+    layer.set_active_selection(selection);
+    let snapshot = layer.presentation_source(true);
+    assert!(snapshot.baked_chunks.same_storage(&layer.baked_chunks));
+    assert!(
+        snapshot
+            .active_selection()
+            .unwrap()
+            .chunks
+            .same_storage(&layer.active_selection().unwrap().chunks)
+    );
+    let wire = serde_json::to_value(&layer).unwrap();
+    assert_eq!(
+        wire["baked_chunks"],
+        serde_json::to_value(&*layer.baked_chunks).unwrap()
+    );
+    let restored: IsoPaintLayer = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(restored.baked_chunks, layer.baked_chunks);
+    assert_eq!(restored.selection_masks, layer.selection_masks);
+    assert_eq!(serde_json::to_value(&restored).unwrap(), wire);
     let map = Uuid::new_v4();
     let mut assets = Assets::default();
     iso_paint_terrain::sync(&mut assets, map, &mut layer);
@@ -43,6 +68,31 @@ fn paint_wire_fields_and_terrain_publications_keep_frozen_pixel_ownership() {
     changed.color_rgba[..4].copy_from_slice(&[240, 20, 60, 128]);
     changed.material_rgba[..4].copy_from_slice(&[254, 1, 1, 255]);
     changed.revision += 1;
+    assert!(!snapshot.baked_chunks.same_storage(&layer.baked_chunks));
+    assert_eq!(
+        &snapshot.baked_chunks["original"].color_rgba[..4],
+        &[24, 190, 72, 192]
+    );
+    layer
+        .selection_masks
+        .get_mut(&layer.active_selection_id.unwrap())
+        .unwrap()
+        .chunks
+        .values_mut()
+        .next()
+        .unwrap()
+        .mask[0] = 0;
+    assert_eq!(
+        snapshot
+            .active_selection()
+            .unwrap()
+            .chunks
+            .values()
+            .next()
+            .unwrap()
+            .mask[0],
+        255
+    );
     iso_paint_terrain::sync(&mut assets, map, &mut layer);
     assert_eq!(frozen.sample([0., 0.]).unwrap().0, [24, 190, 72, 192]);
     assert_eq!(

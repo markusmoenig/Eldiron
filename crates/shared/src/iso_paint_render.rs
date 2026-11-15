@@ -300,7 +300,7 @@ impl IsoPaintRenderer {
     }
 
     fn surface_chunks_with_stamps(layer: &IsoPaintLayer) -> IndexMap<String, IsoPaintBakedChunk> {
-        let mut chunks = layer.baked_chunks.clone();
+        let mut chunks = (*layer.baked_chunks).clone();
         for stamp in layer.chunks.values().flat_map(|chunk| &chunk.stamps) {
             let (Some(owner), Some(uv), Some(paint_geo)) =
                 (stamp.owner.as_ref(), stamp.surface_uv, stamp.paint_geo)
@@ -392,7 +392,7 @@ impl IsoPaintRenderer {
         layer: &IsoPaintLayer,
     ) -> IndexMap<String, IsoPaintBakedChunk> {
         let mut chunks = if layer.visible {
-            layer.baked_chunks.clone()
+            (*layer.baked_chunks).clone()
         } else {
             IndexMap::default()
         };
@@ -455,7 +455,7 @@ impl IsoPaintRenderer {
         let display_chunks = if has_selection {
             std::borrow::Cow::Owned(Self::surface_chunks_with_selection(layer))
         } else {
-            std::borrow::Cow::Borrowed(&layer.baked_chunks)
+            std::borrow::Cow::Borrowed(&*layer.baked_chunks)
         };
         let Some((width, height, color_rgba, material_rgba, entries)) =
             Self::build_surface_paint_atlas(&display_chunks)

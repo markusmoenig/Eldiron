@@ -7,7 +7,8 @@ use crate::iso_paint::{IsoPaintBakedChunk, IsoPaintOwner};
 pub struct PaintPageIndexBuilder {
     index: PaintPageIndex,
     table_len: usize,
-    chunks: indexmap::map::IntoValues<String, IsoPaintBakedChunk>,
+    chunks: crate::shared_index_map::SharedIndexMap<String, IsoPaintBakedChunk>,
+    chunk_cursor: usize,
     owners: std::vec::IntoIter<IsoPaintOwner>,
     alpha_seen: rustc_hash::FxHashSet<GeoId>,
     has_alpha: bool,
@@ -58,7 +59,8 @@ impl PaintPageIndexBuilder {
         Ok(Self {
             index,
             table_len,
-            chunks: chunks.into_values(),
+            chunks,
+            chunk_cursor: 0,
             owners: owners.into_iter(),
             alpha_seen: rustc_hash::FxHashSet::default(),
             has_alpha: false,
@@ -99,7 +101,9 @@ impl PaintPageIndexBuilder {
             return Ok(false);
         }
         for _ in 0..items {
-            if let Some(chunk) = self.chunks.next() {
+            if let Some((_, chunk)) = self.chunks.get_index(self.chunk_cursor) {
+                let chunk = chunk.clone();
+                self.chunk_cursor += 1;
                 self.insert(chunk)?;
             } else if let Some(owner) = self.owners.next() {
                 if self.has_alpha {
@@ -109,7 +113,7 @@ impl PaintPageIndexBuilder {
                 break;
             }
         }
-        Ok(self.chunks.len() == 0 && self.owners.len() == 0)
+        Ok(self.chunk_cursor == self.chunks.len() && self.owners.len() == 0)
     }
     fn insert(&mut self, chunk: IsoPaintBakedChunk) -> Result<(), String> {
         if chunk.color_rgba.len() != PLANE_BYTES || chunk.material_rgba.len() != PLANE_BYTES {

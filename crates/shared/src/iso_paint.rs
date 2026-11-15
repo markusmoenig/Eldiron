@@ -1,6 +1,7 @@
 use crate::iso_paint_brush::{self, IsoPaintBrushSample};
 use crate::prelude::*;
 mod source;
+use crate::shared_index_map::SharedIndexMap;
 use theframework_core::prelude::{Uuid, Vec2, Vec3};
 use theframework_core::SharedBytes;
 
@@ -548,7 +549,7 @@ impl IsoPaintChunk {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct IsoPaintBakedChunk {
     pub owner: IsoPaintOwner,
     pub paint_geo: [u32; 4],
@@ -559,7 +560,7 @@ pub struct IsoPaintBakedChunk {
     pub material_rgba: SharedBytes,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct IsoPaintSelectionChunk {
     pub owner: IsoPaintOwner,
     pub paint_geo: [u32; 4],
@@ -582,11 +583,11 @@ impl IsoPaintSelectionChunk {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct IsoPaintSelection {
     pub id: Uuid,
     pub owner: IsoPaintOwner,
-    pub chunks: IndexMap<String, IsoPaintSelectionChunk>,
+    pub chunks: SharedIndexMap<String, IsoPaintSelectionChunk>,
 }
 
 impl IsoPaintSelection {
@@ -594,7 +595,7 @@ impl IsoPaintSelection {
         Self {
             id: Uuid::new_v4(),
             owner,
-            chunks: IndexMap::default(),
+            chunks: Default::default(),
         }
     }
 
@@ -723,7 +724,7 @@ pub struct IsoPaintLayer {
     #[serde(skip)]
     pub screen_chunks: IndexMap<String, IsoPaintScreenChunk>,
     #[serde(default)]
-    pub baked_chunks: IndexMap<String, IsoPaintBakedChunk>,
+    pub baked_chunks: SharedIndexMap<String, IsoPaintBakedChunk>,
     /// Bumped when the UV bake algorithm changes. Earlier experimental bakes are discarded;
     /// screen-space paint has intentionally no migration path.
     #[serde(default)]
@@ -807,7 +808,7 @@ impl Default for IsoPaintLayer {
             chunk_size: default_chunk_size(),
             chunks: IndexMap::default(),
             screen_chunks: IndexMap::default(),
-            baked_chunks: IndexMap::default(),
+            baked_chunks: Default::default(),
             baked_version: ISO_PAINT_BAKE_VERSION,
             selection_masks: IndexMap::default(),
             active_selection_id: None,

@@ -8,6 +8,7 @@ pub mod equipment;
 pub mod geometry_recipe;
 pub mod graph_authoring;
 pub mod interaction;
+pub mod shared_index_map;
 pub mod iso_paint;
 pub mod iso_paint_brush;
 pub mod paint_source;

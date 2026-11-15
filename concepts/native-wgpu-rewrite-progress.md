@@ -15335,3 +15335,47 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Next implementation: share authored CPU page/selection catalogue snapshots
   without copying every page descriptor on each camera/render request, preserving
   the current serialized map representation and frozen worker inputs.
+
+
+## Shared authored page and selection catalogues (2026-11-15)
+
+- Current baked-page and selection-chunk maps use SharedIndexMap, an immutable
+  Arc-backed ordered catalogue with copy-on-write authoring. Presentation/worker
+  snapshots clone the catalogue handle rather than every key/page descriptor.
+  Exact unchanged catalogue equality uses retained backing identity; values are
+  Eq data. Current JSON map order/shape and pixel arrays serialize through the
+  original IndexMap implementation. No renderer/job handles enter serialization,
+  and obsolete experimental paint compatibility was not added.
+- SurfacePaintRequest preparation starts with an empty derived display map and
+  advances one original descriptor or64 selection pixels per unit. Original
+  catalogues and selection masks stay frozen while authoring detaches separately.
+  PaintPageIndexBuilder also keeps an immutable catalogue plus an index cursor,
+  avoiding a full cloned IntoValues catalogue before budgeted preparation begins.
+  Explicit reference atlas helpers still materialize their private writable map.
+- The first actual edit while an old catalogue is pinned can still copy catalogue
+  metadata; this is not a hard whole-authoring-operation2ms guarantee. Prefab
+  merge capture, stamp recipe capture, instance placement production and remaining
+  aggregate CPU/resource measurements stay open. Pixel backing remains shared.
+- Initial native compile found an inferred Cow borrowed type in the explicit
+  reference helper; made its existing IndexMap borrow explicit, then canonical
+  four-application release compilation PASS15.14s:
+  /private/tmp/eldiron-paint-catalogue-release.log. CPU-only focused current paint
+  wire/terrain ownership regression PASS0.00s (release build52.96s):
+  /private/tmp/eldiron-paint-catalogue-release-cpu.log. It checks map wire shape,
+  decode/re-encode equality, catalogue sharing and independent page/mask edits.
+- Cooperative frozen-catalogue/selection publication reference parity PASS0.00s
+  (release build1m31s):
+  /private/tmp/eldiron-paint-catalogue-release-preparation.log. It verifies no
+  constructor-wide descriptor copy, zero/one-unit yielding, edits after capture,
+  exact key table and original color/material planes including selection-created
+  pages. Browser-host feature compile PASS17.50s:
+  /private/tmp/eldiron-paint-catalogue-release-web.log. Actual wasm release target
+  compilation is in flight. These are scoped contracts, not the deferred full
+  current-project save/reopen workflow or consolidated acceptance matrix.
+
+- Actual wasm32-unknown-unknown Creator browser binary release target compilation
+  PASS30.14s: /private/tmp/eldiron-paint-catalogue-release-wasm.log. This also
+  compiles the browser resource diagnostics' new live/peak pool fields. All
+  handles terminal; diff whitespace check passes. Continue with immutable stamp
+  recipe lists, per-recipe cooperative iteration and repeated-request reuse;
+  unrelated networking concept remains untracked and untouched.

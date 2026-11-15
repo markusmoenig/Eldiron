@@ -1,14 +1,17 @@
 //! Camera-independent current UV/selection publication. CPU preparation owns
 //! shared authored pages and emits no renderer, history or stitched atlas.
 use super::*;
+use crate::shared_index_map::SharedIndexMap;
 use crate::surface_paint::Builder;
 use rusterix::surface_paint::{SurfacePaint, SurfacePaintPage, SurfacePaintValidation};
 use std::sync::Arc;
+#[cfg(test)]
+mod tests;
 
 #[derive(Clone, PartialEq)]
 pub struct SurfacePaintRequest {
     visible: bool,
-    chunks: IndexMap<String, IsoPaintBakedChunk>,
+    chunks: SharedIndexMap<String, IsoPaintBakedChunk>,
     selection: Option<IsoPaintSelection>,
     owners: Vec<IsoPaintOwner>,
 }
@@ -42,26 +45,12 @@ impl SurfacePaintRequest {
     pub fn prepare(self, table_limit: u64) -> SurfacePaintPreparation {
         let selection = self.selection.clone().map(Arc::new);
         let empty = self.is_empty();
-        let invalid_selection = selection.as_ref().is_some_and(|selection| {
-            selection
-                .chunks
-                .values()
-                .any(|chunk| chunk.mask.len() != (ISO_PAINT_BAKED_CHUNK_SIZE as usize).pow(2))
-        });
-
         SurfacePaintPreparation {
-            display: if self.visible {
-                self.chunks.clone()
-            } else {
-                Default::default()
-            },
-            original: self.chunks.clone().into_values(),
+            display: Default::default(),
+            original: self.chunks.clone(),
+            original_cursor: 0,
             owners: self.owners.clone().into_iter(),
-            selections: selection
-                .as_ref()
-                .map(|s| s.chunks.values().cloned().collect::<Vec<_>>())
-                .unwrap_or_default()
-                .into_iter(),
+            selections: 0,
             selection,
             request: self,
             stage: if empty { Stage::Done } else { Stage::Original },
@@ -79,7 +68,7 @@ impl SurfacePaintRequest {
             hash: DefaultHasher::new(),
             validation: None,
             source: None,
-            failure: invalid_selection.then(|| "Invalid selection mask size".into()),
+            failure: None,
         }
     }
 }
@@ -112,10 +101,11 @@ struct SelectionWork {
 }
 pub struct SurfacePaintPreparation {
     request: SurfacePaintRequest,
-    original: indexmap::map::IntoValues<String, IsoPaintBakedChunk>,
+    original: SharedIndexMap<String, IsoPaintBakedChunk>,
+    original_cursor: usize,
     owners: std::vec::IntoIter<IsoPaintOwner>,
     selection: Option<Arc<IsoPaintSelection>>,
-    selections: std::vec::IntoIter<IsoPaintSelectionChunk>,
+    selections: usize,
     current_selection: Option<SelectionWork>,
     display: IndexMap<String, IsoPaintBakedChunk>,
     packed: indexmap::map::IntoValues<String, IsoPaintBakedChunk>,
@@ -166,7 +156,9 @@ impl SurfacePaintPreparation {
         let side = ISO_PAINT_BAKED_CHUNK_SIZE as usize;
         match self.stage {
             Stage::Original => {
-                if let Some(chunk) = self.original.next() {
+                if let Some((key, chunk)) = self.original.get_index(self.original_cursor) {
+                    let (key, chunk) = (key.clone(), chunk.clone());
+                    self.original_cursor += 1;
                     if chunk.color_rgba.len() != side * side * 4
                         || chunk.material_rgba.len() != side * side * 4
                     {
@@ -175,6 +167,9 @@ impl SurfacePaintPreparation {
                     if Builder::surface_paint_chunk_needs_alpha(&chunk) {
                         self.has_alpha = true;
                         self.alpha(&chunk.owner);
+                    }
+                    if self.request.visible {
+                        self.display.insert(key, chunk);
                     }
                 } else {
                     self.stage = Stage::Owners;
@@ -191,7 +186,13 @@ impl SurfacePaintPreparation {
             }
             Stage::Selection => {
                 if self.current_selection.is_none() {
-                    if let Some(mask) = self.selections.next() {
+                    if let Some((_, mask)) = self
+                        .selection
+                        .as_ref()
+                        .and_then(|selection| selection.chunks.get_index(self.selections))
+                    {
+                        let mask = mask.clone();
+                        self.selections += 1;
                         if mask.mask.len() != side * side {
                             return Err("Invalid selection mask size".into());
                         }
