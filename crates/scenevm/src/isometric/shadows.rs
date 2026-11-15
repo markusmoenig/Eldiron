@@ -48,12 +48,14 @@ impl ShadowGeometry {
 #[cfg(feature = "gpu")]
 pub(super) mod gpu {
     use super::*;
+    use crate::isometric::storage::Buffer;
     use crate::{
         SceneVMError, SceneVMResult,
         isometric::{PointLight, Uniforms},
     };
+    use renderkit::GpuContext;
+    use std::sync::Arc;
     use vek::Vec3;
-    use wgpu::util::DeviceExt;
     const SUN_SIZE: u32 = 2048;
     const POINT_SIZE: u32 = 512;
     // WebGPU's guaranteed 256 array layers can hold six views for every light.
@@ -93,57 +95,65 @@ pub(super) mod gpu {
             meta: [u32::from(light.is_some()), light.unwrap_or(0) as u32, 1, 0],
         }
     }
-    fn depth(device: &wgpu::Device, size: u32, layers: u32) -> (wgpu::Texture, wgpu::TextureView) {
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("iso-mesh-shadow-depth"),
-            size: wgpu::Extent3d {
-                width: size,
-                height: size,
-                depth_or_array_layers: layers,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let v = texture.create_view(&wgpu::TextureViewDescriptor {
+    fn depth(
+        device: &wgpu::Device,
+        context: Option<&GpuContext>,
+        size: u32,
+        layers: u32,
+    ) -> SceneVMResult<(
+        wgpu::Texture,
+        wgpu::TextureView,
+        Option<renderkit::TargetLease>,
+    )> {
+        let usage = wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING;
+        let (texture, lease) = if let Some(context) = context {
+            let lease = context
+                .acquire_target(renderkit::TargetDescriptor {
+                    array_layers: layers,
+                    usage,
+                    ..renderkit::TargetDescriptor::color(
+                        size,
+                        size,
+                        wgpu::TextureFormat::Depth32Float,
+                    )
+                })
+                .map_err(|error| SceneVMError::BufferAllocationFailed(error.to_string()))?;
+            (lease.texture().clone(), Some(lease))
+        } else {
+            (
+                device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("reference-isometric-shadow-depth"),
+                    size: wgpu::Extent3d {
+                        width: size,
+                        height: size,
+                        depth_or_array_layers: layers,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Depth32Float,
+                    usage,
+                    view_formats: &[],
+                }),
+                None,
+            )
+        };
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
             dimension: Some(wgpu::TextureViewDimension::D2Array),
             ..Default::default()
         });
-        (texture, v)
-    }
-    fn upload(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        buffer: &mut wgpu::Buffer,
-        capacity: &mut usize,
-        bytes: &[u8],
-    ) {
-        if bytes.len() > *capacity {
-            *capacity = bytes.len().next_power_of_two();
-            *buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("iso-shadow-cached-buffer"),
-                size: *capacity as u64,
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-        }
-        if !bytes.is_empty() {
-            queue.write_buffer(buffer, 0, bytes);
-        }
+        Ok((texture, view, lease))
     }
     pub struct Pass {
+        context: Option<Arc<GpuContext>>,
+        _sun_lease: Option<renderkit::TargetLease>,
+        point_lease: Option<renderkit::TargetLease>,
         pipeline: wgpu::RenderPipeline,
         layout: wgpu::BindGroupLayout,
-        vertices: wgpu::Buffer,
-        vertex_capacity: usize,
-        alpha: wgpu::Buffer,
-        alpha_capacity: usize,
-        uniforms: wgpu::Buffer,
-        pub views: wgpu::Buffer,
-        view_capacity: usize,
+        vertices: Buffer,
+        alpha: Buffer,
+        uniforms: Buffer,
+        pub views: Buffer,
         sun: wgpu::Texture,
         pub sun_view: wgpu::TextureView,
         point: wgpu::Texture,
@@ -153,7 +163,7 @@ pub(super) mod gpu {
         count: u32,
     }
     impl Pass {
-        pub fn new(device: &wgpu::Device) -> Self {
+        pub fn new(device: &wgpu::Device, context: Option<Arc<GpuContext>>) -> SceneVMResult<Self> {
             let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("iso-mesh-shadows"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("../isometric_shadow.wgsl").into()),
@@ -228,38 +238,40 @@ pub(super) mod gpu {
                 multiview_mask: None,
                 cache: None,
             });
-            let (sun, sun_view) = depth(device, SUN_SIZE, 1);
-            let (point, point_view) = depth(device, POINT_SIZE, 1);
-            let storage = |label| {
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some(label),
-                    contents: &[0; 96],
-                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                })
+            let (sun, sun_view, sun_lease) = depth(device, context.as_deref(), SUN_SIZE, 1)?;
+            let (point, point_view, point_lease) =
+                depth(device, context.as_deref(), POINT_SIZE, 1)?;
+            let storage = || {
+                Buffer::new(
+                    device,
+                    context.as_deref(),
+                    96,
+                    wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                )
             };
-            Self {
+            Ok(Self {
                 pipeline,
                 layout,
-                vertices: storage("iso-shadow-vertices"),
-                vertex_capacity: 96,
-                alpha: storage("iso-shadow-alpha"),
-                alpha_capacity: 96,
-                views: storage("iso-shadow-views"),
-                view_capacity: 96,
-                uniforms: device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("iso-shadow-camera-uniforms"),
-                    size: 256 * (1 + MAX_POINT_LIGHTS * 6) as u64,
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                }),
+                vertices: storage()?,
+                alpha: storage()?,
+                views: storage()?,
+                uniforms: Buffer::new(
+                    device,
+                    context.as_deref(),
+                    256 * (1 + MAX_POINT_LIGHTS * 6),
+                    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                )?,
                 sun,
                 sun_view,
                 point,
                 point_view,
+                _sun_lease: sun_lease,
+                point_lease,
+                context,
                 layers: 1,
                 revision: None,
                 count: 0,
-            }
+            })
         }
         pub fn draw(
             &mut self,
@@ -290,24 +302,22 @@ pub(super) mod gpu {
                             "Iso shadow geometry exceeds device limits".into(),
                         ));
                     }
-                    upload(
-                        device,
-                        queue,
-                        &mut self.vertices,
-                        &mut self.vertex_capacity,
-                        bytes,
-                    );
-                    upload(
-                        device,
-                        queue,
-                        &mut self.alpha,
-                        &mut self.alpha_capacity,
-                        if g.alpha.is_empty() {
-                            &[0; 4]
-                        } else {
-                            bytemuck::cast_slice(&g.alpha)
-                        },
-                    );
+                    let alpha: &[u8] = if g.alpha.is_empty() {
+                        &[0; 4]
+                    } else {
+                        bytemuck::cast_slice(&g.alpha)
+                    };
+                    if alpha.len() as u64
+                        > u64::from(device.limits().max_storage_buffer_binding_size)
+                    {
+                        return Err(SceneVMError::BufferAllocationFailed(
+                            "Iso shadow alpha exceeds device limits".into(),
+                        ));
+                    }
+                    self.vertices
+                        .write(device, queue, bytes, self.context.as_deref())?;
+                    self.alpha
+                        .write(device, queue, alpha, self.context.as_deref())?;
                     self.revision = Some(g.revision);
                     self.count = g.vertices.len() as u32;
                 }
@@ -366,26 +376,27 @@ pub(super) mod gpu {
                     }
                 }
             }
-            upload(
+            self.views.write(
                 device,
                 queue,
-                &mut self.views,
-                &mut self.view_capacity,
                 bytemuck::cast_slice(&views),
-            );
+                self.context.as_deref(),
+            )?;
             if geometry.is_none() || u.shadow[0] <= 0. {
                 return Ok(());
             }
             let layers = (light_count * 6).max(1) as u32;
             if layers != self.layers {
-                (self.point, self.point_view) = depth(device, POINT_SIZE, layers);
+                (self.point, self.point_view, self.point_lease) =
+                    depth(device, self.context.as_deref(), POINT_SIZE, layers)?;
                 self.layers = layers;
             }
             let mut uniform_bytes = vec![0u8; (1 + light_count * 6) * 256];
             for (i, v) in views.iter().take(1 + light_count * 6).enumerate() {
                 uniform_bytes[i * 256..i * 256 + 96].copy_from_slice(bytemuck::bytes_of(v));
             }
-            queue.write_buffer(&self.uniforms, 0, &uniform_bytes);
+            self.uniforms
+                .write(device, queue, &uniform_bytes, self.context.as_deref())?;
             let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("iso-shadow-scene"),
                 layout: &self.layout,

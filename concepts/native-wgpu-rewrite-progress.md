@@ -15739,3 +15739,37 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   host release compile passes:
   /private/tmp/eldiron-isometric-arena-canvas-owner-release-wasm.log. All handles
   terminal; diff whitespace clean. Proceed with lighting/shadow storage ownership.
+
+## Injected isometric lighting and mesh-shadow storage ownership (2026-11-15)
+
+- Added isometric/storage.rs for lighting/shadow buffer ownership and growth.
+  Canonical constructors acquire shared device leases immediately, clear reused
+  tails/sentinels on the GPU, and record actual metadata/geometry/alpha uploads.
+  Reference owners retain dedicated allocation. All7 lighting inputs, shadow
+  vertices/alpha/view tables and the dynamic camera arena use this boundary.
+- Canonical sun/point Depth32Float arrays retain target leases, including resized
+  point-light face storage. Disabled views never sample uninitialized layers;
+  enabled views clear their depth attachment before lighting samples it. Source
+  revision/count reuse and all existing shadow/lighting shaders remain unchanged.
+  Oversized alpha tables fail before geometry/source replacement. Lost/injected
+  view ownership remains governed by the existing renderer generation guard.
+- SceneVM-only release check PASS1.77s. Focused release Metal isometric ownership
+  contracts PASS3/3 in0.13s (build6.08s):
+  /private/tmp/eldiron-isometric-shadow-owner-release-contract.log. New injected
+  fixture checks actual triangle cavity/roof sun shadows, alpha opening/closing,
+  point-light faces, exact warm output with no source/target allocation and only
+  expected metadata uploads, intact output after pool eviction, exact active
+  sun/point/output byte charges and final buffer/target retirement to zero.
+  Existing resize/particles/large arena/domain checks also pass. Transfer assertions
+  now include the previously unrecorded96-byte empty shadow view table per frame.
+- Canonical four-application native release check PASS24.16s:
+  /private/tmp/eldiron-isometric-shadow-owner-release-native.log. Actual wasm release
+  compilation in flight; no broad suite or benchmark. Remaining allocation audit
+  found VM raster/compute geometry, index partitions, tile bins and grid tables
+  still using raw allocation paths. Move canonical owners behind retained buffer
+  leases, preserving capacities, partial writes, empty sentinels and reference
+  behavior. Full cold-source quotas and M0–M9 acceptance remain unfinished.
+
+- Actual wasm Creator browser-host release compile PASS22.96s:
+  /private/tmp/eldiron-isometric-shadow-owner-release-wasm.log. All handles terminal,
+  diff whitespace clean. Continue with canonical VM geometry allocation owners.

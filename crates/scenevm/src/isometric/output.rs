@@ -102,7 +102,8 @@ impl IsometricRenderer {
             return Err(RenderError("isometric GPU device lost".into()));
         }
         Ok(Self {
-            pass: Pass::new(&context.device),
+            pass: Pass::new_with_context(&context)
+                .map_err(|error| RenderError(format!("isometric pass allocation: {error:?}")))?,
             context,
             image: None,
         })

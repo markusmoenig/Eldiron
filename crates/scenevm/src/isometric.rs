@@ -9,6 +9,8 @@ mod blit;
 #[cfg(feature = "gpu")]
 mod output;
 #[cfg(feature = "gpu")]
+mod storage;
+#[cfg(feature = "gpu")]
 pub use blit::{
     GpuSpriteSource, IsometricBlitter, SpriteBlit, SpriteContacts, SpriteEnvironment,
     SpriteTerrainClip,
@@ -52,53 +54,7 @@ mod gpu {
     use super::*;
     use crate::{RenderResult, SceneVM, SceneVMError, SceneVMResult, Texture};
 
-    struct Buffer {
-        buffer: wgpu::Buffer,
-        capacity: usize,
-    }
-    impl Buffer {
-        fn new(device: &wgpu::Device, uniform: bool) -> Self {
-            Self {
-                buffer: device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("iso-buffer"),
-                    size: 256,
-                    usage: wgpu::BufferUsages::COPY_DST
-                        | if uniform {
-                            wgpu::BufferUsages::UNIFORM
-                        } else {
-                            wgpu::BufferUsages::STORAGE
-                        },
-                    mapped_at_creation: false,
-                }),
-                capacity: 256,
-            }
-        }
-        fn write(
-            &mut self,
-            device: &wgpu::Device,
-            queue: &wgpu::Queue,
-            data: &[u8],
-            uniform: bool,
-        ) {
-            if data.len() > self.capacity {
-                self.capacity = data.len().next_power_of_two();
-                self.buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("iso-buffer"),
-                    size: self.capacity as u64,
-                    usage: wgpu::BufferUsages::COPY_DST
-                        | if uniform {
-                            wgpu::BufferUsages::UNIFORM
-                        } else {
-                            wgpu::BufferUsages::STORAGE
-                        },
-                    mapped_at_creation: false,
-                });
-            }
-            if !data.is_empty() {
-                queue.write_buffer(&self.buffer, 0, data);
-            }
-        }
-    }
+    use super::storage::Buffer;
     pub(crate) struct Pass {
         pipeline: wgpu::ComputePipeline,
         particle_pipeline: wgpu::RenderPipeline,
@@ -110,6 +66,17 @@ mod gpu {
     }
     impl Pass {
         pub fn new(device: &wgpu::Device) -> Self {
+            Self::new_owner(device, None).expect("dedicated isometric metadata allocation")
+        }
+        pub fn new_with_context(
+            context: &std::sync::Arc<renderkit::GpuContext>,
+        ) -> SceneVMResult<Self> {
+            Self::new_owner(&context.device, Some(context.clone()))
+        }
+        fn new_owner(
+            device: &wgpu::Device,
+            context: Option<std::sync::Arc<renderkit::GpuContext>>,
+        ) -> SceneVMResult<Self> {
             let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("scenevm-iso-lighting"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("isometric.wgsl").into()),
@@ -236,15 +203,32 @@ mod gpu {
                     multiview_mask: None,
                     cache: None,
                 });
-            Self {
+            let buffer = |i| {
+                Buffer::new(
+                    device,
+                    context.as_deref(),
+                    256,
+                    wgpu::BufferUsages::COPY_DST
+                        | if i == 0 {
+                            wgpu::BufferUsages::UNIFORM
+                        } else {
+                            wgpu::BufferUsages::STORAGE
+                        },
+                )
+            };
+            let buffers = [
+                buffer(0)?, buffer(1)?, buffer(2)?, buffer(3)?,
+                buffer(4)?, buffer(5)?, buffer(6)?,
+            ];
+            Ok(Self {
                 pipeline,
                 particle_pipeline,
                 particle_layout,
                 layout,
-                buffers: std::array::from_fn(|i| Buffer::new(device, i == 0)),
+                buffers,
                 output: Texture::render_target(1, 1),
-                shadows: shadows::gpu::Pass::new(device),
-            }
+                shadows: shadows::gpu::Pass::new(device, context)?,
+            })
         }
         fn draw(
             &mut self,
@@ -303,7 +287,7 @@ mod gpu {
                 ));
             }
             for (i, data) in data.into_iter().enumerate() {
-                self.buffers[i].write(device, queue, data, i == 0);
+                self.buffers[i].write(device, queue, data, None)?;
             }
             self.encode_frame(device, queue, u, lights, particles, geometry, None)?;
             #[cfg(not(target_arch = "wasm32"))]
@@ -457,8 +441,7 @@ mod gpu {
                 .enumerate()
                 .filter(|(i, _)| *i != 1 && *i != 2)
             {
-                self.buffers[i].write(&context.device, &context.queue, data, i == 0);
-                context.record_upload(data.len() as u64);
+                self.buffers[i].write(&context.device, &context.queue, data, Some(context))?;
             }
             let [width, height, _, _] = u.counts;
             if self.output.width != width || self.output.height != height

@@ -118,7 +118,7 @@ fn gpu_produced_isometric_canvases_light_without_implicit_cpu_storage_or_capture
     assert_eq!(context.transfers().capture_requests, 0);
     assert_eq!(
         context.transfers().uploaded_bytes,
-        3 * std::mem::size_of::<Uniforms>() as u64,
+        3 * (std::mem::size_of::<Uniforms>() as u64 + 96),
         "only small light metadata is uploaded; canvas bytes were GPU-produced"
     );
     let large = IsometricCanvas::new(&context, 19, 13).unwrap();
@@ -351,4 +351,92 @@ fn sprite_blits_reject_invalid_sources_and_domains_before_modifying_the_canvas()
     drop((source, unrelated));
     drop((canvas, blitter, renderer));
     assert_eq!(context.working_buffer_pool_usage().live_bytes, 0);
+}
+
+#[test]
+#[ignore = "native GPU; injected mesh shadow/source/array lease ownership"]
+fn injected_mesh_shadows_preserve_alpha_and_retire_pooled_storage() {
+    use scenevm::isometric::{PointLight, ShadowGeometry};
+    let context = pollster::block_on(GpuContext::headless()).unwrap();
+    let canvas = IsometricCanvas::new(&context, 1, 1).unwrap();
+    produce(&context, &canvas, 0xffa0a0a0, false, 0.);
+    let mut renderer = IsometricRenderer::new(context.clone()).unwrap();
+    let mut u = Uniforms {
+        projection: [0.5, 0.5, 1., 1.],
+        sun: [0.70710677, 0.70710677, 0., 0.],
+        sun_color: [1., 1., 1., 0.],
+        counts: [1, 1, 0, 0],
+        shadow: [10., 1., 0., 1.],
+        ..Default::default()
+    };
+    let mut mesh = ShadowGeometry {
+        revision: 1,
+        ..Default::default()
+    };
+    mesh.triangle([[0.3, 1., -1.], [1.5, 1., -1.], [0.3, 1., 1.]]);
+    let sample = |renderer: &mut IsometricRenderer,
+                  u: &Uniforms,
+                  mesh: &ShadowGeometry,
+                  lights: &[PointLight]| {
+        let output = renderer
+            .render(&canvas, u, lights, &[], &[], &[], Some(mesh), mesh.revision)
+            .unwrap();
+        pixels(&context, output.image)[0]
+    };
+    let open = sample(&mut renderer, &u, &mesh, &[]);
+    assert!(open > 100);
+    mesh.triangle([[1.5, 1., -1.], [1.5, 1., 1.], [0.3, 1., 1.]]);
+    mesh.revision += 1;
+    let blocked = sample(&mut renderer, &u, &mesh, &[]);
+    assert!(blocked < open / 2);
+    let allocations = (
+        context.target_pool_usage().allocations,
+        context.working_buffer_pool_usage().allocations,
+    );
+    let uploaded = context.transfers().uploaded_bytes;
+    assert_eq!(sample(&mut renderer, &u, &mesh, &[]), blocked);
+    assert_eq!(
+        context.transfers().uploaded_bytes - uploaded,
+        std::mem::size_of::<Uniforms>() as u64 + 96 + 256
+    );
+    assert_eq!(
+        (
+            context.target_pool_usage().allocations,
+            context.working_buffer_pool_usage().allocations
+        ),
+        allocations
+    );
+    mesh.alpha = vec![0];
+    for vertex in &mut mesh.vertices {
+        vertex.uv_alpha = [0.5, 0.5, 0., f32::from_bits(1 | 1 << 16)];
+    }
+    mesh.revision += 1;
+    assert!(sample(&mut renderer, &u, &mesh, &[]) > open / 2);
+    mesh.alpha[0] = 1;
+    mesh.revision += 1;
+    assert!(sample(&mut renderer, &u, &mesh, &[]) < open / 2);
+    let light = PointLight {
+        position: [2., 2., 0., 0.],
+        color: [1., 0., 0., 0.],
+        parameters: [20., 10., 0., 0.],
+    };
+    u.sun_color = [0.; 4];
+    u.counts[2] = 1;
+    let blocked = sample(&mut renderer, &u, &mesh, &[light]);
+    mesh.alpha[0] = 0;
+    mesh.revision += 1;
+    let local = sample(&mut renderer, &u, &mesh, &[light]);
+    assert!(local > 100 && blocked < local / 2);
+    context.set_target_cache_limits(0, 0);
+    context.set_working_buffer_cache_limits(0, 0);
+    assert_eq!(context.target_pool_usage().live_allocations, 3);
+    assert_eq!(
+        context.target_pool_usage().live_bytes,
+        (2048 * 2048 + 6 * 512 * 512) * 4 + 4
+    );
+    assert_eq!(sample(&mut renderer, &u, &mesh, &[light]), local);
+    drop((renderer, canvas));
+    assert_eq!(context.target_pool_usage().live_bytes, 0);
+    assert_eq!(context.working_buffer_pool_usage().live_bytes, 0);
+    assert!(!scenevm::SceneVM::compatibility_gpu_initialized());
 }
