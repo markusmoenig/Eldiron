@@ -8,7 +8,7 @@ use theframework::theui::{
     paint::{UiPaintResult, WidgetPainter},
     thewidget::therenderview::RenderViewPaintSource,
 };
-mod fitting;
+pub(super) mod fitting;
 #[cfg(test)]
 mod tests;
 

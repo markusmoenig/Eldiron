@@ -32,6 +32,8 @@ pub(super) struct Browser {
     error: Option<String>,
     #[cfg(feature = "native-render")]
     pub(super) native_preview: Option<std::sync::Arc<super::native_dialog_preview::Request>>,
+    #[cfg(feature = "native-render")]
+    pub(super) native_icons: super::native_recipe_icons::Requests,
 }
 
 pub(super) fn bundled() -> Vec<Entry> {
@@ -181,6 +183,8 @@ impl Browser {
             error: None,
             #[cfg(feature = "native-render")]
             native_preview: None,
+            #[cfg(feature = "native-render")]
+            native_icons: Default::default(),
         }
     }
     fn visible(&self, entry: &Entry) -> bool {
@@ -234,6 +238,8 @@ impl Browser {
         ctx.ui.invalidate_layout();
     }
     fn filter(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
+        #[cfg(feature = "native-render")]
+        let previous_icons = std::mem::take(&mut self.native_icons);
         let visible: Vec<_> = self
             .entries
             .iter()
@@ -249,14 +255,30 @@ impl Browser {
                 item.set_text(entry.label.clone());
                 item.set_sub_text(entry.category.clone());
                 if entry.category != "Project" {
-                    if let Ok(evaluation) = entry.document.evaluate() {
+                    #[cfg(feature = "native-render")]
+                    let native = ctx.ui.command_paint;
+                    #[cfg(not(feature = "native-render"))]
+                    let native = false;
+                    if native {
+                        #[cfg(feature = "native-render")]
+                        {
+                            let request = previous_icons.get(&entry.id.uuid)
+                                .filter(|r| r.palette == project.palette).cloned().or_else(|| {
+                                    entry.document.evaluate().ok().map(|e| std::sync::Arc::new(super::native_dialog_preview::Request {
+                                        value: Some(Value::Mesh(e.mesh)), palette: project.palette.clone(), max_side: 40,
+                                    }))
+                                });
+                            if let Some(request) = request {
+                                self.native_icons.insert(entry.id.uuid, request);
+                            }
+                        }
+                    } else if let Ok(evaluation) = entry.document.evaluate() {
                         item.set_icon(
                             presentation::thumbnail(
                                 &Value::Mesh(evaluation.mesh),
                                 &project.palette,
                                 &TheDarkTheme::new(),
-                            )
-                            .scaled(40, 40),
+                            ).scaled(40, 40),
                         );
                     }
                 }

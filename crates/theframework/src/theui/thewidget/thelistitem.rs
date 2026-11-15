@@ -21,6 +21,7 @@ pub struct TheListItem {
     mouse_down_pos: Vec2<i32>,
 
     icon: Option<TheRGBABuffer>,
+    icon_handle: Option<theframework_core::ImageHandle>,
     image_dirty: bool,
     status: Option<String>,
 
@@ -84,17 +85,22 @@ impl TheWidget for TheListItem {
         let mut text_x = r.x + 10.;
         let mut text_width =
             (r.width - 15. - self.values.iter().map(|v| v.0 as f32).sum::<f32>()).max(0.);
-        if let Some(icon) = &self.icon {
+        if self.icon.is_some() || self.icon_handle.is_some() {
             let size = (r.height - 6.).max(16.);
             let frame = Rect::new(r.x + 2., r.y + 2., size + 2., size + 2.);
             p.outline(frame, *p.theme.color(ListItemIconBorder), 1.);
-            p.image(
-                &format!("list-icon:{}", self.id.uuid),
-                icon,
-                Rect::new(frame.x + 1., frame.y + 1., size, size),
-                self.image_dirty,
-                Sampling::Linear,
-            )?;
+            let rect = Rect::new(frame.x + 1., frame.y + 1., size, size);
+            if let Some(image) = self.icon_handle {
+                p.list.image(image, rect, Sampling::Linear);
+            } else if let Some(icon) = &self.icon {
+                p.image(
+                    &format!("list-icon:{}", self.id.uuid),
+                    icon,
+                    rect,
+                    self.image_dirty,
+                    Sampling::Linear,
+                )?;
+            }
             text_x = r.x + size + 15.;
             text_width = (r.width - size - 19.).max(0.);
         }
@@ -127,7 +133,7 @@ impl TheWidget for TheListItem {
                 TheVerticalAlign::Center,
             );
         }
-        if self.icon.is_none() {
+        if self.icon.is_none() && self.icon_handle.is_none() {
             let mut x = text_x + text_width;
             for (width, value) in &self.values {
                 p.fill(Rect::new(x, r.y, 1., r.height), ListLayoutBackground);
@@ -180,6 +186,7 @@ impl TheWidget for TheListItem {
             mouse_down_pos: Vec2::zero(),
 
             icon: None,
+            icon_handle: None,
             image_dirty: true,
             status: None,
 
@@ -345,11 +352,7 @@ impl TheWidget for TheListItem {
                 self.text.clone_from(&text);
                 self.invalidate_retained_paint();
             }
-            TheValue::Image(image) => {
-                self.icon = Some(image);
-                self.image_dirty = true;
-                self.invalidate_retained_paint();
-            }
+            TheValue::Image(image) => self.set_icon(image),
             _ => {}
         }
     }
@@ -605,6 +608,9 @@ pub trait TheListItemTrait {
     fn set_associated_layout(&mut self, id: TheId);
     fn set_size(&mut self, size: i32);
     fn set_icon(&mut self, icon: TheRGBABuffer);
+    /// Publish an application-owned GPU image. The application retires its handle.
+    /// Replacing an editable icon drops its CPU presentation storage.
+    fn set_icon_handle(&mut self, image: Option<theframework_core::ImageHandle>);
     fn set_scroll_offset(&mut self, offset: i32);
     fn add_value_column(&mut self, width: i32, value: TheValue);
 }
@@ -652,8 +658,18 @@ impl TheListItemTrait for TheListItem {
         self.invalidate_retained_paint();
     }
     fn set_icon(&mut self, icon: TheRGBABuffer) {
+        self.icon_handle = None;
         self.icon = Some(icon);
         self.image_dirty = true;
+        self.invalidate_retained_paint();
+    }
+    fn set_icon_handle(&mut self, image: Option<theframework_core::ImageHandle>) {
+        if self.icon.is_none() && self.icon_handle == image {
+            return;
+        }
+        self.icon = None;
+        self.icon_handle = image;
+        self.image_dirty = false;
         self.invalidate_retained_paint();
     }
     fn set_scroll_offset(&mut self, offset: i32) {
@@ -674,6 +690,29 @@ impl TheListItemTrait for TheListItem {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_icon_replaces_cpu_storage_and_reuses_unchanged_publication() {
+        let mut item = TheListItem::new(TheId::empty());
+        item.set_icon(TheRGBABuffer::new(TheDim::sized(40, 40)));
+        let image = theframework_core::ImageHandle {
+            owner: 7,
+            slot: 2,
+            generation: 3,
+        };
+        item.set_icon_handle(Some(image));
+        assert!(item.icon.is_none());
+        assert_eq!(item.icon_handle, Some(image));
+        #[cfg(feature = "text")]
+        let revision = item.retained_paint_revision();
+        item.set_icon_handle(Some(image));
+        #[cfg(feature = "text")]
+        assert_eq!(item.retained_paint_revision(), revision);
+        item.set_icon_handle(None);
+        assert!(item.icon.is_none() && item.icon_handle.is_none());
+        item.set_icon(TheRGBABuffer::new(TheDim::sized(1, 1)));
+        assert!(item.icon.is_some() && item.icon_handle.is_none());
+    }
 
     #[test]
     fn selected_item_still_claims_hover_for_help() {

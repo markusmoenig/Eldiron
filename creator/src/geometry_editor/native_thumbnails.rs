@@ -10,7 +10,6 @@ use std::{
 };
 use theframework::paint::Rect;
 use theframework::{paint::*, render_wgpu::PaintRenderer};
-use wgpu::util::DeviceExt;
 pub(super) const SIDE: u32 = 64;
 const MAX_IMAGES: usize = 8192; // 128 MiB of immutable visible RGBA outputs.
 struct Vertex {
@@ -396,30 +395,26 @@ fn main(@builtin(global_invocation_id) id:vec3<u32>) {
         if indices.is_empty() {
             indices.resize(4, 0);
         }
-        let upload = |label, contents: &[u8], usage| {
+        let upload = |_label, contents: &[u8], usage| {
             self.context
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some(label),
-                    contents,
-                    usage,
-                })
+                .upload_immutable_buffer(contents, usage)
+                .map_err(|e| e.to_string())
         };
         let triangle_buffer = upload(
             "geometry card triangles",
             &triangles,
             wgpu::BufferUsages::STORAGE,
-        );
+        )?;
         let headers = upload(
             "geometry card bin ranges",
             &headers,
             wgpu::BufferUsages::STORAGE,
-        );
+        )?;
         let indices = upload(
             "geometry card bin references",
             &indices,
             wgpu::BufferUsages::STORAGE,
-        );
+        )?;
         let background_bytes: Vec<_> = background
             .iter()
             .flat_map(|v| (*v as u32).to_ne_bytes())
@@ -428,40 +423,24 @@ fn main(@builtin(global_invocation_id) id:vec3<u32>) {
             "geometry card background",
             &background_bytes,
             wgpu::BufferUsages::UNIFORM,
-        );
-        let texture = self
+        )?;
+        let descriptor = ImageDescriptor {
+            width: SIDE,
+            height: SIDE,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            color_space: ColorSpace::Srgb,
+            alpha_mode: AlphaMode::Straight,
+        };
+        let mut target = renderkit::TargetDescriptor::color(SIDE, SIDE, descriptor.format);
+        target.usage = wgpu::TextureUsages::STORAGE_BINDING
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_SRC;
+        let lease = self
             .context
-            .device
-            .create_texture(&wgpu::TextureDescriptor {
-                label: Some("geometry card immutable raster"),
-                size: wgpu::Extent3d {
-                    width: SIDE,
-                    height: SIDE,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8Unorm,
-                usage: wgpu::TextureUsages::STORAGE_BINDING
-                    | wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::COPY_SRC,
-                view_formats: &[],
-            });
-        let image = Arc::new(
-            GpuImage::from_texture(
-                &self.context,
-                texture,
-                ImageDescriptor {
-                    width: SIDE,
-                    height: SIDE,
-                    format: wgpu::TextureFormat::Rgba8Unorm,
-                    color_space: ColorSpace::Srgb,
-                    alpha_mode: AlphaMode::Straight,
-                },
-            )
-            .map_err(|e| e.to_string())?,
-        );
+            .acquire_target(target)
+            .map_err(|e| e.to_string())?;
+        let image =
+            GpuImage::from_target(&self.context, lease, descriptor).map_err(|e| e.to_string())?;
         let bindings = self
             .context
             .device
@@ -471,15 +450,15 @@ fn main(@builtin(global_invocation_id) id:vec3<u32>) {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: triangle_buffer.as_entire_binding(),
+                        resource: triangle_buffer.buffer().as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: headers.as_entire_binding(),
+                        resource: headers.buffer().as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: indices.as_entire_binding(),
+                        resource: indices.buffer().as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,
@@ -487,7 +466,7 @@ fn main(@builtin(global_invocation_id) id:vec3<u32>) {
                     },
                     wgpu::BindGroupEntry {
                         binding: 4,
-                        resource: background.as_entire_binding(),
+                        resource: background.buffer().as_entire_binding(),
                     },
                 ],
             });

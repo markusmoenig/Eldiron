@@ -5,7 +5,7 @@
 use renderkit::{AlphaMode, ColorSpace, GpuContext, GpuImage, ImageDescriptor, TargetDescriptor};
 use std::sync::Arc;
 
-pub(super) struct Fitter {
+pub(crate) struct Fitter {
     context: Arc<GpuContext>,
     pipeline: wgpu::ComputePipeline,
     layout: wgpu::BindGroupLayout,

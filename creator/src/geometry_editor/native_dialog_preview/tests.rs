@@ -272,6 +272,10 @@ fn native_dialog_controllers_queue_values_without_mutating_assets_or_display_pix
             .unwrap()
             .has_cpu_display_storage()
     );
+    assert_eq!(
+        editor.recipe_browser.as_ref().unwrap().native_icons.len(),
+        super::super::recipe_browser::bundled().len()
+    );
     ui.clear_dialog();
     editor.recipe_browser_event(
         &TheEvent::Custom(TheId::empty(), TheValue::Empty),

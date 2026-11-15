@@ -74,6 +74,7 @@ pub(super) struct Host {
     pub thumbnails: super::native_thumbnails::Cache,
     pub thumbnail_palette: ThePalette,
     recipe_preview: super::native_dialog_preview::Preview,
+    recipe_icons: super::native_recipe_icons::Icons,
     controls_preview: super::native_dialog_preview::Preview,
     owner: u64,
     serial: u64,
@@ -96,6 +97,7 @@ impl Default for Host {
             thumbnails: Default::default(),
             thumbnail_palette: Default::default(),
             recipe_preview: Default::default(),
+            recipe_icons: Default::default(),
             controls_preview: Default::default(),
             owner: theframework::paint::new_receipt_owner(),
             serial: 0,
@@ -167,6 +169,10 @@ impl GeometryEditor {
         ctx: &mut TheContext,
         images: &mut ImageRegistry,
     ) -> Result<Option<PreviewToken>, String> {
+        let (icons_waiting, icon_errors) = self.native.recipe_icons.prepare(
+            self.recipe_browser.as_ref().map(|b| &b.native_icons), ui, ctx, images,
+        );
+        for error in icon_errors { Self::status(ctx, error); }
         self.native.recipe_preview.prepare(
             self.recipe_browser
                 .as_ref()
@@ -229,7 +235,7 @@ impl GeometryEditor {
             Self::status(ctx, error);
         }
         let result = self.prepare_gpu_view(ui, ctx, images);
-        self.native.waiting |= output.waiting;
+        self.native.waiting |= output.waiting || icons_waiting;
         result
     }
     fn prepare_gpu_view(

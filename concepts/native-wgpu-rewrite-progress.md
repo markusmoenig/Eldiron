@@ -16300,3 +16300,71 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Current modal conversion is ready for local checkpoint; recipe list icon
   conversion follows. Broad acceptance/performance remains deferred and M0–M9
   is not complete. No approval or input blocker.
+
+## Recipe-list GPU icons and card allocation owners, in progress (2026-11-15)
+
+- Recipe filtering now retains immutable evaluated mesh/palette requests, reusing
+  matching visible requests when search/category changes. Native path never
+  calls thumbnail()/scaled() for list icons. Project recipe rows retain their
+  existing no-icon policy. Reference mode remains the same CPU source path.
+- TheListItem accepts backend-neutral application-owned icon handles. Publishing
+  one releases old CPU icon storage, preserves the existing icon frame/text/
+  Linear fitting, and unchanged handle publication preserves retained paint.
+  CPU icon setters and Image events replace the native handle explicitly.
+- Geometry host owns recipe icon images and shared pipelines, creates at most
+  one new card per frame, schedules continuation, retires filter/close outputs,
+  detaches old handles before domain replacement and rebuilds from CPU requests.
+  No new authoring or serialization format. First native release compile passed
+ 27.16s: /private/tmp/eldiron-recipe-icons-release-native-initial.log.
+- Shared native_thumbnails mesh raster inputs now use immutable context buffer
+  cache; outputs carry full-overwrite target-pool leases. This removes raw
+  unaccounted card texture/input allocations and pins old consumers correctly.
+  Source card generation/filter limits and byte/color policy unchanged.
+- Current focused release Metal contract handle54069, log
+  /private/tmp/eldiron-recipe-icons-release-contracts.log. Do not edit Rust while
+  live. Covers actual bundled list requests, one source per frame,40px exact
+  bytes, list-widget pixels at1/1.5DPI, warm allocation/upload reuse, filtering,
+  retained consumer lifetime, device replacement and close-time retirement.
+  Follow with existing card/modal contracts, narrow framework setter check,
+  final native/browser/reference compilation, then local checkpoint. Broad
+  assembled/platform/performance tests still deferred.
+- Next ownership audit found remaining native preview allocations:
+  geometry_editor/native_preview.rs depth attachment and preview::PreparedMesh
+  vertex buffer; gpu_textures.rs three array atlas textures/default input/
+  per-dispatch uniforms; procedural_material/native_preview display uniforms.
+  Native material atlases use alternate sRGB sampling views on Unorm storage:
+  any pool conversion must preserve view formats, array layers, pending encode
+  lifetimes and immutable published outputs. Raw reference worker capture
+  resources in preview.rs are explicit reference/export consumers, not native
+  display adapters. Inspect their call boundaries before changing ownership.
+- Focused recipe icon Metal contract PASS1/1,0.20s (build1m49s):
+  /private/tmp/eldiron-recipe-icons-release-contracts.log. Actual13bundled native
+  requests, bounded one-output-per-frame preparation, exact40px thumbnail bytes,
+  real list-widget render parity<=1byte at1/1.5DPI, warmed target allocation and
+  immutable input upload reuse, original request reuse across real search event,
+  hidden source retirement with held consumer, replacement device reconstruction
+  and real modal close all pass. Handle54069 terminal. Narrow framework release
+  setter/retained-paint contract running handle84683:
+  /private/tmp/eldiron-recipe-icons-release-widget.log. Existing card and modal
+  focused contracts next because they share newly owned raster resources.
+- Narrow framework setter/retained-paint release contract PASS1/1,0.00s
+  (build21.43s), /private/tmp/eldiron-recipe-icons-release-widget.log. Exact
+  name filter; unrelated integration binaries ran zero tests. Future isolated
+  framework method checks should also select --lib to avoid building them.
+  Existing shared geometry-card release GPU contracts PASS2/2,0.24s(build0.34s),
+  /private/tmp/eldiron-recipe-icons-release-cards.log. Existing modal contracts
+  PASS2/2,0.20s(build0.21s),
+  /private/tmp/eldiron-recipe-icons-release-modals.log. These verify the shared
+  card pool/cache change as well as the new paths; broad tests were not run.
+- Canonical four-application native release compile PASS25.78s:
+  /private/tmp/eldiron-recipe-icons-release-native-final.log. Actual Creator
+  browser-host wasm release compile PASS25.22s:
+  /private/tmp/eldiron-recipe-icons-release-wasm.log. Reference-only release
+  compile running handle72514/log
+  /private/tmp/eldiron-recipe-icons-release-reference.log. All other handles
+  terminal. After checkpoint continue native preview depth/mesh/material owners.
+- Reference-only Creator release compile PASS24.17s:
+  /private/tmp/eldiron-recipe-icons-release-reference.log. Handle72514 terminal.
+  No live Rust builds/tests; no permission/input blocker. Recipe icon/card owners
+  ready for local checkpoint. Native material-atlas alias views and per-encode
+  leases are next; retain separate reference/export capture semantics.
