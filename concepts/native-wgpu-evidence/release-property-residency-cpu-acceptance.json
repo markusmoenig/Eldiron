@@ -1,0 +1,43 @@
+{
+  "profile": "release",
+  "cpu_session_data": {
+    "passed": 205,
+    "per_target_passed": [
+      7,
+      4,
+      1,
+      171,
+      1,
+      2,
+      9,
+      3,
+      4,
+      1,
+      2
+    ],
+    "log": "/private/tmp/eldiron-property-residency-cpu-session-data.log"
+  },
+  "storage_contracts": {
+    "passed": 3,
+    "log": "/private/tmp/eldiron-property-residency-contracts.log",
+    "scope": "Shared CPU snapshots, all mutation/fingerprint paths, nonreflexive float equality and original JSON/bincode bytes."
+  },
+  "render_property_contracts": {
+    "passed": 4,
+    "log": "/private/tmp/eldiron-property-residency-render-contracts.log",
+    "scope": "Existing scene renderer fingerprint contract plus shared storage, serialization and strict authored property source identity."
+  },
+  "limits": "Creator GPU composition, performance and final platform checks remain separate.",
+  "creator_library": {
+    "passed": 642,
+    "ignored": 120,
+    "runtime_seconds": 79.92,
+    "log": "/private/tmp/eldiron-property-residency-creator-library.log",
+    "scope": "All nonignored library contracts; ignored GPU/manual/maintenance cases are separate."
+  },
+  "assembled_creator": {
+    "passed": 1,
+    "runtime_seconds": 23.87,
+    "log": "/private/tmp/eldiron-property-residency-assembled.log"
+  }
+}

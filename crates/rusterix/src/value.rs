@@ -6,6 +6,10 @@ use crate::{
 use std::fmt;
 use theframework_core::prelude::*;
 
+#[path = "value_storage.rs"]
+mod storage;
+use storage::SharedValues;
+
 /// A single height control point with position and height
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct HeightControlPoint {
@@ -194,7 +198,7 @@ impl fmt::Display for Value {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ValueContainer {
-    values: FxHashMap<String, Value>,
+    values: SharedValues,
     #[serde(skip)]
     fingerprint: std::sync::OnceLock<u64>,
 }
@@ -215,7 +219,7 @@ impl ValueContainer {
     // Create a new, empty ValueContainer
     pub fn new() -> Self {
         ValueContainer {
-            values: FxHashMap::default(),
+            values: SharedValues::default(),
             fingerprint: std::sync::OnceLock::new(),
         }
     }
@@ -466,6 +470,16 @@ impl ValueContainer {
         *self.fingerprint.get_or_init(compute)
     }
 
+    /// Authored source identity is stricter than Value's editing equality (for
+    /// example, color equality has a tolerance and ignores its saved name).
+    /// Immutable publications share exact storage; compare saved fields only
+    /// when either owner has detached after an edit or independent load.
+    pub(crate) fn same_serialized_source(&self, other: &Self) -> bool {
+        self.values.shares_storage(&other.values)
+            || serde_json::to_value(self).expect("serializable properties")
+                == serde_json::to_value(other).expect("serializable properties")
+    }
+
     /// Borrow each key and value together without performing a second lookup.
     pub fn iter(&self) -> impl Iterator<Item = (&String, &Value)> {
         self.values.iter()
@@ -534,7 +548,7 @@ impl ValueContainer {
     pub fn to_python_dict_string(&self) -> String {
         let mut items = Vec::new();
 
-        for (key, value) in &self.values {
+        for (key, value) in self.values.iter() {
             let key_str = format!("{:?}", key);
             let value_str = match value {
                 Value::NoValue => "None".to_string(),
@@ -562,7 +576,7 @@ impl ValueContainer {
 // Implement Display for ValueContainer
 impl fmt::Display for ValueContainer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (key, value) in &self.values {
+        for (key, value) in self.values.iter() {
             writeln!(f, "{}: {}", key, value)?;
         }
         Ok(())

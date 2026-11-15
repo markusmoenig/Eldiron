@@ -76,7 +76,7 @@ fn same_map(map: &Map, other: &Map, overview: bool) -> bool {
         && block_prop_instances == &other.block_prop_instances
         && block_prop_surface_placements == &other.block_prop_surface_placements
         && lights == &other.lights
-        && properties == &other.properties
+        && properties.same_serialized_source(&other.properties)
         && orthographic_bake == &other.orthographic_bake
         && surfaces.len() == other.surfaces.len()
         && surfaces
@@ -98,6 +98,12 @@ fn same_map(map: &Map, other: &Map, overview: bool) -> bool {
 // Existing Linedef/Sector equality is intentionally geometric (undirected
 // endpoints / unordered boundary membership). Source identity also includes
 // direction, draw order, IDs and authored properties; do not change that API.
+struct Properties<'a>(&'a ValueContainer);
+impl PartialEq for Properties<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.same_serialized_source(other.0)
+    }
+}
 fn linedef_source(line: &Linedef) -> impl PartialEq + '_ {
     let Linedef {
         id,
@@ -115,7 +121,7 @@ fn linedef_source(line: &Linedef) -> impl PartialEq + '_ {
         start_vertex,
         end_vertex,
         sector_ids,
-        properties,
+        Properties(properties),
     )
 }
 fn sector_source(sector: &Sector) -> impl PartialEq + '_ {
@@ -134,7 +140,7 @@ fn sector_source(sector: &Sector) -> impl PartialEq + '_ {
         name,
         linedefs,
         footprint_topology,
-        properties,
+        Properties(properties),
         layer,
     )
 }

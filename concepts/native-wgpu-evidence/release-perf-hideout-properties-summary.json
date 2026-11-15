@@ -1,0 +1,92 @@
+{
+  "profile": "release",
+  "frames_per_mode": 120,
+  "metadata_equal": {
+    "project": true,
+    "logical_size": true,
+    "physical_size": true,
+    "density": true,
+    "viewport": true,
+    "view_mode": true,
+    "map_camera": true,
+    "initial_camera": true,
+    "gpu_adapter": true
+  },
+  "timing_ms": {
+    "hover": {
+      "native": {
+        "mean": 6.295291658333331,
+        "p50": 6.196875,
+        "p95": 7.3883339999999995,
+        "p99": 7.786416
+      },
+      "reference": {
+        "mean": 7.676318674999999,
+        "p50": 7.607832999999999,
+        "p95": 8.144625000000001,
+        "p99": 8.278583000000001
+      }
+    },
+    "idle": {
+      "native": {
+        "mean": 6.199108649999996,
+        "p50": 6.1837919999999995,
+        "p95": 6.256625,
+        "p99": 7.645625
+      },
+      "reference": {
+        "mean": 7.622413533333335,
+        "p50": 7.5745830000000005,
+        "p95": 8.073625,
+        "p99": 8.172875
+      }
+    },
+    "pan": {
+      "native": {
+        "mean": 7.095117100000001,
+        "p50": 7.108667,
+        "p95": 7.2295,
+        "p99": 7.359542
+      },
+      "reference": {
+        "mean": 7.648338475000002,
+        "p50": 7.61175,
+        "p95": 7.927667,
+        "p99": 8.168750000000001
+      }
+    },
+    "zoom": {
+      "native": {
+        "mean": 6.595125350000002,
+        "p50": 6.8328750000000005,
+        "p95": 7.0964160000000005,
+        "p99": 7.2110840000000005
+      },
+      "reference": {
+        "mean": 7.569322208333335,
+        "p50": 7.559917,
+        "p95": 7.786416,
+        "p99": 7.823290999999999
+      }
+    }
+  },
+  "process_memory_bytes": {
+    "native": {
+      "maximum resident set size": 549437440,
+      "peak memory footprint": 562644144
+    },
+    "reference": {
+      "maximum resident set size": 584417280,
+      "peak memory footprint": 548996320
+    }
+  },
+  "native_first_complete_view_ms": 10169.386250000001,
+  "reference_first_complete_view_ms": 9179.160333,
+  "before_after_native_rgba_max_delta": 0,
+  "scope": "Offscreen input through GPU completion. CPU reference uses persistent RGBA upload plus shared compositor; excludes native window/acquisition/display, physical input latency and driver-wide memory. Phase CPU timings are not GPU timestamps.",
+  "limits": [
+    "One fresh matched pair; wider cases, repeated runs and physical display/input remain open.",
+    "Startup native10.17s/reference9.18s; common ruleset loading remains a hotspot.",
+    "Process memory and estimated cache retention do not measure total driver memory."
+  ]
+}

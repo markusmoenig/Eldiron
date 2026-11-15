@@ -17416,3 +17416,67 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   values and detect shared equality exactly. Preserve every mutation/fingerprint
   invalidation, nonreflexive float equality, and serialized field/map shape; then
   run CPU data/session contracts plus fresh assembled/pair release checks.
+
+- Checkpoint d9689efd stores bounded immutable binding reuse and matched120-frame
+  evidence; unrelated networking concept remains untracked/untouched.
+- Property residency fix now implemented in private value_storage module: Arc
+  shares immutable map storage, exclusive mutable access detaches and invalidates
+  equality metadata. Original ValueContainer mutation/fingerprint API remains;
+  serde delegates directly to the original FxHashMap, changing no file shape.
+  Shared equality caches full reflexivity once, preserving NaN/nonreflexive values
+  rather than assuming pointer identity always implies equality.
+- New release property contractsPASS3/3,65527terminal, runtime<0.01s; log
+  /private/tmp/eldiron-property-residency-contracts.log. Tests prove shared owner
+  identity, detachment for set/get_mut/toggle/remove, old snapshot/fingerprint
+  preservation, NaN and nested-vector equality, independent equality and exact
+  prior JSON/bincode bytes in both directions. CPU session/data regression66115
+  now running. Next existing renderer-property fingerprint contract, fresh Creator
+  assembly and paired release timing; no performance claim for this change yet.
+
+- CPU session/data regression66115terminalPASS205/205, release build51.22s;
+  /private/tmp/eldiron-property-residency-cpu-session-data.log. Authored save/reopen,
+  property/paint compatibility, CPU-only isolation, local sessions/clock/output,
+  runtime source projection and existing171 shared library contracts pass.
+- Source identity must also retain fields intentionally ignored/tolerated by
+  editing equality (TheColor saved name and tiny channel edits). Overview root/
+  linedef/sector properties now use exact shared-storage identity, falling back
+  to serialized field comparison only for detached/independently loaded values.
+  Public Value/Color equality semantics remain unchanged. New strict-source
+  regression plus existing renderer fingerprint and property contracts PASS4/4,
+  release46.19s/runtime<0.01s;84278terminal;
+  /private/tmp/eldiron-property-residency-render-contracts.log. Durable
+  release-property-residency-cpu-acceptance.json; NaN contract separately passed
+  in the original3-test storage run.
+- Current Creator release rebuild39140 in progress, then nonignored library
+  contracts, assembled GPU view checks and fresh matched Hideout release pair.
+
+- Creator release build39140terminalPASS1m54s; log
+  /private/tmp/eldiron-property-residency-creator-build.log. Current Creator
+  nonignored library regression6047terminalPASS642/642,120ignored,79.92s;
+  /private/tmp/eldiron-property-residency-creator-library.log. Count includes the
+  earlier overview source CPU regression; ignored benchmark/GPU/manual scopes
+  are not counted as passes. Assembled GPU55745 now running before timing.
+- Source audit follow-up before final acceptance: GeometryObject/Light property
+  fields and geometry-face PixelSource::Color can also inherit intentionally weak
+  editing equality. Root/linedef/sector properties now have the strict source
+  policy; extend/check remaining authored property/color source guards without
+  restoring hot whole-map serialization. Do not treat this inventory as passed.
+
+- Current property-residency assembled Creator Metal gatePASS1/1,23.87s,55745
+  terminal; /private/tmp/eldiron-property-residency-assembled.log. Existing exact
+  minimap source/scope/navigation receipts and all full paint/document/runtime
+  workflows pass.
+- Fresh matched Hideout native/reference release pair95388/79080terminalPASS,
+  120samples/mode, identical source/camera/layout/density/adapter1600×1000@1.
+  Native p50 idle6.18/hover6.20/pan7.11/zoom6.83ms versus reference
+  7.57/7.61/7.61/7.56ms. Native p95/p99 also lower in all four modes. Current
+  top-down case improves18% idle/hover and7–10% pan/zoom; no app-wide or final
+  numerical acceptance claim from one pair. Preparation p50 idle0.61ms rather
+  than previous1.68ms. Whole before/after root image byte-identical RGBAmaxdelta0.
+- Normal timed capture/readback delta0; source uploads4712B over480frames; binding
+  groups127/2048 and estimated retained input8756444B/64MiB unchanged. Startup
+  native10.17s/reference9.18s remains open (common ruleset-loading hotspot).
+  Durable release-perf-hideout-properties-{native,reference,summary}.json and
+  captures; summary records process RSS/footprint with explicit driver-memory
+  limits. Next larger shipped sprite-isometric project at150%DPI, then strict
+  GeometryObject/Light/face-color source audit and remaining platform matrix.
