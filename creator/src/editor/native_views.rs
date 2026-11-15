@@ -59,6 +59,11 @@ impl NativeViewTokens {
     pub(crate) fn world_for_test(&self) -> bool {
         self.world.is_some()
     }
+    #[cfg(test)]
+    pub(crate) fn world_ready_for_test(&self) -> bool {
+        self.world.as_ref().is_some_and(|frame| frame.ready_for_test())
+    }
+
     pub(crate) fn retain_painted(&mut self, list: &theframework::paint::PaintList) {
         let receipts = list.receipts().collect::<std::collections::HashSet<_>>();
         self.palette_minimap = self.palette_minimap.take().filter(|token| receipts.contains(&token.receipt()));

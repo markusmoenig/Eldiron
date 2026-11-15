@@ -11,14 +11,14 @@ Build a matching Rust library slice before building the wrapper:
 ```sh
 MACOSX_DEPLOYMENT_TARGET=26.1 cargo build -p eldiron-creator --lib --release \
   --no-default-features --features staticlib --target aarch64-apple-darwin
-xcodebuild -project Xcode/Eldiron/Eldiron.xcodeproj -scheme 'Eldiron macOS' \
+xcodebuild -project Xcode/Eldiron/Eldiron.xcodeproj -scheme 'Eldiron macOS' -configuration Release \
   MACOSX_DEPLOYMENT_TARGET=26.1 CODE_SIGNING_ALLOWED=NO build
 ```
 
 For iOS, use `aarch64-apple-ios` or `aarch64-apple-ios-sim`, setting
 `IPHONEOS_DEPLOYMENT_TARGET=26.1`. `ELDIRON_RUST_LIB_DIR` selects the library
 directory, defaulting to the matching target's release directory. Override it
-when using a shared Cargo target directory or a debug library. These commands
+when using a shared Cargo target directory. These commands
 describe the verified SDK configuration; older OS versions remain unverified.
 
 `Bridge.h` documents the main-thread v1 ABI. The Swift `Renderer` retains the
@@ -62,7 +62,7 @@ also belongs to the Creator instance and ends during teardown.
 presentations, zero root bitmap/readback, resize/density, suspend/resume, layer
 replacement, file-request routing, save/reopen/copy limits, handle recreation, simultaneous independent Creator hosts, legacy routing and
 stale completions on retained detached layers. Obtain native link arguments with
-`cargo rustc -p eldiron-creator --lib --no-default-features --features staticlib --
+`cargo rustc --release -p eldiron-creator --lib --no-default-features --features staticlib --
 --print native-static-libs`; pass those arguments, `-leldiron_creator`, the library
 search directory and `-import-objc-header 'Xcode/Eldiron/Eldiron Shared/Bridge.h'`
 to `swiftc` when linking that executable. Run it on the main thread with Metal

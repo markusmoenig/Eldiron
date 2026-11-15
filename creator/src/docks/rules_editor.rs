@@ -506,9 +506,12 @@ impl RulesEditor {
         let mut project = Project::new();
         dock.selected = Some(vec!["fx".into(), "presets".into(), "hit_burst".into()]);
         dock.form(&mut ui, &project);
+        // Visibility follows the laid-out parent clip, as in the native host.
+        ui.canvas.set_dim(TheDim::sized(1200, 650), &mut context);
         assert!(ui.get_icon_view("Rules Particle Preview").is_none());
         let view = ui.get_render_view("Rules Particle Preview").unwrap();
-        view.set_dim(TheDim::sized(140, 80), &mut context);
+        let dim = *view.dim();
+        view.set_dim(TheDim::new(dim.x, dim.y, 140, 80), &mut context);
         assert!(!view.has_cpu_display_storage());
         let mut list = PaintList::default();
         let mut style = TheClassicStyle::new();

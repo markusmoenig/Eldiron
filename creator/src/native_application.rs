@@ -369,6 +369,38 @@ mod tests {
     use rusterix::D3Camera;
     use std::sync::Arc;
     use theframework::render_wgpu::PaintRenderer;
+    // Return the first complete native candidate without acknowledging it. This
+    // preserves tests of input against an unpresented frame while allowing the
+    // same bounded source preparation that production hosts drive over frames.
+    fn ready_world_frame(
+        app: &mut UiApplicationAdapter<NativeCreatorApplication>,
+        host: &mut HostContext,
+        images: &mut ImageRegistry,
+        gpu: &GpuContext,
+        renderer: &mut PaintRenderer,
+        output: &GpuImage,
+    ) -> theframework::paint::PaintList {
+        let before = gpu.transfers();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            app.update(host, Duration::from_millis(16));
+            let paint = app.frame(host, images).unwrap();
+            let tokens = app.application.pending.as_ref().unwrap();
+            if tokens.world_ready_for_test() { return paint; }
+            assert!(tokens.world_for_test() || app.application.editor.native_views_waiting(),
+                "an incomplete native world must retain its continuation");
+            assert!(app.session.ui.canvas.buffer.pixels().is_empty());
+            assert!(!app.application.editor.native_world_has_cpu_storage_for_test());
+            renderer.render(&paint, images, &output.view, output.descriptor.format,
+                host.physical_size, host.density, [0.;4]).unwrap();
+            app.presented(host);
+            assert_no_viewport_readback(before, gpu);
+            assert!(Instant::now() < deadline,
+                "native world did not settle: {}", app.application.editor.native_world_debug_for_test());
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
     #[test]
     #[ignore = "actual native large-plan generation, progressive display and saved channels"]
     fn native_large_bake_plan_generates_without_a_viewport_adapter() {
@@ -1402,10 +1434,11 @@ mod tests {
         }
         app.update(&mut host, Duration::from_millis(16));
         let before = gpu.transfers();
-        let paint = app.frame(&mut host, &mut replacement).unwrap();
+        let paint = ready_world_frame(&mut app, &mut host, &mut replacement,
+            &gpu, &mut renderer, &output);
         assert!(
-            app.application.pending.as_ref().unwrap().world_for_test(),
-            "3D Paint uses its native scene owner"
+            app.application.pending.as_ref().unwrap().world_ready_for_test(),
+            "3D Paint uses its completed native scene owner"
         );
         renderer
             .render(
@@ -1489,7 +1522,8 @@ mod tests {
             "one explicit down-request captures authoring surface data"
         );
         assert!(captured.readback_bytes > before.readback_bytes);
-        let paint = app.frame(&mut host, &mut replacement).unwrap();
+        let paint = ready_world_frame(&mut app, &mut host, &mut replacement,
+            &gpu, &mut renderer, &output);
         renderer
             .render(
                 &paint,
@@ -1524,7 +1558,8 @@ mod tests {
         app.application.editor.authoring_camera_for_test()
             .iso_camera
             .zoom(1.);
-        let paint = app.frame(&mut host, &mut replacement).unwrap();
+        let paint = ready_world_frame(&mut app, &mut host, &mut replacement,
+            &gpu, &mut renderer, &output);
         assert_eq!(
             app.application.editor.native_paint_state_for_test().1,
             original,
@@ -1554,8 +1589,7 @@ mod tests {
         let mut present_prefab = |app: &mut UiApplicationAdapter<NativeCreatorApplication>,
                                   host: &mut HostContext,
                                   registry: &mut ImageRegistry| {
-            app.update(host, Duration::from_millis(16));
-            let frame = app.frame(host, registry).unwrap();
+            let frame = ready_world_frame(app, host, registry, &gpu, &mut renderer, &output);
             if let Some(picker) = app.session.ui.get_render_view("Prefab Editor Tiles Dock View 0") {
                 assert!(
                     !picker.has_cpu_display_storage(),

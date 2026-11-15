@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "profile": "release",
+  "test": "native_creator_application_paints_the_root_ui_without_a_root_framebuffer",
+  "passed": 1,
+  "failed": 0,
+  "runtime_seconds": 24.15,
+  "build_seconds": 62,
+  "log": "/private/tmp/eldiron-acceptance-final-assembled-creator-preview-ready.log",
+  "scope": "Offscreen actual Metal assembled Creator workflows; physical window/input and measured performance remain separate acceptance gates.",
+  "fixture_updates": [
+    "Drive bounded native world preparation before final unpresented candidate",
+    "Lay out particle preview parent before visibility polling"
+  ],
+  "production_changes": false
+}

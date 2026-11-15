@@ -17,11 +17,11 @@ For iOS device/simulator, use `aarch64-apple-ios` / `aarch64-apple-ios-sim`
 and set `IPHONEOS_DEPLOYMENT_TARGET=26.1` for the Rust/C dependency build.
 Build a matching slice for each requested architecture. Xcode resolves its
 library through `ELDIRON_RUST_LIB_DIR`, defaulting to the corresponding target's
-release directory. Override it for a different Cargo target directory/profile:
+release directory. Override it for a shared Cargo target directory:
 
 ```bash
-xcodebuild -project Xcode/Client/Client.xcodeproj -scheme SceneVM -sdk macosx \
-  ELDIRON_RUST_LIB_DIR=/absolute/path/to/target/debug CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project Xcode/Client/Client.xcodeproj -scheme SceneVM -configuration Release -sdk macosx \
+  ELDIRON_RUST_LIB_DIR=/absolute/path/to/target/release CODE_SIGNING_ALLOWED=NO build
 ```
 
 Use `ARCHS=arm64` when validating a single ARM64 simulator slice. Generic

@@ -17052,3 +17052,44 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Then shared native player and remaining current runtime/resource/platform
   acceptance and matched release profiling. No unrelated passing foundation
   reruns are needed for these test-only contract updates.
+
+- Fresh assembled Creator release compiled1m53s, then failed at3D Paint's immediate
+  world-token assertion after11.63s. Earlier root/profile/tool/custom-surface and
+  visibility pixel checks passed through100/125/150/175/200%DPI (maxdelta1).
+  Log /private/tmp/eldiron-acceptance-final-assembled-creator.log;15182terminal.
+- Fixture waited only for the separate reference CPU builder before demanding
+  a3D Paint frame. Added test-only candidate-readiness query and bounded root
+  preparation helper: render/ack pending UI frames, require native continuation,
+  zero root/world CPU buffers and zero normal color readback throughout; return
+  the first complete world candidate BEFORE acknowledgement, preserving existing
+  unpresented-input assertions. Use for the3D Paint transition and Prefab settle
+  helper; no production readiness/fallback policy changed. Rerun assembled gate.
+
+- Updated assembled build PASS1m00s; runtime advanced through initial3D Paint,
+  explicit down-surface capture and stroke commit, then hit the next old immediate
+  paint-source pick at line1549 (11.19s). /private/tmp/eldiron-acceptance-final-
+  assembled-creator-ready.log;79670terminal. The first committed-paint render was
+  still a one-call path, so its source was correctly not yet pickable. Updated
+  remaining committed-paint/camera-transition frame preparations in that3D Paint
+  block to the same bounded complete-candidate helper; still returns before final
+  presentation and retains capture-count/hover/camera-cancel assertions.
+
+- Latest assembled Creator gate advanced through3D Paint, stroke/camera guards,
+  Prefab, painted progressive bakes, custom camera/surface outputs, visibility
+  at100–200%DPI, runtime region transitions and native minimap/screen overview
+  pixel checks. Then Rules particle-preview fixture failed its animation poll
+  because it assigned only child dimensions while its parent clip remainedzero.
+  /private/tmp/eldiron-acceptance-final-assembled-creator-paint-ready.log;20542
+  terminal, runtime20.53s. Fix the fixture by laying out its actual canvas and
+  preserving child position before140×80 pixel-command checks. No production
+  visibility policy changed; no failed run is counted as overall acceptance.
+
+- Corrected full assembled Creator release gate PASS1/1, runtime24.15s,
+  compile1m02s. /private/tmp/eldiron-acceptance-final-assembled-creator-preview-ready.log;
+  17165terminal. Original root/noCPU/readback, DPI, tool, paint, progressive-bake,
+  Prefab, custom views, minimap, UI/text, Play/runtime, clipboard/recovery and
+  host-document assertions remain. Updated fixtures drive bounded native source
+  preparation before demanding a complete unpresented candidate, and lay out the
+  Rules particle-preview parent clip. Production behavior unchanged. Next full
+  common-player release suite, then large bake/current Creator unit coverage and
+  available platform/performance acceptance. Overall objective remainsopen.

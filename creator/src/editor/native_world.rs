@@ -418,6 +418,11 @@ pub(super) struct NativeWorldFrame {
     pub(super) receipts: Vec<FrameReceipt>,
     pub(super) receipt: FrameReceipt,
 }
+#[cfg(test)]
+impl NativeWorldFrame {
+    pub(super) fn ready_for_test(&self) -> bool { self.ready }
+}
+
 pub(crate) struct NativeWorld {
     source: Option<source::Publication>,
     stamps: stamps::Owner,
