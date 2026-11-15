@@ -15909,3 +15909,41 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Actual wasm Creator browser-host release compile PASS22.85s:
   /private/tmp/eldiron-lazy-adapter-target-release-wasm.log. All handles terminal;
   diff whitespace clean. Continue with lazy derived atlas planes.
+
+## Lazy original atlas plane allocation (2026-11-15)
+
+- New/resized atlases now retain logical dimensions without eagerly allocating
+  their two derived packed CPU planes. Actual layout sizing precedes allocation;
+  a default4096x4096 hint with one small tile builds256x256 planes (512KiB total),
+  avoiding the previous128MiB initial capacity. Original tile/frame ownership,
+  packing, alpha bleed, material bytes, metadata/versioning and serialization
+  are unchanged. This is capacity/allocation evidence, not measured RSS or speedup.
+- Extracted atlas/planes.rs for allocation and explicit CPU export/copy policy.
+  Pixel snapshots before build still return full zero images; clear preserves
+  default material contents without retaining a plane. Clipped/short destination
+  copies and fixed resize behavior match Texture's existing policy. Raw access
+  documents that derived planes may be absent until layout building. Added a
+  read-only derived plane capacity diagnostic, excluding original frames/metadata.
+- CPU-only focused atlas release contracts PASS13/13 in0.01s (build8.72s):
+  /private/tmp/eldiron-lazy-atlas-planes-release-cpu.log. Includes export/clear/resize,
+  automatic sizing, shared ownership, source mutation, material and translucency
+  behavior. Canonical four-application native release check PASS23.94s:
+  /private/tmp/eldiron-lazy-atlas-planes-release-native.log. Focused release Metal
+  geometry/table/attachment contracts PASS3/3 in0.15s plus normal output/recovery/
+  explicit capture/blit PASS0.07s (build6.10s):
+  /private/tmp/eldiron-lazy-atlas-planes-release-gpu.log. Actual wasm Creator browser-
+  host release check PASS22.84s:
+  /private/tmp/eldiron-lazy-atlas-planes-release-wasm.log.
+- Apple simulator staticlib release check is in flight to cover shared ownership
+  changes through the existing wrapper feature path. Broad workflow/performance
+  tests remain deferred. Continue with source capture/placement: changed stamp
+  requests still synchronously scan/hash recipes, placement rescans recipes and
+  paint_surface_world_at scans original geometry for each UV anchor. Preserve
+  frozen request identity and exact placement policy while making that work
+  cooperative/owned; do not mark the overall Goal complete.
+
+- Actual Apple simulator staticlib release check PASS26.01s:
+  /private/tmp/eldiron-residency-owners-release-ios-sim.log. Confirms the current
+  shared ownership code through aarch64-apple-ios-sim/Creator staticlib feature
+  compilation; no physical wrapper/runtime acceptance is implied. All handles
+  terminal; proceed with changed-recipe capture and view-owned placement work.

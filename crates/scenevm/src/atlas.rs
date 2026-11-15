@@ -4,6 +4,7 @@ use crate::texture::TextureGPU;
 use rustc_hash::FxHashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
+mod planes;
 
 const ATLAS_FRAME_PADDING: u32 = 4;
 const SEMANTIC_MATERIAL_MARKER: u8 = 0xFE;
@@ -62,6 +63,8 @@ pub struct SharedAtlasInner {
     pub tiles_order: Vec<Uuid>,
     pub atlas: Texture,
     pub atlas_material: Texture,
+    // Logical contents before a derived material plane has been built.
+    unbuilt_material_fill: [u8; 4],
     /// Packed pixels need uploading; metadata queries must not repaint them.
     pub atlas_dirty: bool,
     /// Source pixels changed without a layout rebuild (raw-access callers).
@@ -91,8 +94,9 @@ impl SharedAtlas {
             inner: Arc::new(Mutex::new(SharedAtlasInner {
                 tiles_map: FxHashMap::default(),
                 tiles_order: Vec::new(),
-                atlas: Texture::new(width, height),
-                atlas_material: Texture::new(width, height),
+                atlas: Texture::render_target(width, height),
+                atlas_material: Texture::render_target(width, height),
+                unbuilt_material_fill: [0; 4],
                 atlas_dirty: true,
                 pixels_dirty: true,
                 #[cfg(test)]
@@ -114,6 +118,13 @@ impl SharedAtlas {
     pub fn dims(&self) -> (u32, u32) {
         let guard = self.inner.lock().unwrap();
         (guard.atlas.width, guard.atlas.height)
+    }
+
+    /// Retained capacity of the two derived packed CPU planes. Original source
+    /// frames and metadata are separate; this query builds or allocates nothing.
+    pub fn derived_cpu_plane_bytes(&self) -> usize {
+        let guard = self.inner.lock().unwrap();
+        guard.atlas.data.capacity() + guard.atlas_material.data.capacity()
     }
 
     pub fn add_tile(
@@ -335,6 +346,7 @@ impl SharedAtlas {
         guard.tiles_order.clear();
         guard.atlas.data.fill(0);
         fill_default_material_pixels(&mut guard.atlas_material.data);
+        guard.unbuilt_material_fill = DEFAULT_MATERIAL_PIXEL;
         guard.atlas_map.clear();
         guard.atlas_dirty = true;
         guard.pixels_dirty = true;
@@ -357,22 +369,22 @@ impl SharedAtlas {
 
     pub fn atlas_pixels(&self) -> Vec<u8> {
         let guard = self.inner.lock().unwrap();
-        guard.atlas.data.clone()
+        planes::snapshot(&guard.atlas, [0; 4])
     }
 
     pub fn material_atlas_pixels(&self) -> Vec<u8> {
         let guard = self.inner.lock().unwrap();
-        guard.atlas_material.data.clone()
+        planes::snapshot(&guard.atlas_material, guard.unbuilt_material_fill)
     }
 
     pub fn copy_atlas_to_slice(&self, dst: &mut [u8], buf_w: u32, buf_h: u32) {
         let guard = self.inner.lock().unwrap();
-        guard.atlas.copy_to_slice(dst, buf_w, buf_h);
+        planes::copy(&guard.atlas, [0; 4], dst, buf_w, buf_h);
     }
 
     pub fn copy_material_atlas_to_slice(&self, dst: &mut [u8], buf_w: u32, buf_h: u32) {
         let guard = self.inner.lock().unwrap();
-        guard.atlas_material.copy_to_slice(dst, buf_w, buf_h);
+        planes::copy(&guard.atlas_material, guard.unbuilt_material_fill, dst, buf_w, buf_h);
     }
 
     #[cfg(feature = "gpu")]
@@ -516,8 +528,9 @@ impl SharedAtlas {
         if guard.atlas.width == width && guard.atlas.height == height {
             return;
         }
-        guard.atlas = Texture::new(width, height);
-        guard.atlas_material = Texture::new(width, height);
+        guard.atlas = Texture::render_target(width, height);
+        guard.atlas_material = Texture::render_target(width, height);
+        guard.unbuilt_material_fill = [0; 4];
         guard.atlas_dirty = true;
         guard.pixels_dirty = true;
         guard.layout_dirty = true;
@@ -528,7 +541,8 @@ impl SharedAtlas {
         guard.auto_size = false;
     }
 
-    /// Raw access: content edits must advance `content_version` and set the
+    /// Raw access: derived planes can remain unallocated until layout building.
+    /// Content edits must advance `content_version` and set the
     /// `pixels_dirty`/`atlas_dirty` (and `layout_dirty` for layout changes).
     /// Prefer `with_tile_mut` for ordinary tile edits.
     pub fn inner_arc(&self) -> Arc<Mutex<SharedAtlasInner>> {
@@ -565,6 +579,7 @@ fn frame_identity(tile: &Tile, frame: usize) -> FrameIdentity<'_> {
 }
 
 fn build_atlas_inner(inner: &mut SharedAtlasInner) {
+    planes::ensure_storage(inner);
     #[cfg(test)]
     {
         inner.pixel_build_count += 1;
@@ -752,8 +767,9 @@ fn auto_resize_atlas_inner(inner: &mut SharedAtlasInner) {
     }
 
     if side != inner.atlas.width || side != inner.atlas.height {
-        inner.atlas = Texture::new(side, side);
-        inner.atlas_material = Texture::new(side, side);
+        inner.atlas = Texture::render_target(side, side);
+        inner.atlas_material = Texture::render_target(side, side);
+        inner.unbuilt_material_fill = [0; 4];
         inner.atlas_dirty = true;
         inner.pixels_dirty = true;
         inner.layout_dirty = true;
@@ -764,6 +780,7 @@ fn auto_resize_atlas_inner(inner: &mut SharedAtlasInner) {
 }
 
 fn repaint_atlas_pixels_inner(inner: &mut SharedAtlasInner) {
+    planes::ensure_storage(inner);
     #[cfg(test)]
     {
         inner.pixel_build_count += 1;
