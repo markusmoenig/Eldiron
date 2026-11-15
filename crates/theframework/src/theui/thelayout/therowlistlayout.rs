@@ -23,7 +23,36 @@ pub struct TheRowListLayout {
     is_dirty: bool,
 }
 
+#[cfg(feature = "text")]
+impl TheRowListLayout {
+    fn paint_viewport(&mut self) -> super::viewport::ScrolledViewport {
+        let offset = self
+            .horizontal_scrollbar
+            .as_horizontal_scrollbar()
+            .map(|scrollbar| scrollbar.scroll_offset())
+            .unwrap_or(0);
+        let mut clip = self.dim;
+        if self.horizontal_scrollbar_visible {
+            clip.height = (clip.height - 13).max(0);
+        }
+        super::viewport::ScrolledViewport::new(clip, [offset, 0])
+    }
+}
+
 impl TheLayout for TheRowListLayout {
+    #[cfg(feature = "text")]
+    fn visit_visible_widgets(&mut self, visitor: &mut dyn FnMut(&mut dyn TheWidget)) {
+        let viewport = self.paint_viewport();
+        for widget in &mut self.widgets {
+            if viewport.intersects(widget.dim()) {
+                visitor(widget.as_mut());
+            }
+        }
+        if self.horizontal_scrollbar_visible {
+            visitor(self.horizontal_scrollbar.as_mut());
+        }
+    }
+
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -57,12 +86,12 @@ impl TheLayout for TheRowListLayout {
             -offset as f32,
             0.,
         )));
+        let viewport = self.paint_viewport();
         for w in &mut self.widgets {
             if let Some(item) = w.as_rowlist_item() {
                 item.set_scroll_offset(offset);
             }
-            let d = w.dim();
-            if d.x + d.width >= self.dim.x + offset && d.x < self.dim.x + self.dim.width + offset {
+            if viewport.intersects(w.dim()) {
                 p.widget(w.as_mut())?;
             }
         }
@@ -83,12 +112,15 @@ impl TheLayout for TheRowListLayout {
             .as_horizontal_scrollbar()
             .map(|s| s.scroll_offset())
             .unwrap_or(0);
+        let viewport = self.paint_viewport();
         for w in &mut self.widgets {
             ctx.ui.input_transforms.insert(
                 w.id().uuid,
                 crate::paint::Transform::translate(-offset as f32, 0.),
             );
-            w.prepare_paint(ctx, _theme);
+            if viewport.intersects(w.dim()) {
+                w.prepare_paint(ctx, _theme);
+            }
         }
     }
 

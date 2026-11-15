@@ -26,7 +26,36 @@ pub struct TheListLayout {
     is_dirty: bool,
 }
 
+#[cfg(feature = "text")]
+impl TheListLayout {
+    fn paint_viewport(&mut self) -> super::viewport::ScrolledViewport {
+        let offset = self
+            .vertical_scrollbar
+            .as_vertical_scrollbar()
+            .map(|scrollbar| scrollbar.scroll_offset())
+            .unwrap_or(0);
+        let mut clip = self.dim;
+        if self.vertical_scrollbar_visible {
+            clip.width = (clip.width - 13).max(0);
+        }
+        super::viewport::ScrolledViewport::new(clip, [0, offset])
+    }
+}
+
 impl TheLayout for TheListLayout {
+    #[cfg(feature = "text")]
+    fn visit_visible_widgets(&mut self, visitor: &mut dyn FnMut(&mut dyn TheWidget)) {
+        let viewport = self.paint_viewport();
+        for widget in &mut self.widgets {
+            if viewport.intersects(widget.dim()) {
+                visitor(widget.as_mut());
+            }
+        }
+        if self.vertical_scrollbar_visible {
+            visitor(self.vertical_scrollbar.as_mut());
+        }
+    }
+
     #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
@@ -35,12 +64,15 @@ impl TheLayout for TheListLayout {
             .as_vertical_scrollbar()
             .map(|s| s.scroll_offset())
             .unwrap_or(0);
+        let viewport = self.paint_viewport();
         for w in &mut self.widgets {
             ctx.ui.input_transforms.insert(
                 w.id().uuid,
                 crate::paint::Transform::translate(0., -offset as f32),
             );
-            w.prepare_paint(ctx, _theme);
+            if viewport.intersects(w.dim()) {
+                w.prepare_paint(ctx, _theme);
+            }
         }
     }
 
@@ -76,13 +108,12 @@ impl TheLayout for TheListLayout {
             0.,
             -offset as f32,
         )));
+        let viewport = self.paint_viewport();
         for widget in &mut self.widgets {
             if let Some(item) = widget.as_list_item() {
                 item.set_scroll_offset(offset);
             }
-            let d = widget.dim();
-            if d.y + d.height >= self.dim.y + offset && d.y < self.dim.y + self.dim.height + offset
-            {
+            if viewport.intersects(widget.dim()) {
                 p.widget(widget.as_mut())?;
             }
         }

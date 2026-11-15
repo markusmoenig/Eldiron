@@ -1,4 +1,6 @@
 use crate::prelude::*;
+#[cfg(feature = "text")]
+mod viewport;
 
 pub mod thehlayout;
 pub mod thelistlayout;

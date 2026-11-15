@@ -32,7 +32,36 @@ pub struct TheTextLayout {
     layout_dirty: bool,
 }
 
+#[cfg(feature = "text")]
+impl TheTextLayout {
+    fn paint_viewport(&mut self) -> super::viewport::ScrolledViewport {
+        let offset = self
+            .vertical_scrollbar
+            .as_vertical_scrollbar()
+            .map(|scrollbar| scrollbar.scroll_offset())
+            .unwrap_or(0);
+        let mut clip = self.dim;
+        if self.vertical_scrollbar_visible {
+            clip.width = (clip.width - 13).max(0);
+        }
+        super::viewport::ScrolledViewport::new(clip, [0, offset])
+    }
+}
+
 impl TheLayout for TheTextLayout {
+    #[cfg(feature = "text")]
+    fn visit_visible_widgets(&mut self, visitor: &mut dyn FnMut(&mut dyn TheWidget)) {
+        let viewport = self.paint_viewport();
+        for widget in &mut self.widgets {
+            if viewport.intersects(widget.dim()) {
+                visitor(widget.as_mut());
+            }
+        }
+        if self.vertical_scrollbar_visible {
+            visitor(self.vertical_scrollbar.as_mut());
+        }
+    }
+
     #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
@@ -41,12 +70,15 @@ impl TheLayout for TheTextLayout {
             .as_vertical_scrollbar()
             .map(|s| s.scroll_offset())
             .unwrap_or(0);
+        let viewport = self.paint_viewport();
         for w in &mut self.widgets {
             ctx.ui.input_transforms.insert(
                 w.id().uuid,
                 crate::paint::Transform::translate(0., -offset as f32),
             );
-            w.prepare_paint(ctx, _theme);
+            if viewport.intersects(w.dim()) {
+                w.prepare_paint(ctx, _theme);
+            }
         }
     }
 
@@ -80,25 +112,25 @@ impl TheLayout for TheTextLayout {
             0.,
             -offset as f32,
         )));
+        let viewport = self.paint_viewport();
         for (i, widget) in self.widgets.iter_mut().enumerate() {
-            let d = widget.dim();
-            if d.y + d.height < self.dim.y + offset || d.y >= self.dim.y + self.dim.height + offset
-            {
+            let tr = self.text_rect[i];
+            let label_dim = TheDim::new(
+                self.dim.x + tr.0 as i32,
+                self.dim.y + tr.1 as i32,
+                tr.2 as i32,
+                tr.3 as i32,
+            );
+            let widget_visible = viewport.intersects(widget.dim());
+            if !widget_visible && (self.text[i].is_empty() || !viewport.intersects(&label_dim)) {
                 continue;
             }
             if !self.text[i].is_empty() {
-                let tr = self.text_rect[i];
                 let color = if widget.as_any().is::<TheSeparator>() {
                     TextEditLineNumberColor
                 } else {
                     TextEditTextColor
                 };
-                let label_dim = TheDim::new(
-                    self.dim.x + tr.0 as i32,
-                    self.dim.y + tr.1 as i32,
-                    tr.2 as i32,
-                    tr.3 as i32,
-                );
                 let emit = |p: &mut crate::theui::paint::WidgetPainter<'_>| {
                     p.label(
                         Rect::new(
@@ -125,7 +157,9 @@ impl TheLayout for TheTextLayout {
                     emit(p)?;
                 }
             }
-            p.widget(widget.as_mut())?;
+            if widget_visible {
+                p.widget(widget.as_mut())?;
+            }
         }
         p.list.ops.push(PaintOp::PopTransform);
         p.list.ops.push(PaintOp::PopClip);

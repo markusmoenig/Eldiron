@@ -14292,3 +14292,31 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   this batch proves compilation of Creator live/private paged owners, not porting
   every player source producer. Consolidated functional/platform/resource and
   matched release performance acceptance remains required after implementation.
+
+## Collection clipping and active editor scopes (2026-11-15)
+
+- Previous turn was progress (b1187732 and 5085b7f5). Tracked worktree clean
+  at preflight; unrelated networking concept remains untouched/untracked.
+- Added a common logical scrolled-viewport intersection for list, row-list and
+  property layouts. Paint, child preparation and editor-scope discovery now
+  agree on the content clip, including scrollbar exclusion, strict positive
+  intersection and signed-coordinate headroom. Fully clipped fields no longer
+  register caret work or remain native text/IME focus candidates.
+- Coordinate transforms are still published for all children so a captured drag
+  can complete when its item scrolls outside the clip. This deliberately retains
+  the metadata scan; expensive child preparation only runs for visible widgets.
+  Property labels keep their own visibility when their associated widget lies
+  outside the horizontal clip. Current visible scrollbars remain discoverable.
+- Canonical four-application release compilation PASS31.84s:
+  /private/tmp/eldiron-collection-visible-scopes-release.log. Browser feature
+  compilation pending. No broad functional/GPU/performance suite run per user
+  steering. Consolidated scroll/capture/IME/focus/tab-order and fractional-DPI
+  checks remain required; source compilation is not parity/latency acceptance.
+- Next actual source gap found: player CPU SurfacePaint publication stitches all
+  current UV pages into two atlas Vecs, and each view clones both before upload.
+  Replace that CPU handoff with immutable shared authored pages and direct GPU
+  page writes. This does not by itself close live GPU residency limits or player
+  stamp publication. Full M0-M9 Goal remains active.
+- Browser Creator release compilation PASS29.97s:
+  /private/tmp/eldiron-collection-visible-scopes-release-web.log. Both compiler
+  handles terminal; no new runtime/platform acceptance inferred.
