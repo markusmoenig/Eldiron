@@ -16547,3 +16547,82 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   creates/scales a CPU logo buffer before native_empty_viewport clears it; skip
   this discarded display allocation in command paint. Verify these policies and
   current navigation/ownership without starting broad acceptance prematurely.
+
+## Final minimap/reference adapter boundary cleanup, in progress (2026-11-15)
+
+- Native Screen overview now uses project.get_map for every editor view mode,
+  exactly matching the existing read policy (including parent region selection
+  outside D2). The existing snapshot/binding records context/map/mode/density;
+  underlying raster overview and marker policy remain the same. Canonical
+  command-paint Sidebar minimap handling now returns after native producers or
+  explicit source clearing; it cannot fall into the CPU raster/reference VM.
+  Action-preview hooks have no overrides in this tree, so none are omitted.
+- Native empty PolyView resize skips the discarded CPU logo framebuffer. Explicit
+  CPU reference mode retains its logo. Focused first CPU release policy tests
+  PASS2/2,0.12s(build1m01s):
+  /private/tmp/eldiron-minimap-policy-release-contracts.log. Expanded fixture now
+  seeds a real logo source and proves reference pixels remain, includes all4view
+  modes and checks native publication leaves reference renderer cold/authored
+  JSON unchanged. Current final focused test handle49960/log
+  /private/tmp/eldiron-minimap-policy-release-contracts-final.log; no Rust edits
+  until terminal.
+- Canonical WGPU client still unconditionally compiled/exported its old App CPU
+  overlay class despite an existing legacy-reference feature and reference bin.
+  Gate app and its compatibility re-export behind legacy-reference or the bare
+  non-native-player library profile. Canonical native desktop/browser/Apple
+  builds now exclude this retired adapter. Explicit reference executable and
+  historical no-native-player Apple facade keep the same exports. Common
+  PlayerSession remains a CPU runtime identity re-export; no duplicated owner
+  or serialized data change. Verify default and explicit reference targets.
+- After final policy tests: native default applications, Creator browser and
+  reference checks plus WGPU reference client/bare facade compile; checkpoint,
+  finish classifying73display references and major raw GPU allocation owners.
+  Broad assembled/platform/performance checks remain deferred until that port
+  implementation inventory is closed. This is not full M0–M9 completion.
+- Final focused minimap policy tests PASS2/2,0.12s(build1m01s):
+  /private/tmp/eldiron-minimap-policy-release-contracts-final.log. Real logo source
+  now proves native resizing keeps no CPU display pixels while reference resizing
+  still displays original logo colors. All4screen modes select exactly the
+  existing get_map source, keep the reference GPU cold and authored JSON intact.
+  Handle49960 terminal. Canonical four-application release compile PASS11.05s:
+  /private/tmp/eldiron-port-boundary-release-native.log. Actual Creator browser
+  compile PASS10.52s: /private/tmp/eldiron-port-boundary-release-wasm-creator.log.
+  Native player browser library compile PASS15.74s:
+  /private/tmp/eldiron-port-boundary-release-wasm-player.log. Handles94501/96103/
+  55790terminal. Explicit WGPU reference/bare-library facade compilation now in
+  progress; Creator/reference client compile follows, then local checkpoint.
+- Resource inventory: /private/tmp/eldiron-port-final-presentation-allocations.txt
+  contains only the explicit bake test readback and one fixed-size empty-bake
+  source buffer. /private/tmp/eldiron-port-final-native-allocations.txt has no
+  direct allocator calls in Creator native-prefixed modules. Geometry/material
+  sources now allocate via their shared context owners. Remaining fixed shader
+  uniforms/dummy inputs and explicit request readbacks have natural renderer/
+  request owners; pools/cache/live counters do not claim total driver memory.
+- Explicit WGPU reference executable with bare non-native-player Apple facade
+  release compile PASS15.14s:
+  /private/tmp/eldiron-port-boundary-release-reference-wgpu-player.log. Creator
+  reference release compile PASS9.54s:
+  /private/tmp/eldiron-port-boundary-release-reference-creator.log. Classic
+  reference client compile PASS19.35s:
+  /private/tmp/eldiron-port-boundary-release-reference-client.log. All handles
+  terminal. Updated native_minimap_source trait comment to match the retired
+  CPU fallthrough. Boundary batch ready for local checkpoint.
+- Global/constructor audit:
+  /private/tmp/eldiron-port-final-global-gpu-inventory.txt and
+  /private/tmp/eldiron-port-final-scene-construction.txt show global GPU setup
+  only in legacy SceneVM constructors; four Creator direct constructors are
+  reference preview/test/offline-art callers. Canonical player/presentation has
+  no Canvas2D/ImageData, CPU overlay insertion or frame readback calls. Runtime
+  avatar preview builder supplies source-resolution sprite assets, not a
+  view-sized display framebuffer.
+- A concrete browser port gap was found before closing implementation inventory:
+  geometry_editor/gpu_textures.rs still pollster::block_on's MaterialZ runtime
+  creation and compilation for procedural mesh textures. These operations await
+  browser GPU error-scope promises and cannot block the browser main thread.
+  The earlier nonblocking MaterialZ work covered material previews/thumbnails,
+  not geometry material atlases. Native compilation currently passes and native
+  behavior is correct; custom procedural-textured browser geometry can stall.
+  Next: one source-addressed nonblocking browser initializer/compiler, preserve
+  cached pipelines/unchanged and animated sources, reject obsolete completions,
+  drop receiver owners on retirement, return pending without publishing a
+  partial atlas/frame. No broad acceptance until this real port gap is fixed.

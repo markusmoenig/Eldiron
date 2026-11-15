@@ -1,4 +1,4 @@
-//! Region overview ownership. CPU snapshots enter here; only GPU handles leave.
+//! Map overview ownership. CPU snapshots enter here; only GPU handles leave.
 //! Navigation uses an immutable, actually presented map/projection, independent of the reference CPU cache.
 use super::*;
 use eldiron_presentation::{SceneViews, ViewId, ViewImage};
@@ -160,8 +160,6 @@ pub(crate) fn overview_map<'a>(
     server: &CreatorContext,
 ) -> Option<(&'a Map, Option<Uuid>)> {
     if server.shared.pc.is_screen()
-        && server.shared.editor_view_mode == EditorViewMode::D2
-        && server.shared.editing_surface.is_none()
         && !palette_minimap_active(server)
     {
         let map = project.get_map(&server.shared)?;

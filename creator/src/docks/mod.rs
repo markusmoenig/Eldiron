@@ -186,7 +186,8 @@ pub trait Dock: Send + Sync {
     }
 
     /// Publish immutable source-asset paint for a migrated minimap preview.
-    /// None leaves unmigrated procedural/world previews to their explicit adapter.
+    /// None selects the common native map overview or an explicitly empty view.
+    /// CPU draw_minimap remains an opt-in reference path.
     #[cfg(feature = "native-ui")]
     fn native_minimap_source(
         &self,

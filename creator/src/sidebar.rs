@@ -273,17 +273,15 @@ impl Sidebar {
                 return ui.get_render_view("MiniMap").unwrap().needs_redraw();
             }
             self.minimap_scene.deactivate(ui);
-            let missing_overview = if server_ctx.shared.get_map_context() == MapContext::Region {
-                project.get_region(&server_ctx.shared.curr_region).is_none()
-            } else { project.get_map(&server_ctx.shared).is_none() };
-            if missing_overview {
-                let view = ui.get_render_view("MiniMap").unwrap();
-                view.set_image_handle(None);
-                return view.needs_redraw();
-            }
+            // Native producers cover the current Region/Screen map policy.
+            // Missing/unavailable sources clear explicitly; command paint never
+            // falls through to a CPU viewport or initializes its reference VM.
+            let view = ui.get_render_view("MiniMap").unwrap();
+            view.set_image_handle(None);
+            return view.needs_redraw();
         }
         let view = ui.get_render_view("MiniMap").unwrap();
-        // Explicit adapter for the remaining world/procedural minimaps.
+        // Explicit CPU reference adapter.
         // render_buffer_mut revokes a previously published native source.
         let buffer = view.render_buffer_mut();
         buffer.resize(dim.width, dim.height);
@@ -1173,6 +1171,13 @@ impl Sidebar {
             }
             TheEvent::WidgetResized(id, dim) => {
                 if project.regions.is_empty() && id.name == "PolyView" {
+                    #[cfg(feature = "native-render")]
+                    if ctx.ui.command_paint {
+                        if let Some(view) = ui.get_render_view("PolyView") {
+                            view.set_image_handle(None);
+                        }
+                        return redraw;
+                    }
                     if let Some(renderview) = ui.get_render_view("PolyView") {
                         if let Some(buffer) = ctx.ui.icon("eldiron") {
                             let scaled_buffer = buffer.scaled(dim.width, dim.height);

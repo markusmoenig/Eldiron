@@ -15,6 +15,8 @@ pub(crate) mod native_geometry;
 pub(crate) mod native_scene;
 #[cfg(feature = "native-render")]
 pub(crate) mod native_palette;
+#[cfg(all(test, feature = "native-render"))]
+mod native_policy_tests;
 
 fn palette_minimap_active(server_ctx: &CreatorContext) -> bool {
     server_ctx.shared.palette_tool_active && server_ctx.docks.read().dock == "Palette"
