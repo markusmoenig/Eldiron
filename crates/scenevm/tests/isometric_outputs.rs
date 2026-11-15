@@ -240,6 +240,16 @@ fn sprite_blits_reject_invalid_sources_and_domains_before_modifying_the_canvas()
     assert!(GpuSpriteSource::new(&context, 1, 1, &[255; 3], None).is_err());
     assert!(GpuSpriteSource::new(&context, 1, 1, &[255; 4], Some(&[0; 7])).is_err());
     let source = GpuSpriteSource::new(&context, 1, 1, &[255, 0, 0, 255], None).unwrap();
+    assert_eq!(context.working_buffer_pool_usage().live_bytes, 12);
+    assert_eq!(context.working_buffer_pool_usage().live_allocations, 2);
+    let unrelated = context
+        .acquire_working_buffer(renderkit::WorkingBufferDescriptor::storage(4))
+        .unwrap();
+    context
+        .queue
+        .write_buffer(unrelated.buffer(), 0, &[0, 255, 0, 255]);
+    context.set_working_buffer_cache_limits(0, 0);
+    assert_eq!(context.working_buffer_pool_usage().live_bytes, 16);
     let canvas = IsometricCanvas::new(&context, 8, 8).unwrap();
     let mut blitter = IsometricBlitter::new(context.clone()).unwrap();
     let mut renderer = IsometricRenderer::new(context.clone()).unwrap();
@@ -307,4 +317,7 @@ fn sprite_blits_reject_invalid_sources_and_domains_before_modifying_the_canvas()
             .chunks_exact(4)
             .all(|p| p == [255, 0, 0, 255])
     );
+    drop((source, unrelated));
+    drop((canvas, blitter, renderer));
+    assert_eq!(context.working_buffer_pool_usage().live_bytes, 0);
 }

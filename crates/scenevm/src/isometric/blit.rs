@@ -4,7 +4,6 @@ use super::IsometricCanvas;
 use bytemuck::{Pod, Zeroable};
 use renderkit::{GpuContext, RenderError, Result};
 use std::{num::NonZeroU64, sync::Arc};
-use wgpu::util::DeviceExt;
 
 fn source_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -25,6 +24,8 @@ fn source_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
 /// versioned source cache; moving/animating an instance causes no asset upload.
 pub struct GpuSpriteSource {
     bind: wgpu::BindGroup,
+    // Bind groups keep raw handles alive; these leases also prevent pool reuse.
+    _source_leases: [renderkit::WorkingBufferLease; 2],
     size: (u32, u32),
     surface: bool,
     generation: u64,
@@ -50,17 +51,15 @@ impl GpuSpriteSource {
             return Err(RenderError("invalid isometric sprite source".into()));
         }
         let geometry = surface.unwrap_or(&[0; 8]);
-        let make = |label, data| {
-            context
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some(label),
-                    contents: data,
-                    usage: wgpu::BufferUsages::STORAGE,
-                })
+        let make = |data: &[u8]| -> Result<renderkit::WorkingBufferLease> {
+            let lease = context.acquire_working_buffer(
+                renderkit::WorkingBufferDescriptor::storage(data.len() as u64),
+            )?;
+            context.queue.write_buffer(lease.buffer(), 0, data);
+            Ok(lease)
         };
-        let albedo = make("iso-source-albedo", rgba);
-        let surfaces = make("iso-source-geometry", geometry);
+        let albedo = make(rgba)?;
+        let surfaces = make(geometry)?;
         let bytes = (rgba.len() + geometry.len()) as u64;
         context.record_upload(bytes);
         let bind = context
@@ -71,16 +70,17 @@ impl GpuSpriteSource {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: albedo.as_entire_binding(),
+                        resource: albedo.buffer().as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: surfaces.as_entire_binding(),
+                        resource: surfaces.buffer().as_entire_binding(),
                     },
                 ],
             });
         Ok(Arc::new(Self {
             bind,
+            _source_leases: [albedo, surfaces],
             size: (width, height),
             surface: surface.is_some(),
             generation: context.generation(),

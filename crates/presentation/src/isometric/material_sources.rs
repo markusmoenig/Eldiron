@@ -6,19 +6,18 @@ use rustc_hash::FxHashMap;
 use rusterix::Tile;
 use std::sync::Arc;
 use theframework_core::Uuid;
-use wgpu::util::DeviceExt;
 
 /// GPU material blob: three header words, page descriptors, then RGBA/R/M/E
 /// texels. Each word is `[u32;4]`; material channels retain their original f32
 /// precision until GPU blend/lighting packing. No CPU display image is retained.
 pub struct GpuMaterialSource {
-    buffer: wgpu::Buffer,
+    storage: renderkit::WorkingBufferLease,
     generation: u64,
     bytes: u64,
 }
 impl GpuMaterialSource {
     pub fn buffer(&self) -> &wgpu::Buffer {
-        &self.buffer
+        self.storage.buffer()
     }
     pub fn device_generation(&self) -> u64 {
         self.generation
@@ -173,18 +172,14 @@ impl IsometricMaterialSources {
             }
         }
         let raw: &[u8] = bytemuck::cast_slice(&data);
-        let buffer = self
-            .context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("iso-material-source"),
-                contents: raw,
-                usage: wgpu::BufferUsages::STORAGE,
-            });
         let bytes = raw.len() as u64;
+        let storage = self
+            .context
+            .acquire_working_buffer(renderkit::WorkingBufferDescriptor::storage(bytes))?;
+        self.context.queue.write_buffer(storage.buffer(), 0, raw);
         self.context.record_upload(bytes);
         let source = Arc::new(GpuMaterialSource {
-            buffer,
+            storage,
             generation: self.context.generation(),
             bytes,
         });

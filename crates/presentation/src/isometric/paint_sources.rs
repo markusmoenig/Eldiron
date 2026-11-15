@@ -9,15 +9,14 @@ use rusterix::{
 };
 use std::sync::Arc;
 use theframework_core::Uuid;
-use wgpu::util::DeviceExt;
 pub struct GpuTerrainPaintSource {
-    buffer: wgpu::Buffer,
+    storage: renderkit::WorkingBufferLease,
     generation: u64,
     bytes: u64,
 }
 impl GpuTerrainPaintSource {
     pub fn buffer(&self) -> &wgpu::Buffer {
-        &self.buffer
+        self.storage.buffer()
     }
     pub fn device_generation(&self) -> u64 {
         self.generation
@@ -150,18 +149,14 @@ impl IsometricPaintSources {
                     "terrain paint source exceeds device storage limits".into(),
                 ));
             }
-            let buffer =
-                self.context
-                    .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("iso-terrain-paint-source"),
-                        contents: bytes,
-                        usage: wgpu::BufferUsages::STORAGE,
-                    });
+            let storage = self.context.acquire_working_buffer(
+                renderkit::WorkingBufferDescriptor::storage(bytes.len() as u64),
+            )?;
+            self.context.queue.write_buffer(storage.buffer(), 0, bytes);
             self.context.record_upload(bytes.len() as u64);
             self.builds += 1;
             Some(Arc::new(GpuTerrainPaintSource {
-                buffer,
+                storage,
                 generation: self.context.generation(),
                 bytes: bytes.len() as u64,
             }))

@@ -15637,3 +15637,31 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Actual wasm Creator browser-host release compilation PASS22.84s:
   /private/tmp/eldiron-paint-capture-owner-release-wasm.log. All handles terminal;
   proceed with isometric immutable source leases. No broad suite or benchmark.
+
+## Isometric immutable source allocation ownership (2026-11-15)
+
+- Sprite albedo/surface planes, spatial/animated material pages and terrain-paint
+  neighborhoods now retain shared device working-buffer leases in their actual
+  immutable source owners. Exact packed formats and shaders are unchanged; all
+  sampled words are uploaded before publication. Bind-group raw handles alone
+  cannot permit early pool reuse. Per-producer cache budgets still bound cache
+  retention; active evicted source storage joins device live/peak accounting.
+- Canonical four-application native release compile PASS23.73s:
+  /private/tmp/eldiron-isometric-source-owner-release-native.log. Focused release
+  material contracts PASS2/2 in0.37s and paint contracts PASS2/2 in0.25s (build50.11s):
+  /private/tmp/eldiron-isometric-source-owner-release-contracts.log. They cover
+  spatial/animation/repeat/material sampling, negative paint chunks, erasure and
+  source cache/version validation, plus active bytes after eviction and final
+  retirement. Retained material sampling is intact after unrelated pooled writes.
+  Focused sprite lease/domain contract PASS0.06s (build5.77s):
+  /private/tmp/eldiron-isometric-source-owner-release-sprite.log; unrelated same-size
+  writes cannot change the retained red sprite, all active leases retire to zero.
+- Actual wasm release compilation in flight. Next ownership gap: overview output,
+  source-array/size storage and per-batch metadata allocate outside shared pools.
+  Preserve all per-batch/source leases until the entire frame encoder is submitted,
+  including when source-cache eviction occurs during frame preparation. Source
+  packing/time quotas and final application/platform/performance gates stay open.
+
+- Actual wasm Creator browser-host release compile PASS22.84s:
+  /private/tmp/eldiron-isometric-source-owner-release-wasm.log. All handles terminal,
+  diff whitespace clean. Continue with overview resource/submission ownership.

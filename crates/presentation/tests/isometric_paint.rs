@@ -342,4 +342,18 @@ fn paint_neighborhoods_are_versioned_bounded_and_validate_before_upload() {
     assert_eq!(cache.len(), 4);
     cache.clear();
     assert!(cache.is_empty());
+    let unrelated = gpu
+        .acquire_working_buffer(renderkit::WorkingBufferDescriptor::storage(
+            first.resident_bytes(),
+        ))
+        .unwrap();
+    assert_ne!(unrelated.buffer(), first.buffer());
+    assert_ne!(unrelated.buffer(), changed.buffer());
+    gpu.set_working_buffer_cache_limits(0, 0);
+    assert_eq!(
+        gpu.working_buffer_pool_usage().live_bytes,
+        first.resident_bytes() * 2 + changed.resident_bytes()
+    );
+    drop((unrelated, first, changed));
+    assert_eq!(gpu.working_buffer_pool_usage().live_bytes, 0);
 }

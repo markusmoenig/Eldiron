@@ -254,6 +254,30 @@ fn immutable_material_pages_match_cpu_spatial_animation_clamp_and_repeat_samplin
     assert!(sources.is_empty());
     assert_eq!(sample(&gpu, &source, &queries), pixels);
     assert!(source.resident_bytes() > 0); // caller's immutable GPU lease survives eviction
+    let unrelated = gpu
+        .acquire_working_buffer(renderkit::WorkingBufferDescriptor::storage(
+            source.resident_bytes(),
+        ))
+        .unwrap();
+    assert_ne!(unrelated.buffer(), source.buffer());
+    gpu.queue.write_buffer(
+        unrelated.buffer(),
+        0,
+        &vec![0; source.resident_bytes() as usize],
+    );
+    gpu.set_working_buffer_cache_limits(0, 0);
+    assert_eq!(
+        gpu.working_buffer_pool_usage().live_bytes,
+        source.resident_bytes() * 2 + styled.resident_bytes()
+    );
+    assert_eq!(sample(&gpu, &source, &queries), pixels);
+    drop((unrelated, styled));
+    assert_eq!(
+        gpu.working_buffer_pool_usage().live_bytes,
+        source.resident_bytes()
+    );
+    drop(source);
+    assert_eq!(gpu.working_buffer_pool_usage().live_bytes, 0);
 }
 
 #[test]
