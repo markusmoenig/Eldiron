@@ -18342,3 +18342,64 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   then measured performance fixes. User requested broad tests after port work;
   this is that implementation/integration checkpoint, not objective completion.
   Source/visual residual classification and physical platform gates remain open.
+
+
+## Consolidated release acceptance resumed (2026-11-16)
+
+- HEAD867d76b7 checkpoints source-guide RGB/alpha composition and fresh native/
+  reference evidence. Tracked source clean; unrelated networking concept remains
+  untracked and untouched. All focused Creator/source handles terminal before
+  starting consolidated suites.
+- Current serialized compiler/GPU handle49908:
+  MACOSX_DEPLOYMENT_TARGET=26.1 CARGO_TARGET_DIR=/Users/markusmoenig/Eldiron/target
+  cargo test --release --locked --offline --no-default-features -p renderkit
+  -p theframework -p scenevm -p eldiron-presentation --features
+  theframework/ui,theframework/render-wgpu,theframework/platform-winit,scenevm/gpu
+  --lib --tests -- --include-ignored --test-threads=1
+  /private/tmp/eldiron-release-gpu-consolidated-source-alpha.log. Poll terminal
+  before any Rust edit, compiler/test or benchmark. These four packages contain
+  GPU/CPU fixtures, not Creator maintenance/network/export ignored tests.
+- Read-only separately resolved dependency guard97802terminalPASS29configs plus
+  shared source import check: /private/tmp/eldiron-final-source-alpha-boundaries.log.
+  It resolves each CPU/runtime/terminal/UI/host/browser/Apple graph separately.
+- Physical Mac blocker rechecked using ioreg: IOConsoleLocked=Yes and
+  CGSSessionScreenIsLocked=Yes. No physical AppKit/input/IME/monitor acceptance
+  claimed. Continue independent release/platform work; no user input pending.
+- After GPU suite: consolidated CPU core/shared/runtime and Creator nonignored
+  library checks, common player contracts, current release browser packaging/
+  actual WebGPU recovery and Apple optimized hosts/isolated UIKit as applicable.
+  Then final matched longer performance samples and pan/zoom attribution/fixes.
+  Previous platform evidence is historical for newest source. Do not mark full
+  objective complete while physical and measured acceptance gates remain open.
+
+- Consolidated49908terminal exit101: presentation222/222, Renderkit17/17 and
+  SceneVM77/77 allPASS actualMetal; Framework250PASS before stale counter failure
+  in paint_target_reuse. Test still inspected dedicated immutable-buffer cache;
+  UI migrated to packed immutable RANGE cache in7cff90a1. No pixel assertion had
+  failed. Updated only its cache usage/pressure calls to actual range cache,
+  retaining exact allocations/uploads/hits/budget/eviction checks and all nested
+  opacity/in-flight resize color assertions unchanged.
+- Corrected87968terminalPASS1/1 in0.13s (release build10.11s).64warmframes keep
+  exactly3GPU pages/196608B and688uploaded input bytes; hits13->1357, no new
+  allocations/uploads. Queued resize/eviction/reference colors all pass.
+  /private/tmp/eldiron-release-ui-range-reuse-corrected.log. Dedicated cache API
+  continues to pass its independent original tests.
+- Current sole compiler/test handle61626 finishing ONLY
+  previously unrun Framework binaries: pixel_images, pixel_lines, pixel_triangles,
+  sampled_lines, theme_rendering, tree_redraw, ui_gpu, ui_image_cache, same release/
+  ui,render-wgpu,platform-winit features, all ignored GPU contracts included.
+  /private/tmp/eldiron-release-framework-source-alpha-remainder.log. Original
+  successful250 cases unchanged and not repeated for test-counter-only edit.
+
+- Framework remainder61626terminalPASS48/48 allCPU/Metal. Together with original
+  successful250 and corrected cache-pressure1, current Framework299/299PASS.
+  /private/tmp/eldiron-release-framework-source-alpha-remainder.log. No production
+  changes after broad suite, only retired-counter fixture correction. Total
+  consolidated GPU/foundation suites615PASS: presentation222,Renderkit17,SceneVM77,
+  Framework299. Original pixel/timing/resource assertions retained.
+- Current next serialized compiler/test handle3349 runs
+  isolated CPU-only core/ruleset/Rusterix/shared/runtime release libraries with
+  --no-default-features --no-fail-fast -- --test-threads=1. Log:
+  /private/tmp/eldiron-release-cpu-consolidated-source-alpha.log. Existing unrelated
+  ruleset/shipped-data baseline failures remain classified, not repaired through
+  authored data changes. No ignored maintenance/export/profile cases included.

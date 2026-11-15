@@ -1,0 +1,36 @@
+{
+  "profile": "release",
+  "platform": "macOS Metal / Apple M1 Max",
+  "source_head": "867d76b7",
+  "package_results": {
+    "eldiron-presentation": {
+      "passed": 222,
+      "failed": 0
+    },
+    "renderkit": {
+      "passed": 17,
+      "failed": 0
+    },
+    "scenevm": {
+      "passed": 77,
+      "failed": 0
+    },
+    "theframework": {
+      "passed": 299,
+      "failed": 0
+    }
+  },
+  "total_passed": 615,
+  "logs": [
+    "/private/tmp/eldiron-release-gpu-consolidated-source-alpha.log",
+    "/private/tmp/eldiron-release-ui-range-reuse-corrected.log",
+    "/private/tmp/eldiron-release-framework-source-alpha-remainder.log"
+  ],
+  "attempt_notes": "First consolidated command exited101 at the opacity target reuse fixture after 250 Framework passes: it read the retired dedicated UI buffer cache. Corrected only usage/pressure calls to packed-range cache; original reuse/uploads/budgets/eviction/pixel assertions unchanged. Corrected test1 and remaining48 pass. Successful unchanged cases were not repeated.",
+  "dependency_boundaries": {
+    "configurations_passed": 29,
+    "shared_source_import_guard": "passed",
+    "log": "/private/tmp/eldiron-final-source-alpha-boundaries.log"
+  },
+  "scope": "Available foundation CPU/GPU and isolated dependency checks. Not physical OS/input/IME/display or final performance/all M0\u2013M9 acceptance."
+}

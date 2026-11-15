@@ -58,17 +58,17 @@ fn nested_opacity_survives_warm_reuse_eviction_and_inflight_resizes() {
     let output = GpuImage::new(&context, descriptor(32)).unwrap();
     draw(&context, &mut renderer, &images, &output, false);
     let warm = context.target_pool_usage();
-    let warm_buffers = context.immutable_buffer_cache_usage();
+    let warm_buffers = context.immutable_range_cache_usage();
     assert!(warm.allocations > 0);
     for _ in 0..64 {
         draw(&context, &mut renderer, &images, &output, false);
     }
     let reused = context.target_pool_usage();
-    let reused_buffers = context.immutable_buffer_cache_usage();
+    let reused_buffers = context.immutable_range_cache_usage();
     assert_eq!(reused_buffers.allocations, warm_buffers.allocations);
     assert_eq!(reused_buffers.uploaded_bytes, warm_buffers.uploaded_bytes);
     assert!(reused_buffers.hits > warm_buffers.hits);
-    eprintln!("Immutable UI draw data64warmframes: {warm_buffers:?} -> {reused_buffers:?}");
+    eprintln!("Immutable UI draw ranges64warmframes: {warm_buffers:?} -> {reused_buffers:?}");
     eprintln!("Warmed target storage over64frames: {warm:?} -> {reused:?}");
     assert_eq!(
         reused.allocations, warm.allocations,
@@ -80,7 +80,7 @@ fn nested_opacity_survives_warm_reuse_eviction_and_inflight_resizes() {
     // leases must protect sibling/nested groups before the parent submits; wgpu
     // must retain evicted storage through already queued passes afterward.
     context.set_target_cache_limits(16 * 1024, 2);
-    context.set_immutable_buffer_cache_limits(1024, 4);
+    context.set_immutable_range_cache_limits(1024, 4);
     for (index, size) in [40, 48, 56, 32, 64, 40].into_iter().enumerate() {
         let output = GpuImage::new(&context, descriptor(size)).unwrap();
         let reverse = index % 2 == 1;
@@ -88,12 +88,12 @@ fn nested_opacity_survives_warm_reuse_eviction_and_inflight_resizes() {
         let usage = context.target_pool_usage();
         assert!(usage.cached_bytes <= usage.byte_limit);
         assert!(usage.cached_textures <= usage.texture_limit);
-        let buffers = context.immutable_buffer_cache_usage();
+        let buffers = context.immutable_range_cache_usage();
         assert!(buffers.gpu_bytes + buffers.cpu_bytes <= buffers.byte_limit);
         assert!(buffers.entries <= buffers.entry_limit);
         frames.push((output, reverse));
     }
-    assert!(context.immutable_buffer_cache_usage().evictions > 0);
+    assert!(context.immutable_range_cache_usage().evictions > 0);
     assert_eq!(context.transfers().readback_bytes, 0);
     assert!(context.target_pool_usage().evictions > 0);
     assert!(context.target_pool_usage().uncached_allocations > 0);
