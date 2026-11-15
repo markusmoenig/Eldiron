@@ -43,10 +43,10 @@ No percentage is mechanically measured; the chat's roughly85% is an estimate.
   Windows/Linux and physical mobile checks are not replaced by offscreen tests.
 - Maintain release-only builds. Preserve current projects/paint serialization and
   concurrent work. Continue available work without waiting for routine approval.
-- Current implementation work: live sprite/alpha ownership and strict nested
-  overview source guards now pass targeted release checks. Logical isometric
-  GPU layer/fractional-DPI scaling and minimap pooled-image alias ownership are
-  under current Creator integration verification; final performance still open.
+- Current implementation work: live sprite/alpha ownership, strict nested
+  overview guards, logical isometric pixel grids, source-guide RGB/alpha and
+  minimap pooled-image aliases now pass targeted release and assembled Creator
+  checks. Continue consolidated acceptance/performance; final gates remain open.
   See the latest chronological entries for exact binaries, evidence and blockers.
 
 ## Historical milestone inventory
@@ -18272,3 +18272,73 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Next: checkpoint these verified source/alias changes, classify remaining HUD
   and source residuals and remaining implementation/ownership inventory before
   final broad release/platform checks. Full M0–M9 objective remains unfinished.
+
+
+## Transparent source RGB beneath guides (2026-11-16, ongoing)
+
+- Frozen shipped-map guide contract22389terminalPASS1/1 (release1m03s,3.95s
+  runtime). Uses actual UnendingNight terrain guide geometry,1169x639 projection
+  and original rusterix::isometric::line. Batched25683ops/55draws and individual
+  77047ops/25683draws BOTH maxCPUdelta0, allRGBAbyteexact. Residual distant-grid
+  difference is NOT a DDA/batching precision bug; no epsilon/rounding change.
+  /private/tmp/eldiron-shipped-isometric-guide-cpu-contract.log.
+- Found exact cause: CPU ground clear stores[17,34,29,0]. CPU line blends stored
+  RGB regardless of old alpha, then forces touched alpha255. Native black clear
+  discarded hidden RGB before guides, giving[32,38,34] instead of[46,65,57] for
+  one grid stroke. Full reference GPU composition hides untouched alpha0 RGB
+  over black, so simply making all original pixels opaque would be wrong.
+- New small native_world_pixel_alpha GPU module preserves this policy: metadata
+  alias temporarily presents source RGB as opaque while guides blend, a shared
+  painter renders guide coverage, and a tiny GPU combine restores touched-alpha
+  policy and flattens untouched source over black. All on injected context,
+  pooled targets, no CPU destination/readback or changed serialized data. Source
+  alias handle retires even on render error; alpha owner clears with layer.
+- Current release74711 building/running original layer lifetime test with this
+  implementation; /private/tmp/eldiron-isometric-guide-alpha-creator.log. Need
+  terminal result, then explicit actual-CPU transparent/mixed-alpha source guide
+  contract, original assembled workflow and fresh shipped scene capture before
+  accepting. HEADb25a10d6 remains last fully verified source-layer checkpoint;
+  new alpha module and shipped-guide test are currently uncommitted.
+
+- Alpha module74711terminalPASS1/1 original fractional layer lifetime contract
+  (release1m01s,0.21s). Actual CPU mixed-alpha fixture54983terminalPASS1/1
+  (0.09s): hidden nonzero RGB at alpha0, alpha64/128/255, two directions/repeated
+  points, transparent and zero-length lines, clipped fractional endpoints and
+  local→parent scaling at all five DPIs. Original CPU rusterix::line plus actual
+  CPU copy/scaled_into buffers and normal GPU source normalization provide the
+  reference. MaxRGBA delta1 at every density; no tolerance relaxed. Normal layer
+  rendering readback counter unchanged before explicit captures.
+  /private/tmp/eldiron-isometric-hidden-rgb-cpu-contract.log.
+- Alpha compositor uses one injected context, standard textureLoad-only three
+  texture combine pipeline, and shared paint renderer for coverage. No extra
+  shader features/inter-stage fields or platform-specific rendering. Covered
+  source pixels become opaque as CPU lines do; other source pixels flatten over
+  black with linear-light alpha. Metadata opaque alias preserves source ownership
+  and is retired before returning, including render error. Cache/scope/device
+  teardown clears both painter and compositor.
+- Full original assembled Creator26139firstsubprocess terminalPASS1/1 in23.92s,
+  all source/palette/minimap/visibility/custom/Play expectations retained. Current
+  same handle continues serial guarded native then fresh CPU reference150%pair;
+  /private/tmp/eldiron-isometric-source-alpha-{native,reference}-guard.log. Poll
+ 26139 terminal before Rust edits or another compiler/test/benchmark.
+
+- Both source-alpha guarded runs26139 terminalPASS: native owned7021/12.90s/
+  peak3522707456B; fresh reference owned7047/10.90s/peak2492334080B. Native p50
+  idle8.91/hover8.52/pan44.90/zoom64.75ms; fresh CPU27.75/27.43/28.00/41.19ms.
+  Native cold7.21s versus CPU6.20s. Normal native color-readback delta0. No claim
+  of all-app speedup, final p99 or hardware input/presentation latency.
+- Fresh world interior mean RGB0.00438/0.00381/0.00308 (previous0.0297/0.0532/
+  0.0453). Known distant-grid pixel now exactly46/65/57 in both. Remaining208
+  interior pixels>1: mostly animated character; only10physical/fivelogical
+  pixels outside character box remain>1, max27, mean<0.00051/channel there.
+  Whole viewport mean0.290/0.258/0.262 includes native host-density Swash/tool
+  HUD versus CPU logical raster/resizing. Animation clocks not frozen; no whole
+  byte-equality claim or unclassified residual silently accepted.
+- Durable release-source-alpha-contracts.json and fresh
+  release-unending-source-alpha-{native,reference}.{json,png}.
+- Remaining known residency/ownership implementation is now connected with
+  targeted contracts and full assembled Creator passing. Resume consolidated
+  broad RELEASE regressions/dependency checks and platform acceptance next,
+  then measured performance fixes. User requested broad tests after port work;
+  this is that implementation/integration checkpoint, not objective completion.
+  Source/visual residual classification and physical platform gates remain open.

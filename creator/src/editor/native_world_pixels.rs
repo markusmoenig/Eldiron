@@ -9,6 +9,12 @@ use theframework::{
     render_wgpu::PaintRenderer,
 };
 
+#[path = "native_world_pixel_alpha.rs"]
+mod alpha;
+#[cfg(test)]
+#[path = "native_world_pixel_guides.rs"]
+mod guide_tests;
+
 #[derive(PartialEq)]
 enum SourceOp {
     Clear(Rect, [f32; 4]),
@@ -46,6 +52,7 @@ struct Cached {
 pub(super) struct Gpu {
     renderer: Option<PaintRenderer>,
     cached: Option<Cached>,
+    alpha: Option<alpha::Composer>,
 }
 impl Gpu {
     #[cfg(test)]
@@ -66,6 +73,7 @@ impl Gpu {
             images.remove(old.image);
         }
         self.renderer = None;
+        self.alpha = None;
     }
     pub(super) fn compose(
         &mut self,
@@ -106,7 +114,24 @@ impl Gpu {
                 0,
                 PaintOp::DisplayCompositing(DisplayCompositing::LegacyOpaque),
             );
-            self.renderer
+            // The CPU guide routine blends stored RGB regardless of its prior
+            // alpha, and makes touched pixels opaque. Preserve hidden source
+            // RGB until guides are painted, then flatten the finished source.
+            let source = images
+                .get(output.image)
+                .ok_or("isometric alpha source missing")?;
+            let opaque = images
+                .insert(source.with_alpha_mode(AlphaMode::Opaque))
+                .map_err(|e| e.to_string())?;
+            for op in &mut list.ops {
+                if let PaintOp::SpriteImage { image, .. } = op
+                    && *image == output.image
+                {
+                    *image = opaque;
+                }
+            }
+            let result = self
+                .renderer
                 .as_mut()
                 .unwrap()
                 .render(
@@ -118,8 +143,20 @@ impl Gpu {
                     1.,
                     [0., 0., 0., 1.],
                 )
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| e.to_string());
+            images.remove(opaque);
+            result?;
             let source_draws = self.renderer.as_ref().unwrap().frame_stats().draw_calls;
+            if self.alpha.is_none() {
+                self.alpha = Some(
+                    alpha::Composer::new(images.context().clone()).map_err(|e| e.to_string())?,
+                );
+            }
+            let image = self
+                .alpha
+                .as_mut()
+                .unwrap()
+                .compose(&list, &source, image, images)?;
             // The reference first expands the logical RenderView into its local
             // canvas, then copies that canvas at a rounded parent origin. At
             // fractional DPI those two integer grids may differ by one pixel.

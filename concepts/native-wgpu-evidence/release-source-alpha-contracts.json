@@ -1,0 +1,109 @@
+{
+  "scope": "Targeted release source ownership/alpha contracts and matched guarded 30-sample diagnostic only. Whole images are not byte-exact; animation clocks were not frozen. Physical display/input and final performance/platform acceptance remain open.",
+  "contracts": [
+    {
+      "name": "shipped terrain guide geometry versus actual CPU DDA",
+      "result": "PASS all RGBA byte exact, both batched and individual",
+      "segments": 25682,
+      "batched_draws": 55,
+      "individual_draws": 25683,
+      "log": "/private/tmp/eldiron-shipped-isometric-guide-cpu-contract.log"
+    },
+    {
+      "name": "GPU layer lifetime after source-alpha composition",
+      "result": "PASS 1/1",
+      "log": "/private/tmp/eldiron-isometric-guide-alpha-creator.log"
+    },
+    {
+      "name": "actual CPU hidden RGB, alpha0/64/128/255, repeated/clipped/transparent/degenerate guides, nested scaling",
+      "result": "PASS 1/1, max RGBA delta1 at each of 1/1.25/1.5/1.75/2 densities",
+      "log": "/private/tmp/eldiron-isometric-hidden-rgb-cpu-contract.log"
+    },
+    {
+      "name": "original full assembled Creator",
+      "result": "PASS 1/1",
+      "runtime_seconds": 23.92,
+      "log": "/private/tmp/eldiron-isometric-source-alpha-assembled.log"
+    }
+  ],
+  "guards": {
+    "native": {
+      "exit": 0,
+      "problem": null,
+      "wall_seconds": 12.897711083999999,
+      "child_max_rss_reported": 3522707456
+    },
+    "reference": {
+      "exit": 0,
+      "problem": null,
+      "wall_seconds": 10.904473208999999,
+      "child_max_rss_reported": 2492334080
+    }
+  },
+  "comparison": {
+    "world": {
+      "physical_crop": [
+        77,
+        131,
+        1830,
+        1089
+      ],
+      "mean_abs_rgb": [
+        0.2896335182038069,
+        0.2580556802713392,
+        0.26195296580749733
+      ],
+      "extrema": [
+        [
+          0,
+          236
+        ],
+        [
+          0,
+          216
+        ],
+        [
+          0,
+          181
+        ]
+      ],
+      "pixels": 1679374,
+      "pixels_over_one": 52580
+    },
+    "interior": {
+      "physical_crop": [
+        137,
+        231,
+        1710,
+        1029
+      ],
+      "mean_abs_rgb": [
+        0.0043776000713799754,
+        0.0038056042840731836,
+        0.003084634663582032
+      ],
+      "extrema": [
+        [
+          0,
+          236
+        ],
+        [
+          0,
+          184
+        ],
+        [
+          0,
+          140
+        ]
+      ],
+      "pixels": 1255254,
+      "pixels_over_one": 208
+    }
+  },
+  "known_residuals": [
+    "tool HUD/text strip remains different; native Swash host-density text versus logical CPU rasterization/resizing",
+    "animated character pose was not frozen between native/reference processes",
+    "ten non-character interior physical pixels exceed1 (five logical source pixels); boundary/source-animation classification remains acceptance work"
+  ],
+  "next": "Remaining known residency/ownership port implementation is connected and focused checks pass. Continue consolidated release regressions, performance profiling and platform acceptance; fix discovered regressions. Do not mark M0\u2013M9 complete."
+}
