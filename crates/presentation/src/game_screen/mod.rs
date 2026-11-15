@@ -13,6 +13,7 @@ mod input;
 mod keyboard;
 mod router;
 mod speech;
+mod stamp_sources;
 pub use speech::SpeechOverlay;
 mod text_game;
 mod tooltip;
@@ -88,6 +89,8 @@ pub struct GameScreenController {
     configured_views: FxHashMap<ViewId, ContentRevision>,
     view_images: FxHashMap<Uuid, ViewImage>,
     pending_scene_uploads: bool,
+    stamp_sources: stamp_sources::Sources,
+    source_wake: Option<theframework::platform::ApplicationWake>,
     text_games: text_game::TextGames,
     inputs: FxHashMap<ScreenTextTarget, theframework::text_edit::EditorView>,
     input_modifiers: theframework::platform::Modifiers,
@@ -104,6 +107,8 @@ impl GameScreenController {
     pub fn retain_session_presentation_from(&mut self, previous: &mut Self, fonts: &mut GameFonts) {
         if self.session == previous.session {
             self.sources = std::mem::take(&mut previous.sources);
+            self.stamp_sources = std::mem::take(&mut previous.stamp_sources);
+            self.source_wake = previous.source_wake.clone();
             self.hud = std::mem::take(&mut previous.hud);
             self.speech = std::mem::take(&mut previous.speech);
             self.world_texts = std::mem::take(&mut previous.world_texts);
@@ -218,6 +223,8 @@ impl GameScreenController {
             configured_views: FxHashMap::default(),
             view_images: FxHashMap::default(),
             pending_scene_uploads: false,
+            stamp_sources: Default::default(),
+            source_wake: None,
             text_games: Default::default(),
             inputs: FxHashMap::default(),
             input_modifiers: Default::default(),
@@ -314,6 +321,15 @@ impl GameScreenController {
         animation_frame: usize,
     ) -> Result<(), String> {
         self.bind_runtime(world);
+        self.stamp_sources
+            .scope(world.map.map(|map| (world.session_id, map.id)));
+        if self.stamp_sources.active {
+            let source = world
+                .map
+                .and_then(|map| world.assets.stamp_paint.get(&map.id));
+            self.stamp_sources.request(source)?;
+        }
+        self.stamp_sources.advance(self.source_wake.clone())?;
         let font_version = fonts.refresh(world, revision);
         if self.font_version != Some(font_version) {
             self.font_version = Some(font_version);
@@ -502,6 +518,8 @@ impl GameScreenController {
         }
         views.begin_surface_paint_upload_frame();
         self.pending_scene_uploads = false;
+        self.stamp_sources.active = false;
+        self.stamp_sources.changed = false;
         self.view_images.clear();
         self.text_games.retain(&self.elements);
         self.begin_world_frame(world)?;
@@ -512,9 +530,11 @@ impl GameScreenController {
             });
             if !active && views.scene(*id).is_ok() {
                 views.set_surface_paint_source(*id, None).map_err(|e| e.to_string())?;
+                views.set_stamp_paint(*id, None).map_err(|e| e.to_string())?;
             }
         }
         let Some(map) = world.map else {
+            self.stamp_sources.cancel_pending();
             return Ok(());
         };
         let revision = self
@@ -573,6 +593,22 @@ impl GameScreenController {
             views
                 .prepare_game(id, widget, size, &input, images)
                 .map_err(|e| e.to_string())?;
+            if !screen_model::is_2d_camera(&widget.camera) && size.0 > 0 && size.1 > 0 {
+                let publication = self
+                    .stamp_sources
+                    .request(world.assets.stamp_paint.get(&map.id))?;
+                if let Some(publication) = publication {
+                    views
+                        .set_stamp_paint(id, Some((&publication.layer, &publication.pixels)))
+                        .map_err(|e| e.to_string())?;
+                } else if self.stamp_sources.has_source() {
+                    views.defer_stamp_paint(id).map_err(|e| e.to_string())?;
+                } else {
+                    views.set_stamp_paint(id, None).map_err(|e| e.to_string())?;
+                }
+            } else {
+                views.set_stamp_paint(id, None).map_err(|e| e.to_string())?;
+            }
             if let Some(output) = views
                 .render(id, self.animation_frame as u64, images)
                 .map_err(|e| e.to_string())?
@@ -584,9 +620,22 @@ impl GameScreenController {
         }
         views.advance_surface_paint_uploads().map_err(|e| e.to_string())?;
         self.pending_scene_uploads = views.has_pending_surface_paint_frames();
+        if !self.stamp_sources.active {
+            self.stamp_sources.cancel_pending();
+        }
+        self.stamp_sources.changed = false;
         Ok(())
     }
-    pub fn has_pending_scene_uploads(&self) -> bool { self.pending_scene_uploads }
+    pub fn has_pending_scene_uploads(&self) -> bool {
+        self.pending_scene_uploads || self.stamp_sources.pending()
+    }
+    pub fn set_scene_source_wake(&mut self, wake: Option<theframework::platform::ApplicationWake>) {
+        self.source_wake = wake;
+    }
+    pub fn suspend_scene_sources(&mut self) {
+        self.stamp_sources.active = false;
+        self.stamp_sources.cancel_pending();
+    }
     /// The host calls this before closing/replacing the screen while retaining
     /// its registry. IDs remain stable if a device owner is rebuilt afterward.
     pub fn release_game_views(

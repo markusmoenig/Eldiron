@@ -287,3 +287,62 @@ impl StampSpritePreparation {
         })
     }
 }
+
+#[derive(PartialEq, Eq)]
+pub struct StampUploadKey {
+    source: Uuid,
+    instances: Vec<[u32; 7]>,
+}
+/// Upload camera-independent pixels only for a new source. Placements retain
+/// authored order and update independently, with exact float-bit cache keys.
+pub fn upload_sprite_set(
+    set: &StampSpriteSet,
+    layer: &IsoPaintLayer,
+    vm: &mut SceneVM,
+    camera: Camera3D,
+    height: u32,
+    uploaded: &mut Option<StampUploadKey>,
+) -> Result<bool, String> {
+    let active = vm.active_vm_index();
+    vm.set_active_vm(0);
+    let result = (|| {
+        let instances = set.instances(layer, vm, camera, height)?;
+        let key = StampUploadKey {
+            source: set.id(),
+            instances: instances
+                .iter()
+                .map(|i| {
+                    [
+                        i.center[0].to_bits(),
+                        i.center[1].to_bits(),
+                        i.center[2].to_bits(),
+                        i.width.to_bits(),
+                        i.height.to_bits(),
+                        i.sprite_index,
+                        i.flags,
+                    ]
+                })
+                .collect(),
+        };
+        if uploaded.as_ref() == Some(&key) {
+            return Ok(false);
+        }
+        if instances.is_empty() {
+            vm.execute(scenevm::Atom::ClearPaintBillboards);
+        } else if uploaded
+            .as_ref()
+            .is_some_and(|old| old.source == key.source && !old.instances.is_empty())
+        {
+            vm.execute(scenevm::Atom::SetPaintBillboardInstances { instances });
+        } else {
+            vm.execute(scenevm::Atom::SetPaintBillboards {
+                sprites: set.sprites(),
+                instances,
+            });
+        }
+        *uploaded = Some(key);
+        Ok(true)
+    })();
+    vm.set_active_vm(active);
+    result
+}

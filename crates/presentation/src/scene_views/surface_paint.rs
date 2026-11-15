@@ -216,6 +216,7 @@ impl SceneViews {
             || self.views.values().any(|view| {
                 view.surface_paint_source.is_some()
                     && view.surface_paint_ready
+                    && view.stamp_paint_ready
                     && view.dirty
                     && view.size.0 > 0
                     && view.size.1 > 0

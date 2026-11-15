@@ -2,9 +2,11 @@
 use super::*;
 mod catalog;
 mod live;
-pub use catalog::{StampCatalog, StampCatalogBuilder};
-pub use live::{StampSpritePreparation, StampSpriteRequest, StampSpriteSet};
 use crate::iso_paint::{IsoPaintChunk, IsoPaintLayer, IsoPaintStamp};
+pub use catalog::{StampCatalog, StampCatalogBuilder};
+pub use live::{
+    StampSpritePreparation, StampSpriteRequest, StampSpriteSet, StampUploadKey, upload_sprite_set,
+};
 use scenevm::{OrganicBillboardInstance, OrganicBillboardSprite};
 
 pub(super) fn stamp_billboard(

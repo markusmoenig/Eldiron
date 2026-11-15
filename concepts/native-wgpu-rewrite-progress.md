@@ -55,7 +55,7 @@ behavior is ready to verify.
 ## Next work
 
 1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,18 retained standard control families, static collection/property-layout contributions and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
-2. Close live source residency, catalogue capture and remaining UV/player source policy. Cooperative shared GPU page uploads are connected below; source allocation/metadata/capture scheduling and working-set residency remain open. Player UV pages share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection now has an owned page publication below. Player stamp publication still needs ownership integration. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
+2. Close live source residency, catalogue capture and remaining UV/player source policy. Cooperative shared GPU page uploads are connected below; source allocation/metadata/capture scheduling and working-set residency remain open. Player UV pages share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection now has an owned page publication below. Player stamp CPU publication/controller ownership is connected in the latest in-flight checkpoint; standalone feature verification and consolidated runtime acceptance remain. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
 ## Blockers
@@ -14501,3 +14501,54 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   --check passed. No functional/GPU/performance suite ran. Resource caps and
   cross-view atomic readiness are implementation policies awaiting integrated
   evidence; full M0-M9 completion remains unproven and the Goal stays active.
+
+## Player stamp CPU publication and retained graphical ownership (2026-11-15, integration active)
+
+- Previous goal turn was a status answer (no source progress); revalidated the
+  worktree and terminal release log before resuming implementation. Existing
+  networking-mmo-concept.md remains unmodified/untracked. Full M0-M9 Goal active.
+- Added rusterix::stamp_paint CPU-only derived assets with exact current visual
+  recipes, authored world/UV anchors and shared source image backing. Shared CPU
+  startup and the outward graphical project bridge publish region stamps next
+  to UV paint. This introduces no serialized project field or old-paint replay.
+  Hidden layers remove their publication before source refresh or enumeration.
+- Shared stamp recipe adaptation omits editable history/selections and preserves
+  authored iteration order, image material sampling and saved camera/viewport
+  scale. IsoPaintLayer default visibility is true. Distinct visual requests use
+  the same shared resumable kernels already used by Creator live stamps.
+- GameScreenController owns prepared CPU pixels and cancelable preparation,
+  scoped to session/map. Native workers use a bounded two-slot source class,
+  cancellation between kernel slices, panic/error delivery and application wake.
+  Browser owners advance one cooperative kernel slice per update. Worker spawn
+  failure is sticky until source/scope change; it cannot become an idle retry
+  loop. No native raster kernel runs in scene drawing.
+- Completed pixels survive GPU reconstruction and same-session navigation.
+  Hidden/text/2D/zero-size/mapless views clear GPU stamp requests; suspension and
+  owner cancellation retire pending jobs. Shared per-view upload helper preserves
+  exact placement keys, restores active VM even on errors and updates instance
+  prefixes for camera-only changes. Pending source readiness gates publication
+  and input along with UV readiness; notified workers do not add polling frames.
+- Presentation now explicitly enables shared's graphics feature because it is
+  the graphical consumer of the common preparation kernels. Isolated shared CPU
+  release compile PASS11.25s:
+  /private/tmp/eldiron-player-stamp-publication-release-cpu.log.
+  Initial canonical four-application release compilation PASS28.08s:
+  /private/tmp/eldiron-player-stamp-publication-release.log.
+  Standalone browser/native and canonical browser release checks are in progress.
+- No functional/GPU/performance suite run per implementation-first steering.
+  Consolidated acceptance must verify original/reference stamp pixels/ordering,
+  authored UV/world placement, multiple cameras, source edits/clear, cancellation,
+  navigation and device reconstruction, wake/zero-size/suspension behavior and
+  release latency/memory. Compilation does not establish those gates. Live source
+  working-set residency, large metadata/capture/organic GPU upload scheduling,
+  remaining canonical ownership/adapters and platform/resource/release-performance
+  acceptance remain open.
+- Standalone browser player release PASS16.22s; canonical browser Creator
+  PASS29.03s; standalone native player PASS15.44s. Logs:
+  /private/tmp/eldiron-player-stamp-publication-release-player-web.log,
+  /private/tmp/eldiron-player-stamp-publication-release-creator-web.log,
+  /private/tmp/eldiron-player-stamp-publication-release-player.log.
+  Final native four-application check completed; exact elapsed recorded next.
+  git diff --check passed. All compiler sessions terminal; no runtime suite ran.
+- Final canonical native release result: Finished `release` profile [optimized] target(s) in 18.06s. Log:
+  /private/tmp/eldiron-player-stamp-publication-release-final.log.

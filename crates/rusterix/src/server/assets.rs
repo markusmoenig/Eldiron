@@ -109,6 +109,7 @@ pub struct Assets {
     pub terrain_paint: FxHashMap<Uuid, Arc<crate::isometric::paint::TerrainPaint>>,
     /// Immutable persistent 3D paint source, shared by independent graphical views.
     pub surface_paint: FxHashMap<Uuid, Arc<crate::surface_paint::SurfacePaint>>,
+    pub stamp_paint: FxHashMap<Uuid, Arc<crate::stamp_paint::StampPaint>>,
     pub tile_indices: FxHashMap<Uuid, u16>,
 
     pub screens: FxHashMap<String, Map>,
@@ -404,6 +405,7 @@ impl Assets {
             tiles_revision: 0,
             terrain_paint: FxHashMap::default(),
             surface_paint: FxHashMap::default(),
+            stamp_paint: FxHashMap::default(),
             tile_indices: FxHashMap::default(),
             materials: FxHashMap::default(),
             screens: FxHashMap::default(),

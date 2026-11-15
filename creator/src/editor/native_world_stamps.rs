@@ -216,11 +216,7 @@ impl Drop for Work {
     }
 }
 
-#[derive(PartialEq, Eq)]
-pub(super) struct UploadKey {
-    source: Uuid,
-    instances: Vec<[u32; 7]>,
-}
+pub(super) use shared::iso_paint_render::stamp_billboards::StampUploadKey as UploadKey;
 
 pub(super) fn upload(
     set: &StampSpriteSet,
@@ -230,42 +226,10 @@ pub(super) fn upload(
     height: u32,
     uploaded: &mut Option<UploadKey>,
 ) -> Result<(), String> {
-    let instances = set.instances(layer, vm, camera, height)?;
-    let key = UploadKey {
-        source: set.id(),
-        instances: instances
-            .iter()
-            .map(|i| {
-                [
-                    i.center[0].to_bits(),
-                    i.center[1].to_bits(),
-                    i.center[2].to_bits(),
-                    i.width.to_bits(),
-                    i.height.to_bits(),
-                    i.sprite_index,
-                    i.flags,
-                ]
-            })
-            .collect(),
-    };
-    if uploaded.as_ref() == Some(&key) {
-        return Ok(());
-    }
-    if instances.is_empty() {
-        vm.execute(scenevm::Atom::ClearPaintBillboards);
-    } else if uploaded
-        .as_ref()
-        .is_some_and(|old| old.source == key.source && !old.instances.is_empty())
-    {
-        vm.execute(scenevm::Atom::SetPaintBillboardInstances { instances });
-    } else {
-        vm.execute(scenevm::Atom::SetPaintBillboards {
-            sprites: set.sprites(),
-            instances,
-        });
-    }
-    *uploaded = Some(key);
-    Ok(())
+    shared::iso_paint_render::stamp_billboards::upload_sprite_set(
+        set, layer, vm, camera, height, uploaded,
+    )
+    .map(|_| ())
 }
 
 impl Editor {

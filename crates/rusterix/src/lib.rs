@@ -52,6 +52,7 @@ pub mod scenemanager;
 pub mod server;
 pub mod speech;
 pub mod surface_paint;
+pub mod stamp_paint;
 #[cfg(not(feature = "graphics"))]
 #[path = "client/text_command.rs"]
 pub mod text_command;

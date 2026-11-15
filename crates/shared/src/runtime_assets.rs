@@ -1539,9 +1539,11 @@ pub fn start_server(
 
     assets.terrain_paint.clear();
     assets.surface_paint.clear();
+    assets.stamp_paint.clear();
     for region in &mut project.regions {
         crate::iso_paint_terrain::sync(assets, region.map.id, &mut region.iso_paint);
         crate::surface_paint::sync(assets, region.map.id, &mut region.iso_paint)?;
+        crate::stamp_paint::sync(assets, region.map.id, &mut region.iso_paint);
     }
 
     // The session owns world-map lookup even when no graphical client is set up.

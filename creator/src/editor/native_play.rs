@@ -138,6 +138,7 @@ impl PlayScreen {
         Ok(())
     }
     fn cancel(&mut self) {
+        self.screen.suspend_scene_sources();
         self.screen.invalidate_world_input();
         self.clipboard = None;
         self.capture = None;
@@ -519,6 +520,9 @@ impl Editor {
             self.pending_game_messages.clear();
             self.pending_game_says.clear();
             self.pending_game_choices.clear();
+        }
+        if let Some(screen) = &mut owner.screen {
+            screen.screen.set_scene_source_wake(self.application_wake.clone());
         }
         let replaced = owner.advance(
             &world,

@@ -10,6 +10,7 @@ mod editor;
 mod isometric;
 mod picking;
 mod surface_paint;
+mod stamp_paint;
 pub use surface_paint::SurfacePaintStats;
 mod surface_output;
 pub use picking::{EditorPaintCapture, EditorPaintPick, EditorPick, EditorSurfacePick, ViewPick, ViewPickHit};
@@ -49,6 +50,8 @@ struct SceneView {
     editor_source: Option<Arc<rusterix::scene_build_index::SceneBuildSnapshot>>,
     surface_paint_source: Option<Arc<rusterix::surface_paint::SurfacePaint>>,
     surface_paint_ready: bool,
+    stamp_paint_ready: bool,
+    stamp_uploaded: Option<shared::iso_paint_render::stamp_billboards::StampUploadKey>,
     isometric: bool,
     isometric_renderer: Option<crate::isometric::IsometricSceneRenderer>,
     isometric_frame: Option<crate::isometric::IsometricPreparedFrame>,
@@ -126,6 +129,8 @@ impl SceneViews {
                 editor_source: None,
                 surface_paint_source: None,
                 surface_paint_ready: true,
+                stamp_paint_ready: true,
+                stamp_uploaded: None,
                 isometric: false,
                 isometric_renderer: None,
                 isometric_frame: None,
@@ -235,7 +240,7 @@ impl SceneViews {
         if view.size.0 == 0 || view.size.1 == 0 {
             return Ok(None);
         }
-        if !view.surface_paint_ready {
+        if !view.surface_paint_ready || !view.stamp_paint_ready {
             return Ok(None);
         }
         if !view.dirty

@@ -12,6 +12,7 @@ pub mod iso_paint;
 pub mod iso_paint_brush;
 pub mod paint_source;
 pub mod surface_paint;
+pub mod stamp_paint;
 #[cfg(feature = "graphics")]
 pub mod iso_paint_render;
 pub mod iso_paint_terrain;

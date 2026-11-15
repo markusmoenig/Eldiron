@@ -227,6 +227,10 @@ impl PlayerApplication {
         Ok(())
     }
     fn sync_host(&mut self, host: &mut HostContext) -> std::result::Result<(), String> {
+        self.screen.set_scene_source_wake(Some(host.wake.clone()));
+        if self.suspended || host.physical_size.0 == 0 || host.physical_size.1 == 0 {
+            self.screen.suspend_scene_sources();
+        }
         if self.screen.runtime_session() != self.player.runtime.view().session_id {
             self.pending_clipboard = None;
             self.modifiers = Modifiers::default();
@@ -676,6 +680,7 @@ impl GpuApplication for PlayerApplication {
             return;
         }
         self.suspended = true;
+        self.screen.suspend_scene_sources();
         self.services.set_suspended(true);
         self.route(&InputEvent::Focus(false), host)
             .unwrap_or_else(|error| {
