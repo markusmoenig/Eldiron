@@ -8,6 +8,8 @@ const DEFAULT_PAINT_COLOR_PIXEL: [u8; 4] = [0, 0, 0, 0];
 const DEFAULT_PAINT_MATERIAL_PIXEL: [u8; 4] = [254, 0, 0, 0];
 
 mod entity_pixels;
+mod geometry_storage;
+use geometry_storage::{GeometryStorage, Kind as GeometryBufferKind};
 #[cfg(not(target_arch = "wasm32"))]
 mod irradiance;
 mod raster3d;
@@ -615,6 +617,7 @@ pub struct VMGpu {
     pub u_raster3d_bg: Option<wgpu::BindGroup>,
     pub u_raster3d_shadow_bg: Option<wgpu::BindGroup>,
     pub u_paint_surface_bg: Option<wgpu::BindGroup>,
+    geometry_storage: GeometryStorage,
     pub v2d_ssbo: Option<wgpu::Buffer>,
     pub i2d_ssbo: Option<wgpu::Buffer>,
     pub v3d_ssbo: Option<wgpu::Buffer>,
@@ -6765,6 +6768,7 @@ impl VM {
             u_raster3d_bg: None,
             u_raster3d_shadow_bg: None,
             u_paint_surface_bg: None,
+            geometry_storage: GeometryStorage::default(),
             v2d_ssbo: None,
             i2d_ssbo: None,
             v3d_ssbo: None,
@@ -10272,24 +10276,24 @@ impl VM {
                 buffer.size() < index_bytes || !buffer.usage().contains(wgpu::BufferUsages::INDEX)
             });
             if grow_vertices {
-                g.v2d_ssbo = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                g.v2d_ssbo = Some(g.geometry_storage.create(device, queue, self.target_context.as_deref(), GeometryBufferKind::Vertices2D, &wgpu::BufferDescriptor {
                     label: Some("vm-2d-verts-raster"),
                     size: vertex_bytes.next_power_of_two(),
                     usage: wgpu::BufferUsages::STORAGE
                         | wgpu::BufferUsages::VERTEX
                         | wgpu::BufferUsages::COPY_DST,
                     mapped_at_creation: false,
-                }));
+                })?);
             }
             if grow_indices {
-                g.i2d_ssbo = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                g.i2d_ssbo = Some(g.geometry_storage.create(device, queue, self.target_context.as_deref(), GeometryBufferKind::Indices2D, &wgpu::BufferDescriptor {
                     label: Some("vm-2d-indices-raster"),
                     size: index_bytes.next_power_of_two(),
                     usage: wgpu::BufferUsages::STORAGE
                         | wgpu::BufferUsages::INDEX
                         | wgpu::BufferUsages::COPY_DST,
                     mapped_at_creation: false,
-                }));
+                })?);
             }
             if (rebuild_static_2d || grow_vertices) && !static_vertices.is_empty() {
                 queue.write_buffer(g.v2d_ssbo.as_ref().unwrap(), 0, static_vertices);
@@ -10634,7 +10638,6 @@ impl VM {
             }
         }
 
-        use wgpu::util::DeviceExt;
         self.upload_scene_data_ssbo(device, queue);
 
         let mut uploaded_geometry = false;
@@ -10668,22 +10671,22 @@ impl VM {
                 };
 
                 g.v2d_ssbo = Some(
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    g.geometry_storage.create_init(device, queue, self.target_context.as_deref(), GeometryBufferKind::Vertices2D, &wgpu::util::BufferInitDescriptor {
                         label: Some("vm-2d-verts-ssbo"),
                         contents: verts_bytes,
                         usage: wgpu::BufferUsages::STORAGE
                             | wgpu::BufferUsages::VERTEX
                             | wgpu::BufferUsages::COPY_DST,
-                    }),
+                    })?,
                 );
                 g.i2d_ssbo = Some(
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    g.geometry_storage.create_init(device, queue, self.target_context.as_deref(), GeometryBufferKind::Indices2D, &wgpu::util::BufferInitDescriptor {
                         label: Some("vm-2d-indices-ssbo"),
                         contents: indices_bytes,
                         usage: wgpu::BufferUsages::STORAGE
                             | wgpu::BufferUsages::INDEX
                             | wgpu::BufferUsages::COPY_DST,
-                    }),
+                    })?,
                 );
                 if geometry_changed {
                     uploaded_geometry = true;
@@ -10703,7 +10706,7 @@ impl VM {
                 };
 
                 g.tile_bins = Some(
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    g.geometry_storage.create_init(device, queue, self.target_context.as_deref(), GeometryBufferKind::TileBins, &wgpu::util::BufferInitDescriptor {
                         label: Some("vm-2d-tile-bins"),
                         contents: if bins_slice.is_empty() {
                             bytemuck::bytes_of(&TileBinPod {
@@ -10714,14 +10717,14 @@ impl VM {
                             bytemuck::cast_slice(bins_slice)
                         },
                         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                    }),
+                    })?,
                 );
                 g.tile_tris = Some(
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    g.geometry_storage.create_init(device, queue, self.target_context.as_deref(), GeometryBufferKind::TileTriangles, &wgpu::util::BufferInitDescriptor {
                         label: Some("vm-2d-tile-tris"),
                         contents: bytemuck::cast_slice(tris_slice),
                         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                    }),
+                    })?,
                 );
             }
         }
@@ -10918,7 +10921,6 @@ impl VM {
             .texture_views()
             .expect("atlas GPU resources missing");
 
-        use wgpu::util::DeviceExt;
         self.upload_scene_data_ssbo(device, queue);
 
         // --- Build 3D geometry only when accel_dirty says so ---
@@ -11193,18 +11195,18 @@ impl VM {
                 };
 
                 g.grid_hdr = Some(
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    g.geometry_storage.create_init(device, queue, self.target_context.as_deref(), GeometryBufferKind::GridHeader, &wgpu::util::BufferInitDescriptor {
                         label: Some("vm-grid3d-hdr"),
                         contents: bytemuck::bytes_of(&grid_hdr_data),
                         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    }),
+                    })?,
                 );
                 g.grid_data = Some(
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    g.geometry_storage.create_init(device, queue, self.target_context.as_deref(), GeometryBufferKind::GridData, &wgpu::util::BufferInitDescriptor {
                         label: Some("vm-grid3d-data"),
                         contents: bytemuck::cast_slice(&combined),
                         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                    }),
+                    })?,
                 );
                 uploaded_grid = grid_changed;
             }
@@ -11212,22 +11214,22 @@ impl VM {
             let need_geom_upload = geometry_changed || g.v3d_ssbo.is_none() || g.i3d_ssbo.is_none();
             if need_geom_upload {
                 g.v3d_ssbo = Some(
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    g.geometry_storage.create_init(device, queue, self.target_context.as_deref(), GeometryBufferKind::Vertices3D, &wgpu::util::BufferInitDescriptor {
                         label: Some("vm-3d-verts-ssbo"),
                         contents: bytemuck::cast_slice(&self.cached_v3),
                         usage: wgpu::BufferUsages::STORAGE
                             | wgpu::BufferUsages::VERTEX
                             | wgpu::BufferUsages::COPY_DST,
-                    }),
+                    })?,
                 );
                 g.i3d_ssbo = Some(
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    g.geometry_storage.create_init(device, queue, self.target_context.as_deref(), GeometryBufferKind::Indices3D, &wgpu::util::BufferInitDescriptor {
                         label: Some("vm-3d-indices-ssbo"),
                         contents: bytemuck::cast_slice(&self.cached_i3),
                         usage: wgpu::BufferUsages::STORAGE
                             | wgpu::BufferUsages::INDEX
                             | wgpu::BufferUsages::COPY_DST,
-                    }),
+                    })?,
                 );
                 if geometry_changed {
                     uploaded_geom = true;
@@ -11413,7 +11415,6 @@ impl VM {
 
         let c = self.camera3d;
 
-        use wgpu::util::DeviceExt;
 
         // Ensure tile indices are current before we resolve dynamic billboard tile ids.
         self.build_atlas();
@@ -12101,23 +12102,23 @@ impl VM {
                     self.raster_vertex_upload_bytes += vertex_bytes as usize;
                 }
                 g.v3d_ssbo = Some(
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    g.geometry_storage.create_init(device, queue, self.target_context.as_deref(), GeometryBufferKind::Vertices3D, &wgpu::util::BufferInitDescriptor {
                         label: Some("vm-3d-verts-raster"),
                         contents: bytemuck::cast_slice(&self.cached_v3),
                         usage: wgpu::BufferUsages::STORAGE
                             | wgpu::BufferUsages::VERTEX
                             | wgpu::BufferUsages::COPY_DST,
-                    }),
+                    })?,
                 );
                 g.v3d_ssbo_capacity = vertex_bytes;
                 g.i3d_ssbo = Some(
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    g.geometry_storage.create_init(device, queue, self.target_context.as_deref(), GeometryBufferKind::Indices3D, &wgpu::util::BufferInitDescriptor {
                         label: Some("vm-3d-indices-raster-all"),
                         contents: bytemuck::cast_slice(&self.cached_i3),
                         usage: wgpu::BufferUsages::STORAGE
                             | wgpu::BufferUsages::INDEX
                             | wgpu::BufferUsages::COPY_DST,
-                    }),
+                    })?,
                 );
                 g.i3d_ssbo_capacity = index_bytes;
             } else if geometry_changed {
@@ -12157,13 +12158,13 @@ impl VM {
                     self.cached_line3d.clone()
                 };
                 g.line3d_raster_count = self.cached_line3d.len() as u32;
-                g.line3d_raster = Some(device.create_buffer_init(
+                g.line3d_raster = Some(g.geometry_storage.create_init(device, queue, self.target_context.as_deref(), GeometryBufferKind::Lines,
                     &wgpu::util::BufferInitDescriptor {
                         label: Some("vm-3d-lines-raster"),
                         contents: bytemuck::cast_slice(&line_upload),
                         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                     },
-                ));
+                )?);
                 g.line3d_raster_capacity =
                     (line_upload.len() * std::mem::size_of::<Line3DPod>()) as u64;
             }
@@ -12181,11 +12182,14 @@ impl VM {
             VMGpu::update_or_create_index_buffer(
                 device,
                 queue,
+                self.target_context.as_deref(),
+                &mut g.geometry_storage,
+                GeometryBufferKind::Visible,
                 &mut g.i3d_raster,
                 &mut g.i3d_raster_capacity,
                 "vm-3d-indices-raster-visible",
                 &visible_upload,
-            );
+            )?;
 
             let opaque_upload = if opaque_indices.is_empty() {
                 vec![0u32]
@@ -12200,11 +12204,14 @@ impl VM {
             VMGpu::update_or_create_index_buffer(
                 device,
                 queue,
+                self.target_context.as_deref(),
+                &mut g.geometry_storage,
+                GeometryBufferKind::Opaque,
                 &mut g.i3d_raster_opaque,
                 &mut g.i3d_raster_opaque_capacity,
                 "vm-3d-indices-raster-opaque",
                 &opaque_upload,
-            );
+            )?;
 
             let paint_alpha_upload = if paint_alpha_indices.is_empty() {
                 vec![0u32]
@@ -12219,11 +12226,14 @@ impl VM {
             VMGpu::update_or_create_index_buffer(
                 device,
                 queue,
+                self.target_context.as_deref(),
+                &mut g.geometry_storage,
+                GeometryBufferKind::PaintAlpha,
                 &mut g.i3d_raster_paint_alpha,
                 &mut g.i3d_raster_paint_alpha_capacity,
                 "vm-3d-indices-raster-paint-alpha",
                 &paint_alpha_upload,
-            );
+            )?;
 
             let transparent_upload = if transparent_indices.is_empty() {
                 vec![0u32]
@@ -12238,11 +12248,14 @@ impl VM {
             VMGpu::update_or_create_index_buffer(
                 device,
                 queue,
+                self.target_context.as_deref(),
+                &mut g.geometry_storage,
+                GeometryBufferKind::Transparent,
                 &mut g.i3d_raster_transparent,
                 &mut g.i3d_raster_transparent_capacity,
                 "vm-3d-indices-raster-transparent",
                 &transparent_upload,
-            );
+            )?;
 
             let particle_upload = if particle_indices.is_empty() {
                 vec![0u32]
@@ -12257,11 +12270,14 @@ impl VM {
             VMGpu::update_or_create_index_buffer(
                 device,
                 queue,
+                self.target_context.as_deref(),
+                &mut g.geometry_storage,
+                GeometryBufferKind::Particles,
                 &mut g.i3d_raster_particles,
                 &mut g.i3d_raster_particles_capacity,
                 "vm-3d-indices-raster-particles",
                 &particle_upload,
-            );
+            )?;
             indices_ms = upload_elapsed();
 
             g.u_raster3d_shadow_bg = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -16399,7 +16415,7 @@ mod shader_tests {
             });
             vm.raster_mesh_cache.push(cache);
         }
-        Arc::make_mut(&mut vm.raster3d_paint_alpha_geo_ids).insert(GeoId::Item(13));
+        std::sync::Arc::make_mut(&mut vm.raster3d_paint_alpha_geo_ids).insert(GeoId::Item(13));
         vm.cached_tri_visibility = vec![63];
         vm.raster_static_geometry_ready = true;
         let mut camera = crate::Camera3D::default();

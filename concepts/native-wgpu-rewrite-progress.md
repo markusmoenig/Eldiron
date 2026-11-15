@@ -15773,3 +15773,49 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Actual wasm Creator browser-host release compile PASS22.96s:
   /private/tmp/eldiron-isometric-shadow-owner-release-wasm.log. All handles terminal,
   diff whitespace clean. Continue with canonical VM geometry allocation owners.
+
+## Canonical VM geometry allocation owners (2026-11-15)
+
+- Added vm/geometry_storage.rs. Fourteen semantic roles retain device leases for
+  raster/compute 2D/3D vertices and indices, raster visible/opaque/paint/transparent/
+  particle partitions, lines, tile bins/triangle lists and acceleration-grid header/
+  data. Role replacement drops its previous lease across render-mode changes;
+  existing public raw slots, capacities, partial writes, sentinels and reference
+  dedicated allocation remain unchanged. Reused padding clears on the GPU.
+- Library release check PASS1.41s after importing the new owner types into the
+  separate raster3d helper. Focused release Metal geometry contract PASS0.17s:
+  /private/tmp/eldiron-geometry-owner-release-contract.log. It renders actual
+  visible geometry in all4 modes through1/48/1 polygons, warm repeats and raster/
+  compute/raster switches, asserts exact unchanged visible pixels, stable warm
+  allocations, no normal capture staging and final active geometry bytes/count0.
+- The new fixture initially lacked a usable gamma (raw VM defaults zero), making
+  its non-primary tile black. Diagnostics confirmed geometry slots and packed tile
+  entries; setting the actual display gamma resolves it. Early failure retained
+  in /private/tmp/eldiron-geometry-owner-release-contract-initial-failed.log. The
+  established isolated reference geometry/camera/dynamic test also PASS0.08s:
+  /private/tmp/eldiron-geometry-owner-release-reference.log. Its test-module build
+  exposed an earlier rewrite's unqualified Arc in one alpha-owner test; qualified
+  that call (initial compile failure retained in *-reference-initial-failed.log).
+- Automatic approval review rejected an unnecessary whole-file whitespace cleanup
+  bundled with the first proposed test command. That command did not execute;
+  applied only the one new trailing-whitespace line via apply_patch, then created
+  the focused test and ran its command separately. No permission bypass or broad
+  whitespace rewrite. Concurrent networking concept remains untouched/untracked.
+- Canonical native release compilation in flight; actual wasm check follows.
+  Continue with raw scene-data, tile metadata/frame tables, SDF/material metadata
+  and irradiance-grid storage. Existing transfer counters still do not account
+  every VM geometry partial write; this allocation change does not establish
+  whole-frame CPU/GPU/upload budgets or final M0–M9 acceptance.
+
+- Canonical four-application native release compile PASS23.69s:
+  /private/tmp/eldiron-geometry-owner-release-native.log. Browser target release
+  check in flight. Diagnostic prints removed after the contract passed; no runtime
+  geometry behavior or acceptance assertions changed by that cleanup.
+
+- Actual wasm Creator browser-host release compile PASS22.78s:
+  /private/tmp/eldiron-geometry-owner-release-wasm.log. Follow-up common allocator
+  refinement skips redundant GPU clear submissions when a full nonempty source
+  initializes every allocated byte; partial/empty allocation still clears its
+  padding/sentinel. Focused final geometry contract PASS0.15s (build5.96s):
+  /private/tmp/eldiron-geometry-owner-release-contract-final.log. All handles
+  terminal. Proceed immediately with scene and material/SDF/irradiance tables.

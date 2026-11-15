@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use wgpu::util::DeviceExt;
+use super::{GeometryBufferKind, GeometryStorage};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -245,24 +245,32 @@ impl super::VMGpu {
     pub(super) fn update_or_create_index_buffer(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
+        context: Option<&renderkit::GpuContext>,
+        storage: &mut GeometryStorage,
+        kind: GeometryBufferKind,
         slot: &mut Option<wgpu::Buffer>,
         capacity: &mut u64,
         label: &'static str,
         data: &[u32],
-    ) {
+    ) -> crate::SceneVMResult<()> {
         let size = std::mem::size_of_val(data) as u64;
         if slot.is_none() || *capacity < size {
-            *slot = Some(
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            *slot = Some(storage.create_init(
+                device,
+                queue,
+                context,
+                kind,
+                &wgpu::util::BufferInitDescriptor {
                     label: Some(label),
                     contents: bytemuck::cast_slice(data),
                     usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-                }),
-            );
+                },
+            )?);
             *capacity = size;
         } else if let Some(buffer) = slot.as_ref() {
             queue.write_buffer(buffer, 0, bytemuck::cast_slice(data));
         }
+        Ok(())
     }
 }
 
