@@ -10,6 +10,9 @@ mod play;
 mod game_input;
 #[path = "native_schedule.rs"]
 mod schedule;
+#[cfg(any(target_arch = "wasm32", feature = "staticlib"))]
+#[path = "native_source_diagnostics.rs"]
+mod source_diagnostics;
 use play::NativePlayFrame;
 use viewport::NativeDisplayFrame;
 pub(crate) use viewport::NativeViewport;

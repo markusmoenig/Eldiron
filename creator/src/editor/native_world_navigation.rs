@@ -244,6 +244,9 @@ impl Editor {
             "navigation": self.native_viewport.world.relative_navigation.is_some(), "moving": camera.move_action.is_some(), "fly": self.server_ctx.shared.editor_fly_nav_active,
             "fly_mouse": self.server_ctx.shared.editor_fly_nav_mouse_down,
             "world": self.native_world_owns_viewport(),
+            "world_sources": self.native_viewport.world.gpu.as_ref()
+                .map(|gpu| super::super::source_diagnostics::snapshot(&gpu.scenes)),
+            "play_sources": self.native_viewport.play.source_diagnostics(),
             "bake": self.native_viewport.world.bake_jobs.diagnostics(&self.server_ctx.bake.read()),
             "bake_pages": self.native_viewport.world.gpu.as_ref().and_then(|gpu| gpu.bake.diagnostics()),
             "source": {

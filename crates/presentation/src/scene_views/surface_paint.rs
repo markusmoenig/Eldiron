@@ -26,6 +26,7 @@ pub struct SurfacePaintStats {
     pub gpu_copied_bytes: u64,
     pub reused_bindings: u64,
     pub pending_sources: usize,
+    pub failed_sources: usize,
     pub frame_uploaded_bytes: usize,
     pub pending_views: usize,
 }
@@ -397,6 +398,7 @@ impl Sources {
             gpu_copied_bytes: self.gpu_copied_bytes,
             reused_bindings: self.reused_bindings,
             pending_sources: self.pending.len(),
+            failed_sources: self.bindings.values().filter(|entry| matches!(entry.state, State::Failed(_))).count(),
             frame_uploaded_bytes: self.frame_bytes,
             pending_views: 0,
         }

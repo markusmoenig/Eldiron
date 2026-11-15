@@ -4,6 +4,12 @@ use super::*;
 use shared::iso_paint::IsoPaintLayer;
 use shared::iso_paint_render::stamp_billboards::{StampSpriteSet, upload_sprite_set};
 impl SceneViews {
+    pub fn scene_source_preparation_cpu_ns(&self) -> u64 {
+        self.source_upload_budget.preparation_cpu_ns()
+    }
+    pub fn scene_source_preparation_calls(&self) -> u64 {
+        self.source_upload_budget.preparation_calls()
+    }
     pub fn scene_source_uploaded_bytes(&self) -> usize {
         self.source_upload_budget.uploaded_bytes()
     }

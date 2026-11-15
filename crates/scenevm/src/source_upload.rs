@@ -6,6 +6,8 @@ use renderkit::{RenderError, Result};
 pub struct SourceUploadBudget {
     bytes: usize,
     gpu_copied_bytes: u64,
+    preparation_cpu_ns: u64,
+    preparation_calls: u64,
     started: Option<instant::Instant>,
     cpu_words: usize,
     cpu_steps: usize,
@@ -18,6 +20,8 @@ impl Default for SourceUploadBudget {
         Self {
             bytes: 0,
             gpu_copied_bytes: 0,
+            preparation_cpu_ns: 0,
+            preparation_calls: 0,
             started: None,
             cpu_words: 0,
             cpu_steps: 0,
@@ -28,6 +32,18 @@ impl Default for SourceUploadBudget {
     }
 }
 impl SourceUploadBudget {
+    /// CPU wall time inside cooperative preparation, including driver queueing;
+    /// this is not GPU execution time or total application-frame CPU time.
+    pub fn preparation_cpu_ns(&self) -> u64 {
+        self.preparation_cpu_ns
+    }
+    pub fn preparation_calls(&self) -> u64 {
+        self.preparation_calls
+    }
+    fn record_preparation(&mut self, elapsed: u64) {
+        self.preparation_cpu_ns = self.preparation_cpu_ns.saturating_add(elapsed);
+        self.preparation_calls = self.preparation_calls.saturating_add(1);
+    }
     pub fn packed_cpu_bytes(&self) -> usize {
         self.cpu_words * 4
     }
@@ -101,6 +117,7 @@ impl SceneVM {
             .gpu
             .as_ref()
             .ok_or_else(|| RenderError("scene GPU is not initialized".into()))?;
+        let started = instant::Instant::now();
         let before = budget.uploaded_bytes();
         let result = (|| {
             let mut ready = true;
@@ -119,6 +136,7 @@ impl SceneVM {
             Ok(ready)
         })();
         context.record_upload((budget.uploaded_bytes() - before) as u64);
+        budget.record_preparation(started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64);
         result
     }
     pub fn cancel_source_uploads(&mut self) {

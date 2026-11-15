@@ -15505,3 +15505,28 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   available to the existing browser/Apple inspection boundary, then close remaining
   source capture/placement ownership and canonical adapter inventory before broad
   functional/platform/release-performance verification. Full Goal is unfinished.
+
+
+## Application source inspection evidence (2026-11-15)
+
+- Existing browser/Apple view inspection now includes world and owned Play source
+  producers: logical CPU page bytes, producer plane/table storage, pending/failed
+  sources/views, upload/reuse/copy counts and the current frame's scene packing/
+  transfer work. Device pool live/peak ownership remains separately reported;
+  source producer sizes do not claim total application/driver memory.
+- Cooperative SceneVM source preparation records call count and active CPU wall
+  interval, including CPU driver queueing. It excludes waiting between calls and
+  is explicitly neither GPU execution time nor total application-frame CPU time.
+  Counters reset with the existing application-frame budget and remain available
+  through SceneViews. UI/product flows are unchanged; JSON is inspection-only.
+- Actual wasm Creator browser target release compile PASS22.91s:
+  /private/tmp/eldiron-source-diagnostics-release-wasm.log. Canonical native app
+  feature compilation is in flight. No new broad suite or benchmark was run.
+  Next ownership refinement: share the original alpha-owner catalogue as well as
+  the finished lookup, and omit unused transient stroke-commit IDs from current
+  view snapshots instead of copying authoring bookkeeping every camera request.
+
+- Canonical four-application native release compilation PASS24.07s:
+  /private/tmp/eldiron-source-diagnostics-release-native.log. All handles terminal;
+  diff whitespace check passes. Inspection code compiled through the actual wasm
+  host path; no new benchmarks, GUI sessions or broad tests were started.

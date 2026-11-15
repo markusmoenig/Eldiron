@@ -159,6 +159,10 @@ pub(crate) struct NativePlay {
     input_blocked: bool,
 }
 impl NativePlay {
+    #[cfg(any(target_arch = "wasm32", feature = "staticlib"))]
+    pub(super) fn source_diagnostics(&self) -> Option<serde_json::Value> {
+        self.gpu.as_ref().map(|gpu| super::source_diagnostics::snapshot(&gpu.scenes))
+    }
     pub(super) fn source_uploads_pending(&self) -> bool {
         self.binding.is_some() && self.screen.as_ref().is_some_and(|screen| screen.screen.has_pending_scene_uploads())
     }
