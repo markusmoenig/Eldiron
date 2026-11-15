@@ -119,6 +119,8 @@ pub struct Renderer {
 }
 pub(super) struct PreparedMesh {
     vertices: wgpu::Buffer,
+    #[cfg(feature = "native-render")]
+    _vertices_owner: Option<std::sync::Arc<renderkit::GpuBuffer>>,
     count: u32,
     pub projection: super::scene::Projection,
     pub extent: f32,
@@ -215,6 +217,7 @@ impl Renderer {
         queue: &wgpu::Queue,
         job: &Job,
         native_bindings: Option<wgpu::BindGroup>,
+        #[cfg(feature = "native-render")] context: Option<&renderkit::GpuContext>,
     ) -> Result<PreparedMesh, String> {
         let (w, h) = (job.width.max(16), job.height.max(16));
         if w > device.limits().max_texture_dimension_2d
@@ -416,13 +419,32 @@ impl Renderer {
             .iter()
             .flat_map(|v| v.to_ne_bytes())
             .collect::<Vec<_>>();
-        let vertices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("MZ mesh vertices"),
-            contents: &data,
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        let raw_vertices = || {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("MZ mesh vertices"),
+                contents: &data,
+                usage: wgpu::BufferUsages::VERTEX,
+            })
+        };
+        #[cfg(feature = "native-render")]
+        let owner = context
+            .map(|c| c.upload_immutable_buffer(&data, wgpu::BufferUsages::VERTEX))
+            .transpose()
+            .map_err(|e| e.to_string())?;
+        let vertices = {
+            #[cfg(feature = "native-render")]
+            {
+                owner.as_ref().map_or_else(raw_vertices, |b| b.buffer().clone())
+            }
+            #[cfg(not(feature = "native-render"))]
+            {
+                raw_vertices()
+            }
+        };
         Ok(PreparedMesh {
             vertices,
+            #[cfg(feature = "native-render")]
+            _vertices_owner: owner,
             count: floats.len() as u32 / 15,
             projection: super::scene::Projection::new(
                 (lo, hi),
@@ -522,6 +544,9 @@ impl Renderer {
         job: &Job,
     ) -> Result<TheRGBABuffer, String> {
         let (w, h) = (job.width.max(16), job.height.max(16));
+        #[cfg(feature = "native-render")]
+        let prepared = self.prepare_mesh(device, queue, job, None, None)?;
+        #[cfg(not(feature = "native-render"))]
         let prepared = self.prepare_mesh(device, queue, job, None)?;
         // Reuse large color/depth/readback allocations while the viewport size is stable.
         let mut storage = self

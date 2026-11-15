@@ -143,3 +143,92 @@ fn source_array_layers_and_mips_are_separate_owned_storage() {
     assert_eq!(context.target_pool_usage().live_bytes, 0);
     assert_eq!(context.target_pool_usage().live_allocations, 0);
 }
+
+#[test]
+#[ignore = "native GPU; compatible storage/sRGB array views"]
+fn source_color_views_preserve_bytes_and_sampling_without_duplicate_storage() {
+    let context = pollster::block_on(GpuContext::headless()).unwrap();
+    let descriptor = TargetDescriptor {
+        array_layers: 2,
+        usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+        ..TargetDescriptor::color(2, 2, wgpu::TextureFormat::Rgba8Unorm)
+    };
+    let source = context.acquire_target(descriptor).unwrap();
+    context.queue.write_texture(
+        source.texture().as_image_copy(),
+        &[128, 64, 32, 255].repeat(8),
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(8),
+            rows_per_image: Some(2),
+        },
+        source.texture().size(),
+    );
+    let view = source.texture().create_view(&wgpu::TextureViewDescriptor {
+        format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+        dimension: Some(wgpu::TextureViewDimension::D2Array),
+        usage: Some(wgpu::TextureUsages::TEXTURE_BINDING),
+        ..Default::default()
+    });
+    assert_eq!(context.target_pool_usage().live_bytes, 32);
+    assert_eq!(context.target_pool_usage().allocations, 1);
+    let mut target = TargetDescriptor::color(1, 1, wgpu::TextureFormat::Rgba8Unorm);
+    target.usage |= wgpu::TextureUsages::STORAGE_BINDING;
+    let output = GpuImage::from_target(
+        &context,
+        context.acquire_target(target).unwrap(),
+        ImageDescriptor {
+            format: target.format,
+            color_space: ColorSpace::Linear,
+            ..ImageDescriptor::rgba(1, 1)
+        },
+    )
+    .unwrap();
+    let shader = context.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("pooled sRGB sampling contract"),
+        source: wgpu::ShaderSource::Wgsl("@group(0) @binding(0) var source:texture_2d_array<f32>; @group(0) @binding(1) var destination:texture_storage_2d<rgba8unorm,write>; @compute @workgroup_size(1) fn main(){textureStore(destination,vec2<i32>(0),textureLoad(source,vec2<i32>(0),1,0));}".into()),
+    });
+    let pipeline = context
+        .device
+        .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: None,
+            layout: None,
+            module: &shader,
+            entry_point: Some("main"),
+            compilation_options: Default::default(),
+            cache: None,
+        });
+    let bindings = context
+        .device
+        .create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &pipeline.get_bind_group_layout(0),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&output.view),
+                },
+            ],
+        });
+    let mut encoder = context.device.create_command_encoder(&Default::default());
+    {
+        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
+        pass.set_pipeline(&pipeline);
+        pass.set_bind_group(0, &bindings, &[]);
+        pass.dispatch_workgroups(1, 1, 1);
+    }
+    context.queue.submit([encoder.finish()]);
+    assert_eq!(pixel(&context, output), [55, 13, 4, 255]);
+    drop(source);
+    let allocations = context.target_pool_usage().allocations;
+    let reused = context.acquire_target(descriptor).unwrap();
+    assert_eq!(context.target_pool_usage().allocations, allocations);
+    assert_eq!(context.target_pool_usage().hits, 1);
+    drop(reused);
+    context.set_target_cache_limits(0, 0);
+    assert_eq!(context.target_pool_usage().live_bytes, 0);
+}

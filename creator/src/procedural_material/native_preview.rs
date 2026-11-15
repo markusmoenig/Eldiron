@@ -6,7 +6,6 @@ use denrim_materials::{
 };
 use renderkit::{AlphaMode, ColorSpace, GpuContext, GpuImage, ImageDescriptor, StatusReadback};
 use std::sync::Arc;
-use wgpu::util::DeviceExt;
 const PREVIEW_SIZE: u32 = 384;
 const TARGET_BYTES: u64 = 128 * 1024 * 1024;
 #[derive(Clone)]
@@ -521,15 +520,11 @@ impl Preview {
         }
         let uniform = self
             .context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("native material display domain"),
-                contents: &data,
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
+            .upload_immutable_buffer(&data, wgpu::BufferUsages::UNIFORM)
+            .map_err(|e| e.to_string())?;
         let mut entries = vec![wgpu::BindGroupEntry {
             binding: 0,
-            resource: uniform.as_entire_binding(),
+            resource: uniform.buffer().as_entire_binding(),
         }];
         entries.extend(evaluation.surface.maps.iter().enumerate().map(|(i, map)| {
             wgpu::BindGroupEntry {

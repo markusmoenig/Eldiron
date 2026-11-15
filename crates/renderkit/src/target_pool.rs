@@ -234,6 +234,15 @@ impl TargetPool {
             // An oversized working set should not also retain old idle targets.
             while cache.evict() {}
         }
+        // Color storage may be written as linear Unorm bytes and sampled via
+        // its compatible sRGB view. This universal alias policy does not change
+        // storage/usage/bytes or the default view, and is identical for all keys.
+        let alternate = if descriptor.format.is_srgb() {
+            descriptor.format.remove_srgb_suffix()
+        } else {
+            descriptor.format.add_srgb_suffix()
+        };
+        let alternate = (alternate != descriptor.format).then_some(alternate);
         let texture = context.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("renderkit pooled target"),
             size: wgpu::Extent3d {
@@ -246,7 +255,7 @@ impl TargetPool {
             dimension: wgpu::TextureDimension::D2,
             format: descriptor.format,
             usage: descriptor.usage,
-            view_formats: &[],
+            view_formats: alternate.as_slice(),
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let target = Arc::new(Target {

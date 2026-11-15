@@ -39,19 +39,19 @@ pub(super) struct NativePreview {
     mesh: Renderer,
     materials: GpuTextures,
     targets: Vec<Arc<GpuImage>>,
-    depth: Option<(u32, u32, wgpu::TextureView)>,
+    depth: Option<(u32, u32, renderkit::TargetLease)>,
     pending: Option<((u64, u64, u32), Frame)>,
 }
 impl NativePreview {
-    pub fn new(context: Arc<GpuContext>) -> Self {
-        Self {
+    pub fn new(context: Arc<GpuContext>) -> Result<Self, String> {
+        Ok(Self {
             mesh: Renderer::new(&context.device),
-            materials: GpuTextures::new(context.clone()),
+            materials: GpuTextures::new(context.clone())?,
             context,
             targets: Vec::new(),
             depth: None,
             pending: None,
-        }
+        })
     }
     pub fn generation(&self) -> u64 {
         self.context.generation()
@@ -139,7 +139,7 @@ impl NativePreview {
             if self.targets.len() >= MAX_TARGETS || resident + bytes * 2 > TARGET_BYTES {
                 return Ok(None);
             }
-            let image = GpuImage::new(&self.context, ImageDescriptor::rgba(w, h))
+            let image = GpuImage::render_target(&self.context, ImageDescriptor::rgba(w, h))
                 .map_err(|e| e.to_string())?;
             self.targets.push(image.clone());
             image
@@ -147,22 +147,13 @@ impl NativePreview {
         if self.depth.as_ref().is_none_or(|d| d.0 != w || d.1 != h) {
             let depth = self
                 .context
-                .device
-                .create_texture(&wgpu::TextureDescriptor {
-                    label: Some("native geometry depth"),
-                    size: wgpu::Extent3d {
-                        width: w,
-                        height: h,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Depth32Float,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                    view_formats: &[],
-                })
-                .create_view(&Default::default());
+                .acquire_target(renderkit::TargetDescriptor::attachment(
+                    w,
+                    h,
+                    wgpu::TextureFormat::Depth32Float,
+                    1,
+                ))
+                .map_err(|e| e.to_string())?;
             self.depth = Some((w, h, depth));
         }
         let mut specs = Vec::new();
@@ -182,17 +173,20 @@ impl NativePreview {
         let maps =
             self.materials
                 .encode(&mut encoder, &specs, &job.palette, job.surface_seconds)?;
-        let bindings = self.mesh.material_bindings(&self.context.device, &maps);
+        let bindings = self
+            .mesh
+            .material_bindings(&self.context.device, &maps.sampled);
         let prepared = self.mesh.prepare_mesh(
             &self.context.device,
             &self.context.queue,
             job,
             Some(bindings),
+            Some(&self.context),
         )?;
         self.mesh.encode_mesh(
             &mut encoder,
             &image.view,
-            &self.depth.as_ref().unwrap().2,
+            self.depth.as_ref().unwrap().2.view(),
             &prepared,
             job.background,
         );
@@ -325,7 +319,7 @@ mod tests {
     #[ignore = "requires actual native GPU"]
     fn native_geometry_pending_materials_publish_compatible_frames_when_animation_advances() {
         let context = pollster::block_on(GpuContext::headless()).unwrap();
-        let mut preview = NativePreview::new(context.clone());
+        let mut preview = NativePreview::new(context.clone()).unwrap();
         let mut request = request(true);
         assert!(preview.render(&request, 1.).unwrap().is_none());
         context
@@ -366,7 +360,7 @@ mod tests {
     #[ignore = "requires actual native GPU"]
     fn native_geometry_outputs_match_reference_and_publish_without_framebuffer_readback() {
         let context = pollster::block_on(GpuContext::headless()).unwrap();
-        let mut view = NativePreview::new(context.clone());
+        let mut view = NativePreview::new(context.clone()).unwrap();
         let reference = Renderer::new(&context.device);
         for textured in [false, true] {
             let request = request(textured);

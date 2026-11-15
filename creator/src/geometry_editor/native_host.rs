@@ -371,7 +371,7 @@ impl GeometryEditor {
                 .as_ref()
                 .is_none_or(|p| p.generation() != images.context().generation())
             {
-                self.native.producer = Some(NativePreview::new(images.context().clone()));
+                self.native.producer = Some(NativePreview::new(images.context().clone())?);
             }
             let request = self.native.latest.as_ref().unwrap();
             self.native.waiting = false;

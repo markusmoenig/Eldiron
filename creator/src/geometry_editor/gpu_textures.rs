@@ -1,13 +1,14 @@
 //! View-owned material atlases. Procedural float maps are converted on the GPU;
 //! authoritative ruleset/library CPU bakes remain immutable source assets.
 use denrim_materials::{geometry::Texture, gpu::*, integration::InstanceRecord};
-use renderkit::{GpuContext, StatusReadback};
+use renderkit::{
+    GpuContext, GpuImage, ImageDescriptor, StatusReadback, TargetDescriptor, TargetLease,
+};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
 use theframework::prelude::ThePalette;
-use wgpu::util::DeviceExt;
 const ATLAS_BUDGET: u64 = 64 * 1024 * 1024;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct Stats {
@@ -21,8 +22,14 @@ struct Atlas {
     key: String,
     submitted: bool,
     failure: Option<String>,
-    _textures: [wgpu::Texture; 3],
-    sampled: [wgpu::TextureView; 3],
+    maps: Maps,
+}
+/// Keep this snapshot alive through submission of its consuming encoder.
+#[must_use = "retain atlas maps through command submission"]
+#[derive(Clone)]
+pub(super) struct Maps {
+    pub sampled: [wgpu::TextureView; 3],
+    _leases: [TargetLease; 3],
 }
 struct DiagnosticMap {
     ticket: RenderTicket,
@@ -36,14 +43,14 @@ pub(super) struct GpuTextures {
     layout: wgpu::BindGroupLayout,
     conversion: wgpu::ComputePipeline,
     initialization: wgpu::ComputePipeline,
-    dummy: wgpu::TextureView,
+    dummy: Arc<GpuImage>,
     atlas: Option<Atlas>,
     queued: Vec<RenderTicket>,
     mapping: Vec<DiagnosticMap>,
     pub stats: Stats,
 }
 impl GpuTextures {
-    pub fn new(context: Arc<GpuContext>) -> Self {
+    pub fn new(context: Arc<GpuContext>) -> Result<Self, String> {
         let device = &context.device;
         let mut entries = Vec::new();
         for binding in 0..5 {
@@ -105,23 +112,16 @@ impl GpuTextures {
         };
         let conversion = pipeline("convert");
         let initialization = pipeline("initialize");
-        let dummy = device
-            .create_texture(&wgpu::TextureDescriptor {
-                label: Some("geometry unused default input"),
-                size: wgpu::Extent3d {
-                    width: 1,
-                    height: 1,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
+        let dummy = GpuImage::new(
+            &context,
+            ImageDescriptor {
                 format: wgpu::TextureFormat::Rgba16Float,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING,
-                view_formats: &[],
-            })
-            .create_view(&Default::default());
-        Self {
+                color_space: renderkit::ColorSpace::Linear,
+                ..ImageDescriptor::rgba(1, 1)
+            },
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(Self {
             queued: Vec::new(),
             mapping: Vec::new(),
             context,
@@ -134,7 +134,7 @@ impl GpuTextures {
             dummy,
             atlas: None,
             stats: Default::default(),
-        }
+        })
     }
     fn dispatch(
         &self,
@@ -143,16 +143,12 @@ impl GpuTextures {
         outputs: &[wgpu::TextureView; 3],
         parameters: [u32; 4],
         initialize: bool,
-    ) {
+    ) -> Result<(), String> {
         let bytes: Vec<_> = parameters.into_iter().flat_map(u32::to_ne_bytes).collect();
         let uniform = self
             .context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("geometry atlas layer"),
-                contents: &bytes,
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
+            .upload_immutable_buffer(&bytes, wgpu::BufferUsages::UNIFORM)
+            .map_err(|e| e.to_string())?;
         let mut entries: Vec<_> = inputs
             .into_iter()
             .enumerate()
@@ -172,7 +168,7 @@ impl GpuTextures {
         );
         entries.push(wgpu::BindGroupEntry {
             binding: 8,
-            resource: uniform.as_entire_binding(),
+            resource: uniform.buffer().as_entire_binding(),
         });
         let bindings = self
             .context
@@ -193,6 +189,7 @@ impl GpuTextures {
         });
         pass.set_bind_group(0, &bindings, &[]);
         pass.dispatch_workgroups(parameters[0].div_ceil(8), parameters[1].div_ceil(8), 1);
+        Ok(())
     }
     /// Encoding can be cancelled by the caller. Reuse only after the encoder
     /// containing this atlas's conversion has actually been submitted.
@@ -265,7 +262,7 @@ impl GpuTextures {
         specs: &[&Texture],
         palette: &ThePalette,
         seconds: f32,
-    ) -> Result<[wgpu::TextureView; 3], String> {
+    ) -> Result<Maps, String> {
         self.poll_diagnostics();
         if specs.len() > 16
             || specs.iter().any(|s| {
@@ -290,61 +287,53 @@ impl GpuTextures {
                 return Err(error.clone());
             }
             self.stats.hits += 1;
-            return Ok(atlas.sampled.clone());
+            return Ok(atlas.maps.clone());
         }
         self.cancel_diagnostics();
         let mut diagnostics = Vec::new();
-        let textures = std::array::from_fn(|i| {
+        let allocate = || {
+            let mut target = TargetDescriptor::color(size, size, wgpu::TextureFormat::Rgba8Unorm);
+            target.array_layers = layers;
+            target.usage = wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::COPY_SRC;
             self.context
-                .device
-                .create_texture(&wgpu::TextureDescriptor {
-                    label: Some("geometry material atlas"),
-                    size: wgpu::Extent3d {
-                        width: size,
-                        height: size,
-                        depth_or_array_layers: layers,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Rgba8Unorm,
-                    usage: wgpu::TextureUsages::STORAGE_BINDING
-                        | wgpu::TextureUsages::TEXTURE_BINDING
-                        | wgpu::TextureUsages::COPY_DST
-                        | wgpu::TextureUsages::COPY_SRC,
-                    view_formats: if i == 1 {
-                        &[]
-                    } else {
-                        &[wgpu::TextureFormat::Rgba8UnormSrgb]
-                    },
+                .acquire_target(target)
+                .map_err(|e| e.to_string())
+        };
+        // Acquire the entire replacement while the old atlas is still pinned.
+        let leases = [allocate()?, allocate()?, allocate()?];
+        let outputs = std::array::from_fn(|i| {
+            leases[i]
+                .texture()
+                .create_view(&wgpu::TextureViewDescriptor {
+                    dimension: Some(wgpu::TextureViewDimension::D2Array),
+                    usage: Some(wgpu::TextureUsages::STORAGE_BINDING),
+                    ..Default::default()
                 })
         });
-        let outputs = std::array::from_fn(|i| {
-            textures[i].create_view(&wgpu::TextureViewDescriptor {
-                dimension: Some(wgpu::TextureViewDimension::D2Array),
-                usage: Some(wgpu::TextureUsages::STORAGE_BINDING),
-                ..Default::default()
-            })
-        });
         let sampled = std::array::from_fn(|i| {
-            textures[i].create_view(&wgpu::TextureViewDescriptor {
-                format: Some(if i == 1 {
-                    wgpu::TextureFormat::Rgba8Unorm
-                } else {
-                    wgpu::TextureFormat::Rgba8UnormSrgb
-                }),
-                dimension: Some(wgpu::TextureViewDimension::D2Array),
-                usage: Some(wgpu::TextureUsages::TEXTURE_BINDING),
-                ..Default::default()
-            })
+            leases[i]
+                .texture()
+                .create_view(&wgpu::TextureViewDescriptor {
+                    format: Some(if i == 1 {
+                        wgpu::TextureFormat::Rgba8Unorm
+                    } else {
+                        wgpu::TextureFormat::Rgba8UnormSrgb
+                    }),
+                    dimension: Some(wgpu::TextureViewDimension::D2Array),
+                    usage: Some(wgpu::TextureUsages::TEXTURE_BINDING),
+                    ..Default::default()
+                })
         });
         self.dispatch(
             encoder,
-            [&self.dummy; 5],
+            [&self.dummy.view; 5],
             &outputs,
             [size, size, 0, 1],
             true,
-        );
+        )?;
         let active: HashSet<_> = specs.iter().map(|s| format!("{s:?}")).collect();
         self.instances.retain(|key, _| active.contains(key));
         let mut uploaded = 0;
@@ -387,7 +376,7 @@ impl GpuTextures {
                     }
                     self.context.queue.write_texture(
                         wgpu::TexelCopyTextureInfo {
-                            texture: &textures[channel],
+                            texture: leases[channel].texture(),
                             mip_level: 0,
                             origin: wgpu::Origin3d {
                                 x: 0,
@@ -408,6 +397,7 @@ impl GpuTextures {
                             depth_or_array_layers: 1,
                         },
                     );
+                    self.context.record_upload(resized.len() as u64);
                     uploaded += resized.len() as u64;
                 }
             } else {
@@ -452,7 +442,7 @@ impl GpuTextures {
                     &outputs,
                     [size, size, layer, spec.size],
                     false,
-                );
+                )?;
                 procedural += 1;
             }
         }
@@ -460,14 +450,17 @@ impl GpuTextures {
         self.stats.procedural_sources += procedural;
         self.stats.source_upload_bytes += uploaded;
         self.queued = diagnostics;
+        let maps = Maps {
+            sampled,
+            _leases: leases,
+        };
         self.atlas = Some(Atlas {
             key,
             submitted: false,
             failure: None,
-            _textures: textures,
-            sampled: sampled.clone(),
+            maps: maps.clone(),
         });
-        Ok(sampled)
+        Ok(maps)
     }
 }
 
@@ -482,8 +475,8 @@ pub(super) mod tests {
     use super::*;
     use denrim_materials::integration::EditableMaterialAsset;
     use renderkit::{GpuImage, ImageDescriptor, ReadbackTicket};
-    fn capture(context: &GpuContext, atlas: &Atlas, channel: usize, layer: u32) -> Vec<u8> {
-        let source = &atlas._textures[channel];
+    pub(super) fn capture(context: &GpuContext, atlas: &Atlas, channel: usize, layer: u32) -> Vec<u8> {
+        let source = atlas.maps._leases[channel].texture();
         let image = GpuImage::new(
             context,
             ImageDescriptor {
@@ -557,7 +550,7 @@ material "surface" called "Geometry atlas fixture"
     #[ignore = "requires an actual native GPU"]
     fn native_geometry_atlas_matches_reference_maps_without_mapping_displayed_sources() {
         let context = pollster::block_on(GpuContext::headless()).unwrap();
-        let mut cache = GpuTextures::new(context.clone());
+        let mut cache = GpuTextures::new(context.clone()).unwrap();
         let palette = ThePalette::default();
         let specs = [material(16), material(32)];
         // A cancelled outer frame must not make an unsubmitted conversion a
@@ -671,6 +664,8 @@ material "surface" called "Geometry atlas fixture"
 #[cfg(test)]
 mod diagnostic_tests {
     use super::*;
+    use super::tests::capture;
+    use wgpu::util::DeviceExt;
     fn poll(context: &GpuContext) {
         context
             .device
@@ -681,10 +676,59 @@ mod diagnostic_tests {
             .unwrap();
     }
     #[test]
+    #[ignore = "native GPU; atlas snapshots pin all planes before submission"]
+    fn native_geometry_atlas_snapshots_pin_pending_consumers_and_retire() {
+        let context = pollster::block_on(GpuContext::headless()).unwrap();
+        let mut cache = GpuTextures::new(context.clone()).unwrap();
+        let palette = ThePalette::default();
+        let mut first_encoder = context.device.create_command_encoder(&Default::default());
+        let first = cache.encode(&mut first_encoder, &[], &palette, 0.).unwrap();
+        let mut second_encoder = context.device.create_command_encoder(&Default::default());
+        let second = cache
+            .encode(&mut second_encoder, &[], &palette, 0.)
+            .unwrap();
+        assert_eq!(
+            context.target_pool_usage().allocations,
+            6,
+            "unsubmitted first snapshot cannot be reused"
+        );
+        assert_eq!(context.target_pool_usage().hits, 0);
+        drop(cache);
+        context.set_target_cache_limits(0, 0);
+        assert_eq!(context.target_pool_usage().live_bytes, 16 * 16 * 12 * 2);
+        assert_eq!(context.target_pool_usage().live_allocations, 6);
+        context
+            .queue
+            .submit([second_encoder.finish(), first_encoder.finish()]);
+        let first_atlas = Atlas {
+            key: String::new(),
+            submitted: true,
+            failure: None,
+            maps: first,
+        };
+        let second_atlas = Atlas {
+            key: String::new(),
+            submitted: true,
+            failure: None,
+            maps: second,
+        };
+        for atlas in [&first_atlas, &second_atlas] {
+            assert_eq!(capture(&context, atlas, 0, 0), [255; 4].repeat(16 * 16));
+            assert_eq!(capture(&context, atlas, 1, 0), [255; 4].repeat(16 * 16));
+            assert_eq!(capture(&context, atlas, 2, 0), [0; 4].repeat(16 * 16));
+        }
+        drop(first_atlas);
+        assert_eq!(context.target_pool_usage().live_bytes, 16 * 16 * 12);
+        drop(second_atlas);
+        assert_eq!(context.target_pool_usage().live_bytes, 0);
+        assert_eq!(context.target_pool_usage().live_allocations, 0);
+    }
+
+    #[test]
     #[ignore = "requires an actual native GPU"]
     fn native_geometry_diagnostics_reject_failed_sources_cancel_stale_maps_and_recover() {
         let context = pollster::block_on(GpuContext::headless()).unwrap();
-        let mut cache = GpuTextures::new(context.clone());
+        let mut cache = GpuTextures::new(context.clone()).unwrap();
         let palette = ThePalette::default();
         let source = super::tests::material(16);
         let mut encoder = context.device.create_command_encoder(&Default::default());

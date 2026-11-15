@@ -16368,3 +16368,78 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   No live Rust builds/tests; no permission/input blocker. Recipe icon/card owners
   ready for local checkpoint. Native material-atlas alias views and per-encode
   leases are next; retain separate reference/export capture semantics.
+
+## Native preview attachment/atlas/input owners, in progress (2026-11-15)
+
+- Geometry native preview now uses pooled immutable color outputs and a retained
+  depth TargetLease. The original bounded output/backpressure/receipt policy
+  remains; depth is cleared before each use. Native PreparedMesh retains its
+  immutable cached vertex-buffer Arc through submission. Reference worker uses
+  its original raw buffers and explicit capture targets, without native context.
+- Geometry material atlases now atomically acquire three array TargetLeases while
+  the previous source is still pinned. encode() returns a must-use Maps snapshot
+  that owns all planes through consumer submission. Native preview retains this
+  snapshot until queue.submit. Every referenced array layer is fully initialized;
+  unchanged submitted sources still reuse their atlas and diagnostics lifecycle.
+- Context target pool universally permits compatible linear/sRGB color-format
+  views. Default view/format/usage and storage accounting are unchanged. This
+  preserves byte-valued Unorm storage plus hardware sRGB material sampling with
+  one allocation per plane. Geometry's fixed1px float default input is now a
+  tracked GpuImage; atlas/display uniforms use immutable context cache. Actual
+  authoritative CPU atlas source uploads now also update context transfer counts.
+- Initial native Creator release compile PASS25.33s:
+  /private/tmp/eldiron-preview-owners-release-native-initial.log. Focused core
+  compatible-view release contract initially failed because test WGSL named a
+  variable reserved keyword target; renamed destination. Corrected contract
+  PASS0.23s(build0.67s):
+  /private/tmp/eldiron-preview-owners-release-alias-fixed.log. Validates two-layer
+  raw storage/sRGB sampling bytes [55,13,4,255], exact32B storage, warm reuse and
+  final0live bytes. Original failing log retained:
+  /private/tmp/eldiron-preview-owners-release-alias.log. Both handles terminal.
+- Focused release atlas contracts now running handle12799:
+  /private/tmp/eldiron-preview-owners-release-atlases.log. Adds a two-unsubmitted-
+  encoder snapshot contract, all6planes pinned across producer drop/cache
+  eviction and reverse submission, exact default pixels and final0live bytes.
+  Existing procedural/reference pixel and diagnostic/cancellation contracts are
+  included. No Rust edits until terminal. Geometry native output/material preview
+  contracts, final native/browser/reference compile and local checkpoint follow.
+- Not a total memory/performance gate: MaterialZ's own float surfaces/evaluation
+  buffers are still raw internally despite host device injection. Also immutable
+  buffer diagnostics currently report cache retention, excluding evicted active
+  caller Arcs/queued GPU handles. Next audit should add shared-context resource
+  ownership to MaterialZ and accurate live buffer counters, preserving explicit
+  reference/CLI use and CPU-only dependency isolation. Broad tests remain deferred.
+- First atlas test build failed on test-only helper visibility/DeviceExt after
+  moving a resource import: the new ownership contract lives in diagnostic_tests,
+  while capture belonged to sibling tests. Exposed that fixture to its parent,
+  imported it and DeviceExt only where needed. Corrected module-prefix filter
+  now covers both pixel and diagnostic submodules, handle7600:
+  /private/tmp/eldiron-preview-owners-release-atlases-fixed.log. Original build log
+  /private/tmp/eldiron-preview-owners-release-atlases.log retained. No acceptance
+  or production behavior relaxed; this is not an external execution blocker.
+- Corrected atlas module release contracts PASS3/3,0.86s(build1m01s):
+  /private/tmp/eldiron-preview-owners-release-atlases-fixed.log. Includes exact
+  procedural/reference map bytes and failed-source diagnostics/replacement, plus
+  all6pending planes surviving producer drop/eviction/reverse submission and
+  final0live bytes. Handle7600 terminal. Original fixture statements that rely on
+  the cache's own retained atlas now emit must-use warnings; production consumer
+  explicitly holds returned Maps through submission.
+- Focused native geometry release contracts PASS2/2,0.30s(build0.49s):
+  /private/tmp/eldiron-preview-owners-release-geometry.log. Existing source/output
+  pixels, material completion/animation, old-output immutability and output
+  backpressure preserved. Focused native material preview PASS1/1,0.61s
+  (build0.21s), /private/tmp/eldiron-preview-owners-release-material.log. Covers
+  sampling, display channels/style and animation. All test handles terminal.
+  Final canonical native compile running handle55838/log
+  /private/tmp/eldiron-preview-owners-release-native-final.log; wasm/reference
+  follows before checkpoint and MaterialZ resource-owner implementation.
+- Final canonical four-application native release compile PASS26.31s:
+  /private/tmp/eldiron-preview-owners-release-native-final.log. Actual Creator
+  browser-host wasm release compile PASS25.42s:
+  /private/tmp/eldiron-preview-owners-release-wasm.log. Reference-only Creator
+  release compile PASS22.71s:
+  /private/tmp/eldiron-preview-owners-release-reference.log. All handles terminal.
+  Removed only an unused test-module DeviceExt import after these checks; the
+  diagnostic fixture retains its required import. Current ownership conversion
+  ready for checkpoint. Continue MaterialZ's optional shared-context owners and
+  live immutable-buffer counters; no external permission/input blocker.
