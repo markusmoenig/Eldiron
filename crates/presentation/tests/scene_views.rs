@@ -372,6 +372,7 @@ fn game_camera_preparation_uses_view_extents_without_cpu_output_or_upscale_stora
     let state = RuntimeRenderState::default();
     for frame in 0..12 {
         let input = GameSceneInput {
+            scope: map.id,
             map: &map,
             assets: &assets,
             time: TheTime::new(),
@@ -417,6 +418,7 @@ fn game_camera_preparation_uses_view_extents_without_cpu_output_or_upscale_stora
             &mut aa,
             (0, 0),
             &GameSceneInput {
+                scope: map.id,
                 map: &map,
                 assets: &assets,
                 time: TheTime::new(),
@@ -435,6 +437,7 @@ fn game_camera_preparation_uses_view_extents_without_cpu_output_or_upscale_stora
             &mut bb,
             (64, 64),
             &GameSceneInput {
+                scope: map.id,
                 map: &map,
                 assets: &assets,
                 time: TheTime::new(),
@@ -472,6 +475,7 @@ fn game_camera_preparation_uses_view_extents_without_cpu_output_or_upscale_stora
             &mut bb,
             (64, 64),
             &GameSceneInput {
+                scope: map.id,
                 map: &map,
                 assets: &assets,
                 time: TheTime::new(),

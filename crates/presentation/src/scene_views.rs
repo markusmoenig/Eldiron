@@ -64,6 +64,8 @@ struct SceneView {
     output: Option<ViewImage>,
     dirty: bool,
     revision: u64,
+    pending_content_revision: Option<u64>,
+    game_scope: Option<(Uuid, Uuid, rusterix::PlayerCamera, [u32; 17])>,
 }
 /// Each view retains its own VM/camera/history and target. Immutable atlas source
 /// data and its GPU textures are shared on the host device. UI only sees handles.
@@ -146,6 +148,8 @@ impl SceneViews {
                 output: None,
                 dirty: true,
                 revision: 0,
+                pending_content_revision: None,
+                game_scope: None,
             },
         );
         Ok(())
@@ -219,6 +223,7 @@ impl SceneViews {
         // paint output or render work. Resuming at the same size reuses it.
         view.size = size;
         if size.0 == 0 || size.1 == 0 {
+            view.scene.retire_paint();
             view.scene.vm.cancel_source_uploads();
             view.scene_sources_ready = true;
         }
@@ -265,6 +270,7 @@ impl SceneViews {
             .revision
             .checked_add(1)
             .ok_or_else(|| RenderError("scene output revision exhausted".into()))?;
+        let mut completed_content_revision = content_revision;
         let rendered = if view.isometric {
             let frame = view
                 .isometric_frame
@@ -277,6 +283,18 @@ impl SceneViews {
                 .as_mut()
                 .ok_or_else(|| RenderError("isometric producer missing".into()))?
                 .render_prepared(frame, revision)?
+        } else if view.scene.pending() || view.scene.pages.is_some() {
+            if !view.scene.pending() {
+                view.pending_content_revision = Some(content_revision);
+                view.scene.start(self.context.clone(), revision)?;
+            }
+            let before = view.scene.residency_usage().unwrap();
+            let result = view.scene.advance(self.surface_paint.available_frame_bytes());
+            let after = view.scene.residency_usage().unwrap();
+            self.surface_paint.record_residency_uploads(before, after);
+            let Some(output) = result? else { return Ok(None); };
+            completed_content_revision = view.pending_content_revision.take().unwrap_or(content_revision);
+            output
         } else {
             let (scene, target) = view.scene.parts_mut();
             scene.vm.render_gpu(target.ok_or_else(|| RenderError("scene view target missing".into()))?, revision)?
@@ -296,7 +314,7 @@ impl SceneViews {
             image,
             descriptor: rendered.image.descriptor,
             revision,
-            content_revision,
+            content_revision: completed_content_revision,
         };
         view.last_image = Some(rendered.image);
         view.revision = revision;

@@ -31,6 +31,8 @@ Started: 2026-11-11 (Asia/Bangkok). Objective unfinished; full M0–M9 scope rem
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Persistent region 3D paint now also crosses the CPU asset boundary into independent per-view GPU uploads; actual painted browser rendering/device recovery and native integration pass. Browser worker hosting, uncommon Prefab/stamp/live paint publication, remaining game-mode/HUD policy parity and performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Remaining adapter retirement and full platform acceptance are pending. Canonical Creator now defaults to its shared native GPU host (TheApp/Pixels is explicit reference-only); canonical desktop clients share the common player; the Xcode client and versioned Creator host use Rust-created CAMetalLayer surfaces with retained compatibility exports. Addressed document load/save, owned CPU transfers and application lifetime checks have compiled/linked/runtime evidence. Browser player and Creator now use the shared WebGPU host, with actual source loading, Swash/fallback/IME, scene/pixel/material rendering, explicit asset bakes, OPFS save, addressed cancellation and idle device recovery evidence below. Physical native/monitor/clipboard/mobile workflows, remaining ownership/adapter retirement, resource budgets and measured release performance remain open. Compile checks and detached-layer tests do not establish complete platform parity.
 
+- M5/M6 live residency checkpoint (2026-11-15): large current UV publications now use complete CPU indices and per-view bounded planes in canonical SceneViews, with frozen Raster3D/Compute3D replay, captured output revisions and scoped player/Creator continuation. Targeted release pixel/pressure/cancellation checks pass. Initial alpha metadata, aggregate budgets, complete interaction/platform acceptance and measured latency/throughput remain open; this is not M5/M6 completion.
+
 ## Native window validation correction (2026-11-12)
 
 Earlier Winit `--smoke` entries counted prepared paint lists rather than successful surface presentations. Reclassify those logs as startup/paint-preparation evidence only; they do **not** verify desktop-window presentation. The locked-Mac run `/private/tmp/eldiron-text-target-window.log` correctly reported zero presentations. That lock blocker is historical: later fresh native_gpu_window and canonical Creator runs each acknowledged three physical surface presentations and exited successfully (`/private/tmp/eldiron-acceptance-current-winit-surface.log`, `/private/tmp/eldiron-acceptance-canonical-creator-smoke.log`; see the release-only execution checkpoint below). Those later runs were debug builds before the release-only instruction and are not performance baselines. Full release interactive/platform acceptance remains outstanding. Headless GPU pixel captures and detached CAMetalLayer tests explicitly asserting `PresentResult::Presented` remain valid evidence. The host acquires a drawable before application frame preparation, defers without visual work, and bounds smoke runs with a failure deadline.
@@ -15128,3 +15130,79 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   indirect dependencies and complete overlay/cancellation workflows remain gates.
   All compiler handles terminal; browser/native application checks will accompany
   live source activation. Source selection/frozen-scope integration still pending.
+
+
+## Canonical live paint residency activation (2026-11-15, implementation continuing)
+
+- Sources now selects bounded indexed residency for logical atlases above device
+  texture limits or the plane policy (default64MiB per source/view). Smaller
+  sources retain shared immutable planes, cooperative delta copies and shared
+  lookup buffers. The CPU index keeps every current key and original plane;
+  no source pages or old paint algorithms are replayed/truncated. The residency
+  limit may be configured before source requests; it is a per-view producer cap,
+  not a measured aggregate application/driver memory guarantee.
+- Each indexed view cooperatively validates/uploads its initial table before
+  installing a private mutable residency owner. CPU indexing/table preparation
+  share the existing4096 metadata-unit/512KiB paint policy,64-unit batches and2ms
+  elapsed checks, with a rotating first view. Page/rectangle uploads debit that
+  same paint budget and yield at its byte/time boundary. Ordinary scene/organic
+  source uploads still use their separately existing source budget; these are
+  not a claimed whole-application transfer/CPU time bound.
+- SceneViews rendering moves scene/target/pages into the frozen 3D frame and
+  withholds output until all regions resolve and overlays compose once. Output
+  carries the content revision captured at request start, even if later render
+  calls supply newer ticks. Completed residency returns for reuse; dirty/output
+  guards reject pending input. Host pending checks include CPU indices, private
+  table preparation and frames. Source stats include producer planes/tables and
+  pending views, excluding auxiliary buffers/queued consumers/driver cache peaks.
+- Player input descriptions now include explicit session/document scope. Pending
+  frames survive unchanged session/map/camera/render-size preparation without
+  reapplying dynamics or stamps. Changed source/scope/camera/config/size retires
+  the request. Creator has an exhaustive source/tool/selection/camera scope guard
+  while frozen time/animation/runtime data stays with its request. CPU UV defer
+  retires pending work and waits for its producer instead of starting stale paint.
+- Cancelled compute attempts restore the previous sample lease, including before
+  receipt consumption/final composition; invalid history resets accumulation.
+  Paint retirement/replacement also drops derived color/material/table bindgroups
+  and views, so a discarded writer cannot keep an abandoned atlas through those
+  caches. Submitted GPU consumers keep their own allocation lifetime. Targets
+  retain complete output pixels independently. Non-3D views do not allocate an
+  unused indexed atlas; zero-size/suspend clears pending producer state.
+- Release compile evidence: initial integration private-module access errors were
+  fixed through narrow owner/budget methods; exhaustive Creator scope comparison
+  replaced a mistaken clone assumption. Canonical apps then PASS13.99s and source/
+  history/derived-binding retirement PASS25.64s:
+  /private/tmp/eldiron-live-paint-residency-release-scope.log,
+  /private/tmp/eldiron-live-paint-residency-release-retirement.log.
+- Focused canonical SceneViews fixture initially assumed atlas indices were eager;
+  removed that assertion (indices are assigned lazily). Corrected release fixture
+  PASS0.16s, build8.63s:
+  /private/tmp/eldiron-live-paint-residency-release-view-current.log.
+  It compares indexed three-page/two-slot rendering with the ordinary full-plane
+  path byte-for-byte, checks frozen output content revision despite newer ticks,
+  producer plane cap, completed picking, scheduling until completion, no target
+  CPU/readback storage, and source retirement after view removal. This does not
+  verify complete Creator/player interaction or every source/host scenario.
+- Focused compute cancellation/history regression is in flight; browser and final
+  app compilation remain. Broad tests stay deferred. Important open work includes
+  per-owner alpha metadata, aggregate allocation/transfer/resource audits, two-view
+  scope/cancellation/device-loss acceptance and current document/Play workflows.
+  Raster dependencies conservatively include fragments later rejected by depth.
+  One-fault receipts and serialized private completion may add cold/warm latency;
+  release throughput/input-latency measurement and any necessary batching/pipeline
+  work remain explicit gates. No full-port completion or speedup is claimed.
+- Compute pressure plus cancellation before receipt consumption PASS0.15s,
+  release build8.44s:
+  /private/tmp/eldiron-live-paint-residency-release-compute-cancel.log.
+  The added cancellation case warms a valid frame, starts sample1 with missing
+  pages, cancels, and checks that the restored layer selects the exact previous
+  history texture. Byte-exact spatial output/budget checks still pass. Non-3D
+  indexed-source retirement and the2ms page-upload boundary were also refined.
+  Browser feature compile is in flight; final native checks remain to collect.
+- Browser Creator release feature compilation PASS27.55s:
+  /private/tmp/eldiron-live-paint-residency-release-web.log. Final canonical four-
+  application release compile PASS14.14s:
+  /private/tmp/eldiron-live-paint-residency-release-final.log. All compiler handles
+  terminal; git diff --check passes. Next implementation: alpha-owner metadata
+  sharing/preparation and remaining instance/source ownership, then the deferred
+  consolidated functional/platform/resource/release-performance acceptance run.

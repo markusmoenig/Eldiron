@@ -547,6 +547,7 @@ impl GameScreenController {
             .revision
             .ok_or("Prepare the screen before its scene views")?;
         let input = GameSceneInput {
+            scope: world.session_id,
             map,
             assets: world.assets,
             time: world.time,
@@ -602,21 +603,23 @@ impl GameScreenController {
             views
                 .prepare_game(id, widget, size, &input, images)
                 .map_err(|e| e.to_string())?;
-            if !screen_model::is_2d_camera(&widget.camera) && size.0 > 0 && size.1 > 0 {
-                let publication = self
-                    .stamp_sources
-                    .request(world.assets.stamp_paint.get(&map.id))?;
-                if let Some(publication) = publication {
-                    views
-                        .set_stamp_paint(id, Some((&publication.layer, &publication.pixels)))
-                        .map_err(|e| e.to_string())?;
-                } else if self.stamp_sources.has_source() {
-                    views.defer_stamp_paint(id).map_err(|e| e.to_string())?;
+            if !views.private_paint_frame_pending(id).map_err(|e| e.to_string())? {
+                if !screen_model::is_2d_camera(&widget.camera) && size.0 > 0 && size.1 > 0 {
+                    let publication = self
+                        .stamp_sources
+                        .request(world.assets.stamp_paint.get(&map.id))?;
+                    if let Some(publication) = publication {
+                        views
+                            .set_stamp_paint(id, Some((&publication.layer, &publication.pixels)))
+                            .map_err(|e| e.to_string())?;
+                    } else if self.stamp_sources.has_source() {
+                        views.defer_stamp_paint(id).map_err(|e| e.to_string())?;
+                    } else {
+                        views.set_stamp_paint(id, None).map_err(|e| e.to_string())?;
+                    }
                 } else {
                     views.set_stamp_paint(id, None).map_err(|e| e.to_string())?;
                 }
-            } else {
-                views.set_stamp_paint(id, None).map_err(|e| e.to_string())?;
             }
             graphical_views.push((*key, id));
             world_order.push((*key, Some(id)));

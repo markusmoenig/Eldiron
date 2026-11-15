@@ -4,14 +4,17 @@ use super::*;
 use renderkit::{AlphaMode, ColorSpace, GpuImage, ImageDescriptor, wgpu};
 use rusterix::surface_paint::{PAGE_SIZE, SurfacePaint, SurfacePaintValidation};
 use scenevm::paint_pages::{PaintPageBinding, PaintPageBindingPreparation};
+use shared::surface_paint::pages::{PaintPageIndex, SurfacePaintIndexBuilder};
 use std::collections::VecDeque;
+mod paged;
 mod reuse;
 
 const FRAME_BYTES: usize = 512 * 1024;
 const FRAME_STEPS: usize = 4096;
 const PAGE_BYTES: usize = (PAGE_SIZE * PAGE_SIZE * 8) as usize;
 
-/// Logical current allocations and transfer counts, not peak/driver memory.
+/// Producer allocations and transfer counts. Auxiliary scene buffers, queued
+/// consumers and driver/cache peaks are accounted separately.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SurfacePaintStats {
     pub sources: usize,
@@ -24,6 +27,7 @@ pub struct SurfacePaintStats {
     pub reused_bindings: u64,
     pub pending_sources: usize,
     pub frame_uploaded_bytes: usize,
+    pub pending_views: usize,
 }
 struct Upload {
     color: Arc<GpuImage>,
@@ -33,6 +37,8 @@ struct Upload {
 }
 enum State {
     Validate(SurfacePaintValidation),
+    Index(SurfacePaintIndexBuilder),
+    Indexed(Arc<PaintPageIndex>),
     Upload(Upload),
     Binding(PaintPageBindingPreparation),
     Failed(String),
@@ -59,6 +65,8 @@ pub(super) struct Sources {
     frame_bytes: usize,
     frame_steps: usize,
     frame_started: Option<web_time::Instant>,
+    plane_limit: u64,
+    view_turn: usize,
 }
 impl Default for Sources {
     fn default() -> Self {
@@ -72,10 +80,31 @@ impl Default for Sources {
             frame_bytes: 0,
             frame_steps: 0,
             frame_started: None,
+            plane_limit: 64 * 1024 * 1024,
+            view_turn: 0,
         }
     }
 }
 impl Sources {
+    pub(super) fn available_frame_bytes(&self) -> usize {
+        if self
+            .frame_started
+            .is_some_and(|started| started.elapsed() >= web_time::Duration::from_millis(2))
+        {
+            return 0;
+        }
+        FRAME_BYTES.saturating_sub(self.frame_bytes)
+    }
+    pub(super) fn record_residency_uploads(
+        &mut self,
+        before: crate::orthographic_bake::PaintResidencyUsage,
+        after: crate::orthographic_bake::PaintResidencyUsage,
+    ) {
+        self.frame_bytes += ((after.uploaded_bytes - before.uploaded_bytes)
+            + (after.table_uploaded_bytes - before.table_uploaded_bytes))
+            as usize;
+        self.uploaded_pages += after.page_uploads - before.page_uploads;
+    }
     fn request(&mut self, context: &GpuContext, source: &Arc<SurfacePaint>) -> Result<()> {
         if context.is_lost() {
             return Err(RenderError("Surface paint device was lost".into()));
@@ -89,25 +118,43 @@ impl Sources {
             return Ok(());
         }
         let limits = context.device.limits();
-        if source.width > limits.max_texture_dimension_2d
-            || source.height > limits.max_texture_dimension_2d
-            || (std::mem::size_of_val(source.entries.as_ref()) as u64 + 20)
-                > u64::from(limits.max_storage_buffer_binding_size)
+        if (std::mem::size_of_val(source.entries.as_ref()) as u64 + 20)
+            > u64::from(limits.max_storage_buffer_binding_size)
         {
             return Err(RenderError(
-                "Surface paint source exceeds this device's texture/table limits".into(),
+                "Surface paint source exceeds this device's table limits".into(),
             ));
         }
-        let validation = SurfacePaintValidation::new(source.clone()).map_err(RenderError)?;
-        let previous = self
-            .bindings
-            .values()
-            .find_map(|old| reuse::Previous::candidate(old, source));
+        let paged = source.width > limits.max_texture_dimension_2d
+            || source.height > limits.max_texture_dimension_2d
+            || u64::from(source.width)
+                .saturating_mul(u64::from(source.height))
+                .saturating_mul(8)
+                > self.plane_limit;
+        let (state, previous) = if paged {
+            (
+                State::Index(
+                    SurfacePaintIndexBuilder::new(
+                        source.clone(),
+                        u64::from(limits.max_storage_buffer_binding_size).saturating_sub(20),
+                    )
+                    .map_err(RenderError)?,
+                ),
+                None,
+            )
+        } else {
+            (
+                State::Validate(SurfacePaintValidation::new(source.clone()).map_err(RenderError)?),
+                self.bindings
+                    .values()
+                    .find_map(|old| reuse::Previous::candidate(old, source)),
+            )
+        };
         self.bindings.insert(
             identity,
             BoundSource {
                 source: source.clone(),
-                state: State::Validate(validation),
+                state,
                 previous,
             },
         );
@@ -162,7 +209,7 @@ impl Sources {
                     return Err(error);
                 }
             }
-            if !matches!(entry.state, State::Ready(_)) {
+            if !matches!(entry.state, State::Ready(_) | State::Indexed(_)) {
                 self.pending.push_back(identity);
             }
         }
@@ -176,6 +223,18 @@ impl Sources {
         step: &mut SourceStep,
     ) -> Result<()> {
         match &mut entry.state {
+            State::Index(builder) => {
+                if builder.advance(units).map_err(RenderError)? {
+                    let State::Index(builder) = std::mem::replace(
+                        &mut entry.state,
+                        State::Failed("consumed paint index".into()),
+                    ) else {
+                        unreachable!()
+                    };
+                    entry.state = State::Indexed(Arc::new(builder.finish().map_err(RenderError)?));
+                }
+            }
+            State::Indexed(_) => (),
             State::Validate(validation) => {
                 if validation.advance(units).map_err(RenderError)? {
                     let descriptor = |format| ImageDescriptor {
@@ -280,7 +339,19 @@ impl Sources {
     fn ready(&self, source: &Arc<SurfacePaint>) -> Option<Arc<PaintPageBinding>> {
         match &self.bindings.get(&(Arc::as_ptr(source) as usize))?.state {
             State::Ready(binding) => Some(binding.clone()),
-            State::Validate(_) | State::Upload(_) | State::Binding(_) | State::Failed(_) => None,
+            State::Validate(_)
+            | State::Upload(_)
+            | State::Binding(_)
+            | State::Failed(_)
+            | State::Index(_)
+            | State::Indexed(_) => None,
+        }
+    }
+    fn index(&self, source: &Arc<SurfacePaint>) -> Option<Arc<PaintPageIndex>> {
+        if let State::Indexed(index) = &self.bindings.get(&(Arc::as_ptr(source) as usize))?.state {
+            Some(index.clone())
+        } else {
+            None
         }
     }
     fn stats(&self) -> SurfacePaintStats {
@@ -302,7 +373,10 @@ impl Sources {
                 .bindings
                 .values()
                 .map(|entry| {
-                    if matches!(entry.state, State::Validate(_) | State::Failed(_)) {
+                    if matches!(
+                        entry.state,
+                        State::Validate(_) | State::Failed(_) | State::Index(_) | State::Indexed(_)
+                    ) {
                         0
                     } else {
                         u64::from(entry.source.width) * u64::from(entry.source.height) * 8
@@ -324,17 +398,28 @@ impl Sources {
             reused_bindings: self.reused_bindings,
             pending_sources: self.pending.len(),
             frame_uploaded_bytes: self.frame_bytes,
+            pending_views: 0,
         }
     }
 }
 impl SceneViews {
     pub fn surface_paint_stats(&self) -> SurfacePaintStats {
-        self.surface_paint.stats()
+        let mut stats = self.surface_paint.stats();
+        for view in self.views.values() {
+            if let Some(usage) = view.scene.residency_usage() {
+                stats.gpu_plane_bytes += usage.gpu_plane_bytes;
+                stats.gpu_table_bytes += usage.gpu_table_bytes;
+            }
+            stats.pending_views +=
+                usize::from(view.scene.pending() || view.scene.preparation.is_some());
+        }
+        stats
     }
     /// One budget covers every view in an application frame, including shared
     /// sources. The canonical callers invoke this once before their view loops.
     pub fn begin_surface_paint_upload_frame(&mut self) {
         self.source_upload_budget.reset();
+        self.surface_paint.view_turn = self.surface_paint.view_turn.wrapping_add(1);
         self.surface_paint.frame_bytes = 0;
         self.surface_paint.frame_steps = 0;
         self.surface_paint.frame_started = None;
@@ -347,6 +432,17 @@ impl SceneViews {
     pub fn has_pending_surface_paint_frames(&self) -> bool {
         self.has_pending_surface_paint_uploads()
             || self.views.values().any(|view| {
+                view.size.0 > 0
+                    && view.size.1 > 0
+                    && (view.scene.pending()
+                        || view.scene.preparation.is_some()
+                        || (!view.surface_paint_ready
+                            && view
+                                .surface_paint_source
+                                .as_ref()
+                                .is_some_and(|source| self.surface_paint.index(source).is_some())))
+            })
+            || self.views.values().any(|view| {
                 (view.surface_paint_source.is_some() || !view.scene_sources_ready)
                     && view.surface_paint_ready
                     && view.stamp_paint_ready
@@ -358,11 +454,16 @@ impl SceneViews {
     pub fn surface_paint_ready(&self, id: ViewId) -> Result<bool> {
         self.views
             .get(&id)
-            .map(|view| view.surface_paint_ready)
+            .map(|view| {
+                view.surface_paint_ready
+                    && !view.scene.pending()
+                    && view.scene.preparation.is_none()
+            })
             .ok_or_else(|| RenderError("unknown scene view".into()))
     }
     pub fn advance_surface_paint_uploads(&mut self) -> Result<()> {
         self.surface_paint.advance(&self.context)?;
+        self.advance_paged_surface_paint()?;
         let mut installed = false;
         for view in self
             .views
@@ -374,6 +475,7 @@ impl SceneViews {
                 .as_ref()
                 .and_then(|source| self.surface_paint.ready(source))
             {
+                view.scene.retire_paint();
                 view.scene.vm.set_active_vm(0);
                 view.scene
                     .vm
@@ -417,10 +519,12 @@ impl SceneViews {
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
         view.scene.vm.cancel_source_uploads();
-        if !view.surface_paint_ready {
-            view.surface_paint_source = None;
-            self.retire_unused_surface_paint();
-        }
+        view.scene.retire_paint();
+        view.surface_paint_source = None;
+        view.surface_paint_ready = false;
+        view.pending_content_revision = None;
+        view.dirty = true;
+        self.retire_unused_surface_paint();
         Ok(())
     }
     /// Hide/detach an owner without retaining partially uploaded GPU images.
@@ -428,6 +532,7 @@ impl SceneViews {
     pub fn cancel_surface_paint_uploads(&mut self) {
         for view in self.views.values_mut() {
             view.scene.vm.cancel_source_uploads();
+            view.scene.retire_paint();
             view.scene_sources_ready = true;
         }
         for view in self
@@ -462,6 +567,8 @@ impl SceneViews {
             self.surface_paint.request(&self.context, source)?;
         }
         let view = self.views.get_mut(&id).unwrap();
+        view.scene.retire_paint();
+        view.pending_content_revision = None;
         view.surface_paint_source = source.cloned();
         view.surface_paint_ready = source.is_none();
         view.scene.vm.set_active_vm(0);

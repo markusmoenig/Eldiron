@@ -113,6 +113,43 @@ fn pressure_fixture(mode: RenderMode) {
             .any(|pixel| pixel != &expected[..4]),
         "reference geometry must contribute pixels"
     );
+    if mode == RenderMode::Compute3D {
+        // Cancel before consuming a dependency receipt. The restored scene must
+        // still expose its previous valid history image, never the failed front.
+        let mut warm = scene();
+        warm.vm
+            .set_paint_page_binding(&context, resident.binding().unwrap())
+            .unwrap();
+        let mut target = SceneRenderTarget::new(context.clone(), size.0, size.1).unwrap();
+        warm.vm.render_gpu(&mut target, 1).unwrap();
+        let previous = warm
+            .vm
+            .layer_output(&context, 0, 1)
+            .unwrap()
+            .unwrap()
+            .image
+            .texture
+            .clone();
+        warm.vm.set_layer_progressive_sample_index(0, Some(1));
+        let pending =
+            PaintPageResidency::new(context.clone(), source.clone(), page_bytes * 2).unwrap();
+        let mut cancelled =
+            RasterPaintFrame::new(context.clone(), warm, target, pending, 2).unwrap();
+        assert_eq!(cancelled.advance().unwrap(), RasterPaintAdvance::Pending);
+        let (restored, _, _, output) = cancelled.into_parts();
+        assert!(output.is_none());
+        assert_eq!(
+            restored
+                .vm
+                .layer_output(&context, 0, 1)
+                .unwrap()
+                .unwrap()
+                .image
+                .texture,
+            previous,
+            "cancelled private compute attempts must restore the previous history image"
+        );
+    }
     let mut preparation = crate::orthographic_bake::PaintPageResidencyPreparation::new(
         context.clone(),
         source,

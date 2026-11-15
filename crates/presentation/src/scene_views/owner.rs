@@ -2,7 +2,7 @@
 //! that request and restores the CPU scene without swapping unrelated VMs.
 use super::*;
 use crate::{
-    orthographic_bake::PaintPageResidency,
+    orthographic_bake::{PaintPageResidency, PaintPageResidencyPreparation},
     raster_paint_frame::{RasterPaintAdvance, RasterPaintFrame},
 };
 use scenevm::render_output::SceneOutput;
@@ -13,6 +13,7 @@ pub(super) struct SceneOwner {
     pub target: Option<SceneRenderTarget>,
     pub pages: Option<PaintPageResidency>,
     frame: Option<RasterPaintFrame>,
+    pub preparation: Option<PaintPageResidencyPreparation>,
 }
 impl SceneOwner {
     pub fn new(scene: SceneHandler, target: Option<SceneRenderTarget>) -> Self {
@@ -21,6 +22,7 @@ impl SceneOwner {
             target,
             pages: None,
             frame: None,
+            preparation: None,
         }
     }
     pub fn pending(&self) -> bool {
@@ -31,12 +33,19 @@ impl SceneOwner {
     /// the next request receives a fresh mutable residency owner.
     pub fn cancel(&mut self) {
         if let Some(frame) = self.frame.take() {
-            let (scene, target, pages, _) = frame.into_parts();
+            let (mut scene, target, pages, _) = frame.into_parts();
+            clear_base_paint(&mut scene);
             drop(pages);
             self.scene = Some(scene);
             self.target = Some(target);
             self.pages = None;
         }
+    }
+    pub fn retire_paint(&mut self) {
+        self.cancel();
+        clear_base_paint(self.scene.as_mut().unwrap());
+        self.preparation = None;
+        self.pages = None;
     }
     pub fn parts_mut(&mut self) -> (&mut SceneHandler, Option<&mut SceneRenderTarget>) {
         self.cancel();
@@ -84,6 +93,11 @@ impl SceneOwner {
             .as_ref()
             .map(PaintPageResidency::usage)
             .or_else(|| self.frame.as_ref().map(RasterPaintFrame::residency_usage))
+            .or_else(|| {
+                self.preparation
+                    .as_ref()
+                    .map(PaintPageResidencyPreparation::usage)
+            })
     }
     pub fn has_cpu_target_storage(&self) -> bool {
         self.frame
@@ -112,4 +126,41 @@ impl DerefMut for SceneOwner {
         self.cancel();
         self.scene.as_mut().unwrap()
     }
+}
+
+impl SceneViews {
+    pub(crate) fn keep_game_paint_frame(
+        &mut self,
+        id: ViewId,
+        scope: &(Uuid, Uuid, rusterix::PlayerCamera, [u32; 17]),
+    ) -> Result<bool> {
+        let view = self
+            .views
+            .get_mut(&id)
+            .ok_or_else(|| RenderError("unknown scene view".into()))?;
+        if view.scene.pending() && view.game_scope.as_ref() != Some(scope) {
+            view.scene.cancel();
+            view.pending_content_revision = None;
+            view.dirty = true;
+        }
+        Ok(view.scene.pending())
+    }
+    pub(crate) fn set_game_paint_scope(
+        &mut self,
+        id: ViewId,
+        scope: (Uuid, Uuid, rusterix::PlayerCamera, [u32; 17]),
+    ) -> Result<()> {
+        self.views
+            .get_mut(&id)
+            .ok_or_else(|| RenderError("unknown scene view".into()))?
+            .game_scope = Some(scope);
+        Ok(())
+    }
+}
+
+fn clear_base_paint(scene: &mut SceneHandler) {
+    let active = scene.vm.active_vm_index();
+    scene.vm.set_active_vm(0);
+    scene.vm.execute(scenevm::Atom::ClearRaster3DPaintOverlay);
+    scene.vm.set_active_vm(active);
 }

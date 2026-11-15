@@ -42,6 +42,7 @@ pub struct RasterPaintFrame {
     waiting: Vec<PaintDispatchRegion>,
     phase: Phase,
     subdivisions: u64,
+    final_history: Option<LayerHistoryCheckpoint>,
 }
 impl RasterPaintFrame {
     pub fn new(
@@ -102,6 +103,7 @@ impl RasterPaintFrame {
             waiting: Vec::new(),
             phase: Phase::Draw,
             subdivisions: 0,
+            final_history: None,
         }
     }
     /// At most one page upload and one base attempt or composition per call. A
@@ -206,6 +208,7 @@ impl RasterPaintFrame {
                         .vm
                         .compose_prepared_base_gpu(&mut self.target, self.revision)?;
                     self.scene.vm.set_layer_paint_dispatch(0, None);
+                    self.final_history = None;
                     self.phase = Phase::Complete(output);
                     return Ok(RasterPaintAdvance::Complete);
                 }
@@ -235,6 +238,7 @@ impl RasterPaintFrame {
             self.pages.begin_dispatch();
             self.phase = Phase::Draw;
         } else {
+            self.final_history = history;
             self.phase = Phase::Compose;
         }
         Ok(())
@@ -269,6 +273,19 @@ impl RasterPaintFrame {
         PaintPageResidency,
         Option<SceneOutput>,
     ) {
+        let history = match &mut self.phase {
+            Phase::Receipt { history, .. } => history.take(),
+            Phase::Complete(_) => None,
+            _ => self.final_history.take(),
+        };
+        if let Some(history) = history {
+            if !self.scene.vm.restore_layer_history(0, history) && !self.context.is_lost() {
+                // A cancelled private frame must never seed later history from
+                // an incomplete attempt if its previous lease was invalidated.
+                self.scene.vm.set_layer_ping_pong_enabled(0, false);
+                self.scene.vm.set_layer_ping_pong_enabled(0, true);
+            }
+        }
         self.scene.vm.set_layer_paint_dispatch(0, None);
         let output = if let Phase::Complete(output) = self.phase {
             Some(output)

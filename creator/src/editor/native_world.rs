@@ -225,6 +225,35 @@ struct SceneInputKey {
     build: ValueContainer,
     runtime: rusterix::server::message::RuntimeRenderState,
 }
+impl SceneInputKey {
+    fn same_private_scope(&self, other: &Self) -> bool {
+        // Temporal inputs belong to the frozen request. Enumerate every other
+        // field so adding a new scope input requires updating this guard.
+        let Self { hour: _, animation: _, runtime: _,
+            detail, custom_content, paste, terrain_paint, camera, stamp, size, tool, hover, cursor, vertices, linedefs, sectors, entity, rectangle, polygon, line, grid, canvas, build } = self;
+        detail == &other.detail
+            && custom_content == &other.custom_content
+            && paste == &other.paste
+            && terrain_paint == &other.terrain_paint
+            && camera == &other.camera
+            && stamp == &other.stamp
+            && size == &other.size
+            && tool == &other.tool
+            && hover == &other.hover
+            && cursor == &other.cursor
+            && vertices == &other.vertices
+            && linedefs == &other.linedefs
+            && sectors == &other.sectors
+            && entity == &other.entity
+            && rectangle == &other.rectangle
+            && polygon == &other.polygon
+            && line == &other.line
+            && grid == &other.grid
+            && canvas == &other.canvas
+            && build == &other.build
+    }
+}
+
 struct WorldGpu {
     registry: u64,
     scope: Option<(Uuid, ProjectContext, Uuid, Option<Uuid>)>,
@@ -1250,7 +1279,10 @@ impl Editor {
             gpu.paint_ready = true;
             gpu.scenes.set_surface_paint_source(gpu.view, None).map_err(|e| e.to_string())?;
         }
-        if !same_scene {
+        let continue_private = gpu.scenes.private_paint_frame_pending(gpu.view).map_err(|e| e.to_string())?
+            && gpu.scene_key.as_ref().is_some_and(|old| key.same_private_scope(old))
+            && gpu.scene_source.as_ref().is_some_and(|old| Arc::ptr_eq(old, &source));
+        if !same_scene && !continue_private {
             if gpu.projection_paste != binding.paste {
                 rusterix::chunkbuilder::terrain_surface::TerrainSurface::invalidate_cached(map.id);
                 gpu.scenes
@@ -1281,6 +1313,7 @@ impl Editor {
                         gpu.view,
                         (binding.size.0 as u32, binding.size.1 as u32),
                         &eldiron_presentation::GameSceneInput {
+                            scope: binding.document,
                             map,
                             assets: assets,
                             time: bridge.client.server_time,
@@ -1419,6 +1452,8 @@ impl Editor {
                 .map_err(|e| e.to_string())?;
             gpu.scene_key = Some(key);
             gpu.scene_source = Some(source.clone());
+        } else if continue_private {
+            gpu.scenes.render(gpu.view, map.changed as u64, images.registry).map_err(|e| e.to_string())?;
         }
         gpu.paint_ready &= gpu.scenes.surface_paint_ready(gpu.view).map_err(|e| e.to_string())?;
         gpu.paint_ready &= gpu.scenes.scene_sources_ready(gpu.view).map_err(|e| e.to_string())?;

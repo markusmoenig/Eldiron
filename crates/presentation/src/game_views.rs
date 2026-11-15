@@ -2,10 +2,12 @@ use crate::{SceneViews, ViewId};
 use renderkit::{ImageRegistry, RenderError, Result};
 use rusterix::server::message::RuntimeRenderState;
 use rusterix::{Assets, Map, client::widget::game::GameWidget};
-use theframework_core::TheTime;
+use theframework_core::{TheTime, Uuid};
 
 /// Borrowed CPU view state. No presenter advances or drains the authoritative session.
 pub struct GameSceneInput<'a> {
+    /// Session/document source lifetime, independent of a map's reusable ID.
+    pub scope: Uuid,
     pub map: &'a Map,
     pub assets: &'a Assets,
     pub time: TheTime,
@@ -46,6 +48,21 @@ impl SceneViews {
         }
         let size = widget.gpu_scene_resolution(logical).map_err(RenderError)?;
         self.resize(id, size, images)?;
+        let paint = if rusterix::client::screen_model::is_2d_camera(&widget.camera) {
+            None
+        } else {
+            input.assets.surface_paint.get(&input.map.id)
+        };
+        self.set_surface_paint_source(id, paint)?;
+        let stamp = camera_stamp(
+            widget
+                .camera_d3
+                .as_scenevm_camera_for_surface(size.0 as f32, size.1 as f32),
+        );
+        let scope = (input.scope, input.map.id, widget.camera.clone(), stamp);
+        if self.keep_game_paint_frame(id, &scope)? {
+            return Ok(());
+        }
         let scene = self.scene_mut(id)?;
         scene.runtime_render_state = input.render_state.clone();
         widget
@@ -58,12 +75,15 @@ impl SceneViews {
                 scene,
             )
             .map_err(RenderError)?;
-        let paint = if rusterix::client::screen_model::is_2d_camera(&widget.camera) {
-            None
-        } else {
-            input.assets.surface_paint.get(&input.map.id)
-        };
-        self.set_surface_paint_source(id, paint)?;
+        let stamp = camera_stamp(
+            widget
+                .camera_d3
+                .as_scenevm_camera_for_surface(size.0 as f32, size.1 as f32),
+        );
+        self.set_game_paint_scope(
+            id,
+            (input.scope, input.map.id, widget.camera.clone(), stamp),
+        )?;
         // Player/map synchronization can change the camera during preparation.
         self.select_game_mode(id, widget.camera.is_isometric_2d(), images)?;
         if widget.camera.is_isometric_2d() {
@@ -110,4 +130,35 @@ pub fn configure_scene_assets(
     ));
     scene.mark_dynamics_dirty();
     Ok(())
+}
+
+fn camera_stamp(camera: scenevm::Camera3D) -> [u32; 17] {
+    let mut stamp = [0; 17];
+    stamp[0] = match camera.kind {
+        scenevm::CameraKind::OrthoIso => 0,
+        scenevm::CameraKind::OrbitPersp => 1,
+        scenevm::CameraKind::FirstPersonPersp => 2,
+    };
+    stamp[1..].copy_from_slice(
+        &[
+            camera.pos.x,
+            camera.pos.y,
+            camera.pos.z,
+            camera.forward.x,
+            camera.forward.y,
+            camera.forward.z,
+            camera.right.x,
+            camera.right.y,
+            camera.right.z,
+            camera.up.x,
+            camera.up.y,
+            camera.up.z,
+            camera.vfov_deg,
+            camera.ortho_half_h,
+            camera.near,
+            camera.far,
+        ]
+        .map(f32::to_bits),
+    );
+    stamp
 }

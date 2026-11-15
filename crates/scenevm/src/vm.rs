@@ -6034,7 +6034,10 @@ impl VM {
                 }
             }
             Atom::ClearRaster3DPaintOverlay => {
-                if self.paged_surface_paint.take().is_some() { self.raster3d_paint_overlay_dirty = true; }
+                if self.paged_surface_paint.take().is_some() {
+                    self.raster3d_paint_overlay_dirty = true;
+                    self.release_paint_gpu_bindings();
+                }
                 if self.raster3d_paint_overlay.is_some()
                     || self.raster3d_surface_paint.is_some()
                     || !self.raster3d_paint_alpha_geo_ids.is_empty()
@@ -6044,6 +6047,7 @@ impl VM {
                     self.raster3d_surface_paint = None;
                     self.raster3d_paint_alpha_geo_ids.clear();
                     self.raster3d_paint_overlay_dirty = true;
+                    self.release_paint_gpu_bindings();
                     if alpha_geo_changed {
                         self.cached_static_raster_indices_valid = false;
                     }

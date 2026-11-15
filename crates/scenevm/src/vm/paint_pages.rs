@@ -128,6 +128,25 @@ impl VM {
         }
         self.paint_dispatch = region;
     }
+    /// Drop derived atlas/table bindings after source retirement. Submitted
+    /// consumers retain their own GPU references; completed view pixels live in
+    /// independent targets and do not need these source textures.
+    pub(super) fn release_paint_gpu_bindings(&mut self) {
+        if let Some(gpu) = &mut self.gpu {
+            gpu.raster3d_paint_color_tex = None;
+            gpu.raster3d_paint_material_tex = None;
+            gpu.raster3d_paint_color_view = None;
+            gpu.raster3d_paint_material_view = None;
+            gpu.raster3d_paint_tex_size = (0, 0);
+            gpu.raster3d_surface_paint_entries_ssbo = None;
+            gpu.raster3d_surface_paint_entries_size = 0;
+            gpu.raster3d_surface_paint_entries_shared = false;
+            gpu.u_raster3d_bg = None;
+            gpu.u3d_bg = None;
+            gpu.compute3d_paint_table = None;
+            gpu.compute3d_aux_surface = None;
+        }
+    }
     pub(crate) fn set_paint_page_binding(
         &mut self,
         context: &renderkit::GpuContext,
@@ -148,6 +167,7 @@ impl VM {
         {
             return Ok(());
         }
+        self.release_paint_gpu_bindings();
         let alpha: FxHashSet<_> = binding.alpha_geo_ids.iter().copied().collect();
         if alpha != self.raster3d_paint_alpha_geo_ids {
             self.cached_static_raster_indices_valid = false;
