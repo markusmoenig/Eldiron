@@ -141,6 +141,10 @@ pub fn screen_background(config: &Table) -> Pixel {
     hex_to_rgba_u8(color)
 }
 
+pub fn has_widget_role(screen: &crate::Map, role: &str) -> bool {
+    screen.sectors.iter().any(|sector| sector_ui_role(sector).is_some_and(|value| value == role))
+}
+
 pub(crate) fn sector_ui_role(sector: &crate::Sector) -> Option<String> {
     let crate::Value::Str(data) = sector.properties.get("data")? else {
         return None;

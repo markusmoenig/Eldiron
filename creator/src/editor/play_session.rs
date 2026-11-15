@@ -25,6 +25,7 @@ pub(super) struct CreatorPlaySession {
     pub requested: bool,
     last: Instant,
     visual_key: u64,
+    initial_screen: String,
     audio: Option<rusterix::audio::output::AudioOutput>,
     appearances: rusterix::procedural_avatar::AppearancePreparation,
 }
@@ -47,6 +48,7 @@ impl CreatorPlaySession {
             requested,
             last: Instant::now(),
             visual_key: 0,
+            initial_screen: String::new(),
             audio: None,
             appearances: Default::default(),
         }
@@ -65,20 +67,56 @@ impl CreatorPlaySession {
             ..Default::default()
         })?;
         game.clock = SessionClock::new(Duration::from_millis(tick_ms.max(1)));
-        // CPU client setup remains an explicit presentation/start-menu adapter.
-        // It never receives the authoritative Server and cannot advance it.
-        bridge.assets = game.assets.clone();
-        bridge.set_block_props(game.project.block_props.clone());
-        let mut commands = eldiron_presentation::project_bridge::setup_client_sources(bridge, &mut game.project);
-        if quick_start {
-            commands.extend(bridge.start_with_entity_defaults());
+        let settings = eldiron_runtime::PlayerSettings::parse(&game.project.config)?;
+        let mut initial_screen = settings.start_screen.clone();
+        let start_screen = game.project.screens.values()
+            .find(|screen| screen.map.name == initial_screen);
+        let showing_game = start_screen.is_none()
+            || start_screen.is_some_and(|screen| {
+                rusterix::client::screen_model::has_widget_role(&screen.map, "game")
+            });
+        // Empty authoring regions can still run their world scripts. Preserve
+        // that policy while the session owns successful registration and input.
+        let available = game.project.regions.iter()
+            .find(|region| region.map.name == game.current_map)
+            .is_some_and(|region| {
+                rusterix::player_start::PlayerStartSource::from_map(&game.assets, &region.map).is_ok()
+            });
+        let mut player = None;
+        if available && settings.auto_create_player && showing_game {
+            player = game.start_player(eldiron_runtime::PlayerStartOptions::default())?;
         }
-        game.assets = bridge.assets.clone();
-        game.current_map = bridge.client.current_map.clone();
-        game.submit_startup_commands(commands);
+        if available && quick_start && !game.has_started_player() {
+            player = game.start_player(eldiron_runtime::PlayerStartOptions {
+                entrance: true, ..Default::default()
+            })?;
+            if player.is_some() && !settings.play_screen.is_empty()
+                && game.project.screens.values().any(|screen| screen.map.name == settings.play_screen) {
+                initial_screen = settings.play_screen.clone();
+            }
+        }
+        let mut input = PlayerInput::default();
+        if let Some(player) = &player {
+            input.controls.configure(player, &game.assets);
+        }
+        // Publish only visual sources to the existing authoring owner. Its maps,
+        // region/world scripts, behavior ownership and parsed fonts stay there;
+        // startup-derived art remains available during later live authoring edits.
+        let fonts = std::mem::take(&mut bridge.assets.fonts);
+        bridge.assets.publish_visual_sources_from(&game.assets);
+        bridge.assets.fonts = fonts;
+        bridge.scene_handler.sync_base_render_settings(&game.assets.config);
+        bridge.scene_handler.mark_dynamics_dirty();
+        // The compatibility client mirrors scalar configuration/controls, never
+        // the native screen or authoritative session.
+        bridge.client.bind_owned_session_metadata(
+            &game.assets, &game.current_map, &initial_screen, player.as_ref(),
+        );
+        bridge.clear_say_messages();
         for _ in 0..3 {
             game.tick_once();
         }
+        bridge.client.current_map.clone_from(&game.current_map);
         bridge.client.set_server_time(game.project.time);
         let mut appearances = rusterix::procedural_avatar::AppearancePreparation::default();
         appearances.prepare(game.server.entities.values().flatten(), &game.assets);
@@ -87,13 +125,20 @@ impl CreatorPlaySession {
         Ok(Self {
             document,
             storage: Storage::Owned(game),
-            input: PlayerInput::from_controls(bridge.client.player_input_snapshot()),
+            input,
             requested,
             last: Instant::now(),
             visual_key,
+            initial_screen,
             audio: Some(Default::default()),
             appearances,
         })
+    }
+    pub fn initial_screen<'a>(&'a self, bridge: &'a Rusterix) -> &'a str {
+        match self.storage {
+            Storage::Owned(_) => &self.initial_screen,
+            Storage::Reference(_) => bridge.client.current_screen_name(),
+        }
     }
     pub fn wake_after(&self) -> Option<Duration> {
         let tick = match &self.storage {

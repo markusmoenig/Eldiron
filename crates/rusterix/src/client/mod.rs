@@ -1655,9 +1655,8 @@ impl Client {
         default.to_string()
     }
 
-    /// Setup the client with the given assets.
-    pub fn setup(&mut self, assets: &mut Assets, scene_handler: &mut SceneHandler) -> Vec<Command> {
-        let mut commands = vec![];
+    /// Refresh configuration and input metadata without creating a screen.
+    fn prepare_session_metadata(&mut self, assets: &Assets) {
         self.first_game_draw = true;
         self.intent = String::new();
         self.selected_targeting_intent = None;
@@ -1670,8 +1669,6 @@ impl Client {
         self.activated_widgets.clear();
         self.pressed_widget = None;
         self.pending_runtime_commands.clear();
-
-        scene_handler.sync_base_render_settings(&assets.config);
 
         // Init config
         match assets.config.parse::<Table>() {
@@ -1740,16 +1737,47 @@ impl Client {
             }
         }
 
+        self.current_map = self.get_config_string_default("game", "start_region", "");
+        self.current_screen = self.get_config_string_default("game", "start_screen", "");
+    }
+
+    /// Mirror CPU configuration/controls for editor compatibility readers. The
+    /// authoritative session and native screen keep their own state; this never
+    /// builds widgets, scenes, framebuffers, or an audio/GPU device.
+    pub fn bind_owned_session_metadata(
+        &mut self,
+        assets: &Assets,
+        current_map: &str,
+        selected_screen: &str,
+        player: Option<&crate::player_start::PlayerStartInfo>,
+    ) {
+        self.prepare_session_metadata(assets);
+        self.current_map = current_map.to_owned();
+        self.current_screen = selected_screen.to_owned();
+        self.game_started = player.is_some();
+        let mut controls = ClientAction::default();
+        if let Some(player) = player {
+            controls.init(player.template.clone(), assets);
+            if let Some(bindings) = &player.input_bindings {
+                controls.set_input_data(bindings);
+            }
+        }
+        self.client_action = Arc::new(Mutex::new(controls));
+        self.target = TheRGBABuffer::default();
+        self.overlay = TheRGBABuffer::default();
+    }
+
+    /// Setup the explicit reference client with the given assets.
+    pub fn setup(&mut self, assets: &mut Assets, scene_handler: &mut SceneHandler) -> Vec<Command> {
+        let mut commands = vec![];
+        self.prepare_session_metadata(assets);
+        scene_handler.sync_base_render_settings(&assets.config);
+
         // Create the target buffer
         self.target = TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y));
         // Create the overlay buffer
         self.overlay = TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y));
 
-        // Find the start region
-        self.current_map = self.get_config_string_default("game", "start_region", "");
-
-        // Find the start screen
-        self.current_screen = self.get_config_string_default("game", "start_screen", "");
         let has_start_screen = !self.current_screen.trim().is_empty()
             && assets.screens.contains_key(&self.current_screen);
         let start_screen_has_game_widget =
@@ -1795,9 +1823,7 @@ impl Client {
             return false;
         };
 
-        screen.sectors.iter().any(|sector| {
-            screen_model::sector_ui_role(sector).is_some_and(|role| role == role_name)
-        })
+        screen_model::has_widget_role(screen, role_name)
     }
 
     fn screen_base_render_map(screen: &Map) -> Map {

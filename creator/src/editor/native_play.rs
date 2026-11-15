@@ -506,7 +506,7 @@ impl Editor {
             binding.clone(),
             &world,
             wanted,
-            bridge.client.current_screen_name(),
+            play.initial_screen(&bridge),
         )?;
         if created {
             let outputs = RegionEvents {
