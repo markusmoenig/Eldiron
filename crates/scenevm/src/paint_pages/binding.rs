@@ -1,4 +1,5 @@
 //! Validated paint image/table ownership shared by independent scene views.
+use super::PaintEntryStorage;
 use crate::{GeoId, Raster3DSurfacePaintEntry};
 use renderkit::{GpuContext, GpuImage, RenderError, Result, wgpu};
 use std::sync::Arc;
@@ -6,7 +7,7 @@ use std::sync::Arc;
 pub struct PaintPageBinding {
     pub(crate) color: Arc<GpuImage>,
     pub(crate) material: Arc<GpuImage>,
-    pub(crate) entries: Arc<[Raster3DSurfacePaintEntry]>,
+    pub(crate) entries: PaintEntryStorage,
     pub(crate) alpha_geo_ids: Vec<GeoId>,
     pub(crate) has_missing: bool,
     pub(crate) raster_entries: Option<wgpu::Buffer>,
@@ -19,6 +20,7 @@ pub struct PaintPageBindingPreparation {
     cursor: usize,
     failure: Option<String>,
     uploaded_bytes: usize,
+    require_unloaded: bool,
 }
 impl PaintPageBindingPreparation {
     pub fn new(
@@ -27,6 +29,23 @@ impl PaintPageBindingPreparation {
         material: Arc<GpuImage>,
         entries: Arc<[Raster3DSurfacePaintEntry]>,
         alpha_geo_ids: Vec<GeoId>,
+    ) -> Result<Self> {
+        Self::new_entries(
+            context,
+            color,
+            material,
+            PaintEntryStorage::Slice(entries),
+            alpha_geo_ids,
+            false,
+        )
+    }
+    pub(super) fn new_entries(
+        context: &GpuContext,
+        color: Arc<GpuImage>,
+        material: Arc<GpuImage>,
+        entries: PaintEntryStorage,
+        alpha_geo_ids: Vec<GeoId>,
+        require_unloaded: bool,
     ) -> Result<Self> {
         if context.is_lost()
             || color.device_generation() != context.generation()
@@ -67,6 +86,7 @@ impl PaintPageBindingPreparation {
             cursor: 0,
             failure: None,
             uploaded_bytes: 0,
+            require_unloaded,
         })
     }
     /// Check at most `units` table slots, including unused slots.
@@ -83,7 +103,9 @@ impl PaintPageBindingPreparation {
             if entry.uv_size == [0; 2] {
                 continue;
             }
-            let error = if entry.uv_size != [64; 2] {
+            let error = if self.require_unloaded && entry.atlas_rect != [0; 4] {
+                Some("residency table must start with unloaded source keys")
+            } else if entry.uv_size != [64; 2] {
                 Some("invalid paint page UV dimensions")
             } else if entry.atlas_rect[2..] == [0, 0] {
                 binding.has_missing = true;
@@ -139,7 +161,13 @@ impl PaintPageBindingPreparation {
             context.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("shared-raster-paint-lookup"),
                 size: bytes.len() as u64,
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                usage: wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_DST
+                    | if self.require_unloaded {
+                        wgpu::BufferUsages::COPY_SRC
+                    } else {
+                        wgpu::BufferUsages::empty()
+                    },
                 mapped_at_creation: false,
             })
         });
@@ -151,6 +179,9 @@ impl PaintPageBindingPreparation {
         context.record_upload(count as u64);
         self.uploaded_bytes += count;
         Ok(count)
+    }
+    pub fn uploaded_bytes(&self) -> usize {
+        self.uploaded_bytes
     }
     pub fn upload_ready(&self) -> bool {
         self.binding.as_ref().is_some_and(|binding| {

@@ -15055,3 +15055,51 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Browser Creator release compilation for SceneOwner + CPU index PASS17.14s:
   /private/tmp/eldiron-scene-view-owner-release-web.log. All compiler handles
   terminal; git diff --check passes. Source/frame activation remains pending.
+
+
+## Cooperative initial residency and shared key backing (2026-11-15, continuing)
+
+- Added PaintResidencyTablePreparation and PaintPageResidencyPreparation. Private
+  bake/reference constructors drain the same kernel; live owners may validate a
+  requested number of slots and upload<=64KiB per call under their shared budget.
+  A residency-only validation rule rejects preloaded rectangles; finish requires
+  complete validation/upload and the current device. The derived mutable table
+  leases the prepared GPU lookup instead of rescanning/reuploading it at finish.
+- Shared key metadata now supports immutable Arc<Vec> as well as the existing
+  public Arc-slice interfaces. CPU PaintPageIndex builders mutate their exclusive
+  Vec cooperatively, publish that backing, and residency preparations clone the
+  handle without full table copies or Vec-to-Arc-slice handoff. Stamp-key extension
+  allocates a private replacement Vec so already published keys cannot be changed.
+  Compute caches retain exact storage identities across both backing forms.
+  Existing public binding constructors/import paths and serialization remain.
+- Private raster advance has a shared-source-budget hook. It yields before page
+  generation/upload unless allowance covers the original32KiB plane pair plus
+  both16-byte table rectangles. One advance still performs at most one page load
+  and one base attempt/composition; no GPU polling/wait was added. Diagnostics
+  expose partial table allocation/upload bytes separately from original planes.
+- Standalone SceneVM release compile PASS10.05s:
+  /private/tmp/eldiron-residency-preparation-release-scenevm.log.
+  Initial canonical four-application compile PASS28.35s:
+  /private/tmp/eldiron-residency-preparation-release.log.
+  CPU-only runtime compile after shared backing PASS3.05s:
+  /private/tmp/eldiron-residency-preparation-release-cpu.log.
+  Focused release spatial replay with one-slot validation and64-byte initial
+  table writes is in flight; browser/final app checks remain to collect.
+- Do not yet claim complete live residency. Canonical Sources still selects full
+  planes; SceneOwner start/advance hooks await indexed-source activation and
+  player/Creator frozen-scope scheduling. Per-view initial alpha-owner copying/
+  VM set construction, allocation timing, aggregate view budgets and conservative
+  overlapping-fragment dependencies remain work/acceptance gaps. Broad tests and
+  measured release performance remain deferred until implementation is finished.
+- Focused staged-table/spatial regression PASS0.15s, release build1m01s:
+  /private/tmp/eldiron-residency-preparation-release-spatial.log. Compiler warning
+  exposed a missed budget guard in an earlier scripted edit; corrected before
+  activation. Added an exhausted-budget phase to the same focused fixture:
+  missing source remains pending with zero page uploads, then completes with
+  original pixels once allowance is supplied. PASS0.14s, release build11.90s:
+  /private/tmp/eldiron-residency-preparation-release-budget.log. No broad suite run.
+  Browser feature compilation is in flight. Actual multi-view integration/fairness
+  remains unverified; this single request is evidence for its budget hook only.
+- Browser Creator release compilation PASS27.98s:
+  /private/tmp/eldiron-residency-preparation-release-web.log. All compiler handles
+  terminal; diff whitespace check passes. Concurrent concept remains untouched.

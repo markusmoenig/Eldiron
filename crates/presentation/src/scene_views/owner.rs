@@ -65,12 +65,12 @@ impl SceneOwner {
         ));
         Ok(())
     }
-    pub fn advance(&mut self) -> Result<Option<SceneOutput>> {
+    pub fn advance(&mut self, available_bytes: usize) -> Result<Option<SceneOutput>> {
         let frame = self
             .frame
             .as_mut()
             .ok_or_else(|| RenderError("private scene frame missing".into()))?;
-        if frame.advance()? == RasterPaintAdvance::Pending {
+        if frame.advance_with_source_budget(available_bytes)? == RasterPaintAdvance::Pending {
             return Ok(None);
         }
         let (scene, target, pages, output) = self.frame.take().unwrap().into_parts();
@@ -78,6 +78,12 @@ impl SceneOwner {
         self.target = Some(target);
         self.pages = Some(pages);
         Ok(output)
+    }
+    pub fn residency_usage(&self) -> Option<crate::orthographic_bake::PaintResidencyUsage> {
+        self.pages
+            .as_ref()
+            .map(PaintPageResidency::usage)
+            .or_else(|| self.frame.as_ref().map(RasterPaintFrame::residency_usage))
     }
     pub fn has_cpu_target_storage(&self) -> bool {
         self.frame

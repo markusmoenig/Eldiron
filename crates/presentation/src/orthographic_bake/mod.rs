@@ -19,7 +19,7 @@ mod paging;
 use paging::{FrameKey, Paging};
 mod job;
 mod paint_residency;
-pub use paint_residency::{PaintPageRequest, PaintPageResidency, PaintResidencyUsage};
+pub use paint_residency::{PaintPageRequest, PaintPageResidency, PaintPageResidencyPreparation, PaintResidencyUsage};
 mod overlay;
 pub use job::{BakeAdvance, OrthographicBakeJob};
 pub use overlay::OrthographicBakeOverlay;

@@ -6,7 +6,7 @@ use crate::source_upload::SourceUploadBudget;
 enum Data {
     Header([u32; 5]),
     Words(Arc<Vec<u32>>),
-    Surface(Arc<[Raster3DSurfacePaintEntry]>),
+    Surface(PaintEntryStorage),
 }
 impl Data {
     fn words(&self) -> &[u32] {
@@ -20,7 +20,7 @@ impl Data {
         match (self, other) {
             (Self::Header(a), Self::Header(b)) => a == b,
             (Self::Words(a), Self::Words(b)) => Arc::ptr_eq(a, b),
-            (Self::Surface(a), Self::Surface(b)) => Arc::ptr_eq(a, b),
+            (Self::Surface(a), Self::Surface(b)) => a.same_storage(b),
             _ => false,
         }
     }
@@ -161,7 +161,7 @@ impl VM {
             let old = pending.or(gpu.compute3d_aux_surface.as_ref());
             Some(match old {
                 Some(old) if old.as_ref() == current => old.clone(),
-                _ => Arc::from(current),
+                _ => PaintEntryStorage::copy_from(current),
             })
         } else {
             None
@@ -177,7 +177,7 @@ impl VM {
                 .compute3d_aux_surface
                 .as_ref()
                 .zip(surface.as_ref())
-                .is_some_and(|(a, b)| Arc::ptr_eq(a, b));
+                .is_some_and(|(a, b)| a.same_storage(b));
         let buffer_present = if compute {
             gpu.compute3d_aux_ssbo.is_some()
         } else {

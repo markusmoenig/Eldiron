@@ -24,6 +24,86 @@ pub struct PaintResidencyTable {
     origins: HashMap<[u32; 2], u32>,
     uploaded_bytes: u64,
 }
+/// Initial validation/upload can share a live host's metadata and transfer budget.
+/// The complete source backing is immutable and no partial binding is exposed.
+pub struct PaintResidencyTablePreparation {
+    context: Arc<GpuContext>,
+    preparation: PaintPageBindingPreparation,
+}
+impl PaintResidencyTablePreparation {
+    pub fn new_indexed(
+        context: Arc<GpuContext>,
+        color: Arc<GpuImage>,
+        material: Arc<GpuImage>,
+        entries: Arc<Vec<Raster3DSurfacePaintEntry>>,
+        alpha_geo_ids: Vec<GeoId>,
+    ) -> Result<Self> {
+        Self::new_entries(
+            context,
+            color,
+            material,
+            PaintEntryStorage::Vec(entries),
+            alpha_geo_ids,
+        )
+    }
+    fn new_entries(
+        context: Arc<GpuContext>,
+        color: Arc<GpuImage>,
+        material: Arc<GpuImage>,
+        entries: PaintEntryStorage,
+        alpha_geo_ids: Vec<GeoId>,
+    ) -> Result<Self> {
+        let preparation = PaintPageBindingPreparation::new_entries(
+            &context,
+            color,
+            material,
+            entries,
+            alpha_geo_ids,
+            true,
+        )?;
+        Ok(Self {
+            context,
+            preparation,
+        })
+    }
+    pub fn advance(&mut self, units: usize) -> Result<bool> {
+        self.preparation.advance(units)
+    }
+    pub fn upload(&mut self, max_bytes: usize) -> Result<usize> {
+        self.preparation.upload(&self.context, max_bytes)
+    }
+    pub fn uploaded_bytes(&self) -> u64 {
+        self.preparation.uploaded_bytes() as u64
+    }
+    pub fn upload_ready(&self) -> bool {
+        self.preparation.upload_ready()
+    }
+    pub fn allocated_bytes(&self) -> u64 {
+        self.preparation.raster_table_bytes()
+    }
+    pub fn finish(mut self) -> Result<PaintResidencyTable> {
+        if !self.upload_ready() {
+            return Err(RenderError("residency lookup upload is incomplete".into()));
+        }
+        let mut binding = self.preparation.finish(&self.context)?;
+        let table = Arc::new(ResidentTable {
+            buffer: binding.raster_entries.as_ref().unwrap().clone(),
+            update: Mutex::new(TableUpdate {
+                revision: 0,
+                rectangles: [None; 2],
+            }),
+        });
+        let uploaded_bytes = binding.raster_table_bytes();
+        Arc::get_mut(&mut binding).unwrap().resident_table = Some(table);
+        Ok(PaintResidencyTable {
+            context: self.context,
+            binding,
+            residents: HashMap::new(),
+            origins: HashMap::new(),
+            uploaded_bytes,
+        })
+    }
+}
 impl PaintResidencyTable {
     pub fn new(
         context: Arc<GpuContext>,
@@ -32,50 +112,18 @@ impl PaintResidencyTable {
         entries: Arc<[Raster3DSurfacePaintEntry]>,
         alpha_geo_ids: Vec<GeoId>,
     ) -> Result<Self> {
-        // Validate once. All later changes are at most two rectangle writes;
-        // neither source keys nor the full CPU table are cloned per fault.
-        let mut preparation =
-            PaintPageBindingPreparation::new(&context, color, material, entries, alpha_geo_ids)?;
-        preparation.advance(usize::MAX)?;
-        let mut binding = preparation.finish(&context)?;
-        if binding
-            .entries
-            .iter()
-            .any(|entry| entry.uv_size != [0; 2] && entry.atlas_rect != [0; 4])
-        {
-            return Err(RenderError(
-                "residency table must start with unloaded source keys".into(),
-            ));
-        }
-        use wgpu::util::DeviceExt;
-        let bytes = bytemuck::cast_slice(binding.entries.as_ref());
-        let table = Arc::new(ResidentTable {
-            buffer: context
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("private paint residency lookup"),
-                    contents: bytes,
-                    usage: wgpu::BufferUsages::STORAGE
-                        | wgpu::BufferUsages::COPY_DST
-                        | wgpu::BufferUsages::COPY_SRC,
-                }),
-            update: Mutex::new(TableUpdate {
-                revision: 0,
-                rectangles: [None; 2],
-            }),
-        });
-        let uploaded_bytes = bytes.len() as u64;
-        context.record_upload(uploaded_bytes);
-        let value = Arc::get_mut(&mut binding).unwrap();
-        value.raster_entries = Some(table.buffer.clone());
-        value.resident_table = Some(table);
-        Ok(Self {
+        let mut preparation = PaintResidencyTablePreparation::new_entries(
             context,
-            binding,
-            residents: HashMap::new(),
-            origins: HashMap::new(),
-            uploaded_bytes,
-        })
+            color,
+            material,
+            PaintEntryStorage::Slice(entries),
+            alpha_geo_ids,
+        )?;
+        preparation.advance(usize::MAX)?;
+        while !preparation.upload_ready() {
+            preparation.upload(64 * 1024)?;
+        }
+        preparation.finish()
     }
     pub fn binding(&self) -> Result<Arc<PaintPageBinding>> {
         if self.context.is_lost() {

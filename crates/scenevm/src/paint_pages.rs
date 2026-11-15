@@ -42,8 +42,11 @@ impl PaintDispatchRegion {
     }
 }
 
+mod entries;
+pub(crate) use entries::PaintEntryStorage;
+
 mod residency;
-pub use residency::PaintResidencyTable;
+pub use residency::{PaintResidencyTable, PaintResidencyTablePreparation};
 
 mod binding;
 pub use binding::{PaintPageBinding, PaintPageBindingPreparation};

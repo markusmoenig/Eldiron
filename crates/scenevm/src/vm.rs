@@ -676,7 +676,7 @@ pub struct VMGpu {
     pub material_table_ssbo_size: usize,
     pub compute3d_aux_ssbo: Option<wgpu::Buffer>,
     pub compute3d_aux_ssbo_size: usize,
-    compute3d_aux_surface: Option<Arc<[Raster3DSurfacePaintEntry]>>,
+    compute3d_aux_surface: Option<crate::paint_pages::PaintEntryStorage>,
     compute3d_paint_table: Option<(wgpu::Buffer, u64)>,
     compute3d_aux_organic: Option<organic::Words>,
     pub(crate) pending_source_upload: Option<organic::Pending>,

@@ -99,16 +99,22 @@ impl RasterPaintFrame {
     /// At most one page upload and one base attempt or composition per call. A
     /// metadata receipt must complete before any resident slot is replaced.
     pub fn advance(&mut self) -> Result<RasterPaintAdvance> {
+        self.advance_with_source_budget(usize::MAX)
+    }
+    pub(crate) fn advance_with_source_budget(
+        &mut self,
+        available_bytes: usize,
+    ) -> Result<RasterPaintAdvance> {
         if let Phase::Failed(error) = &self.phase {
             return Err(RenderError(error.clone()));
         }
-        let result = self.advance_inner();
+        let result = self.advance_inner(available_bytes);
         if let Err(error) = &result {
             self.phase = Phase::Failed(error.to_string());
         }
         result
     }
-    fn advance_inner(&mut self) -> Result<RasterPaintAdvance> {
+    fn advance_inner(&mut self, available_bytes: usize) -> Result<RasterPaintAdvance> {
         if self.context.is_lost() {
             return Err(RenderError("private raster frame device was lost".into()));
         }
@@ -139,6 +145,12 @@ impl RasterPaintFrame {
                     Some(PaintPageStatus::Ready) => self.finish_region(),
                     Some(PaintPageStatus::MissingEntry(index)) => self.phase = Phase::Source(index),
                 },
+                Phase::Source(index) if available_bytes < 64 * 64 * 8 + 32 => {
+                    // Reserve the original plane pair and both possible lookup
+                    // rectangle writes before starting page generation/upload.
+                    self.phase = Phase::Source(index);
+                    return Ok(RasterPaintAdvance::Pending);
+                }
                 Phase::Source(index) => match self.pages.request(index)? {
                     PaintPageRequest::Pending => {
                         self.phase = Phase::Source(index);

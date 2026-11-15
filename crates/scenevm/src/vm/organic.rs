@@ -1,5 +1,6 @@
 //! Retained CPU billboard descriptions and segmented compute metadata uploads.
 use super::*;
+use crate::paint_pages::PaintEntryStorage;
 mod packing;
 mod upload;
 pub(super) use packing::SourcePacking;
@@ -239,7 +240,7 @@ impl VM {
                 .gpu
                 .as_ref()
                 .and_then(|gpu| gpu.compute3d_aux_surface.as_ref())
-                .is_none_or(|old| !Arc::ptr_eq(old, &binding.entries));
+                .is_none_or(|old| !old.same_storage(&binding.entries));
             (binding.entries.clone(), changed)
         } else {
             let current = self
@@ -252,7 +253,7 @@ impl VM {
                 .and_then(|gpu| gpu.compute3d_aux_surface.as_ref())
             {
                 Some(old) if old.as_ref() == current => (old.clone(), false),
-                _ => (Arc::<[Raster3DSurfacePaintEntry]>::from(current), true),
+                _ => (PaintEntryStorage::copy_from(current), true),
             }
         };
         let surface_words: &[u32] = bytemuck::cast_slice(surface.as_ref());

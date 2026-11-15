@@ -35,10 +35,10 @@ impl StampPageIndexBuilder {
         if table_len as u64 * size_of::<Raster3DSurfacePaintEntry>() as u64 > table_byte_limit {
             return Err("Combined paint/stamp lookup exceeds metadata budget".into());
         }
-        index.entries.clear();
+        index.entries = Arc::new(Vec::new());
         index.sources_by_slot.clear();
-        index
-            .entries
+        Arc::get_mut(&mut index.entries)
+            .unwrap()
             .try_reserve_exact(table_len)
             .map_err(|e| e.to_string())?;
         index
@@ -78,7 +78,7 @@ impl StampPageIndexBuilder {
             .len()
             .saturating_add(items.saturating_mul(64))
             .min(self.table_len);
-        self.index.entries.resize(
+        Arc::get_mut(&mut self.index.entries).unwrap().resize(
             end,
             Raster3DSurfacePaintEntry {
                 geo: [0; 4],
@@ -143,7 +143,7 @@ impl StampPageIndexBuilder {
             }
             slot = (slot + 1) & (self.table_len - 1);
         }
-        self.index.entries[slot] = Raster3DSurfacePaintEntry {
+        Arc::get_mut(&mut self.index.entries).unwrap()[slot] = Raster3DSurfacePaintEntry {
             geo: page.geo,
             uv_origin: page.uv_origin,
             uv_size: [SIZE; 2],

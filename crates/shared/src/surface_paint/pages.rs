@@ -15,7 +15,7 @@ pub use stamps::StampPageIndexBuilder;
 use crate::iso_paint::{ISO_PAINT_BAKE_VERSION, ISO_PAINT_BAKED_CHUNK_SIZE, IsoPaintLayer};
 pub use preparation::PaintPageIndexBuilder;
 use scenevm::{GeoId, Raster3DSurfacePaintEntry};
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 use theframework_core::SharedBytes;
 
 const SIZE: u32 = ISO_PAINT_BAKED_CHUNK_SIZE as u32;
@@ -42,7 +42,7 @@ pub struct PaintPageIndex {
     pages: Vec<PaintPageSource>,
     #[cfg(feature = "graphics")]
     generated: generated::GeneratedPages,
-    entries: Vec<Raster3DSurfacePaintEntry>,
+    entries: Arc<Vec<Raster3DSurfacePaintEntry>>,
     sources_by_slot: Vec<Option<usize>>,
     alpha_geo_ids: Vec<GeoId>,
 }
@@ -87,6 +87,11 @@ impl PaintPageIndex {
     pub fn unloaded_entries(&self) -> &[Raster3DSurfacePaintEntry] {
         &self.entries
     }
+    /// Immutable published metadata backing, shared with derived residency owners.
+    /// Builders retain exclusive mutation until finish; no second key-table copy.
+    pub fn unloaded_entries_shared(&self) -> Arc<Vec<Raster3DSurfacePaintEntry>> {
+        self.entries.clone()
+    }
     pub fn alpha_geo_ids(&self) -> &[GeoId] {
         &self.alpha_geo_ids
     }
@@ -130,7 +135,7 @@ impl PaintPageIndex {
         atlas: [u32; 2],
         residents: &[(u32, [u32; 2])],
     ) -> Result<Vec<Raster3DSurfacePaintEntry>, String> {
-        let mut entries = self.entries.clone();
+        let mut entries = self.entries.as_ref().clone();
         let mut slots = HashSet::new();
         let mut origins = HashSet::new();
         for &(slot, origin) in residents {

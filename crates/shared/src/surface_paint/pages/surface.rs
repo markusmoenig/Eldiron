@@ -26,12 +26,12 @@ impl SurfacePaintIndexBuilder {
             pages: Vec::new(),
             #[cfg(feature = "graphics")]
             generated: Default::default(),
-            entries: Vec::new(),
+            entries: Arc::new(Vec::new()),
             sources_by_slot: Vec::new(),
             alpha_geo_ids: Vec::new(),
         };
-        index
-            .entries
+        Arc::get_mut(&mut index.entries)
+            .unwrap()
             .try_reserve_exact(source.entries.len())
             .map_err(|e| e.to_string())?;
         index
@@ -101,7 +101,7 @@ impl SurfacePaintIndexBuilder {
                 } else {
                     None
                 };
-                self.index.entries.push(key);
+                Arc::get_mut(&mut self.index.entries).unwrap().push(key);
                 self.index.sources_by_slot.push(source);
                 self.entry += 1;
             } else if let Some(alpha) = self.source.alpha_geo_ids.get(self.alpha) {

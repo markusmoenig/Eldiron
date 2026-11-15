@@ -38,7 +38,7 @@ impl PaintPageIndexBuilder {
             pages: Vec::new(),
             #[cfg(feature = "graphics")]
             generated: Default::default(),
-            entries: Vec::new(),
+            entries: Arc::new(Vec::new()),
             sources_by_slot: Vec::new(),
             alpha_geo_ids: Vec::new(),
         };
@@ -46,8 +46,8 @@ impl PaintPageIndexBuilder {
             .pages
             .try_reserve_exact(count)
             .map_err(|e| e.to_string())?;
-        index
-            .entries
+        Arc::get_mut(&mut index.entries)
+            .unwrap()
             .try_reserve_exact(table_len)
             .map_err(|e| e.to_string())?;
         index
@@ -84,7 +84,7 @@ impl PaintPageIndexBuilder {
             .len()
             .saturating_add(items.saturating_mul(64))
             .min(self.table_len);
-        self.index.entries.resize(
+        Arc::get_mut(&mut self.index.entries).unwrap().resize(
             end,
             Raster3DSurfacePaintEntry {
                 geo: [0; 4],
@@ -135,7 +135,7 @@ impl PaintPageIndexBuilder {
             self.has_alpha = true;
             self.insert_alpha(Builder::iso_paint_owner_geo_id(&chunk.owner));
         }
-        self.index.entries[slot] = Raster3DSurfacePaintEntry {
+        Arc::get_mut(&mut self.index.entries).unwrap()[slot] = Raster3DSurfacePaintEntry {
             geo: chunk.paint_geo,
             uv_origin: chunk.origin,
             uv_size: [SIZE; 2],

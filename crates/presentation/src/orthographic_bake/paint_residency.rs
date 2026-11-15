@@ -1,7 +1,7 @@
 //! Private producer residency. One fault loads at most one original page; a
 //! dispatch pins the dependencies it discovers until it succeeds or subdivides.
 use super::*;
-use scenevm::paint_pages::{PaintPageBinding, PaintResidencyTable};
+use scenevm::paint_pages::{PaintPageBinding, PaintResidencyTable, PaintResidencyTablePreparation};
 use shared::surface_paint::pages::PaintPageIndex;
 use std::collections::{HashMap, HashSet};
 
@@ -37,7 +37,17 @@ pub struct PaintPageResidency {
     uploads: u64,
     table: PaintResidencyTable,
 }
-impl PaintPageResidency {
+/// Cooperative initial key validation/upload. Original pixels remain shared and
+/// untouched until a requesting private frame reports a missing source slot.
+pub struct PaintPageResidencyPreparation {
+    context: Arc<GpuContext>,
+    source: Arc<PaintPageIndex>,
+    color: Arc<GpuImage>,
+    material: Arc<GpuImage>,
+    size: [u32; 2],
+    table: PaintResidencyTablePreparation,
+}
+impl PaintPageResidencyPreparation {
     pub fn new(
         context: Arc<GpuContext>,
         source: Arc<PaintPageIndex>,
@@ -45,7 +55,7 @@ impl PaintPageResidency {
     ) -> Result<Self> {
         let dimension = context.device.limits().max_texture_dimension_2d / PAGE;
         let max_capacity = (plane_byte_limit / PAGE_BYTES).min(u64::from(dimension).pow(2)) as u32;
-        let desired = max_capacity.min(source.source_count().max(1) as u32);
+        let desired = max_capacity.min(source.source_count().clamp(1, u32::MAX as usize) as u32);
         if context.is_lost()
             || desired == 0
             || source.table_bytes() + 20
@@ -69,11 +79,11 @@ impl PaintPageResidency {
         };
         let color = GpuImage::new(&context, descriptor(wgpu::TextureFormat::Rgba8Unorm))?;
         let material = GpuImage::new(&context, descriptor(wgpu::TextureFormat::Rgba8Uint))?;
-        let table = PaintResidencyTable::new(
+        let table = PaintResidencyTablePreparation::new_indexed(
             context.clone(),
             color.clone(),
             material.clone(),
-            source.unloaded_entries().to_vec().into(),
+            source.unloaded_entries_shared(),
             source.alpha_geo_ids().to_vec(),
         )?;
         Ok(Self {
@@ -83,11 +93,60 @@ impl PaintPageResidency {
             color,
             material,
             size,
-            slots: vec![None; (columns * rows) as usize],
+        })
+    }
+    pub fn advance(&mut self, units: usize) -> Result<bool> {
+        self.table.advance(units)
+    }
+    pub fn upload(&mut self, max_bytes: usize) -> Result<usize> {
+        self.table.upload(max_bytes)
+    }
+    pub fn ready(&self) -> bool {
+        self.table.upload_ready()
+    }
+    pub fn usage(&self) -> PaintResidencyUsage {
+        PaintResidencyUsage {
+            gpu_plane_bytes: u64::from(self.size[0]) * u64::from(self.size[1]) * 8,
+            capacity: (self.size[0] / PAGE * (self.size[1] / PAGE)) as usize,
+            resident: 0,
+            pinned: 0,
+            page_uploads: 0,
+            uploaded_bytes: 0,
+            gpu_table_bytes: self.table.allocated_bytes(),
+            table_uploaded_bytes: self.table.uploaded_bytes(),
+        }
+    }
+    pub fn finish(self) -> Result<PaintPageResidency> {
+        let table = self.table.finish()?;
+        Ok(PaintPageResidency {
+            context: self.context,
+            source: self.source,
+            color: self.color,
+            material: self.material,
+            size: self.size,
+            table,
+            slots: vec![None; (self.size[0] / PAGE * (self.size[1] / PAGE)) as usize],
             residents: HashMap::new(),
             pinned: HashSet::new(),
             uploads: 0,
         })
+    }
+}
+impl PaintPageResidency {
+    /// Explicit private/bake callers may drain the same preparation kernel.
+    /// Live callers advance PaintPageResidencyPreparation under their frame budget.
+    pub fn new(
+        context: Arc<GpuContext>,
+        source: Arc<PaintPageIndex>,
+        plane_byte_limit: u64,
+    ) -> Result<Self> {
+        let mut preparation =
+            PaintPageResidencyPreparation::new(context, source, plane_byte_limit)?;
+        preparation.advance(usize::MAX)?;
+        while !preparation.ready() {
+            preparation.upload(64 * 1024)?;
+        }
+        preparation.finish()
     }
     pub fn begin_dispatch(&mut self) {
         self.pinned.clear();

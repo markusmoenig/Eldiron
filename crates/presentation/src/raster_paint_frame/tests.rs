@@ -101,7 +101,18 @@ fn private_raster_pressure_matches_resident_frame() {
             .any(|pixel| pixel != &expected[..4]),
         "reference geometry must contribute pixels"
     );
-    let pages = PaintPageResidency::new(context.clone(), source, page_bytes * 2).unwrap();
+    let mut preparation = crate::orthographic_bake::PaintPageResidencyPreparation::new(
+        context.clone(),
+        source,
+        page_bytes * 2,
+    )
+    .unwrap();
+    assert!(!preparation.ready());
+    while !preparation.advance(1).unwrap() {}
+    while !preparation.ready() {
+        assert!(preparation.upload(64).unwrap() <= 64);
+    }
+    let pages = preparation.finish().unwrap();
     let mut frame = RasterPaintFrame::new(
         context.clone(),
         scene(),
@@ -112,6 +123,21 @@ fn private_raster_pressure_matches_resident_frame() {
     .unwrap();
     assert!(frame.output().is_none() && frame.completed_scene().is_none());
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while !matches!(frame.phase, Phase::Source(_)) {
+        context.device.poll(wgpu::PollType::Poll).unwrap();
+        assert_eq!(
+            frame.advance_with_source_budget(0).unwrap(),
+            RasterPaintAdvance::Pending
+        );
+        assert_eq!(frame.residency_usage().page_uploads, 0);
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert_eq!(
+        frame.advance_with_source_budget(0).unwrap(),
+        RasterPaintAdvance::Pending
+    );
+    assert_eq!(frame.residency_usage().page_uploads, 0);
     loop {
         context.device.poll(wgpu::PollType::Poll).unwrap();
         if frame.advance().unwrap() == RasterPaintAdvance::Complete {
