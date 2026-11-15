@@ -16187,3 +16187,37 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Existing source revision/cancellation scopes still control which immutable atlas
   publication a private frame is permitted to request; leases preserve storage
   lifetime and cannot replace those logical scope guards.
+
+
+## Unpooled image allocation ownership diagnostics (2026-11-15)
+
+- GpuImage::new now retains a context allocation charge through its last Arc
+  owner. Separate ImageAllocationUsage reports live/peak estimated texel bytes,
+  live image count and cumulative allocation count. RGBA8/RGBA16F source images,
+  the paint renderer's white image and bounded Swash GPU glyph pages are covered.
+  Registry removal does not prematurely retire a source still held by another
+  handle, a prepared frame, glyph entry or explicit capture request.
+- Pooled targets remain counted only by their target lease. Raw imported textures
+  remain explicitly outside this owned-allocation count; no double charge is
+  created by wrappers. Driver overhead and raw queue/driver-only handles remain
+  outside these estimates. Allocation, image format, cache/retention policy,
+  initialization, upload and current serialization behavior are unchanged.
+- Added context-wide image counters to native scene inspection and browser live
+  resource statistics, separately from view/source and pooled-target counters.
+- Focused release Metal image-owner contract PASS0.04s (build1.29s):
+  /private/tmp/eldiron-image-ownership-release-gpu.log. Covers duplicate registry
+  handles, RGBA8/16F sizes, retained frame/capture ownership, source retirement,
+  separate pooled/imported images and exact peak12B for the fixture.
+- Final canonical four-application native release check PASS29.06s:
+  /private/tmp/eldiron-image-ownership-release-native.log. Actual Creator browser-
+  host wasm release check PASS28.12s:
+  /private/tmp/eldiron-image-ownership-release-wasm.log. All handles terminal.
+  Broad workflow/platform/performance tests remain deferred.
+- Canonical adapter inventory found one concrete remaining viewport guard:
+  native_world_owns_viewport declines any saved bake with tile_size0, permitting
+  the old CPU canvas path. Common GPU bake rendering already rejects zero-sized
+  projection data; inspect common presentation_source/reference fallback policy
+  and retire this data-error escape hatch without hiding valid live geometry.
+  Reference PNG/Scepter captures and explicit preview workers are already guarded
+  as CPU consumers/reference-only paths. Tool editor_mode selects a separate
+  visible editor stack, whose hidden PolyView is suppressed by native_hidden.

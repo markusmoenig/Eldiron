@@ -44,7 +44,12 @@ fn resource_stats(context: &renderkit::GpuContext) -> String {
     let target = context.target_pool_usage();
     let working = context.working_buffer_pool_usage();
     let immutable = context.immutable_buffer_cache_usage();
+    let images = context.image_allocation_usage();
     serde_json::json!({
+        "unpooled_images": {
+            "live_bytes": images.live_bytes, "live_images": images.live_images,
+            "peak_live_bytes": images.peak_live_bytes, "allocations": images.allocations,
+        },
         "targets": {
             "bytes": target.cached_bytes, "entries": target.cached_textures,
             "live_bytes": target.live_bytes, "live_allocations": target.live_allocations,

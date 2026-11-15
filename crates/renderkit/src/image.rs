@@ -30,6 +30,7 @@ pub struct GpuImage {
     pub descriptor: ImageDescriptor,
     device_generation: u64,
     _target_lease: Option<crate::TargetLease>,
+    _allocation: Option<crate::allocation_usage::AllocationCharge>,
 }
 impl GpuImage {
     pub fn new(context: &GpuContext, descriptor: ImageDescriptor) -> Result<Arc<Self>> {
@@ -40,6 +41,11 @@ impl GpuImage {
         {
             return Err(RenderError("invalid GPU image dimensions".into()));
         }
+        let (block_width, block_height) = descriptor.format.block_dimensions();
+        let bytes = u64::from(descriptor.width.div_ceil(block_width))
+            .checked_mul(u64::from(descriptor.height.div_ceil(block_height)))
+            .and_then(|blocks| blocks.checked_mul(u64::from(descriptor.format.block_copy_size(None).unwrap_or(4))))
+            .ok_or_else(|| RenderError("GPU image allocation size overflow".into()))?;
         let texture = context.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("renderkit-image"),
             size: wgpu::Extent3d {
@@ -57,7 +63,9 @@ impl GpuImage {
                 | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
-        Ok(Arc::new(Self::from_texture(context, texture, descriptor)?))
+        let mut image = Self::from_texture(context, texture, descriptor)?;
+        image._allocation = Some(context.charge_image(bytes));
+        Ok(Arc::new(image))
     }
     /// Retained render-target storage. Contents can belong to an earlier frame;
     /// fully clear/overwrite before sampling. Keep the image through submission.
@@ -81,7 +89,7 @@ impl GpuImage {
         }
         Ok(Arc::new(Self {
             texture: lease.texture().clone(), view: lease.view().clone(), descriptor,
-            device_generation: context.generation(), _target_lease: Some(lease),
+            device_generation: context.generation(), _target_lease: Some(lease), _allocation: None,
         }))
     }
     /// The supplied texture must have been created on this context's device.
@@ -106,6 +114,7 @@ impl GpuImage {
             descriptor,
             device_generation: context.generation(),
             _target_lease: None,
+            _allocation: None,
         })
     }
     pub fn device_generation(&self) -> u64 {

@@ -24,6 +24,17 @@ struct Counters {
     status: AtomicU64,
     asset_bytes: AtomicU64,
     asset_requests: AtomicU64,
+    image_allocations: AtomicU64,
+}
+/// Unpooled images allocated by GpuImage::new, retained through their last Arc
+/// owner. Bytes estimate texel storage, excluding driver overhead, imported raw
+/// textures, pooled targets and raw handles retained only by queued commands.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ImageAllocationUsage {
+    pub live_bytes: u64,
+    pub live_images: u64,
+    pub peak_live_bytes: u64,
+    pub allocations: u64,
 }
 static NEXT_DEVICE: AtomicU64 = AtomicU64::new(1);
 /// A device domain. Creating a replacement context invalidates old GPU resources.
@@ -42,6 +53,7 @@ pub struct GpuContext {
     target_pool: Arc<crate::target_pool::TargetPool>,
     buffer_cache: Arc<crate::buffer_cache::BufferCache>,
     working_buffers: Arc<crate::working_buffers::WorkingBuffers>,
+    image_allocations: Arc<crate::allocation_usage::AllocationUsage>,
     #[cfg(target_arch = "wasm32")]
     validation_error: Arc<std::sync::Mutex<Option<String>>>,
 }
@@ -107,6 +119,7 @@ impl GpuContext {
             target_pool: Arc::new(crate::target_pool::TargetPool::default()),
             buffer_cache: Arc::new(crate::buffer_cache::BufferCache::default()),
             working_buffers: Arc::new(crate::working_buffers::WorkingBuffers::default()),
+            image_allocations: Arc::new(crate::allocation_usage::AllocationUsage::default()),
             #[cfg(target_arch = "wasm32")]
             validation_error,
         }))
@@ -148,6 +161,21 @@ impl GpuContext {
     /// Retained targets shared by all renderers in this device domain.
     pub fn target_pool_usage(&self) -> crate::TargetPoolUsage {
         self.target_pool.usage()
+    }
+    pub fn image_allocation_usage(&self) -> ImageAllocationUsage {
+        let (live_bytes, live_images, peak_live_bytes) = self.image_allocations.snapshot();
+        ImageAllocationUsage {
+            live_bytes,
+            live_images,
+            peak_live_bytes,
+            allocations: self.counters.image_allocations.load(Ordering::Relaxed),
+        }
+    }
+    pub(crate) fn charge_image(&self, bytes: u64) -> crate::allocation_usage::AllocationCharge {
+        self.counters
+            .image_allocations
+            .fetch_add(1, Ordering::Relaxed);
+        self.image_allocations.charge(bytes)
     }
     pub fn set_target_cache_limits(&self, bytes: u64, textures: usize) {
         self.target_pool.set_limits(bytes, textures);

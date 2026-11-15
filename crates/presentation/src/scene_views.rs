@@ -101,6 +101,11 @@ pub struct SceneViews {
     source_upload_budget: scenevm::source_upload::SourceUploadBudget,
 }
 impl SceneViews {
+    /// Context-wide unpooled images, including UI sources. Kept separate from
+    /// per-view and pooled target counters to avoid double-counting allocations.
+    pub fn image_allocation_usage(&self) -> renderkit::ImageAllocationUsage {
+        self.context.image_allocation_usage()
+    }
     pub fn new(images: &ImageRegistry, atlas: SharedAtlas) -> Self {
         Self {
             context: images.context().clone(),

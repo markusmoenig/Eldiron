@@ -4,8 +4,13 @@ use eldiron_presentation::SceneViews;
 
 pub(super) fn snapshot(scenes: &SceneViews) -> serde_json::Value {
     let paint = scenes.surface_paint_stats();
+    let images = scenes.image_allocation_usage();
     serde_json::json!({
         "pending_frames": scenes.has_pending_surface_paint_frames(),
+        "context_unpooled_images": {
+            "live_bytes": images.live_bytes, "live_images": images.live_images,
+            "peak_live_bytes": images.peak_live_bytes, "allocations": images.allocations,
+        },
         "paint_producers": {
             "sources": paint.sources,
             "logical_cpu_page_bytes": paint.logical_cpu_page_bytes,
