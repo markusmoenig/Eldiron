@@ -16088,3 +16088,59 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   capture, allocation and eventual source-metadata destruction can be indivisible.
   Whole M0-M9 acceptance/performance/platform matrix and aggregate memory policy
   remain unfinished. Continue implementation; no overall completion claim.
+
+
+## Retained cooperative Prefab paint capture (2026-11-15)
+
+- Added native_world_paint/capture.rs. Creator owns a current original projection,
+  compact instance/asset descriptors, immutable linked page handles and an
+  incomplete merge. Unchanged requests return the same complete Arc layer instead
+  of recomputing rendered IDs and detaching/reinserting the page catalogue.
+- Expanded owners and region/Prefab pages are visited under4096-item/local2ms
+  slices. Output page storage is built uniquely from original shared descriptors;
+  it avoids one bulk copy-on-write detach of a retained base catalogue. Only
+  complete merges reach UV/stamp publication. No-instance/direct Prefab sources
+  reuse their existing backing immediately. Original FxHashSet asset traversal,
+  last-insert-wins keys, source-local IDs, version/visibility/owner rules and
+  reference omission of free-standing Prefab stamp expansion are preserved.
+- Added IsoPaintLayer::same_presentation_source for source backing/metadata checks
+  without hashing pixels or copying authoring history. Capture scopes include
+  document/runtime/context/map, exact original base projection, instance/asset ID
+  sequence, Assets.block_props_revision and relevant Prefab page identities.
+  Transform-only instance changes do not replace the asset-local merge, matching
+  the original helper. Geometry/paint changes retire partial merges before reuse.
+- Native viewport defers surface/stamp publication and scene replacement while
+  capture is pending; capture owns its update deadline even with an older complete
+  image. Hidden/2D ownership clears it. CPU capture persists across GPU recovery.
+- Initial native build failed due the existing #[path] module layout requiring an
+  explicit child path. Corrected Creator release check PASS13.52s:
+  /private/tmp/eldiron-prefab-capture-release-native-corrected.log. Initial error:
+  /private/tmp/eldiron-prefab-capture-release-native-initial.log.
+- Focused CPU Creator release equivalence/ownership test PASS0.01s (build2m13s):
+  /private/tmp/eldiron-prefab-capture-release-owner.log. Covers8194 instances,
+  bounded publication, stable source/backing reuse, overlapping keys, transform-
+  only reuse, geometry/paint replacement during preparation, hidden/obsolete-bake
+  rules and no-instance fast path. Final canonical four-application native release
+  check PASS17.22s: /private/tmp/eldiron-prefab-capture-release-native-final.log.
+  Actual Creator browser-host wasm release check PASS16.86s:
+  /private/tmp/eldiron-prefab-capture-release-wasm.log. Current Apple simulator
+  staticlib release check, including stamp capture/placement/immutable publication
+  and Prefab ownership, PASS27.27s:
+  /private/tmp/eldiron-owner-publication-prefab-release-ios-sim.log. All handles
+  terminal. These compile/contract checks do not imply physical wrapper or broad
+  assembled Creator workflow acceptance, which remains deferred.
+- Remaining limitations: initial compact descriptor/active-selection capture,
+  descriptor comparison and individual allocations remain indivisible; no hard
+  whole-frame latency or whole-memory guarantee is claimed. Continue source/
+  ownership audits after this checkpoint, not an overall completion boundary.
+
+- Next concrete resource owner: SharedAtlas::upload_to_gpu_in_domain still uses
+  raw TextureGPU allocations, not context target leases. The two source mip
+  chains must join live/peak accounting with original uploads counted. Preserve
+  old source storage while a consumer/private request retains it; merely placing
+  a pool lease on AtlasInner is insufficient because bind groups only retain raw
+  WGPU handles and could outlive a replaced atlas. Every canonical VM atlas
+  binding must retain a source snapshot through submission, and dirty source
+  publication must invalidate cached binding groups when textures change. Existing
+  raw-device/reference helpers remain explicit. Also classify the remaining fixed
+  pipeline uniforms/sentinels separately from variable source allocations.

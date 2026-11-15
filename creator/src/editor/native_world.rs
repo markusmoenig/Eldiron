@@ -422,6 +422,7 @@ pub(crate) struct NativeWorld {
     source: Option<source::Publication>,
     stamps: stamps::Owner,
     uv: paint::Owner,
+    paint_capture: paint::Capture,
     bake_jobs: bake_job::Jobs,
     paste: Option<paste::Preview>,
     binding: Option<Binding>,
@@ -471,6 +472,7 @@ impl Default for NativeWorld {
             source: None,
             stamps: Default::default(),
             uv: Default::default(),
+            paint_capture: Default::default(),
             bake_jobs: Default::default(),
             paste: None,
             binding: None,
@@ -743,11 +745,11 @@ impl Editor {
     pub(super) fn native_world_waiting(&self) -> bool {
         let world = &self.native_viewport.world;
         let waits_for_wake = world.gpu.as_ref().is_some_and(|gpu| {
-            (gpu.paint_ready || world.uv.waits_for_wake())
+            !world.paint_capture.pending() && (gpu.paint_ready || world.uv.waits_for_wake())
                 && (gpu.stamps_ready || world.stamps.waits_for_wake())
         });
         self.native_world_owns_viewport() && world.binding.is_some()
-            && (world.presented.as_ref().map_or(!world.stamps.failed() && !world.uv.failed(), |frame| {
+            && (world.paint_capture.pending() || world.presented.as_ref().map_or(!world.stamps.failed() && !world.uv.failed(), |frame| {
                 !frame.ready && (!frame.waiting_cpu_sources || !waits_for_wake)
             }) || world.gpu.as_ref().is_some_and(|gpu| gpu.bake.waiting()))
     }
@@ -1254,9 +1256,11 @@ impl Editor {
                 .as_ref()
                 .is_some_and(|old| Arc::ptr_eq(old, &source));
         gpu.scenes.begin_surface_paint_upload_frame();
-        let paint = if camera.is_some() && binding.custom.is_none() {
-            Some(paint::capture(&self.documents.project, &self.server_ctx, map, assets)?)
-        } else { None };
+        let needs_paint = camera.is_some() && binding.custom.is_none();
+        let paint = if needs_paint {
+            world.paint_capture.request(scope, &self.documents.project, &self.server_ctx, map, assets)?
+        } else { world.paint_capture.clear(); None };
+        let paint_pending = needs_paint && paint.is_none();
         if let Some(paint) = &paint {
             let limit = u64::from(images.registry.context().device.limits().max_storage_buffer_binding_size);
             let publication = world.uv.request(paint, limit)?;
@@ -1266,6 +1270,10 @@ impl Editor {
             } else {
                 gpu.scenes.defer_surface_paint_source(gpu.view).map_err(|e| e.to_string())?;
             }
+        } else if paint_pending {
+            gpu.paint_ready = false;
+            gpu.scenes.defer_surface_paint_source(gpu.view).map_err(|e| e.to_string())?;
+            gpu.scenes.defer_stamp_paint(gpu.view).map_err(|e| e.to_string())?;
         } else {
             gpu.paint_ready = true;
             gpu.scenes.set_surface_paint_source(gpu.view, None).map_err(|e| e.to_string())?;
@@ -1276,7 +1284,7 @@ impl Editor {
                 && !gpu.scenes.scene_sources_ready(gpu.view).map_err(|e| e.to_string())?)
             && gpu.scene_key.as_ref().is_some_and(|old| key.same_private_scope(old))
             && gpu.scene_source.as_ref().is_some_and(|old| Arc::ptr_eq(old, &source));
-        if !same_scene && !continue_private {
+        if !same_scene && !continue_private && !paint_pending {
             if gpu.projection_paste != binding.paste {
                 rusterix::chunkbuilder::terrain_surface::TerrainSurface::invalidate_cached(map.id);
                 gpu.scenes

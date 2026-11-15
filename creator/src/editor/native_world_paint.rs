@@ -9,6 +9,9 @@ use shared::iso_paint_render::surface_source::{
 };
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::atomic::{AtomicBool, Ordering};
+#[path = "native_world_paint/capture.rs"]
+mod capture;
+pub(super) use capture::Capture;
 
 type Scope = (Uuid, ProjectContext, Uuid, Option<Uuid>);
 #[derive(Default)]
@@ -232,6 +235,7 @@ impl Editor {
             || self.server_ctx.shared.editor_view_mode == EditorViewMode::D2
         {
             self.native_viewport.world.uv.clear();
+            self.native_viewport.world.paint_capture.clear();
             return false;
         }
         if self
@@ -248,35 +252,4 @@ impl Editor {
             false
         }
     }
-}
-
-pub(super) fn capture(
-    project: &Project,
-    server: &CreatorContext,
-    map: &Map,
-    assets: &rusterix::Assets,
-) -> Result<IsoPaintLayer, String> {
-    let selection = server.shared.curr_map_tool_type == MapToolType::IsoPaint;
-    let mut paint = if let ProjectContext::Prefab(id) = server.shared.pc {
-        project
-            .block_prop_paint
-            .get(&id)
-            .map(|paint| paint.presentation_source(selection))
-            .unwrap_or_default()
-    } else {
-        let region = project
-            .get_region_ctx(&server.shared)
-            .ok_or("native 3D region removed")?;
-        let mut paint = region.iso_paint.presentation_source(selection);
-        crate::block_props::merge_prefab_paint_source_for_map(
-            &mut paint,
-            map,
-            &assets.block_props,
-            &project.block_prop_paint,
-            false,
-        );
-        paint
-    };
-    paint.selection_visible = selection;
-    Ok(paint)
 }
