@@ -126,11 +126,24 @@ public class RMTKView       : MTKView
         defer { client?.endKey() }
         if client?.hasMarkedText() == true { _ = context?.handleEvent(event); renderer.needsUpdate(); return }
         let consumed = (event.charactersIgnoringModifiers ?? "").withCString { eldiron_creator_key_v1(renderer?.handle ?? 0, physical(event.keyCode), true, event.isARepeat, $0) }
-        if !consumed && client === nativeClient { _ = context?.handleEvent(event) }
+        if client === nativeClient && NativeTextClient.shouldInterpret(event, consumed: consumed, hasTextClient: client != nil) {
+            _ = context?.handleEvent(event)
+        }
         renderer.needsUpdate()
     }
     override public func keyUp(with event: NSEvent) {
         _ = (event.charactersIgnoringModifiers ?? "").withCString { eldiron_creator_key_v1(renderer?.handle ?? 0, physical(event.keyCode), false, false, $0) }
+        renderer.needsUpdate()
+    }
+    @objc override public func selectAll(_ sender: Any?) {
+        guard let renderer else { return }
+        let handle = renderer.handle
+        _ = eldiron_creator_modifiers_v1(handle, false, false, false, true)
+        "a".withCString {
+            _ = eldiron_creator_key_v1(handle, 65, true, false, $0)
+            _ = eldiron_creator_key_v1(handle, 65, false, false, $0)
+        }
+        _ = eldiron_creator_modifiers_v1(handle, shiftIsDown, controlIsDown, altIsDown, commandIsDown)
         renderer.needsUpdate()
     }
     override public func doCommand(by selector: Selector) {

@@ -1,0 +1,28 @@
+{
+  "source_commit": "2e42cffd",
+  "owned_simulator": "658579C0-F146-4EC9-9920-D3AB0E4927BD",
+  "applications": [
+    {
+      "application": "creator",
+      "bundle": "/private/tmp/eldiron-release-xcode-2e42cffd/creator-ios-bundle/Build/Products/Release-iphonesimulator/Eldiron.app",
+      "identifier": "com.moenig.eldiron",
+      "profile": "Release",
+      "screenshot": "concepts/native-wgpu-evidence/release-final-normal-ios-creator.png",
+      "physical_device": false
+    },
+    {
+      "application": "player",
+      "bundle": "/private/tmp/eldiron-release-xcode-2e42cffd/player-ios-bundle/Build/Products/Release-iphonesimulator/SceneVM.app",
+      "identifier": "com.moenig.SceneVM",
+      "profile": "Release",
+      "screenshot": "concepts/native-wgpu-evidence/release-final-normal-ios-player.png",
+      "physical_device": false
+    }
+  ],
+  "visual_review_required": false,
+  "visual_review": {
+    "creator": "Native editor chrome, material tiles and New Project dialog visibly rendered. Startup only; no project workflow exercised.",
+    "player": "Normal Eldiron Player document browser visibly presented. Startup only; no gameplay exercised.",
+    "physical_device": false
+  }
+}

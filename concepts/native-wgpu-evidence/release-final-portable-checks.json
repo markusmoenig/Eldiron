@@ -1,0 +1,26 @@
+[
+  {
+    "step": "windows",
+    "exit": 101,
+    "seconds": 0.205285958,
+    "log": "/private/tmp/eldiron-final-windows.log"
+  },
+  {
+    "step": "intel-macos",
+    "exit": 0,
+    "seconds": 42.559757624999996,
+    "log": "/private/tmp/eldiron-final-intel-macos.log"
+  },
+  {
+    "step": "player-current",
+    "exit": 0,
+    "seconds": 88.399281917,
+    "log": "/private/tmp/eldiron-final-player-current.log"
+  },
+  {
+    "step": "normal-ios-bundles",
+    "exit": 0,
+    "seconds": 63.265848500000004,
+    "log": "/private/tmp/eldiron-final-normal-ios-bundles.log"
+  }
+]

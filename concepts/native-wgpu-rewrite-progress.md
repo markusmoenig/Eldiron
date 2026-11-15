@@ -107,7 +107,7 @@ behavior is ready to verify.
 
 ## Blockers
 
-No blocker prevents continued implementation/available acceptance. The Mac console is currently locked (ioreg CGSSessionScreenIsLocked=Yes); actual AppKit test windows have zero presentations, so physical macOS presentation/input checks remain unverified. Detached Metal GPU tests and owner-lifetime checks pass. Continue independent work without waiting for an unlock. Physical Windows/Linux/iOS-device checks remain unavailable; simulator runtimes are installed and can be exercised in an isolated owned device.
+No blocker prevents continued available acceptance. The Mac console is now unlocked (2026-11-16, IOConsoleLocked=No). Current release native Creator smoke acknowledges3 actual surface presentations; actual optimized Xcode two-window check acknowledges2 per window and independent retained-owner close. Full physical input/IME/monitor/document workflows remain open. Physical Windows/Linux/iOS-device checks remain unavailable; simulator runtimes are installed and have separate owned-device evidence. Continue independent work without routine approval.
 
 ## Foundation checkpoint (2026-11-11)
 
@@ -19064,3 +19064,148 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   release-content-fingerprint-acceptance.json and both full current120sampleJSONs;
   rejected stale-path runs remain explicitly excluded. Fresh ship builds follow
   once this CPU preparation refinement batch is settled.
+
+- Fingerprint batch settled at2e42cffd,29isolated feature/source guards PASS.
+  Freeze implementation for final current-source release platform/app packaging.
+  This refresh also builds both actual checked-in Xcode Creator/client bundles
+  for macOS and arm64iOSsimulator with matching current static archives (signing
+  disabled, no device install). Prior Swift SDK/harness proof alone does not
+  replace project/storyboard/resource linking. All work serialized; logs
+  /private/tmp/eldiron-release-final-cache-*.log, derived bundles owned under
+  /private/tmp/eldiron-release-xcode-2e42cffd. Stop/fix real failures, preserve
+  user simulator and concurrent files. No Rust edits/compiler/test/profile
+  overlaps until current handle terminal; ship copies remain53af6e17 meanwhile.
+
+- Final current-source release platform step boundaries: terminal exit0; /private/tmp/eldiron-release-final-cache-boundaries.log. Physical acceptance is not implied.
+
+- Final current-source release platform step creator-apple: terminal exit0; /private/tmp/eldiron-release-final-cache-creator-apple.log. Physical acceptance is not implied.
+
+- Final current-source release platform step player-apple: terminal exit0; /private/tmp/eldiron-release-final-cache-player-apple.log. Physical acceptance is not implied.
+
+- Final current-source release platform step creator-macos-bundle: terminal exit0; /private/tmp/eldiron-release-final-cache-creator-macos-bundle.log. Physical acceptance is not implied.
+
+- Final current-source release platform step player-macos-bundle: terminal exit0; /private/tmp/eldiron-release-final-cache-player-macos-bundle.log. Physical acceptance is not implied.
+
+- Current2e42cffd optimized Apple Creator/player host checks and both actual
+  macOS Xcode Release bundles PASS, not merely SDK typechecks. UIKit/current
+  iOS bundles/browser/launcher refresh continues in the same serialized handle.
+- Toolchain inventory: WindowsGNU Rust std target is installed, but neither
+  MinGW C compiler nor Zig is available; LinuxRust std target is absent. After
+  current run, attempt actual offline Windows release check to record concrete
+  available compiler/dependency evidence. Installedx86_64macOS std plusAppleSDK
+  allow a separate Intel release compile check. Neither substitutes for physical
+  Windows/Linux workflow acceptance; those remain unverified.
+
+- Final current-source release platform step creator-uikit: terminal exit0; /private/tmp/eldiron-release-final-cache-creator-uikit.log. Physical acceptance is not implied.
+
+- Final current-source release platform step player-uikit: terminal exit0; /private/tmp/eldiron-release-final-cache-player-uikit.log. Physical acceptance is not implied.
+
+- Final current-source release platform step creator-ios-bundle: terminal exit0; /private/tmp/eldiron-release-final-cache-creator-ios-bundle.log. Physical acceptance is not implied.
+
+- Final current-source release platform step player-ios-bundle: terminal exit0; /private/tmp/eldiron-release-final-cache-player-ios-bundle.log. Physical acceptance is not implied.
+
+- Final current-source release platform step creator-web: terminal exit0; /private/tmp/eldiron-release-final-cache-creator-web.log. Physical acceptance is not implied.
+
+- Final current-source release platform step player-web: terminal exit0; /private/tmp/eldiron-release-final-cache-player-web.log. Physical acceptance is not implied.
+
+- Final current-source release platform step browser: terminal exit0; /private/tmp/eldiron-release-final-cache-browser.log. Physical acceptance is not implied.
+
+- Final current-source release platform step native-launchers: terminal exit0; /private/tmp/eldiron-release-final-cache-native-launchers.log. Physical acceptance is not implied.
+
+- Final current-source release platform step cpu-terminal: terminal exit0; /private/tmp/eldiron-release-final-cache-cpu-terminal.log. Physical acceptance is not implied.
+
+- Final current-source release platform step versioned-launchers: terminal exit0; /private/tmp/eldiron-release-final-cache-versioned-launchers.log. Physical acceptance is not implied.
+
+- Current release portable/runtime step windows: terminal exit101; /private/tmp/eldiron-final-windows.log. Compile checks are not physical platform acceptance.
+
+- Final current2e42cffd28666 terminalPASS15steps: both optimized Apple hosts,
+  both actual macOS/iOSsim Xcode app bundles, both owned UIKit runtimes, both
+  web packages/all four actual ChromeWebGPU150%source/recovery/resize cases,
+  native+CPUterminal release links and source-guarded copies. Runnable copies
+  target/native-wgpu-release-2e42cffd with SHA256 manifest. Durable
+  release-final-cache-platforms.json/browserfullstates+images/UIKitJSONs and
+  release-native-launchers-2e42cffd.json. No complete/physical acceptance claim.
+- Current serialized final portable checks now attempt WindowsGNU release,
+  IntelmacOS release compile, current common-player13 and actual normal iOS
+  bundle startup/screenshots in a NEW owned simulator. Crosscompile environment
+  failures recorded independently; no changes to user booteddevice.
+  /private/tmp/eldiron-final-portable-checks.log; no Rust/compiler/test/profile
+  overlap until terminal. Source remains2e42cffd, unrelated networking untouched.
+
+- Current release portable/runtime step intel-macos: terminal exit0; /private/tmp/eldiron-final-intel-macos.log. Compile checks are not physical platform acceptance.
+
+- Current release portable/runtime step player-current: terminal exit0; /private/tmp/eldiron-final-player-current.log. Compile checks are not physical platform acceptance.
+
+- Current release portable/runtime step normal-ios-bundles: terminal exit0; /private/tmp/eldiron-final-normal-ios-bundles.log. Compile checks are not physical platform acceptance.
+
+- Current2e42cffd final portable/runtime receipts inspected: IntelmacOS release
+  compilation PASS; current common graphical player13/13 PASS. WindowsGNU
+  offline check stopped before compilation because pinned dwrote0.11.5 is
+  uncached; this is not a Rust implementation failure or a Windows pass.
+  Both actual normal Xcode iOS Release bundles launched in a separate owned
+  simulator; screenshots visually reviewed: Creator editor/New Project dialog
+  and Player document browser. Startup only, not a gameplay/workflow proof.
+  Owned simulator removed; user simulator untouched. Durable final normal iOS
+  screenshots/result and portable receipts saved under native-wgpu-evidence.
+  Overall progress remains approximately85%, an engineering estimate rather
+  than a counted acceptance score. Physical platform/input acceptance and
+  outstanding performance limits prevent declaring M0–M9 complete.
+
+## Unlocked real-window acceptance and portable toolchain follow-up (2026-11-16)
+
+- User renewed autonomous execution. Existing Goal remains usageLimited; tools
+  cannot resume that status, so do not imply automatic continuation or completion.
+- Mac now unlocked(IOConsoleLocked=No). Current versioned2e42cffd release Creator
+  real Winit smoke PASS3 actual presentations in3.46s.
+- Original optimized Xcode strict-window harness failed at0 presentations.
+  Added actual AppKit event dispatch/update and bounded10s first-presentation
+  wait, foregrounding each owned window. Assertions retained. Corrected harness
+  PASS: both windows2presentations,rootCPU0,readback0, independent close retires
+  Rust hosts before retained controllers/layers. No physical IME/monitor claim.
+  Durable release-final-unlocked-creator-{smoke,windows}.{json,log}.
+- Downloaded existing locked Windows dependencies successfully. Release check
+  then reached onig_sys and stopped for missing x86_64-w64-mingw32-gcc.
+  Downloaded official Zig0.17.1 arm64macOS archive into isolated private/tmp,
+  verified official SHA25675f1bc7a1e9852f17ec9a0c1895f767c4ec56d46bc8a834920eece1d0359dd8d.
+  No system toolchain/package changes. Windows release check now uses explicit
+  target CC/CXX/AR wrappers and private caches; log
+  /private/tmp/eldiron-final-windows-zig.log. Do not edit Rust/run another
+  compiler/test/profile until current handle31014 terminal.
+
+- WindowsGNU release compilation PASS40.29s for Creator and both common graphical
+  launchers using isolated verified Zig CC/CXX/AR. First Zig attempt rejected
+  cc-rs Rust target spelling; wrapper now maps that exact target to Zig's spelling.
+  Durable release-final-windows-gnu.{json,log}. Cross-check only, no Windows
+  link/runtime claim.
+- Actual current Xcode macOS Release app via CUA: new2D project, Unicode paste
+  and name commit, native Save/Open panels, saved ZIP project inspection and
+  reopen with Unicode name PASS; native Play/Pause/Resume/Stop works after
+  restoring fixture's configured start-region name. Renaming Region alone
+  intentionally leaves authored string-based start_region pointing at Region;
+  observed Rules diagnostic, not a renderer failure. Temporary project only,
+  original shipped/user projects untouched. Full keyboard/IME is not accepted.
+- Real input exposed concrete M9 gap: Swift wrappers suppress NSTextInputContext
+  whenever Rust consumes a physical key, but a focused editor consumes routing
+  without inserting printable text. Clipboard paste works while ordinary typing
+  fails. Shared NativeTextClient now classifies printable keys for native layout/
+  dead-key/IME interpretation even when consumed by a current text target;
+  consumed game controls, shortcuts, deletion, navigation stay suppressed.
+  Both Creator and player use it; focused Swift checks exercise those policies.
+  Current optimized player/text helper67186 runs serially; no Rust edits or
+  additional compiler/test/profile until terminal. Actual rebuilt app typing
+  verification follows. No claim of full physical IME from policy tests.
+
+- Shared Apple printable policy helper67186 terminalPASS actual optimized player
+  host/text checks and37ABI exports; iOS SDK check also passes. Current Creator
+  Xcode Release bundle BUILD SUCCEEDED with changed Swift. No Rust change.
+- Creator menu setup previously removed Select All and its MTKView had no
+  responder implementation. Restore the standard Cmd-A menu through first
+  responder and route its physical shortcut with modifiers restored afterwards.
+- Actual rebuilt normal Release Creator via CUA now accepts physical letter x
+  in a focused field. Cmd-A + six physical letter events replaces text with
+  Region; Cmd-Z removes finaln, Cmd-Shift-Z restores it, Return commits.
+  Ensure a presented field is actually focused before injecting keys; an
+  immediate click after project creation can precede the acknowledged frame.
+  Owned app quit. Durable release-apple-printable-input.json and player helper
+  host/ABI/Swift/iOS logs. Physical system IME/monitor and full acceptance stay
+  open; policy checks alone do not establish a complete IME workflow.

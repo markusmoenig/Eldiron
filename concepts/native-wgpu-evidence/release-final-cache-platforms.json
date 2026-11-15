@@ -1,0 +1,97 @@
+{
+  "source_commit": "2e42cffd",
+  "profile": "release",
+  "steps": [
+    {
+      "step": "boundaries",
+      "exit": 0,
+      "seconds": 4.209371,
+      "log": "/private/tmp/eldiron-release-final-cache-boundaries.log"
+    },
+    {
+      "step": "creator-apple",
+      "exit": 0,
+      "seconds": 130.03115766599998,
+      "log": "/private/tmp/eldiron-release-final-cache-creator-apple.log"
+    },
+    {
+      "step": "player-apple",
+      "exit": 0,
+      "seconds": 72.13506354199998,
+      "log": "/private/tmp/eldiron-release-final-cache-player-apple.log"
+    },
+    {
+      "step": "creator-macos-bundle",
+      "exit": 0,
+      "seconds": 11.293620833000006,
+      "log": "/private/tmp/eldiron-release-final-cache-creator-macos-bundle.log"
+    },
+    {
+      "step": "player-macos-bundle",
+      "exit": 0,
+      "seconds": 7.972934167000005,
+      "log": "/private/tmp/eldiron-release-final-cache-player-macos-bundle.log"
+    },
+    {
+      "step": "creator-uikit",
+      "exit": 0,
+      "seconds": 166.24806850000002,
+      "log": "/private/tmp/eldiron-release-final-cache-creator-uikit.log"
+    },
+    {
+      "step": "player-uikit",
+      "exit": 0,
+      "seconds": 117.44932241700002,
+      "log": "/private/tmp/eldiron-release-final-cache-player-uikit.log"
+    },
+    {
+      "step": "creator-ios-bundle",
+      "exit": 0,
+      "seconds": 9.423072292000029,
+      "log": "/private/tmp/eldiron-release-final-cache-creator-ios-bundle.log"
+    },
+    {
+      "step": "player-ios-bundle",
+      "exit": 0,
+      "seconds": 6.252673625000057,
+      "log": "/private/tmp/eldiron-release-final-cache-player-ios-bundle.log"
+    },
+    {
+      "step": "creator-web",
+      "exit": 0,
+      "seconds": 83.15767016699999,
+      "log": "/private/tmp/eldiron-release-final-cache-creator-web.log"
+    },
+    {
+      "step": "player-web",
+      "exit": 0,
+      "seconds": 47.16409870799998,
+      "log": "/private/tmp/eldiron-release-final-cache-player-web.log"
+    },
+    {
+      "step": "browser",
+      "exit": 0,
+      "seconds": 247.263418333,
+      "log": "/private/tmp/eldiron-release-final-cache-browser.log"
+    },
+    {
+      "step": "native-launchers",
+      "exit": 0,
+      "seconds": 72.30504962500004,
+      "log": "/private/tmp/eldiron-release-final-cache-native-launchers.log"
+    },
+    {
+      "step": "cpu-terminal",
+      "exit": 0,
+      "seconds": 0.2666812500000333,
+      "log": "/private/tmp/eldiron-release-final-cache-cpu-terminal.log"
+    },
+    {
+      "step": "versioned-launchers",
+      "exit": 0,
+      "seconds": 0.4979722089999541,
+      "log": "/private/tmp/eldiron-release-final-cache-versioned-launchers.log"
+    }
+  ],
+  "physical_input_display_verified": false
+}

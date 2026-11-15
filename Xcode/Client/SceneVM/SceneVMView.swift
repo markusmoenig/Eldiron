@@ -199,7 +199,9 @@ final class MetalContainer: NSView {
         defer { client?.endKey() }
         if client?.hasMarkedText() == true { _ = context?.handleEvent(event); return }
         let consumed = handle?.key(physical(event.keyCode), pressed: true, repeated: event.isARepeat) == true
-        if !consumed && client === nativeClient { _ = context?.handleEvent(event) }
+        if client === nativeClient && NativeTextClient.shouldInterpret(event, consumed: consumed, hasTextClient: client != nil) {
+            _ = context?.handleEvent(event)
+        }
     }
     override func keyUp(with event: NSEvent) { modifiers(event.modifierFlags); _ = handle?.key(physical(event.keyCode), pressed: false) }
     private func shortcut(_ code: UInt32, shift: Bool = false) {

@@ -29,6 +29,24 @@ private final class RecordedTextHost: NativeTextHost {
 }
 @MainActor
 func checkNativeTextClient() {
+    func key(_ text: String, flags: NSEvent.ModifierFlags = [], code: UInt16 = 0) -> NSEvent {
+        NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags,
+                        timestamp: 0, windowNumber: 0, context: nil,
+                        characters: text, charactersIgnoringModifiers: text,
+                        isARepeat: false, keyCode: code)!
+    }
+    for event in [key("a"), key("A", flags: .shift), key("e", flags: .option), key(" ", code: 49)] {
+        precondition(NativeTextClient.shouldInterpret(event, consumed: true, hasTextClient: true),
+                     "A focused editor's consumed printable key still needs native text interpretation")
+        precondition(!NativeTextClient.shouldInterpret(event, consumed: true, hasTextClient: false),
+                     "Consumed game controls must not become text")
+    }
+    for event in [key("a", flags: .command), key("a", flags: .control),
+                  key("\r", code: 36), key("\u{7f}", code: 51), key("\u{f702}", code: 123)] {
+        precondition(!NativeTextClient.shouldInterpret(event, consumed: true, hasTextClient: true),
+                     "Handled shortcuts, deletion and navigation must not execute twice")
+    }
+    precondition(NativeTextClient.shouldInterpret(key("a"), consumed: false, hasTextClient: true))
     let host = RecordedTextHost()
     let view = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 120))
     var commands = 0

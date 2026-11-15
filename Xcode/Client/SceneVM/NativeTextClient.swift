@@ -16,6 +16,19 @@ final class NativeTextContext: NSTextInputContext {
 
 @MainActor
 final class NativeTextClient: NSObject, NSTextInputClient {
+    /// Rust consumes keys addressed to an editor even when printable text still
+    /// needs AppKit's keyboard layout/dead-key/IME interpretation. Commands and
+    /// navigation already handled by Rust must not run a second time.
+    static func shouldInterpret(_ event: NSEvent, consumed: Bool, hasTextClient: Bool) -> Bool {
+        if !consumed { return true }
+        guard hasTextClient,
+              event.modifierFlags.intersection([.command, .control]).isEmpty,
+              let characters = event.charactersIgnoringModifiers, !characters.isEmpty else { return false }
+        return characters.unicodeScalars.allSatisfy {
+            !CharacterSet.controlCharacters.contains($0) && !(0xF700...0xF8FF).contains($0.value)
+        }
+    }
+
     let target: UInt64
     private weak var host: (any NativeTextHost)?
     private weak var view: NSView?

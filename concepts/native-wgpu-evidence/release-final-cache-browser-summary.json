@@ -1,0 +1,175 @@
+{
+  "source_commit": "2e42cffd",
+  "profile": "release",
+  "scope": "Actual WebGPU150%, source-ready recovery/resize; not physical monitor/IME",
+  "cases": [
+    {
+      "case": "creator-3DStarter",
+      "status": "PASS",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "1",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "3",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "4",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "creator-UnendingNight",
+      "status": "PASS",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "9",
+          "ground_copies": 8,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "16",
+          "ground_copies": 16,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "26",
+          "ground_copies": 24,
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "player-Hideout2D",
+      "status": "PASS",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "30",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "49",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "68",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "player-UnendingNight",
+      "status": "PASS",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "40",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "54",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "82",
+          "ground_copies": 56,
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

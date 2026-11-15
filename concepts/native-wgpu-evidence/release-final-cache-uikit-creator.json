@@ -1,0 +1,12 @@
+{
+  "elapsedSeconds": 16.40028703212738,
+  "finalPresentations": 6,
+  "firstPresentations": 3,
+  "physicalIMEVerified": false,
+  "profile": "release",
+  "readbackBytes": 0,
+  "rootCPUBytes": 0,
+  "secondPresentations": 3,
+  "status": "passed",
+  "uiKitTextProtocolPassed": true
+}

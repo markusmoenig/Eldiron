@@ -14,11 +14,21 @@ struct NativeCreatorWindowCheck {
         defer { rust_free_string(text) }
         return try! JSONSerialization.jsonObject(with: Data(String(cString: text).utf8)) as! [String: Any]
     }
-    static func pump(_ controller: CheckCreatorController) {
-        let until = Date().addingTimeInterval(0.4)
+    static func pump(_ controller: CheckCreatorController, waitForPresentation: Bool = false) {
+        if waitForPresentation {
+            controller.view.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        let until = Date().addingTimeInterval(waitForPresentation ? 10 : 0.4)
         repeat {
+            while let event = NSApp.nextEvent(matching: .any, until: Date(), inMode: .default, dequeue: true) {
+                NSApp.sendEvent(event)
+            }
+            NSApp.updateWindows()
             controller.renderer.updateOnce()
             RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+            if waitForPresentation,
+               (state(controller.renderer.handle)["presentations"] as! NSNumber).uint64Value > 0 { break }
         } while Date() < until
     }
     static func main() {
@@ -37,8 +47,8 @@ struct NativeCreatorWindowCheck {
         b.setFrameOrigin(NSPoint(x: 100, y: 120))
         a.makeKeyAndOrderFront(nil)
         b.makeKeyAndOrderFront(nil)
-        pump(first)
-        pump(second)
+        pump(first, waitForPresentation: !lifetimeOnly)
+        pump(second, waitForPresentation: !lifetimeOnly)
         let firstHandle = first.renderer.handle
         let secondHandle = second.renderer.handle
         precondition(firstHandle != 0 && secondHandle != 0 && firstHandle != secondHandle)

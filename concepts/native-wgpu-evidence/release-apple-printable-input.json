@@ -1,0 +1,25 @@
+{
+  "source_base": "2e42cffd",
+  "delta": "Apple consumed printable-key routing, Creator Select All responder/menu, strict AppKit window test event pump",
+  "profile": "Release",
+  "rust_changes": false,
+  "player_helper_passed": true,
+  "established_exports": 37,
+  "creator_bundle_build": "passed",
+  "gui_tool": "cua_repl",
+  "gui_observations": [
+    "Normal macOS Xcode Release app creates 2D project.",
+    "Clipboard Unicode name Release 日本 🧪 commits, saves via NSSavePanel, reopens via NSOpenPanel with name intact.",
+    "Configured Region name restored before Play; Play/Pause/Resume/Stop verified through visible timer/control changes.",
+    "Before fix, consumed physical text key suppresses NSTextInputContext; clipboard worked.",
+    "After fix, physical letter x inserts in focused field.",
+    "Command-A then six physical key events replaces text with Region.",
+    "Command-Z removes final n; Command-Shift-Z restores it; Return commits.",
+    "Owned app quit after each workflow; no user project edited."
+  ],
+  "remaining": [
+    "Actual non-Latin IME composition through a configured system input method.",
+    "Full physical monitor/device/platform/workflow acceptance."
+  ],
+  "note": "Screenshots inspected in current chat; this receipt records observations, not synthetic pixel assertions."
+}

@@ -1,0 +1,16 @@
+{
+  "source_commit": "2e42cffd",
+  "profile": "release",
+  "target": "x86_64-pc-windows-gnu",
+  "command": "cargo check --release --locked --offline --target x86_64-pc-windows-gnu -p eldiron-creator -p eldiron-client-wgpu -p eldiron-client",
+  "result": "passed",
+  "seconds": 40.29,
+  "scope": "Cross-compilation check, not Windows linking or physical runtime acceptance.",
+  "cross_c_toolchain": {
+    "archive": "/private/tmp/eldiron-cross-toolchains/zig-aarch64-macos-0.17.1.tar.xz",
+    "sha256": "75f1bc7a1e9852f17ec9a0c1895f767c4ec56d46bc8a834920eece1d0359dd8d",
+    "zig": "/private/tmp/eldiron-cross-toolchains/zig-aarch64-macos-0.17.1/zig",
+    "source": "https://ziglang.org/download/index.json"
+  },
+  "native_toolchain_workaround": "Target CC/CXX/AR wrappers map Rust target spelling to Zig spelling; no workspace dependencies or system compiler changed."
+}

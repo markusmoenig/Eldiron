@@ -1,0 +1,14 @@
+{
+  "source": "2e42cffd",
+  "test_delta": "real AppKit event pump, foreground and bounded presentation wait",
+  "profile": "release",
+  "exit": 0,
+  "seconds": 4.397468999999999,
+  "log": "/private/tmp/eldiron-final-real-window/run.log",
+  "verification": "Both real AppKit windows report 2 successful presentations, zero root CPU bytes and readback; independent close retires each owner while controllers remain retained.",
+  "scope": "Actual macOS window presentation/close, not physical IME, monitor transitions or full document workflows.",
+  "earlier_failures": [
+    "Original harness: no AppKit event pump, first window zero presentations.",
+    "Event pump without per-window activation: second window remained deferred."
+  ]
+}

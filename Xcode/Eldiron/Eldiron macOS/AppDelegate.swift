@@ -89,6 +89,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         bindFileMenuItem("Save As…", action: #selector(saveAsMenu))
         ensureFileSeparatorBetweenCloseAndSave()
         trimEditMenuAfterPaste()
+        let selectAll = NSMenuItem(title: "Select All", action: #selector(NSResponder.selectAll(_:)), keyEquivalent: "a")
+        menuItem(named: "Edit")?.submenu?.addItem(selectAll)
         removeTopLevelMenus(["Format", "View"])
         configureViewMenu()
         configureGameMenu()

@@ -1,0 +1,98 @@
+Scepter API listening on http://127.0.0.1:37687/scepter/ping
+Scepter API unavailable at 127.0.0.1:37687
+Scene manager has started up.
+Scepter service: could not start local Scepter API at 127.0.0.1:37687: Address already in use (os error 48)
+Scene manager has started up.
+Window presentation state ["asset_bake_readback_requests": 0, "asset_bake_readback_bytes": 0, "text_input": <null>, "view": {
+    bake =     {
+        adapter = 0;
+        job = "<null>";
+        rendering = 0;
+        status = Missing;
+    };
+    "bake_pages" = "<null>";
+    center = "<null>";
+    fly = 0;
+    "fly_mouse" = 0;
+    mode = 2d;
+    moving = 0;
+    navigation = 0;
+    paste =     {
+        active = 0;
+        "authored_vertices" = "<null>";
+        "projected_vertices" = "<null>";
+        ready = 0;
+        target = "<null>";
+    };
+    "play_sources" = "<null>";
+    position = "<null>";
+    source =     {
+        context = Unknown;
+        map = "<null>";
+        presented = "<null>";
+    };
+    speech =     {
+        fonts = 0;
+        layouts = 0;
+        messages = 0;
+        visible = 0;
+    };
+    world = 0;
+    "world_sources" = "<null>";
+}, "focused_widget": <null>, "updates": 4, "readback_bytes": 0, "density": 2, "root_cpu_bytes": 0, "physical_size": <__NSArrayI 0x774f6b8e20>(
+2600,
+1400
+)
+, "presentations": 1, "logical_size": <__NSArrayI 0x774f6b91a0>(
+1300,
+700
+)
+, "normal_readback_bytes": 0] frame (40.0, 94.0, 1300.0, 732.0) occlusion 8194 drawable (2600.0, 1400.0)
+Window presentation state ["asset_bake_readback_requests": 0, "asset_bake_readback_bytes": 0, "text_input": <null>, "view": {
+    bake =     {
+        adapter = 0;
+        job = "<null>";
+        rendering = 0;
+        status = Missing;
+    };
+    "bake_pages" = "<null>";
+    center = "<null>";
+    fly = 0;
+    "fly_mouse" = 0;
+    mode = 2d;
+    moving = 0;
+    navigation = 0;
+    paste =     {
+        active = 0;
+        "authored_vertices" = "<null>";
+        "projected_vertices" = "<null>";
+        ready = 0;
+        target = "<null>";
+    };
+    "play_sources" = "<null>";
+    position = "<null>";
+    source =     {
+        context = Unknown;
+        map = "<null>";
+        presented = "<null>";
+    };
+    speech =     {
+        fonts = 0;
+        layouts = 0;
+        messages = 0;
+        visible = 0;
+    };
+    world = 0;
+    "world_sources" = "<null>";
+}, "focused_widget": <null>, "updates": 4, "readback_bytes": 0, "density": 2, "root_cpu_bytes": 0, "physical_size": <__NSArrayI 0x774f6ba040>(
+2600,
+1400
+)
+, "presentations": 2, "logical_size": <__NSArrayI 0x774f6ba020>(
+1300,
+700
+)
+, "normal_readback_bytes": 0] frame (40.0, 94.0, 1300.0, 732.0) occlusion 8194 drawable (2600.0, 1400.0)
+Creator window 1 presentations 2 root CPU 0 readback 0
+Creator window 2 presentations 2 root CPU 0 readback 0
+Real Creator windows present independently and retire retained owners on close
