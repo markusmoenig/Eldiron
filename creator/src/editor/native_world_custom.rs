@@ -385,15 +385,18 @@ impl Editor {
         list.ops.push(PaintOp::DisplayCompositing(
             theframework::paint::DisplayCompositing::LegacyOpaque,
         ));
-        list.ops.extend(
-            world
-                .published
-                .as_ref()
-                .unwrap()
-                .1
-                .ops
-                .iter()
-                .take_while(|op| {
+        let mut source_ops = world.published.as_ref().unwrap().1.ops.iter().peekable();
+        // The source's explicit isometric canvas clear is part of its visual
+        // contract. Include precisely that prefix, without consuming tool HUD
+        // rectangles after the scene/guides.
+        if source_ops.peek().is_some_and(|op| matches!(op,
+            PaintOp::Rect { rect, radius, brush: theframework::paint::Brush::Solid(color) }
+            if *radius == 0. && *color == [0.,0.,0.,1.]
+                && *rect == Rect::new(0.,0.,frame.binding.size.0 as f32,frame.binding.size.1 as f32)))
+        {
+            list.ops.push(source_ops.next().unwrap().clone());
+        }
+        list.ops.extend(source_ops.take_while(|op| {
                     matches!(
                         op,
                         PaintOp::SpriteImage { .. } | PaintOp::SampledLine { .. }

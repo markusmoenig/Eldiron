@@ -737,6 +737,8 @@ mod tests {
                 .native_world_has_cpu_storage_for_test()
         );
         let before_world = gpu.transfers().readback_bytes;
+        assert!(app.application.editor.native_world_character_preview_for_test(),
+            "stopped authoring uses class/setup preview defaults on its owned scene");
         let grid = app.application.editor.native_profile_grid_for_test();
         let header = TheEvent::RenderViewClicked(world_view.clone(), Vec2::new(235, 5));
         assert!(app.application.editor.handle_native_world_input(
@@ -2068,6 +2070,8 @@ mod tests {
             );
         }
         assert!(app.application.editor.native_play_projection_received_for_test());
+        assert!(!app.application.editor.native_world_character_preview_for_test(),
+            "owned Play renders runtime character state without authoring defaults");
         assert_eq!(
             app.application.editor.native_play_authoring_checkpoint_for_test(),
             authored_session,

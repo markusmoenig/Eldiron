@@ -18062,3 +18062,61 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Durable release-isometric-batched-dispatch-contracts.json records corrected
   acceptance scope. Current 2px+precision source still needs fresh Creator
   release rebuild/runtime; earlier15s pilot is pre-fix. No broad acceptance claim.
+
+
+## Stopped-editor character and canvas parity (2026-11-15)
+
+- Corrected canonical main owned SceneHandler.preview_character_setup from the
+  same CPU session/server state policy used by the reference. Stopped authoring
+  resolves class/setup defaults (including visibility/model); owned Play uses
+  actual runtime state. Included this flag in full/frozen-private scene scopes,
+  so a transition cannot reuse a wrong source request. No authored entity or
+  project mutation and no borrow of the reference renderer/VM.
+- Ordinary sprite-isometric authoring commands now supply the reference black
+  clear below transparent world output. SceneOutput itself retains declared
+  straight alpha for other consumers; custom/game-screen composition unaffected.
+  This restores the shipped reference's outside-terrain canvas, not a new UX.
+- Added stopped-authoring/active-owned-Play flag assertions to the existing full
+  assembled Creator GPU checkpoint without reducing its other assertions.
+- Current release Creator50649terminalPASS1m08s;
+  /private/tmp/eldiron-native-authoring-parity-creator-build.log. This executable
+  includes current precision fix +2pxorder +authoringpolicy. Exact assembled
+  Creator test currently running; /private/tmp/eldiron-native-authoring-parity-assembled.log.
+  Next fresh guarded large native scene; inspect blue avatar/black canvas and
+  remaining source pixel differences, actual pan/zoom throughput and memory.
+  Generic sprite live/alpha reuse and strict geometry/light/source properties
+  still pending; no broad final tests or completion yet.
+
+- First assembled authoring40282terminalFAIL after7.01s at custom screen-iso:
+  maxRGB255. Diagnosis: existing source-only fixture extractor take_while allowed
+  only SpriteImage/SampledLine; new explicit black Rect prefix made extracted
+  list EMPTY. All prior custom screen/surface/stored3D cases hadmaxdelta0, and
+  stopped/owned-Play preview assertions had passed. This is a real test harness
+  mismatch with new source command, not permission to weaken pixel checks.
+- Updated native_world_custom source extractor to include exactly the leading
+  full-view solid-black zero-radius clear before its original SpriteImage/
+  SampledLine frontier. Later tool HUD rectangles remain excluded. Original
+  reference RGB<=1 assertions unchanged; now background itself is compared too.
+  Current full release rebuild/test running;
+  /private/tmp/eldiron-native-authoring-parity-assembled-fixed.log. Next inspect
+  actual outcome, fix any real rendering difference, then fresh large native
+  pilot. No broad acceptance/complete claim.
+
+- Corrected assembled Creator38670terminalPASS1/1 in23.92s (release rebuild
+  1m03s); source-only fixture extractor includes only the exact new black clear,
+  original source RGB checks remain<=1 and entire workflow assertions pass.
+- Fresh current native45564guarded diagnostic terminalPASS13.20s/ownedPID4294,
+  peak3477831680B,coldfirstcomplete7.18s. Visually inspected screenshot confirms
+  blue stopped-editor character and black outside-terrain canvas now match the
+  reference behavior. Durable release-unending-authoring-parity-native JSON/PNG.
+  P50 idle11.38/hover12.20/pan45.33/zoom65.17ms; pan/zoom still slower than CPU
+  reference27.86/41.38. These remain30sample/guardedtrace diagnostics, not final.
+- Whole scene source comparison still differs at fractional150%DPI (world mean
+  RGB~13.4/13.2/11.0), despite fixed avatar/clear and exact frozen shader math.
+  Investigating source composition separately: CPU RenderView composites a
+  logical viewport with independently rounded physical origin/extents and
+  integer left-edge sampling; native SpriteImage/guides use device-center logical
+  pixel sampling. This is a hypothesis, not accepted image parity. Current
+  fresh native density1 diagnostic then matched density1 reference will isolate
+  logical rendering versus fractional composition before implementation changes.
+  /private/tmp/eldiron-isometric-density-one-{native,reference}*. No pending input.

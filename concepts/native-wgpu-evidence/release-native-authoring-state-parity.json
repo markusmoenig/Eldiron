@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-15",
+  "profile": "release",
+  "backend": "Metal",
+  "assembled_creator": {
+    "passed": 1,
+    "seconds": 23.92,
+    "log": "/private/tmp/eldiron-native-authoring-parity-assembled-fixed.log",
+    "assertions": "Original workflows, no root CPU framebuffer, stopped class/setup preview true; owned Play preview false; original custom source RGB<=1 checks unchanged."
+  },
+  "shipped_scene": {
+    "project": "UnendingNight",
+    "blue_player_visible": true,
+    "outside_terrain_canvas": "black",
+    "guard_exit": 0,
+    "peak_rss_reported_bytes": 3477831680
+  },
+  "open": "Fractional source composition/reference parity, pan/zoom performance, generic sprite/alpha/strict source ownership and final broad/platform acceptance."
+}

@@ -221,6 +221,7 @@ struct SceneInputKey {
     grid: bool,
     hour: u32,
     animation: usize,
+    preview_character_setup: bool,
     canvas: Option<[RGBA; 3]>,
     build: ValueContainer,
     runtime: rusterix::server::message::RuntimeRenderState,
@@ -230,7 +231,7 @@ impl SceneInputKey {
         // Temporal inputs belong to the frozen request. Enumerate every other
         // field so adding a new scope input requires updating this guard.
         let Self { hour: _, animation: _, runtime: _,
-            detail, custom_content, paste, terrain_paint, camera, stamp, size, tool, hover, cursor, vertices, linedefs, sectors, entity, rectangle, polygon, line, grid, canvas, build } = self;
+            detail, custom_content, paste, terrain_paint, camera, stamp, size, tool, hover, cursor, vertices, linedefs, sectors, entity, rectangle, polygon, line, grid, canvas, build, preview_character_setup } = self;
         detail == &other.detail
             && custom_content == &other.custom_content
             && paste == &other.paste
@@ -251,6 +252,7 @@ impl SceneInputKey {
             && grid == &other.grid
             && canvas == &other.canvas
             && build == &other.build
+            && preview_character_setup == &other.preview_character_setup
     }
 }
 
@@ -1232,6 +1234,9 @@ impl Editor {
             grid: self.server_ctx.shared.show_editor_grid,
             hour: bridge.client.server_time.to_f32().to_bits(),
             animation: bridge.client.animation_frame,
+            preview_character_setup: self.play_session.as_ref()
+                .map(|play| play.state(&bridge.server)).unwrap_or(bridge.server.state)
+                == rusterix::ServerState::Off,
             canvas: bridge.client.editor_canvas_colors.filter(|_| {
                 binding.custom.is_none() || bridge.client.use_editor_canvas
             }),
@@ -1301,6 +1306,7 @@ impl Editor {
                 .map_err(|e| e.to_string())?;
             let scene = gpu.scenes.scene_mut(gpu.view).map_err(|e| e.to_string())?;
             scene.runtime_render_state = key.runtime.clone();
+            scene.preview_character_setup = key.preview_character_setup;
             if source_changed {
                 scene.billboards = if binding.paste.is_some() {
                     world.paste.as_ref().map(|preview| preview.billboards()).unwrap_or_default()
@@ -1545,6 +1551,12 @@ impl Editor {
         );
         drop(tools);
         let mut list = PaintList::default();
+        if map.camera == MapCamera::TwoDIso && binding.mode == EditorViewMode::D2 && binding.custom.is_none() {
+            // The reference isometric viewport clears its transparent canvas
+            // over black. Preserve that view policy instead of exposing the
+            // surrounding dock color through the GPU output's alpha.
+            list.rect(Rect::new(0., 0., binding.size.0 as f32, binding.size.1 as f32), 0., [0., 0., 0., 1.]);
+        }
         if let Some(image) = gpu.custom.image {
             list.ops.push(PaintOp::SpriteImage { image, origin: [0., 0.], scale: [1., 1.], tint: [1.; 4] });
         }
@@ -2637,5 +2649,9 @@ impl Editor {
             .as_ref()
             .expect("world GPU owner");
         gpu.scenes.has_cpu_target_storage(gpu.view).unwrap()
+    }
+    pub(crate) fn native_world_character_preview_for_test(&self) -> bool {
+        let gpu = self.native_viewport.world.gpu.as_ref().expect("world GPU owner");
+        gpu.scenes.scene(gpu.view).unwrap().preview_character_setup
     }
 }
