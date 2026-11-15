@@ -1,0 +1,72 @@
+{
+  "date": "2026-11-15",
+  "mode": "release; actual Metal; serial tests including ignored GPU contracts",
+  "passed": 216,
+  "results": {
+    "library": {
+      "passed": 115,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-resumed.log"
+    },
+    "content_sources": {
+      "passed": 11,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-resumed.log"
+    },
+    "editor_views": {
+      "passed": 3,
+      "log": "/private/tmp/eldiron-acceptance-final-scene-editor-views-fixed.log"
+    },
+    "game_screen": {
+      "passed": 53,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-game_screen.log"
+    },
+    "isometric_materials": {
+      "passed": 2,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-isometric_materials.log"
+    },
+    "isometric_occlusion": {
+      "passed": 2,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-isometric_occlusion.log"
+    },
+    "isometric_paint": {
+      "passed": 2,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-isometric_paint.log"
+    },
+    "isometric_receipts": {
+      "passed": 1,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-isometric_receipts.log"
+    },
+    "isometric_sources": {
+      "passed": 3,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-isometric_sources.log"
+    },
+    "isometric_sprites": {
+      "passed": 2,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-isometric_sprites.log"
+    },
+    "isometric_surfaces": {
+      "passed": 5,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-isometric_surfaces.log"
+    },
+    "messages_paint": {
+      "passed": 3,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-messages_paint.log"
+    },
+    "overview_ownership": {
+      "passed": 1,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-overview_ownership.log"
+    },
+    "profile_paint": {
+      "passed": 3,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-profile_paint.log"
+    },
+    "scene_views": {
+      "passed": 4,
+      "log": "/private/tmp/eldiron-acceptance-final-scene-editor-views-fixed.log"
+    },
+    "screen_paint": {
+      "passed": 6,
+      "log": "/private/tmp/eldiron-acceptance-final-presentation-screen_paint.log"
+    }
+  },
+  "scope": "Library and all15 integration targets. Physical hosts and whole-application performance remain separate acceptance gates."
+}

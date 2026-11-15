@@ -1,3 +1,6 @@
+#[path = "support/views.rs"]
+mod view_support;
+use view_support::ready_view;
 use eldiron_presentation::{SceneViews, ViewId};
 use renderkit::{GpuContext, GpuImage, ImageDescriptor, ImageRegistry, ReadbackTicket, wgpu};
 use rusterix::server::message::RuntimeRenderState;
@@ -62,8 +65,8 @@ fn world_picking_uses_completed_view_cameras_and_rejects_stale_outputs() {
             chunk,
         });
     }
-    let aa = views.render(a, 17, &mut images).unwrap().unwrap();
-    let bb = views.render(b, 23, &mut images).unwrap().unwrap();
+    let aa = ready_view(&mut views, a, 17, &mut images);
+    let bb = ready_view(&mut views, b, 23, &mut images);
     let ViewPick::Hit(first) = views.pick_game(aa, [0.5, 0.5]) else {
         panic!("first rendered view must hit its own geometry")
     };
@@ -130,7 +133,7 @@ fn world_picking_uses_completed_view_cameras_and_rejects_stale_outputs() {
             vec![0, 1, 2],
         ),
     });
-    let occluded = views.render(a, 18, &mut images).unwrap().unwrap();
+    let occluded = ready_view(&mut views, a, 18, &mut images);
     let ViewPick::Hit(front) = views.pick_game(occluded, [0.5, 0.5]) else {
         panic!("dynamic foreground mesh must occlude the static cube")
     };
@@ -151,7 +154,7 @@ fn world_picking_uses_completed_view_cameras_and_rejects_stale_outputs() {
         "a mutated VM cannot answer for an older display"
     );
     assert!(matches!(views.pick_game(bb, [0.5, 0.5]), ViewPick::Hit(_)));
-    let changed = views.render(a, 19, &mut images).unwrap().unwrap();
+    let changed = ready_view(&mut views, a, 19, &mut images);
     assert_eq!(changed.image, aa.image);
     assert_eq!(
         views.pick_game(aa, [0.5, 0.5]),
@@ -166,7 +169,7 @@ fn world_picking_uses_completed_view_cameras_and_rejects_stale_outputs() {
     assert_eq!(views.pick_game(bb, [0.5, 0.5]), ViewPick::Unavailable);
     views.resize(a, (32, 24), &mut images).unwrap();
     assert_eq!(views.pick_game(changed, [0.5, 0.5]), ViewPick::Unavailable);
-    let resized = views.render(a, 20, &mut images).unwrap().unwrap();
+    let resized = ready_view(&mut views, a, 20, &mut images);
     assert_ne!(resized.image, changed.image);
     views.remove(a, &mut images).unwrap();
     assert_eq!(views.pick_game(resized, [0.5, 0.5]), ViewPick::Unavailable);
@@ -217,15 +220,15 @@ fn views_compose_independently_and_keep_handles_until_target_replacement() {
             .vm
             .set_layer_ping_pong_enabled(0, true)
     );
-    let aa = views.render(a, 4, &mut images).unwrap().unwrap();
-    let bb = views.render(b, 4, &mut images).unwrap().unwrap();
+    let aa = ready_view(&mut views, a, 4, &mut images);
+    let bb = ready_view(&mut views, b, 4, &mut images);
     assert_ne!(aa.image, bb.image);
     assert_eq!(views.render(a, 4, &mut images).unwrap(), Some(aa));
     assert_eq!(views.render(b, 4, &mut images).unwrap(), Some(bb));
     assert!(!views.has_cpu_target_storage(a).unwrap() && !views.has_cpu_target_storage(b).unwrap());
     assert_eq!(gpu.transfers().capture_requests, 0);
     let old = images.get(aa.image).unwrap();
-    let repeat = views.render(a, 5, &mut images).unwrap().unwrap();
+    let repeat = ready_view(&mut views, a, 5, &mut images);
     assert_eq!(aa.image, repeat.image);
     assert_eq!(repeat.revision, 2);
     assert!(Arc::ptr_eq(&old, &images.get(aa.image).unwrap()));
@@ -263,11 +266,11 @@ fn views_compose_independently_and_keep_handles_until_target_replacement() {
     assert!(views.render(a, 6, &mut images).unwrap().is_none());
     assert!(views.output(a).is_none());
     views.resize(a, (64, 48), &mut images).unwrap();
-    let resumed = views.render(a, 6, &mut images).unwrap().unwrap();
+    let resumed = ready_view(&mut views, a, 6, &mut images);
     assert_eq!(resumed.image, aa.image);
     views.resize(a, (31, 23), &mut images).unwrap();
     assert!(images.get(aa.image).is_none());
-    let resized = views.render(a, 7, &mut images).unwrap().unwrap();
+    let resized = ready_view(&mut views, a, 7, &mut images);
     assert_ne!(resized.image, aa.image);
     assert_eq!(resized.descriptor.width, 31);
     assert_eq!(views.output(b), Some(bb));
@@ -308,7 +311,7 @@ fn cpu_atlas_sources_reupload_after_device_replacement() {
         .unwrap()
         .vm
         .execute(Atom::SetRenderMode(RenderMode::Raster2D));
-    views.render(id, 1, &mut registry).unwrap();
+    ready_view(&mut views, id, 1, &mut registry);
     let mut wrong = scenevm::render_output::SceneRenderTarget::new(a.clone(), 8, 8).unwrap();
     assert!(
         views
@@ -371,6 +374,7 @@ fn game_camera_preparation_uses_view_extents_without_cpu_output_or_upscale_stora
     bb.upscale_buffer.resize(32, 32);
     let state = RuntimeRenderState::default();
     for frame in 0..12 {
+        views.begin_surface_paint_upload_frame();
         let input = GameSceneInput {
             scope: map.id,
             map: &map,
@@ -449,7 +453,7 @@ fn game_camera_preparation_uses_view_extents_without_cpu_output_or_upscale_stora
         .unwrap();
     assert!(bb.buffer.pixels().is_empty() && bb.upscale_buffer.pixels().is_empty());
     assert!(!views.has_cpu_target_storage(b).unwrap());
-    let output = views.render(b, 12, &mut registry).unwrap().unwrap();
+    let output = ready_view(&mut views, b, 12, &mut registry);
     assert_eq!(bb.camera, PlayerCamera::D2Iso);
     assert!(
         views.isometric_targets(output).is_some(),
@@ -486,7 +490,7 @@ fn game_camera_preparation_uses_view_extents_without_cpu_output_or_upscale_stora
         )
         .unwrap();
     assert!(registry.get(previous.image).is_none());
-    let output = views.render(b, 13, &mut registry).unwrap().unwrap();
+    let output = ready_view(&mut views, b, 13, &mut registry);
     assert_ne!(output.image, previous.image);
     assert!(!views.has_cpu_target_storage(b).unwrap());
 }

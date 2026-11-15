@@ -192,7 +192,14 @@ fn cpu_session_startup_publishes_authored_tiles_with_coherent_indices() {
     assert!(session.assets.tiles_revision > 0);
     let source = session.assets.surface_paint[&map].clone();
     assert_eq!((source.width, source.height), (64, 64));
-    assert_eq!(&source.color_rgba[..4], &[210, 50, 160, 192]);
+    assert_eq!(source.pages.len(), 1);
+    assert_eq!(source.pages[0].atlas_origin, [0, 0]);
+    assert_eq!(
+        source.pages[0].color_rgba.as_ptr(),
+        authored_paint.baked_chunks["fixture"].color_rgba.as_ptr(),
+        "CPU publication shares authored page storage instead of stitching an atlas"
+    );
+    assert_eq!(&source.pages[0].color_rgba[..4], &[210, 50, 160, 192]);
     assert_eq!(
         source.alpha_geo_ids.len(),
         1,
@@ -228,7 +235,7 @@ fn cpu_session_startup_publishes_authored_tiles_with_coherent_indices() {
     );
     assert!(!session.assets.surface_paint.contains_key(&map));
     assert_eq!(
-        &source.color_rgba[..4],
+        &source.pages[0].color_rgba[..4],
         &[210, 50, 160, 192],
         "retired publications stay immutable"
     );

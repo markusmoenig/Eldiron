@@ -1,0 +1,20 @@
+{
+  "date": "2026-11-15",
+  "command": "cargo test --release --locked --offline -p theframework-core -p eldiron-runtime -p eldiron-shared --no-default-features --lib --tests -- --test-threads=1",
+  "passed": 205,
+  "per_target_passed": [
+    7,
+    4,
+    1,
+    171,
+    1,
+    2,
+    9,
+    3,
+    4,
+    1,
+    2
+  ],
+  "log": "/private/tmp/eldiron-acceptance-final-cpu-session-data-fixed.log",
+  "scope": "CPU-only session/clock/output isolation, project and paint roundtrips, pre-extraction JSON/binary values, authored page storage and source immutability. Graphical application/platform performance acceptance remains separate."
+}

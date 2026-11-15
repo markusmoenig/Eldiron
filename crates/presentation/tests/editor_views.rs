@@ -1,4 +1,7 @@
 //! CPU-reference fixtures and native authoring-view output contracts.
+#[path = "support/views.rs"]
+mod view_support;
+use view_support::ready_view;
 use renderkit::GpuContext;
 use rusterix::{Assets, Client, D3Camera, D3OrbitCamera, Map, SceneHandler};
 use scenevm::{
@@ -222,7 +225,7 @@ fn native_editor_views_consume_frozen_frames_and_preserve_independent_targets() 
         client.editor_canvas_colors = None;
         let before = gpu.transfers();
         views.prepare_editor(id, &frame, &mut images).unwrap();
-        let output = views.render(id, 17, &mut images).unwrap().unwrap();
+        let output = ready_view(&mut views, id, 17, &mut images);
         assert_eq!(gpu.transfers().readback_bytes, before.readback_bytes);
         assert_eq!(gpu.transfers().capture_requests, before.capture_requests);
         assert!(!views.has_cpu_target_storage(id).unwrap());
@@ -302,7 +305,7 @@ fn native_editor_views_consume_frozen_frames_and_preserve_independent_targets() 
     views
         .prepare_editor(first.view, frame, &mut images)
         .unwrap();
-    let resumed = views.render(first.view, 18, &mut images).unwrap().unwrap();
+    let resumed = ready_view(&mut views, first.view, 18, &mut images);
     assert_eq!(resumed.image, first.image);
     assert!(Arc::ptr_eq(
         &retained[0],
@@ -366,7 +369,7 @@ fn native_editor_source_publications_keep_views_overlays_and_recovery_independen
         assert!(views.apply_editor_source(id, original.clone()).unwrap());
         assert_eq!(views.scene(id).unwrap().vm.active_vm_index(), 2);
         views.prepare_editor(id, &frame, &mut images).unwrap();
-        views.render(id, 1, &mut images).unwrap();
+        ready_view(&mut views, id, 1, &mut images);
     }
     let first = views.output(a).unwrap();
     let second = views.output(b).unwrap();
@@ -390,13 +393,13 @@ fn native_editor_source_publications_keep_views_overlays_and_recovery_independen
     index.index_chunk(&chunk);
     let changed = index.snapshot();
     assert!(views.apply_editor_source(a, changed).unwrap());
-    views.render(a, 2, &mut images).unwrap();
+    ready_view(&mut views, a, 2, &mut images);
     assert_ne!(before, capture(&gpu, views.capture(a).unwrap().ticket));
     assert_eq!(views.output(b), Some(second));
     assert_eq!(before, capture(&gpu, views.capture(b).unwrap().ticket));
     index.clear();
     assert!(views.apply_editor_source(a, index.snapshot()).unwrap());
-    views.render(a, 3, &mut images).unwrap();
+    ready_view(&mut views, a, 3, &mut images);
     let cleared = capture(&gpu, views.capture(a).unwrap().ticket);
     assert!(
         cleared.chunks_exact(4).any(|p| p[0] > p[1] + 20),
@@ -434,7 +437,7 @@ fn native_editor_source_publications_keep_views_overlays_and_recovery_independen
     scene.set_overlay();
     assert!(rebuilt.apply_editor_source(a, original).unwrap());
     rebuilt.prepare_editor(a, &frame, &mut new_images).unwrap();
-    let result = rebuilt.render(a, 1, &mut new_images).unwrap().unwrap();
+    let result = ready_view(&mut rebuilt, a, 1, &mut new_images);
     assert_ne!(result.image, first.image);
     assert!(!rebuilt.has_cpu_target_storage(a).unwrap());
     assert_eq!(replacement.transfers().readback_bytes, 0);

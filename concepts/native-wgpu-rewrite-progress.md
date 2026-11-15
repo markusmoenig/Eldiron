@@ -16984,3 +16984,71 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Checkpoint this batch, then resume the presentation suite from its first run
   (113/115 library cases,2stale assertions now fixed), followed by remaining
   assembled/source/runtime/target/performance acceptance.
+
+- Resumed presentation release:115/115 library contracts and11/11 content source
+  integration contracts PASS. editor_views then reached2/3PASS; frozen multi-view
+  fixture still unwrapped one render call at line225, which can legitimately
+  return None under the shared cooperative upload budget. Original pixel golden
+  reference and publication/recovery cases passed. Log /private/tmp/eldiron-
+  acceptance-final-presentation-resumed.log; handle73872terminal.
+- Updated fresh-source/resume/recovery render steps in this test to the real
+  bounded frame/poll contract, resetting the shared per-frame budget. Warm-idle,
+  zero-size and foreign-registry checks remain direct, and all original frozen
+  controller/source/target/pixel/readback assertions remain. Focused editor_views
+  suite next, then continue remaining integration targets without repeating
+  unchanged passing foundational suites. No production algorithm changed.
+
+- Corrected complete editor_views integration PASS3/3,0.71s(build2.66s), retaining
+  exact pre-extraction pixels, frozen camera/controller semantics, independent
+  targets, compositor use, zero-size/resume, foreign registry rejection and GPU
+  reconstruction. /private/tmp/eldiron-acceptance-final-editor-views-fixed.log;
+  handle60342terminal. Remaining13 presentation integration targets now execute
+  serially with per-target logs/results; no Rust edits until the batch exits.
+  Passed library115/content11/editor3 are not rerun for this test-only change.
+
+- Remaining13 presentation integration targets completed serially:12targetsPASS,
+  scene_views3/4PASS with world-picking fixture still assuming an immediate
+  second view render at line66. Batch12303terminal. Full per-target outputs in
+  /private/tmp/eldiron-acceptance-final-presentation-results.json; game_screen
+  PASS53, all7isometric targetsPASS17, messages3/overview1/profile3/screen6 PASS.
+- Shared the bounded fresh-view preparation helper between editor_views and
+  scene_views. Updated positive fresh/resized/camera/source outputs to wait for
+  their own completion; unchanged/zero-size/foreign registry assertions remain
+  direct. Game-camera frame loop now resets the shared budget once per frame.
+  Preserve every original picking, stale-output, independent-camera, image and
+  no-readback assertion. Focused two integration targets next.
+
+- Focused current editor_views3/3 and scene_views4/4 PASS,0.75s/0.28s, including
+  the complete original picking/occlusion/revision/paint-ID/camera/target/capture
+  assertions. /private/tmp/eldiron-acceptance-final-scene-editor-views-fixed.log;
+  handle19632terminal. Shared helper lives in tests/support/views.rs, not a new
+  Cargo test target; no forced budgets/fallbacks/relaxed pixels were introduced.
+- Consolidated current presentation coverage now PASS216/216:115library+101
+  integration cases across all15 integration targets. Durable per-target summary
+  concepts/native-wgpu-evidence/release-presentation-acceptance.json; earlier
+  failed logs retain the exact old assumptions and are not relabelled as passes.
+  Foundation12renderkit/296framework/77SceneVM/29boundary checks remain passed.
+- CPU-only core/shared/runtime serialization and session acceptance now running.
+  Use --no-default-features to avoid graphical dependency unification. Next
+  assembled Creator/player plus current saved formats, remaining targets and
+  release performance. No Rust edits until the active CPU suite exits.
+
+- CPU core/shared/runtime batch stopped during test compilation: local_session
+  still accessed removed SurfacePaint.color_rgba stitched-atlas fields. No CPU
+  suite execution is accepted from that build. /private/tmp/eldiron-acceptance-
+  final-cpu-session-data.log; handle8353terminal. Updated fixture to original
+  immutable page bytes, retained exact pixel/retirement assertions and added
+  one-page/origin/shared-storage checks proving publication does not stitch/copy
+  authored paint. Rerun CPU matrix with the same isolated features.
+
+- Current isolated CPU matrix PASS205/205 (build1.80s): runtime7/local-session4/
+  overlapping-session1, shared171/Stonefall1/visual-sources2, Core9/compatibility3/
+  graph-edits4/shared-bytes1/value-compatibility2. Includes current projects/paint,
+  exact pre-extraction JSON/binary representations and retained authored source
+  bytes. /private/tmp/eldiron-acceptance-final-cpu-session-data-fixed.log;
+  handle9233terminal. Durable release-cpu-session-data-acceptance.json evidence.
+- Canonical assembled Creator GPU root is next in a fresh test process (its cold
+  compatibility-GPU assertion must not share a process with reference tests).
+  Then shared native player and remaining current runtime/resource/platform
+  acceptance and matched release profiling. No unrelated passing foundation
+  reruns are needed for these test-only contract updates.
