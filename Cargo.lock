@@ -4438,6 +4438,7 @@ dependencies = [
  "half",
  "objc2-quartz-core 0.3.2",
  "pollster",
+ "rustc-hash 2.1.1",
  "theframework-core",
  "wgpu",
 ]

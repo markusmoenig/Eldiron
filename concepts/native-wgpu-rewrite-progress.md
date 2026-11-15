@@ -19032,3 +19032,35 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   ownership and every existing cache/physical-page budget. No hash-only keys,
   shader/data/format changes or speculative renderer rewrite. Verify original
   ownership/budget/pixel contracts and fresh normal release timings before keep.
+
+- Fast bucket fingerprint implemented in private renderkit/content_fingerprint
+  shared by range/dedicated immutable caches, using existing lockedrustc-hash2.1.1.
+  Cargo.lock only adds that existing dependency toRenderkit; no version changed.
+  All full-byte collision guards, flags/length keys, limits, LRU and leases
+  unchanged. Existing actual Metal52595 terminalPASS dedicated1+packed3 GPU
+  contracts, including budgets/retired bindings/queued order/physical-page counts.
+- Current serialized focused release paint12/frozenfullRGBA, assembled Creator1,
+  then two fresh normal120sample native runs. Logs
+  /private/tmp/eldiron-release-content-fingerprint-{paint,creator,native-measurement}.log.
+  Retain only after exactness and actual timing evidence; no compiler/test/profile
+  overlap or Rust edits until terminal. Versioned ship binaries still53af6e17.
+
+- Content hash83368 terminalPASS paint12/frozen576000RGBAbytes exact, assembled
+  Creator1(24.16s,five-DPI maxdelta1). Detected measurement harness error BEFORE
+  retaining/claiming improvement: new dependency changed Cargo test executable
+  to eldiron_creator-5edeb499b544aeac, while old helper ran1333e70a73f18c78.
+  Rejected two gz35c88l timing runs as CURRENT evidence (they measure prior
+  implementation). Earlier pre-dependency measurements/traces using1333 remain
+  valid. Current helper now REQUIRES explicit Cargo-selected executable and
+  records its SHA256/source manifest; current fresh120pair follows at
+  /private/tmp/eldiron-release-content-fingerprint-correct-native.log.
+
+- Correct exact-executable48647 terminalPASS2 fresh120samples/mode. SHA256
+  9fda3a1c7b4c014869e74f6f44efec9735c9b69b45c184d4914d795267f1c47c.
+  NativeP50pan33.25/33.08ms vs immediately previous34.44/34.23, modest~1.2ms;
+  idle8.75/8.74, hover9.30/9.31, zoom24.09/24.51ms. No uniform speedup claim.
+  Retain small fingerprint optimization with original immutable ownership4,
+  paint12/frozenfullRGBAexact and assembledCreator1 unchanged. Durable
+  release-content-fingerprint-acceptance.json and both full current120sampleJSONs;
+  rejected stale-path runs remain explicitly excluded. Fresh ship builds follow
+  once this CPU preparation refinement batch is settled.

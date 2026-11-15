@@ -3,8 +3,7 @@
 //! destroyed by the cache.
 use crate::{GpuContext, RenderError, Result};
 use std::{
-    collections::{BTreeMap, HashMap, hash_map::DefaultHasher},
-    hash::{Hash, Hasher},
+    collections::{BTreeMap, HashMap},
     sync::{Arc, Mutex},
 };
 use wgpu::util::DeviceExt;
@@ -147,12 +146,10 @@ impl BufferCache {
                 "invalid immutable buffer usage, size or device".into(),
             ));
         }
-        let mut hasher = DefaultHasher::new();
-        bytes.hash(&mut hasher);
         let key = Key {
             usage: usage.bits(),
             bytes: bytes.len(),
-            hash: hasher.finish(),
+            hash: crate::content_fingerprint::content_fingerprint(bytes),
         };
         let mut cache = self.0.lock().unwrap();
         cache.clock = cache

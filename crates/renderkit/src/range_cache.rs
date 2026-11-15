@@ -2,8 +2,7 @@
 //! charged once, even when many cached inputs share one allocation.
 use crate::{BufferCacheUsage, GpuBufferRange, GpuContext, RenderError, Result, wgpu};
 use std::{
-    collections::{BTreeMap, HashMap, hash_map::DefaultHasher},
-    hash::{Hash, Hasher},
+    collections::{BTreeMap, HashMap},
     sync::{Arc, Mutex},
 };
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -121,12 +120,10 @@ impl RangeCache {
                 "invalid immutable range usage, size or device".into(),
             ));
         }
-        let mut hasher = DefaultHasher::new();
-        bytes.hash(&mut hasher);
         let key = Key {
             usage: usage.bits(),
             size: bytes.len(),
-            hash: hasher.finish(),
+            hash: crate::content_fingerprint::content_fingerprint(bytes),
         };
         let mut cache = self.0.lock().unwrap();
         cache.clock = cache

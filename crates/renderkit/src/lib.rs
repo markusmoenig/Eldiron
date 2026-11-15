@@ -1,6 +1,7 @@
 //! Explicit GPU ownership and resources shared by UI and scene renderers.
 //! No application event loop, widget tree, or gameplay state lives here.
 mod buffer_cache;
+mod content_fingerprint;
 pub use buffer_cache::{BufferCacheUsage, GpuBuffer};
 mod range_storage;
 mod range_cache;

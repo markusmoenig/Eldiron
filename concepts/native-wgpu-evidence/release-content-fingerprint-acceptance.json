@@ -1,0 +1,102 @@
+{
+  "source_base_commit": "3f8ef0d8",
+  "source_delta": "private FxHasher bucket fingerprint; existing exact-byte guards and all budgets retained",
+  "profile": "release",
+  "executable": {
+    "executable": "/Users/markusmoenig/Eldiron/target/release/deps/eldiron_creator-5edeb499b544aeac",
+    "executable_sha256": "9fda3a1c7b4c014869e74f6f44efec9735c9b69b45c184d4914d795267f1c47c",
+    "source_head": "3f8ef0d806a3f143f31090222c172a01fad242d8",
+    "source_delta": "fast exact-content bucket fingerprint"
+  },
+  "ownership_contracts": {
+    "dedicated_buffers": 1,
+    "packed_ranges": 3
+  },
+  "paint_gpu": 12,
+  "frozen_rgba_max_delta": 0,
+  "assembled_creator": {
+    "passed": 1,
+    "seconds": 24.16
+  },
+  "runs": [
+    {
+      "repeat": 1,
+      "peak_process_rss_bytes": 3275800576,
+      "total_ms": {
+        "hover": {
+          "mean": 13.228343741666672,
+          "p50": 9.303542,
+          "p95": 27.311,
+          "p99": 30.615416999999997
+        },
+        "idle": {
+          "mean": 9.185979483333332,
+          "p50": 8.75125,
+          "p95": 9.215334,
+          "p99": 26.905917000000002
+        },
+        "pan": {
+          "mean": 33.15350240833333,
+          "p50": 33.251875,
+          "p95": 36.475874999999995,
+          "p99": 39.547666
+        },
+        "zoom": {
+          "mean": 25.056858649999977,
+          "p50": 24.08525,
+          "p95": 53.07525,
+          "p99": 54.523500000000006
+        }
+      },
+      "pan_cpu_paint_ms": {
+        "mean": 26.98890035833334,
+        "p50": 27.103417,
+        "p95": 29.443875000000002,
+        "p99": 30.263042
+      }
+    },
+    {
+      "repeat": 2,
+      "peak_process_rss_bytes": 3268280320,
+      "total_ms": {
+        "hover": {
+          "mean": 13.078081233333329,
+          "p50": 9.307791,
+          "p95": 27.766375,
+          "p99": 30.935000000000002
+        },
+        "idle": {
+          "mean": 9.442307974999997,
+          "p50": 8.742542,
+          "p95": 9.440040999999999,
+          "p99": 28.022499999999997
+        },
+        "pan": {
+          "mean": 33.15121386666666,
+          "p50": 33.078916,
+          "p95": 35.845124999999996,
+          "p99": 37.272459
+        },
+        "zoom": {
+          "mean": 25.07390378333334,
+          "p50": 24.514834,
+          "p95": 53.533667,
+          "p99": 54.868667
+        }
+      },
+      "pan_cpu_paint_ms": {
+        "mean": 27.50148125833333,
+        "p50": 27.688625000000002,
+        "p95": 29.679750000000002,
+        "p99": 31.464582999999998
+      }
+    }
+  ],
+  "rejected_as_current": [
+    "gz35c88l pair used old1333e70a73f18c78; current executable5edeb499b544aeac selected from actual Cargo output"
+  ],
+  "limitations": [
+    "No general speedup claim; pan/zoom and physical gates stay open",
+    "Last fully packaged runnable/platform source remains53af6e17"
+  ]
+}
