@@ -11,11 +11,6 @@ use std::sync::{
 };
 
 #[derive(Clone)]
-pub struct PaintPagePixels {
-    pub color: SharedBytes,
-    pub material: SharedBytes,
-}
-#[derive(Clone)]
 struct Source {
     recipe: Arc<StampRecipe>,
     origin: [u32; 2],

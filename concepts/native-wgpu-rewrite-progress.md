@@ -55,7 +55,7 @@ behavior is ready to verify.
 ## Next work
 
 1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,16 retained standard control families and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
-2. Close remaining live source/publication/worker policy and canonical Creator/player ownership/adapters. Private bake large-source paging is release-compiled; do not keep adding isolated bake edge-case test runs while port implementation remains. Preserve actual shipped workflows and avoid inventing unsupported baseline features.
+2. Close cooperative per-recipe browser work, live source residency/instance uploads and remaining UV/player source policy. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
 ## Blockers
@@ -14044,3 +14044,107 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   /private/tmp/eldiron-creator-wake-port-release-web-host-final.log. All compiler
   sessions terminal. No functional/GPU/performance test batch ran; no M0-M9 gate
   is marked complete from compilation. Concurrent networking concept unmodified.
+
+
+## Live stamp source ownership and camera-independent pixels (2026-11-15)
+
+- Previous goal turn is progress:e0772457 application wake/deadline ownership.
+  Tracked worktree clean at start; concurrent networking concept untouched.
+  Full M0-M9 remains active; user still prioritizes port implementation before
+  the consolidated tests. Release compilation only in this implementation batch.
+- Canonical Creator3D Region/Prefab views no longer call the synchronous combined
+  native stamp uploader during frame preparation. Added immutable CPU sprite
+  requests/sets in shared/stamp_billboards/live.rs and an application-local
+  CPU owner in editor/native_world_stamps.rs. Requests freeze distinct visual
+  recipes and shared source-image backing, excluding UV planes/history/camera
+  placement; unchanged artwork survives camera movement and device replacement.
+- Exact visual-key comparison resolves hash buckets. Exact width/height/RGBA
+  comparison interns identical pixels even between different recipes; each
+  recipe retains its own crop/anchor and every authored ordered placement is
+  retained. Transparent sources are cached without pixels. New sets retire old
+  recipes instead of accumulating an unbounded historical cache. Old pixel-hash
+  buckets are shared by metadata while preparing; full pixel hashing/generation
+  occurs in preparation rather than camera-frame cache setup.
+- Native source generation uses at most two admitted workers globally, with one
+  queued latest request or running worker per owner and a single-result channel.
+  Cancelled work retains admission until it actually stops, checking retirement
+  between recipes. A complete result wakes the application and publishes through
+  update before rendering. No VM, GPU device, widget or live document is borrowed
+  by a worker. Scope changes cancel document/context/map/runtime work; camera
+  changes preserve prepared artwork. Publication is all-or-nothing for a source
+  request; failed preparation is retained until the visual recipe changes.
+- Current placement is resolved against the current view-owned scene, after CPU
+  preparation. An exact source-set ID plus instance-bit key avoids publication
+  when neither pixels nor actual placements changed. Billboard RGBA storage is
+  now immutable Arc-backed CPU data: retained sources and SceneVM/GPU-generation
+  descriptions share bytes instead of duplicating every original sprite on each
+  publication. The source type has no project serialization contract; authored
+  paint/project formats remain unchanged. Existing virtual-raster kernels and
+  <=256px sampling/crop/emission conventions remain shared.
+- Root frame readiness now includes stamp-source readiness. Incomplete sources
+  cannot activate presented-world editing. Once geometry is ready, a running
+  native worker waits for its wake signal instead of requesting repeated scene
+  frames. Queued admission and browser preparation retain update deadlines.
+  Switching to2D/custom/hidden contexts retires CPU work and stale GPU billboard
+  state. Scope/device reconstruction resets GPU publication while retaining the
+  applicable CPU source owner.
+- Browser currently advances one complete recipe per update using this same
+  source/preparation contract. This bounds the number of recipes, not elapsed
+  work inside a large procedural/image recipe. Native cancellation also waits
+  for the current recipe. Cooperative pixel/kernel work remains required to
+  close that responsiveness/retirement gate. Live HDR source residency and
+  instance-only GPU upload policy also remain: changed placements can still
+  repack/upload billboard metadata/pixels; this is not claimed solved by caching.
+- Initial canonical four-application release compilation PASS31.59s; placement/
+  mode/retirement refinements native release PASS17.50s and browser Creator
+  release PASS17.05s. Logs:
+  /private/tmp/eldiron-live-stamp-worker-port-release{,-final,-web}.log.
+  Arc-backed source integration is being compiled separately. No new functional,
+  GPU or performance suite run, no measured speedup or full acceptance inferred.
+- Required integrated validation: all shipped stamp recipes and source-image/
+  material/crop parity; ordered/identical/translucent/missing-world placements;
+  no rasterization on camera-only changes; edits while pending, undo/delete,
+  document/context/runtime/source retirement and device reconstruction; native
+  worker admission/cancellation and browser latency; memory including retired
+  jobs/inflight/GPU backing and matched release CPU/native measurements. Next:
+  cooperative recipe work, retained GPU source/instance publication and remaining
+  live UV/player source policies, retained UI/ownership/adapters and platforms.
+- Arc-backed source integration canonical release PASS27.84s and browser
+  release PASS26.82s. Worker failure/admission refinements release PASS12.38s
+  native and PASS11.58s browser. Logs:
+  /private/tmp/eldiron-live-stamp-worker-port-release{,-web}-shared.log and
+  /private/tmp/eldiron-live-stamp-worker-port-release{,-web}-retirement.log.
+- Added IsoPaintLayer::presentation_source in iso_paint/source.rs. The live3D
+  view now snapshots current shared UV planes, stamp records, source-owner/
+  commit metadata and only the active selection. It no longer clones all stroke
+  points, past selection masks or source-image catalogs per camera frame.
+  Linked Prefab surfaces use the existing history-free merge contract. Hidden
+  paint with active selection keeps the existing alpha-routing inputs. The
+  authoring owner still makes derived paint current before snapshotting; the
+  renderer does not replay excluded old experimental versions. Native release
+  snapshot integration PASS16.61s, browser PASS16.05s. Final source/active-VM
+  cleanup native release PASS18.06s, browser PASS17.22s. Logs:
+  /private/tmp/eldiron-live-stamp-worker-port-release{,-web}-snapshot.log and
+  /private/tmp/eldiron-live-stamp-worker-port-release{,-web}-current.log.
+- Isolated shared --no-default-features release compilation exposed an earlier
+  stamp-paging boundary regression: unconditionally compiled generated/stamp
+  page modules imported graphics-only StampRecipe. Gated generated stamp
+  modules/state by graphics and kept ordinary PaintPagePixels/UV index APIs
+  CPU-only. Source snapshots themselves introduce no GPU/UI dependency. Failed
+  diagnostic:/private/tmp/eldiron-live-stamp-worker-port-release-cpu.log. The
+  corrected isolated CPU/native/browser compilation is being collected. This
+  regression is ordinary implementation work, not an external blocker.
+- Corrected CPU boundary compilation PASS4.00s, canonical four-application
+  release PASS18.37s and browser Creator release PASS17.52s. Logs:
+  /private/tmp/eldiron-live-stamp-worker-port-release-cpu-final.log,
+  /private/tmp/eldiron-live-stamp-worker-port-release-boundaries.log and
+  /private/tmp/eldiron-live-stamp-worker-port-release-web-boundaries.log.
+- Native worker panic/error delivery now publishes a failure outcome before
+  waking, so an otherwise-idle host cannot wait forever on a disconnected
+  result channel. Admission is released before notification. Missing callback
+  hosts retain polling rather than suppressing their only progress mechanism;
+  sticky failures do not request endless missing-frame retries. Current native
+  release compilation PASS13.50s after this native-only refinement; log:
+  /private/tmp/eldiron-live-stamp-worker-port-release-worker-final.log.
+  All compiler handles terminal. No functional/GPU/performance suite run, and
+  all full-platform/resource/timing/visual M0-M9 acceptance gates remain open.

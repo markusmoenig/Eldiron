@@ -320,7 +320,9 @@ impl Raster3DPaintGpuSurface {
 pub struct OrganicBillboardSprite {
     pub width: u32,
     pub height: u32,
-    pub rgba: Vec<u8>,
+    /// Immutable CPU source backing is shared by preparation, retained scene
+    /// descriptions and independent GPU generations without byte duplication.
+    pub rgba: std::sync::Arc<[u8]>,
 }
 
 /// Private compute-producer source identity. Pixel storage belongs to the

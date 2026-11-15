@@ -4,9 +4,11 @@
 //! separately so indirect rays can distinguish absent keys from unloaded pages.
 use super::Builder;
 mod preparation;
+#[cfg(feature = "graphics")]
 mod generated;
+#[cfg(feature = "graphics")]
 mod stamps;
-pub use generated::PaintPagePixels;
+#[cfg(feature = "graphics")]
 pub use stamps::StampPageIndexBuilder;
 use crate::iso_paint::{ISO_PAINT_BAKE_VERSION, ISO_PAINT_BAKED_CHUNK_SIZE, IsoPaintLayer};
 pub use preparation::PaintPageIndexBuilder;
@@ -16,6 +18,12 @@ use theframework_core::SharedBytes;
 
 const SIZE: u32 = ISO_PAINT_BAKED_CHUNK_SIZE as u32;
 const PLANE_BYTES: usize = SIZE as usize * SIZE as usize * 4;
+
+#[derive(Clone)]
+pub struct PaintPagePixels {
+    pub color: SharedBytes,
+    pub material: SharedBytes,
+}
 
 #[derive(Clone)]
 pub struct PaintPageSource {
@@ -30,6 +38,7 @@ pub struct PaintPageSource {
 /// pages are evicted. A fault receipt names this slot, never a resident slot.
 pub struct PaintPageIndex {
     pages: Vec<PaintPageSource>,
+    #[cfg(feature = "graphics")]
     generated: generated::GeneratedPages,
     entries: Vec<Raster3DSurfacePaintEntry>,
     sources_by_slot: Vec<Option<usize>>,
@@ -88,6 +97,7 @@ impl PaintPageIndex {
     pub fn poll_pixels(&self, slot: u32) -> Result<Option<PaintPagePixels>, String> {
         let source = *self.sources_by_slot.get(slot as usize).and_then(Option::as_ref)
             .ok_or("Absent paint source slot")?;
+        #[cfg(feature = "graphics")]
         if self.generated.contains(source) { return self.generated.poll(source); }
         let page = &self.pages[source];
         if page.color.len() != PLANE_BYTES || page.material.len() != PLANE_BYTES {

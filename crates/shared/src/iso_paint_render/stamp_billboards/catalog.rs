@@ -149,7 +149,7 @@ impl StampCatalogBuilder {
         Ok(self.output)
     }
 }
-fn visual_hash(stamp: &IsoPaintStamp) -> u64 {
+pub(super) fn visual_hash(stamp: &IsoPaintStamp) -> u64 {
     let mut hash = DefaultHasher::new();
     stamp.kind.hash(&mut hash);
     stamp.variant.hash(&mut hash);
@@ -168,7 +168,7 @@ fn visual_hash(stamp: &IsoPaintStamp) -> u64 {
         .hash(&mut hash);
     hash.finish()
 }
-fn same_visual(a: &IsoPaintStamp, b: &IsoPaintStamp) -> bool {
+pub(super) fn same_visual(a: &IsoPaintStamp, b: &IsoPaintStamp) -> bool {
     a.kind == b.kind
         && a.variant == b.variant
         && a.size.to_bits() == b.size.to_bits()

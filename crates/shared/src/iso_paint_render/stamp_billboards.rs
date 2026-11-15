@@ -1,7 +1,9 @@
 //! Cooperative CPU original stamp preparation, independent of GPU publication.
 use super::*;
 mod catalog;
+mod live;
 pub use catalog::{StampCatalog, StampCatalogBuilder};
+pub use live::{StampSpritePreparation, StampSpriteRequest, StampSpriteSet};
 use crate::iso_paint::{IsoPaintChunk, IsoPaintLayer, IsoPaintStamp};
 use scenevm::{OrganicBillboardInstance, OrganicBillboardSprite};
 
@@ -57,7 +59,7 @@ pub(super) fn stamp_billboard(
     let sprite = OrganicBillboardSprite {
         width: sprite_width as u32,
         height: sprite_height as u32,
-        rgba,
+        rgba: rgba.into(),
     };
     let instance = placement(
         stamp,
@@ -292,7 +294,7 @@ impl StampBillboardPreparation {
             + if existing.is_some() {
                 0
             } else {
-                16 + sprite.rgba.capacity() as u64
+                16 + sprite.rgba.len() as u64
             };
         let bytes = self.output.source_bytes.saturating_add(added);
         if bytes > self.limit {

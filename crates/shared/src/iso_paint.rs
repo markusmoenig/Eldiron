@@ -1,5 +1,6 @@
 use crate::iso_paint_brush::{self, IsoPaintBrushSample};
 use crate::prelude::*;
+mod source;
 use theframework_core::prelude::{Uuid, Vec2, Vec3};
 use theframework_core::SharedBytes;
 

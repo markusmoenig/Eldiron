@@ -381,7 +381,7 @@ pub(super) fn native_sprite(stamp: &IsoPaintStamp) -> Result<Option<NativeSprite
         sprite: scenevm::OrganicBillboardSprite {
             width: recipe.output[0],
             height: recipe.output[1],
-            rgba: recipe.raster([0; 2], recipe.output)?,
+            rgba: recipe.raster([0; 2], recipe.output)?.into(),
         },
         min: recipe.bounds.min,
         max: recipe.bounds.max,

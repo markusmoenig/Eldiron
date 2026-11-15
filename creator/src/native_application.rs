@@ -226,6 +226,7 @@ impl UiApplication for NativeCreatorApplication {
         redraw |= self.editor.update(&mut ui.context);
         self.editor.publish_native_world_paint_sources();
         redraw |= self.editor.advance_native_world_source();
+        redraw |= self.editor.advance_native_world_stamps();
         redraw |= self.editor.advance_native_world_paste();
         redraw |= self.editor.advance_native_minimap_source();
         self.editor.sync_native_game_input(&mut ui.ui, &ui.context);
