@@ -62,6 +62,7 @@ struct SceneView {
     isometric: bool,
     isometric_renderer: Option<crate::isometric::IsometricSceneRenderer>,
     isometric_frame: Option<crate::isometric::IsometricPreparedFrame>,
+    retired_isometric_sources: Option<crate::isometric::IsometricFrameSources>,
     last_image: Option<Arc<renderkit::GpuImage>>,
     size: (u32, u32),
     output: Option<ViewImage>,
@@ -71,6 +72,13 @@ struct SceneView {
     game_scope: Option<GamePaintScope>,
 }
 impl SceneView {
+    fn revoke_isometric_frame(&mut self) {
+        if let Some(frame) = self.isometric_frame.take() {
+            // At most one outgoing source set, released when a replacement is
+            // published or the mode/view is removed. Normal cache caps remain.
+            self.retired_isometric_sources = Some(frame.source_leases());
+        }
+    }
     fn invalidate_stamp_packet(&mut self) {
         // GamePaintScope already describes this incoming immutable stamp
         // source. Revoke the packet without forgetting its frozen pose guard.
@@ -169,6 +177,7 @@ impl SceneViews {
                 isometric: false,
                 isometric_renderer: None,
                 isometric_frame: None,
+                retired_isometric_sources: None,
                 last_image: None,
                 size,
                 output: None,
@@ -194,7 +203,7 @@ impl SceneViews {
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
         view.invalidate_request();
-        view.isometric_frame = None;
+        view.revoke_isometric_frame();
         Ok(&mut view.scene)
     }
     pub fn invalidate(&mut self, id: ViewId) -> Result<()> {

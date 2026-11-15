@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-15",
+  "profile": "release",
+  "backend": "Metal",
+  "checks": {
+    "paint": {
+      "passed": 12,
+      "log": "/private/tmp/eldiron-batched-guide-ordering-contracts.log"
+    },
+    "sampled_guides": {
+      "passed": 2,
+      "log": "/private/tmp/eldiron-batched-guide-final-contracts.log",
+      "comparison": "1024 overlapping lines byte-identical to individual draws, two color policies, five DPI values, transformed/clipped/opacity/repeated/zero samples; >8x fewer real draws"
+    },
+    "scene_views": {
+      "passed": 4,
+      "log": "/private/tmp/eldiron-isometric-source-handoff-contracts.log"
+    },
+    "source_handoff": {
+      "passed": 2,
+      "log": "/private/tmp/eldiron-isometric-source-handoff-final-contracts.log",
+      "comparison": "37.7MB material exceeds unchanged32MiB cache; eight revoked/rebuilt packets reuse sources, revision edit uploads new source, stale render/input rejected, normal readback0"
+    }
+  },
+  "cache_policy": "Original32MiB material cache retained. At most one outgoing unique source lease set; released on packet replacement or view/mode removal. Not a cache limit increase.",
+  "open": "Full Creator post-change pilot, shipped avatar/background/sampling parity, remaining sprite/alpha/source guard work and final broad/platform acceptance."
+}

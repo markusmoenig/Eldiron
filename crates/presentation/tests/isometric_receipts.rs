@@ -10,6 +10,85 @@ use rusterix::{
 use scenevm::prelude::{Vec2, Vec3};
 use std::collections::HashMap;
 use theframework_core::Uuid;
+mod isometric_support;
+
+#[test]
+#[ignore = "requires native GPU; large source handoff and stale packet revocation"]
+fn revoked_view_packets_keep_large_sources_until_replacement_without_reuploading() {
+    use eldiron_presentation::{SceneViews, ViewId};
+    use renderkit::ImageRegistry;
+    use rusterix::TileUvPages;
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = ImageRegistry::new(gpu.clone());
+    let mut views = SceneViews::new(&images, scenevm::SharedAtlas::new(64, 64));
+    let id = ViewId::new();
+    views.create(id, (64, 64)).unwrap();
+    let mut tile = Tile::from_textures(
+        (0..9)
+            .map(|_| Texture::new([45, 90, 120, 255].repeat(512 * 512), 512, 512))
+            .collect(),
+    );
+    tile.uv_pages = Some(TileUvPages {
+        origin: [0; 2],
+        size: [9, 1],
+        units_per_page: 1,
+        animation_frames: 1,
+        repeat_period: [0.; 2],
+        axes: [[0.; 3]; 2],
+    });
+    let mut map = Map::default();
+    map.camera = rusterix::MapCamera::TwoDIso;
+    isometric_support::sector(&mut map, tile.id);
+    let mut assets = Assets::default();
+    assets.set_tiles([(tile.id, tile)].into_iter().collect());
+    let projection = Projection {
+        origin: Vec2::new(32., 48.),
+        unit: 16.,
+    };
+    views
+        .prepare_isometric_overview(id, (64, 64), &map, &assets, projection, 1, &mut images)
+        .unwrap();
+    let mut current = views.render(id, 1, &mut images).unwrap().unwrap();
+    assert!(
+        gpu.transfers().uploaded_bytes > 32 * 1024 * 1024,
+        "source must exceed the production cache budget"
+    );
+    assert!(views.isometric_targets(current).is_some());
+    for _ in 0..8 {
+        assert!(views.isometric_targets(current).is_some());
+        views.scene_mut(id).unwrap();
+        assert!(views.isometric_targets(current).is_none());
+        assert!(
+            views.render(id, 1, &mut images).is_err(),
+            "revocation must not replay the stale packet"
+        );
+        let before = gpu.transfers().uploaded_bytes;
+        views
+            .prepare_isometric_overview(id, (64, 64), &map, &assets, projection, 1, &mut images)
+            .unwrap();
+        assert_eq!(
+            gpu.transfers().uploaded_bytes,
+            before,
+            "outgoing source leases must bridge the invalid packet"
+        );
+        current = views.render(id, 1, &mut images).unwrap().unwrap();
+    }
+    let mut changed = assets.tiles.clone();
+    changed.values_mut().next().unwrap().textures[0].data[0] = 180;
+    assets.set_tiles(changed);
+    views.scene_mut(id).unwrap();
+    let before = gpu.transfers().uploaded_bytes;
+    views
+        .prepare_isometric_overview(id, (64, 64), &map, &assets, projection, 1, &mut images)
+        .unwrap();
+    assert!(
+        gpu.transfers().uploaded_bytes - before > 32 * 1024 * 1024,
+        "new source revision must not alias the old lease"
+    );
+    views.render(id, 1, &mut images).unwrap().unwrap();
+    assert!(views.remove(id, &mut images).unwrap());
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+}
 #[test]
 #[ignore = "requires native GPU; run with --ignored"]
 fn immutable_isometric_frames_keep_item_source_alpha_and_reject_foreign_device_or_bad_extent() {

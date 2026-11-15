@@ -120,7 +120,7 @@ impl SceneViews {
             view.scene.vm.set_active_vm(active);
             view.scene.mark_dynamics_dirty();
             view.dirty = true;
-            view.isometric_frame = None;
+            view.revoke_isometric_frame();
         }
         view.editor_source = Some(source);
         Ok(dirty)

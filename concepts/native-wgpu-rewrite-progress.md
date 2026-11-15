@@ -17850,3 +17850,93 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   native large scene from THIS binary, assembled root check, then matched timing
   if ready. Strict geometry/light/source-color identity and generic sprite live
   ownership remain independent implementation work after this result.
+
+
+## Full large-scene residency and guide submission follow-up (2026-11-15)
+
+- e2aff498 stores bounded project JSON staging with targeted serialized/archive/
+  legacy compatibility and isolated memory evidence. Current Creator28918 build
+  terminalPASS2m01s; new exact executable eldiron_creator-1333e70a73f18c78.
+- First complete real UnendingNight native diagnostic44982terminalPASS, owned
+  PID1122,80.86s total,4130832384B childmaxRSS; no8GiB guard/deadline/device loss.
+  Snapshot visually inspected: complete main/terrain/sprites/tiles/UI/minimap.
+  Thirty warm frames +30per idle/hover/pan/zoom, density1.5/2400×1500 root. Trace
+  shows316–318liveGPUbuffers during warmed frames. This is guarded+trace-enabled
+  diagnostic, not final120sample/repeated/uninstrumented timing acceptance.
+- Fresh reference72146terminalPASS10.91s,2463744000B childmaxRSS. Project, logical/
+  physical size,density,viewport,viewmode,mapcamera,initialcamera,adapter allmatch.
+  Native p50 idle489.52/hover490.40/pan488.01/zoom419.53ms; reference27.45/27.63/
+  27.86/41.38ms. Thus a real severe remaining performance gate, NOT speedup.
+  Native warm normal capture/readback delta0 (one explicit prior14.4MB screenshot),
+  but source uploads +16.915GB/120frames; UI drawcalls~21676–23064, source prepare
+  ~197ms, UI submit~157ms, completionwait~135ms. Same-project cold8.04s/6.17s.
+- Source/whole-image parity not accepted: full-image RGB deltas include UI AA and
+  scene/minimap differences; world crop has95.7%changed pixels/meanRGB~15levels.
+  Visual inspection also finds reference blue player avatar absent in initial
+  native snapshot, and reference black outside terrain versus native gray. Need
+  diagnose source readiness/avatar publication, scene sampling/clear and actual
+  rendered parity. Metadata match alone is insufficient; no exact image claim.
+  Durable diagnostic snapshots/JSON: release-unending-residency-{native,reference}.
+- Concrete23kdraw cause: terrain-following editor grid emits each short DDA
+  guide segment separately. New private renderer sampled_lines module merges only
+  contiguous identical-color SampledLine ops, stopping at transform/clip/group/
+  color boundaries, max512lines and max/minsample ratio<=2. One quad per line,
+  bounded instancing with GPU suppression of out-of-range sample indices. Exact
+  existing f32 DDA/rounding/coverage retained; repeated endpoints not deduplicated.
+  Identical source+alpha contributions commute; different colors remain ordered.
+  Paint API and source/receipt/serialization formats unchanged.
+- Original DDA release89839PASS1/1 five densities. Expanded46393PASS14/14 (original
+  UI paint12 plus DDA2); dense1024overlapping guides byte-identical to individual
+  GPU draws in linear/legacy policies at100/125/150/175/200%DPI, affine transform,
+  clip+opacity, interleaved colors/rectangles, repeated endpoints and zero-length
+  lines; real draws reduce>8×. Final unit-quad reuse82465PASS2/2 in0.25s.
+  /private/tmp/eldiron-batched-guide-{lines,ordering,final}-contracts.log.
+- Per-view material cache32MiB immediately evicts the supported~116MiB grass
+  source after every frame. Its total actual source build cap is128MiB per
+  binding. Revised explicit persistent budget160MiB (=128MiB supported source+
+  previous32MiBother working allowance); entrylimit1024 unchanged, zero-budget
+  caller tests/published-frame ownership unchanged. This is a measured residency
+  tradeoff, not removing eviction limits or raising the process guard. Whole-app
+  live/peak impact and warm source upload reduction still need the next run.
+  Targeted isometric material/surface/paint/occlusion release build now active;
+  /private/tmp/eldiron-isometric-material-residency-contracts.log. Next current
+  Creator rebuild, fresh guarded pilot, exact pre/post batch image comparison,
+  then remaining avatar/scene parity, sprite live/alpha and strict source guards.
+
+- Material/surface/paint/occlusion68122terminalPASS11/11. Deeper source audit
+  identifies the actual repeated-upload cause: SceneViews.scene_mut invalidates
+  isometric_frame BEFORE prepare, releasing the last oversized source Arc. This
+  breaks the live publication handoff even though the next material source key
+  is unchanged. Raising persistent budgets is unnecessary for this ownership bug.
+- Reverted experimental160MiB budget back to original32MiB. New private
+  producer/frame_sources module extracts only unique immutable material/paint/
+  sprite GPU leases from the outgoing packet; SceneView retains at most one
+  source set during mutation/replacement. Stale render commands, input targets,
+  triangles and CPU pixels are not retained. New frame installation drops the
+  outgoing source set; mode change/view removal releases it. Active source bytes
+  remain reported separately from bounded cache ownership by working-buffer
+  live counters. No guard or persistent-cache limit increase in final source.
+- Source handoff62043terminalPASS6/6: original isometric receipt1, new real
+  SceneViews large-material handoff1, original four scene-view device/independence/
+  extent/picking contracts. New source37.7MB exceeds production32MiB cache;
+  eight scene_mut→prepare→render cycles upload zero additional material bytes,
+  stale render/input packets reject, edited source revision uploads fresh data,
+  view removal works and normal readback remains0. Final FxHashMap bookkeeping
+  and per-cycle current receipt assertion recheck running;
+  /private/tmp/eldiron-isometric-source-handoff-final-contracts.log.
+- Removed now-unused Deserialize import from non-test shared JSON decoder; no
+  loader behavior change. Next current Creator release rebuild+fresh large
+  native pilot, preserving old diagnostic images/timings. Remaining shipped
+  avatar/background/sampling parity, generic sprite live+alpha ownership and
+  strict geometry/light/property/color source guards still open.
+
+- Final handoff3520terminalPASS2/2 in0.17s. Current outgoing receipt is checked
+  before/after every one of eight mutations; no stale replay, no new material
+  upload. Uses inexpensive pointer-key FxHashMap for unique held sources.
+- Current Creator release rebuild83360 active;
+  /private/tmp/eldiron-guide-handoff-creator-build.log. Next exact current binary
+  into fresh guarded native UnendingNight pilot, compare complete snapshots
+  against pre-batch GPU image, source uploads/draw counts/latency and peak memory.
+  Source audit also finds missing stopped-editor preview_character_setup on
+  canonical view versus reference authoring; it plausibly explains missing blue
+  avatar, but not fixed/verified yet. Background/large-scene sampling also open.

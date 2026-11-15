@@ -17,7 +17,7 @@ impl SceneViews {
         if let Some(renderer) = &mut view.isometric_renderer {
             renderer.invalidate_geometry();
         }
-        view.isometric_frame = None;
+        view.revoke_isometric_frame();
         view.dirty = true;
         Ok(())
     }
@@ -64,6 +64,7 @@ impl SceneViews {
             },
         )?;
         view.isometric_frame = Some(frame);
+        view.retired_isometric_sources = None;
         view.dirty = true;
         Ok(())
     }
@@ -110,6 +111,7 @@ impl SceneViews {
         view.scene.target = target;
         view.last_image = None;
         view.isometric_frame = None;
+        view.retired_isometric_sources = None;
         if !isometric {
             view.isometric_renderer = None;
         }
@@ -201,6 +203,7 @@ impl SceneViews {
             },
         )?;
         view.isometric_frame = Some(frame);
+        view.retired_isometric_sources = None;
         view.dirty = true;
         Ok(())
     }

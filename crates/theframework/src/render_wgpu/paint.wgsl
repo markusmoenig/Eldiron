@@ -90,9 +90,10 @@ fn dda_divide(a:f32,b:f32)->f32 {
 }
 @vertex fn vs(@location(0)p:vec2<f32>,@location(1)local:vec2<f32>,@location(2)uv:vec2<f32>,@location(3)color:vec4<f32>,@builtin(instance_index)instance:u32)->Out{
     var position=p;var output_local=local;var origin=vec2<f32>(0.);var sample_pixel=vec2<f32>(0.);
-    if((params.mode&255u)==14u){
-        let a=params.color1.xy;
-        let delta=vec2<f32>(dda_fp(params.color1.z-a.x),dda_fp(params.color1.w-a.y));
+    if((params.mode&255u)==14u || (params.mode&255u)==19u){
+        let endpoints=select(params.color1,color,(params.mode&255u)==19u);
+        let a=endpoints.xy;
+        let delta=vec2<f32>(dda_fp(endpoints.z-a.x),dda_fp(endpoints.w-a.y));
         let count=min(ceil(max(abs(delta.x),abs(delta.y))),8192.);
         let t=dda_divide(f32(instance),count);
         let q=vec2<f32>(dda_fp(a.x+dda_fp(delta.x*t)),dda_fp(a.y+dda_fp(delta.y*t)));
@@ -109,6 +110,7 @@ fn dda_divide(a:f32,b:f32)->f32 {
         let pad=vec2<f32>(abs(by.y)+abs(by.x),abs(bx.y)+abs(bx.x))/determinant;
         output_local=local*(vec2<f32>(1.)+2.*pad)-pad;
         position+=bx*(pixel.x+output_local.x-local.x)+by*(pixel.y+output_local.y-local.y);
+        if(f32(instance)>count){position=vec2<f32>(-100.,-100.);}
     }
     if((params.mode&255u)==15u || (params.mode&255u)==16u || (params.mode&255u)==17u || (params.mode&255u)==18u){
         let bx=params.gradient.xy;let by=params.gradient.zw;
@@ -281,7 +283,7 @@ fn triangle_coverage(p:vec2<f32>)->bool {
         let alpha=floor(clamp(tex.a*c.a,0.,1.)*255.+0.5)/255.;
         return vec4<f32>(straight_sample(tex)*c.rgb*alpha,alpha);
     }
-    if(mode==14u){
+    if(mode==14u || mode==19u){
         // Invert the draw basis at the physical center. Interpolated local
         // coordinates can drift across exact texel boundaries at fractional DPI.
         let bx=params.gradient.xy;let by=params.gradient.zw;let q=i.position.xy-i.origin;

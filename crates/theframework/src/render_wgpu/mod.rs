@@ -3,6 +3,7 @@ mod atlas;
 mod bindings;
 pub use bindings::BindingCacheUsage;
 mod mesh;
+mod sampled_lines;
 mod renderer;
 pub use renderer::{FrameStats, PaintRenderer};
 

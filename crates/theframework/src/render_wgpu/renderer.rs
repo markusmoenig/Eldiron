@@ -42,6 +42,10 @@ enum ImageEffect {
         basis: [f32; 4],
         samples: u32,
     },
+    SampledLines {
+        basis: [f32; 4],
+        samples: u32,
+    },
     Sprite {
         scale: Point,
         basis: [f32; 4],
@@ -496,6 +500,8 @@ impl PaintRenderer {
                 17
             } else if matches!(effect, Some(ImageEffect::Sprite { .. })) {
                 15
+            } else if matches!(effect, Some(ImageEffect::SampledLines { .. })) {
+                19
             } else if matches!(effect, Some(ImageEffect::SampledLine { .. })) {
                 14
             } else if matches!(effect, Some(ImageEffect::PixelTriangle(_))) {
@@ -605,6 +611,9 @@ impl PaintRenderer {
             params.color1 = endpoints;
             params.gradient = basis;
         }
+        if let Some(ImageEffect::SampledLines { basis, .. }) = effect {
+            params.gradient = basis;
+        }
         if let Some(ImageEffect::Sprite { scale, basis }) = effect {
             params.color1 = [scale[0], scale[1], 0., 0.];
             params.gradient = basis;
@@ -616,6 +625,7 @@ impl PaintRenderer {
             Some(
                 ImageEffect::Sprite { basis, .. }
                 | ImageEffect::SampledLine { basis, .. }
+                | ImageEffect::SampledLines { basis, .. }
                 | ImageEffect::LogicalPixelLine { basis, .. },
             ) => Some(basis),
             _ => match field {
@@ -705,7 +715,7 @@ impl PaintRenderer {
             stencil,
             phase,
             instances: match effect {
-                Some(ImageEffect::SampledLine { samples, .. }) => samples,
+                Some(ImageEffect::SampledLine { samples, .. } | ImageEffect::SampledLines { samples, .. }) => samples,
                 _ => 1,
             },
         })
@@ -1230,40 +1240,25 @@ impl PaintRenderer {
                         )?);
                     }
                 }
-                PaintOp::SampledLine { from, to, color } => {
-                    let delta = [to[0] - from[0], to[1] - from[1]];
-                    let transformed = [transform.point(*from), transform.point(*to)];
-                    if delta
-                        .iter()
-                        .chain(transformed.iter().flatten())
-                        .any(|v| !v.is_finite() || !(v * density).is_finite())
-                    {
-                        return Err(RenderError("nonfinite sampled line transform".into()));
-                    }
-                    let steps = delta[0].abs().max(delta[1].abs()).ceil().min(8192.) as u32;
-                    if steps > 0 && transform.inverse().is_some() {
-                        let (vertices, indices) = mesh::quad(
-                            Rect::new(0., 0., 1., 1.),
-                            Rect::default(),
-                            transform,
-                            density,
-                        );
+                PaintOp::SampledLine { color, .. } => {
+                    let batch = super::sampled_lines::prepare(&ops[i..], transform, density)?;
+                    if batch.lines > 0 {
                         let [a, b, c, d, _, _] = transform.0;
+                        let basis = [a * density, b * density, c * density, d * density];
+                        let effect = if batch.lines > 1 {
+                            ImageEffect::SampledLines { basis, samples: batch.samples }
+                        } else {
+                            ImageEffect::SampledLine {
+                                endpoints: batch.endpoints,
+                                basis, samples: batch.samples,
+                            }
+                        };
                         draws.push(self.draw_with_effects(
-                            self.geometry(&vertices, &indices)?,
-                            &Brush::Solid(*color),
-                            None,
-                            size,
-                            level,
-                            0,
-                            None,
-                            Some(ImageEffect::SampledLine {
-                                endpoints: [from[0], from[1], to[0], to[1]],
-                                basis: [a * density, b * density, c * density, d * density],
-                                samples: steps + 1,
-                            }),
+                            self.geometry(&batch.vertices, &batch.indices)?,
+                            &Brush::Solid(*color), None, size, level, 0, None, Some(effect),
                         )?);
                     }
+                    i += batch.consumed - 1;
                 }
                 PaintOp::PixelRects { rects, color } => {
                     if transform.inverse().is_some() {

@@ -1,0 +1,1535 @@
+{
+  "backend": "reference",
+  "bindings_after": {
+    "byte_limit": 67108864,
+    "created": 150,
+    "estimated_bytes": 0,
+    "evictions": 0,
+    "group_limit": 2048,
+    "groups": 0,
+    "hits": 0
+  },
+  "bindings_before": {
+    "byte_limit": 67108864,
+    "created": 30,
+    "estimated_bytes": 0,
+    "evictions": 0,
+    "group_limit": 2048,
+    "groups": 0,
+    "hits": 0
+  },
+  "density": 1.5,
+  "device_init_ms": 29.026166,
+  "first_complete_view_ms": 6166.258041,
+  "frames_per_mode": 30,
+  "glyph_rasterizations_after": 0,
+  "glyph_rasterizations_before": 0,
+  "gpu_adapter": "AdapterInfo { name: \"Apple M1 Max\", vendor: 0, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"\", driver_info: \"\", backend: Metal, subgroup_min_size: 4, subgroup_max_size: 64, transient_saves_memory: true }",
+  "initial_camera": {
+    "grid_size": 25.0,
+    "iso_scale": 4.0,
+    "look_at": [
+      20.0,
+      0.5,
+      18.0
+    ],
+    "map_offset": [
+      -725.0,
+      -12.5
+    ],
+    "position": [
+      10.0,
+      12.0,
+      28.0
+    ]
+  },
+  "logical_size": [
+    1600,
+    1000
+  ],
+  "map_camera": "TwoDIso",
+  "modes": {
+    "hover": {
+      "samples": [
+        {
+          "completion_wait_ms": 1.523667,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.038,
+          "submit_ms": 2.014208,
+          "total_ms": 26.596625,
+          "update_ms": 14.99875
+        },
+        {
+          "completion_wait_ms": 1.534125,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.170041,
+          "submit_ms": 2.092834,
+          "total_ms": 27.317083,
+          "update_ms": 15.498415999999999
+        },
+        {
+          "completion_wait_ms": 1.529584,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.024041,
+          "submit_ms": 1.9890839999999999,
+          "total_ms": 28.335541999999997,
+          "update_ms": 16.769083000000002
+        },
+        {
+          "completion_wait_ms": 1.529334,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.901834,
+          "submit_ms": 2.048834,
+          "total_ms": 27.379792,
+          "update_ms": 15.878083000000002
+        },
+        {
+          "completion_wait_ms": 1.533417,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.922166,
+          "submit_ms": 2.009375,
+          "total_ms": 25.069083,
+          "update_ms": 13.583041
+        },
+        {
+          "completion_wait_ms": 1.529125,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.016541,
+          "submit_ms": 2.11275,
+          "total_ms": 26.840916,
+          "update_ms": 15.159334
+        },
+        {
+          "completion_wait_ms": 1.533875,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.981375000000001,
+          "submit_ms": 1.9632920000000003,
+          "total_ms": 28.365499999999997,
+          "update_ms": 16.866042
+        },
+        {
+          "completion_wait_ms": 1.529167,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.987042,
+          "submit_ms": 2.042584,
+          "total_ms": 27.03575,
+          "update_ms": 15.453542
+        },
+        {
+          "completion_wait_ms": 1.5248329999999999,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.930084000000001,
+          "submit_ms": 1.9985,
+          "total_ms": 27.201625,
+          "update_ms": 15.727958000000001
+        },
+        {
+          "completion_wait_ms": 1.529709,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.909292,
+          "submit_ms": 2.078459,
+          "total_ms": 27.625708,
+          "update_ms": 16.086
+        },
+        {
+          "completion_wait_ms": 3.0357499999999997,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.927667,
+          "submit_ms": 2.123958,
+          "total_ms": 29.820167,
+          "update_ms": 16.711209
+        },
+        {
+          "completion_wait_ms": 1.526791,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.012,
+          "submit_ms": 2.0731669999999998,
+          "total_ms": 28.62725,
+          "update_ms": 16.993667000000002
+        },
+        {
+          "completion_wait_ms": 1.5299580000000002,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.974666999999999,
+          "submit_ms": 1.947875,
+          "total_ms": 27.956458,
+          "update_ms": 16.481334
+        },
+        {
+          "completion_wait_ms": 1.530333,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.975332999999999,
+          "submit_ms": 2.154,
+          "total_ms": 25.289458,
+          "update_ms": 13.608125000000001
+        },
+        {
+          "completion_wait_ms": 1.528417,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.974333,
+          "submit_ms": 1.935917,
+          "total_ms": 28.16625,
+          "update_ms": 16.70725
+        },
+        {
+          "completion_wait_ms": 1.53325,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.8905829999999995,
+          "submit_ms": 2.029416,
+          "total_ms": 26.6445,
+          "update_ms": 15.171125
+        },
+        {
+          "completion_wait_ms": 1.528375,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.989542,
+          "submit_ms": 2.003958,
+          "total_ms": 28.6445,
+          "update_ms": 17.102292000000002
+        },
+        {
+          "completion_wait_ms": 1.533167,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.026167000000001,
+          "submit_ms": 1.939709,
+          "total_ms": 25.070208,
+          "update_ms": 13.550166
+        },
+        {
+          "completion_wait_ms": 1.5399159999999998,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.008334000000001,
+          "submit_ms": 2.015958,
+          "total_ms": 26.73925,
+          "update_ms": 15.154584
+        },
+        {
+          "completion_wait_ms": 1.5278749999999999,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.08175,
+          "submit_ms": 2.0982079999999996,
+          "total_ms": 28.458833,
+          "update_ms": 16.729958
+        },
+        {
+          "completion_wait_ms": 1.532875,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.128125,
+          "submit_ms": 1.98825,
+          "total_ms": 27.775875,
+          "update_ms": 16.101375
+        },
+        {
+          "completion_wait_ms": 1.5278749999999999,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.204457999999999,
+          "submit_ms": 2.0427079999999997,
+          "total_ms": 27.428749999999997,
+          "update_ms": 15.632292
+        },
+        {
+          "completion_wait_ms": 1.5278749999999999,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.292083,
+          "submit_ms": 2.1836249999999997,
+          "total_ms": 29.668665999999998,
+          "update_ms": 17.645125
+        },
+        {
+          "completion_wait_ms": 1.526667,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.085417,
+          "submit_ms": 2.1487089999999998,
+          "total_ms": 27.056625,
+          "update_ms": 15.275209
+        },
+        {
+          "completion_wait_ms": 1.523792,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.202916,
+          "submit_ms": 2.048209,
+          "total_ms": 27.402584,
+          "update_ms": 15.606708000000001
+        },
+        {
+          "completion_wait_ms": 1.563708,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.191875,
+          "submit_ms": 2.1960830000000002,
+          "total_ms": 29.254459,
+          "update_ms": 17.27825
+        },
+        {
+          "completion_wait_ms": 1.5285,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.9789579999999996,
+          "submit_ms": 1.9913750000000001,
+          "total_ms": 28.924917,
+          "update_ms": 17.400083
+        },
+        {
+          "completion_wait_ms": 1.533958,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.015334000000001,
+          "submit_ms": 2.111166,
+          "total_ms": 28.505875,
+          "update_ms": 16.824875
+        },
+        {
+          "completion_wait_ms": 1.528917,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.018834,
+          "submit_ms": 1.986041,
+          "total_ms": 26.793875000000003,
+          "update_ms": 15.23925
+        },
+        {
+          "completion_wait_ms": 3.038458,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.026,
+          "submit_ms": 1.9983750000000002,
+          "total_ms": 28.220542000000002,
+          "update_ms": 15.132709
+        }
+      ],
+      "summary": {
+        "completion_wait_ms": {
+          "mean": 1.6314431,
+          "p50": 1.529584,
+          "p95": 3.0357499999999997,
+          "p99": 3.038458
+        },
+        "continuation_frames": {
+          "mean": 0.0,
+          "p50": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        },
+        "draw_calls": {
+          "mean": 1.0,
+          "p50": 1.0,
+          "p95": 1.0,
+          "p99": 1.0
+        },
+        "paint_ms": {
+          "mean": 8.029493066666667,
+          "p50": 8.015334000000001,
+          "p95": 8.204457999999999,
+          "p99": 8.292083
+        },
+        "submit_ms": {
+          "mean": 2.045554233333333,
+          "p50": 2.042584,
+          "p95": 2.1836249999999997,
+          "p99": 2.1960830000000002
+        },
+        "total_ms": {
+          "mean": 27.607222200000002,
+          "p50": 27.625708,
+          "p95": 29.668665999999998,
+          "p99": 29.820167
+        },
+        "update_ms": {
+          "mean": 15.878861166666669,
+          "p50": 15.878083000000002,
+          "p95": 17.400083,
+          "p99": 17.645125
+        }
+      }
+    },
+    "idle": {
+      "samples": [
+        {
+          "completion_wait_ms": 1.528792,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.924416999999999,
+          "submit_ms": 2.134875,
+          "total_ms": 27.5145,
+          "update_ms": 15.901167000000001
+        },
+        {
+          "completion_wait_ms": 1.530125,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.915708,
+          "submit_ms": 2.003666,
+          "total_ms": 27.079625,
+          "update_ms": 15.606583
+        },
+        {
+          "completion_wait_ms": 1.528875,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.997959000000001,
+          "submit_ms": 2.0227079999999997,
+          "total_ms": 27.5885,
+          "update_ms": 16.0155
+        },
+        {
+          "completion_wait_ms": 1.528459,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.029708,
+          "submit_ms": 2.059959,
+          "total_ms": 26.906834,
+          "update_ms": 15.265541
+        },
+        {
+          "completion_wait_ms": 1.5254999999999999,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.987457999999999,
+          "submit_ms": 2.043917,
+          "total_ms": 26.338166,
+          "update_ms": 14.758541
+        },
+        {
+          "completion_wait_ms": 1.530083,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.008416,
+          "submit_ms": 2.003,
+          "total_ms": 28.385583999999998,
+          "update_ms": 16.820249999999998
+        },
+        {
+          "completion_wait_ms": 3.041583,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.971666000000001,
+          "submit_ms": 1.988667,
+          "total_ms": 26.115833000000002,
+          "update_ms": 13.092917
+        },
+        {
+          "completion_wait_ms": 1.528459,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.014333,
+          "submit_ms": 2.042875,
+          "total_ms": 27.901875,
+          "update_ms": 16.290499999999998
+        },
+        {
+          "completion_wait_ms": 1.528708,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.9255,
+          "submit_ms": 2.076375,
+          "total_ms": 28.446792,
+          "update_ms": 16.895
+        },
+        {
+          "completion_wait_ms": 1.5284579999999999,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.892541,
+          "submit_ms": 1.949042,
+          "total_ms": 26.013958,
+          "update_ms": 14.622
+        },
+        {
+          "completion_wait_ms": 1.528708,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.902625,
+          "submit_ms": 2.142,
+          "total_ms": 28.69,
+          "update_ms": 17.095375
+        },
+        {
+          "completion_wait_ms": 1.534,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.920458,
+          "submit_ms": 2.123708,
+          "total_ms": 27.689166,
+          "update_ms": 16.089040999999998
+        },
+        {
+          "completion_wait_ms": 1.526542,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.961542000000001,
+          "submit_ms": 2.059583,
+          "total_ms": 26.84775,
+          "update_ms": 15.277624999999999
+        },
+        {
+          "completion_wait_ms": 3.0404999999999998,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.9614579999999995,
+          "submit_ms": 1.986166,
+          "total_ms": 27.611709,
+          "update_ms": 14.602541
+        },
+        {
+          "completion_wait_ms": 1.526084,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.9951669999999995,
+          "submit_ms": 1.9731660000000002,
+          "total_ms": 28.323666,
+          "update_ms": 16.807708
+        },
+        {
+          "completion_wait_ms": 1.53475,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.000667,
+          "submit_ms": 1.9974580000000002,
+          "total_ms": 27.798792,
+          "update_ms": 16.244667
+        },
+        {
+          "completion_wait_ms": 1.522,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.915167,
+          "submit_ms": 1.9932919999999998,
+          "total_ms": 26.121667000000002,
+          "update_ms": 14.668166999999999
+        },
+        {
+          "completion_wait_ms": 1.528209,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.98125,
+          "submit_ms": 2.0326250000000003,
+          "total_ms": 25.066499999999998,
+          "update_ms": 13.503167
+        },
+        {
+          "completion_wait_ms": 1.526125,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.984625,
+          "submit_ms": 1.9467919999999999,
+          "total_ms": 26.506166,
+          "update_ms": 15.026167
+        },
+        {
+          "completion_wait_ms": 1.530416,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.004417,
+          "submit_ms": 2.023292,
+          "total_ms": 28.519083000000002,
+          "update_ms": 16.939541
+        },
+        {
+          "completion_wait_ms": 1.536791,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.005875000000001,
+          "submit_ms": 1.856792,
+          "total_ms": 26.152791,
+          "update_ms": 14.729375
+        },
+        {
+          "completion_wait_ms": 1.5295,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.937042,
+          "submit_ms": 1.9973750000000001,
+          "total_ms": 28.403834,
+          "update_ms": 16.916833999999998
+        },
+        {
+          "completion_wait_ms": 1.5347080000000002,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.899791999999999,
+          "submit_ms": 2.003333,
+          "total_ms": 27.672334,
+          "update_ms": 16.212542
+        },
+        {
+          "completion_wait_ms": 1.528917,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.912917,
+          "submit_ms": 2.074125,
+          "total_ms": 26.833084,
+          "update_ms": 15.297167
+        },
+        {
+          "completion_wait_ms": 1.529459,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.998292,
+          "submit_ms": 1.9831660000000002,
+          "total_ms": 27.45375,
+          "update_ms": 15.922625
+        },
+        {
+          "completion_wait_ms": 1.529792,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.032792,
+          "submit_ms": 1.979041,
+          "total_ms": 26.185875,
+          "update_ms": 14.622334
+        },
+        {
+          "completion_wait_ms": 1.523166,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.991916999999999,
+          "submit_ms": 2.0095,
+          "total_ms": 26.858959000000002,
+          "update_ms": 15.311625000000001
+        },
+        {
+          "completion_wait_ms": 1.5273750000000001,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.023208,
+          "submit_ms": 1.908375,
+          "total_ms": 27.596625,
+          "update_ms": 16.116708
+        },
+        {
+          "completion_wait_ms": 1.528833,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.901708999999999,
+          "submit_ms": 1.9589579999999998,
+          "total_ms": 26.701124999999998,
+          "update_ms": 15.292458
+        },
+        {
+          "completion_wait_ms": 1.528875,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.916083,
+          "submit_ms": 2.016541,
+          "total_ms": 24.636541,
+          "update_ms": 13.154041
+        }
+      ],
+      "summary": {
+        "completion_wait_ms": {
+          "mean": 1.629793066666667,
+          "p50": 1.528875,
+          "p95": 3.0404999999999998,
+          "p99": 3.041583
+        },
+        "continuation_frames": {
+          "mean": 0.0,
+          "p50": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        },
+        "draw_calls": {
+          "mean": 1.0,
+          "p50": 1.0,
+          "p95": 1.0,
+          "p99": 1.0
+        },
+        "paint_ms": {
+          "mean": 7.963823633333334,
+          "p50": 7.98125,
+          "p95": 8.029708,
+          "p99": 8.032792
+        },
+        "submit_ms": {
+          "mean": 2.0130124000000005,
+          "p50": 2.003666,
+          "p95": 2.134875,
+          "p99": 2.142
+        },
+        "total_ms": {
+          "mean": 27.132036133333337,
+          "p50": 27.45375,
+          "p95": 28.519083000000002,
+          "p99": 28.69
+        },
+        "update_ms": {
+          "mean": 15.503256899999998,
+          "p50": 15.606583,
+          "p95": 16.939541,
+          "p99": 17.095375
+        }
+      }
+    },
+    "pan": {
+      "samples": [
+        {
+          "completion_wait_ms": 1.5334590000000001,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.968584000000001,
+          "submit_ms": 2.0275839999999996,
+          "total_ms": 28.09625,
+          "update_ms": 16.544875
+        },
+        {
+          "completion_wait_ms": 1.528125,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.013542000000001,
+          "submit_ms": 1.856459,
+          "total_ms": 27.665417,
+          "update_ms": 16.244541
+        },
+        {
+          "completion_wait_ms": 1.52825,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.038625000000001,
+          "submit_ms": 1.979542,
+          "total_ms": 25.031875,
+          "update_ms": 13.462333
+        },
+        {
+          "completion_wait_ms": 1.528708,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.0085,
+          "submit_ms": 2.029375,
+          "total_ms": 26.428625,
+          "update_ms": 14.839041
+        },
+        {
+          "completion_wait_ms": 1.533625,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.934208,
+          "submit_ms": 1.9083329999999998,
+          "total_ms": 26.623625,
+          "update_ms": 15.224375
+        },
+        {
+          "completion_wait_ms": 1.5334999999999999,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.912000000000001,
+          "submit_ms": 1.9953750000000001,
+          "total_ms": 27.808542,
+          "update_ms": 16.345583
+        },
+        {
+          "completion_wait_ms": 1.524,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.9104589999999995,
+          "submit_ms": 2.049416,
+          "total_ms": 24.908042,
+          "update_ms": 13.400709
+        },
+        {
+          "completion_wait_ms": 1.524083,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.912667,
+          "submit_ms": 2.055542,
+          "total_ms": 28.03025,
+          "update_ms": 16.514750000000003
+        },
+        {
+          "completion_wait_ms": 1.527334,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.874124999999999,
+          "submit_ms": 1.956167,
+          "total_ms": 27.59975,
+          "update_ms": 16.217958
+        },
+        {
+          "completion_wait_ms": 1.528875,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.026917,
+          "submit_ms": 1.946167,
+          "total_ms": 26.444291000000003,
+          "update_ms": 14.919084000000002
+        },
+        {
+          "completion_wait_ms": 1.5295,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.906167000000001,
+          "submit_ms": 2.061125,
+          "total_ms": 27.8635,
+          "update_ms": 16.344458999999997
+        },
+        {
+          "completion_wait_ms": 1.528834,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.885875,
+          "submit_ms": 1.9909160000000001,
+          "total_ms": 24.857958,
+          "update_ms": 13.429125
+        },
+        {
+          "completion_wait_ms": 1.557083,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.394499999999999,
+          "submit_ms": 2.4224170000000003,
+          "total_ms": 27.422041,
+          "update_ms": 15.023625000000001
+        },
+        {
+          "completion_wait_ms": 1.5356670000000001,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.455,
+          "submit_ms": 2.117708,
+          "total_ms": 29.717333,
+          "update_ms": 17.583542
+        },
+        {
+          "completion_wait_ms": 1.566875,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.478875,
+          "submit_ms": 2.1913750000000003,
+          "total_ms": 28.945334,
+          "update_ms": 16.680542
+        },
+        {
+          "completion_wait_ms": 1.529208,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.164083000000002,
+          "submit_ms": 2.0850410000000004,
+          "total_ms": 28.735583,
+          "update_ms": 16.9265
+        },
+        {
+          "completion_wait_ms": 1.530375,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.142792,
+          "submit_ms": 1.9792500000000002,
+          "total_ms": 27.162333,
+          "update_ms": 15.478499999999999
+        },
+        {
+          "completion_wait_ms": 1.5260420000000001,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.168333,
+          "submit_ms": 1.9849580000000002,
+          "total_ms": 27.139083000000003,
+          "update_ms": 15.43425
+        },
+        {
+          "completion_wait_ms": 3.09775,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.21275,
+          "submit_ms": 1.993125,
+          "total_ms": 28.640667,
+          "update_ms": 15.311209
+        },
+        {
+          "completion_wait_ms": 1.544667,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.33225,
+          "submit_ms": 2.093375,
+          "total_ms": 29.035792,
+          "update_ms": 17.037958
+        },
+        {
+          "completion_wait_ms": 1.540708,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.228417,
+          "submit_ms": 2.102875,
+          "total_ms": 25.799583000000002,
+          "update_ms": 13.9005
+        },
+        {
+          "completion_wait_ms": 1.5306250000000001,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.292208,
+          "submit_ms": 2.1759589999999998,
+          "total_ms": 27.326666,
+          "update_ms": 15.299125
+        },
+        {
+          "completion_wait_ms": 1.53375,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.284917,
+          "submit_ms": 2.222667,
+          "total_ms": 27.553625,
+          "update_ms": 15.485542
+        },
+        {
+          "completion_wait_ms": 1.529125,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.251292000000001,
+          "submit_ms": 1.992125,
+          "total_ms": 28.743208,
+          "update_ms": 16.946875
+        },
+        {
+          "completion_wait_ms": 1.539708,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.184792,
+          "submit_ms": 2.2078330000000004,
+          "total_ms": 29.163999999999998,
+          "update_ms": 17.206374999999998
+        },
+        {
+          "completion_wait_ms": 3.0552919999999997,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.163416999999999,
+          "submit_ms": 2.079958,
+          "total_ms": 30.055875,
+          "update_ms": 16.732167
+        },
+        {
+          "completion_wait_ms": 1.527125,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.146291,
+          "submit_ms": 2.1075,
+          "total_ms": 28.767958,
+          "update_ms": 16.96425
+        },
+        {
+          "completion_wait_ms": 3.050709,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.152709,
+          "submit_ms": 2.0139590000000003,
+          "total_ms": 30.139792,
+          "update_ms": 16.8975
+        },
+        {
+          "completion_wait_ms": 1.535625,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.221459000000001,
+          "submit_ms": 2.155709,
+          "total_ms": 28.795583,
+          "update_ms": 16.861042
+        },
+        {
+          "completion_wait_ms": 1.5305,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.213542,
+          "submit_ms": 2.076167,
+          "total_ms": 28.801125,
+          "update_ms": 16.956666
+        }
+      ],
+      "summary": {
+        "completion_wait_ms": {
+          "mean": 1.6869708999999997,
+          "p50": 1.5306250000000001,
+          "p95": 3.0552919999999997,
+          "p99": 3.09775
+        },
+        "continuation_frames": {
+          "mean": 0.0,
+          "p50": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        },
+        "draw_calls": {
+          "mean": 1.0,
+          "p50": 1.0,
+          "p95": 1.0,
+          "p99": 1.0
+        },
+        "paint_ms": {
+          "mean": 8.129309866666665,
+          "p50": 8.163416999999999,
+          "p95": 8.455,
+          "p99": 8.478875
+        },
+        "submit_ms": {
+          "mean": 2.0619334,
+          "p50": 2.055542,
+          "p95": 2.222667,
+          "p99": 2.4224170000000003
+        },
+        "total_ms": {
+          "mean": 27.776790199999997,
+          "p50": 27.8635,
+          "p95": 30.055875,
+          "p99": 30.139792
+        },
+        "update_ms": {
+          "mean": 15.873766699999996,
+          "p50": 16.344458999999997,
+          "p95": 17.206374999999998,
+          "p99": 17.583542
+        }
+      }
+    },
+    "zoom": {
+      "samples": [
+        {
+          "completion_wait_ms": 1.529166,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.267166,
+          "submit_ms": 2.0484999999999998,
+          "total_ms": 28.731125,
+          "update_ms": 16.860625
+        },
+        {
+          "completion_wait_ms": 1.5327920000000002,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.331708,
+          "submit_ms": 2.024792,
+          "total_ms": 43.577040999999994,
+          "update_ms": 31.663625
+        },
+        {
+          "completion_wait_ms": 1.536208,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.060917,
+          "submit_ms": 2.1320829999999997,
+          "total_ms": 54.216667,
+          "update_ms": 42.462125
+        },
+        {
+          "completion_wait_ms": 1.546792,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.249625,
+          "submit_ms": 2.286125,
+          "total_ms": 42.157334,
+          "update_ms": 30.048458
+        },
+        {
+          "completion_wait_ms": 1.529208,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.331083,
+          "submit_ms": 2.131583,
+          "total_ms": 43.558292,
+          "update_ms": 31.539875000000002
+        },
+        {
+          "completion_wait_ms": 1.531583,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.430583,
+          "submit_ms": 2.216791,
+          "total_ms": 42.317,
+          "update_ms": 30.111917
+        },
+        {
+          "completion_wait_ms": 1.535625,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.696417,
+          "submit_ms": 2.138541,
+          "total_ms": 41.848584,
+          "update_ms": 29.453167
+        },
+        {
+          "completion_wait_ms": 1.528333,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.137834,
+          "submit_ms": 2.035417,
+          "total_ms": 41.282125,
+          "update_ms": 29.551375
+        },
+        {
+          "completion_wait_ms": 1.527833,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.231791000000001,
+          "submit_ms": 2.103375,
+          "total_ms": 40.355875,
+          "update_ms": 28.4645
+        },
+        {
+          "completion_wait_ms": 3.0365,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.923082999999999,
+          "submit_ms": 2.024375,
+          "total_ms": 42.688790999999995,
+          "update_ms": 29.679792
+        },
+        {
+          "completion_wait_ms": 1.530708,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.902792000000001,
+          "submit_ms": 2.018208,
+          "total_ms": 40.6765,
+          "update_ms": 29.197042
+        },
+        {
+          "completion_wait_ms": 1.529125,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.024041,
+          "submit_ms": 2.054458,
+          "total_ms": 41.627833,
+          "update_ms": 29.994291
+        },
+        {
+          "completion_wait_ms": 1.530375,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.006167,
+          "submit_ms": 1.9997499999999997,
+          "total_ms": 41.87325,
+          "update_ms": 30.312124999999998
+        },
+        {
+          "completion_wait_ms": 1.524917,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.061459,
+          "submit_ms": 1.9785409999999999,
+          "total_ms": 39.241291999999994,
+          "update_ms": 27.652167
+        },
+        {
+          "completion_wait_ms": 3.036917,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.038874999999999,
+          "submit_ms": 2.069292,
+          "total_ms": 41.139458,
+          "update_ms": 27.966125
+        },
+        {
+          "completion_wait_ms": 1.5269579999999998,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.005875000000001,
+          "submit_ms": 1.960708,
+          "total_ms": 41.631209000000005,
+          "update_ms": 30.11225
+        },
+        {
+          "completion_wait_ms": 1.52775,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.899125,
+          "submit_ms": 2.050125,
+          "total_ms": 41.022833,
+          "update_ms": 29.521667
+        },
+        {
+          "completion_wait_ms": 1.5278340000000001,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.969084,
+          "submit_ms": 1.876084,
+          "total_ms": 38.283667,
+          "update_ms": 26.886708
+        },
+        {
+          "completion_wait_ms": 1.524791,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.898041,
+          "submit_ms": 2.0665,
+          "total_ms": 39.496792,
+          "update_ms": 27.982083000000003
+        },
+        {
+          "completion_wait_ms": 1.537625,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.024708,
+          "submit_ms": 2.161,
+          "total_ms": 41.944416999999994,
+          "update_ms": 30.194958
+        },
+        {
+          "completion_wait_ms": 1.52875,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.003582999999999,
+          "submit_ms": 2.153667,
+          "total_ms": 40.833208000000006,
+          "update_ms": 29.123666
+        },
+        {
+          "completion_wait_ms": 1.5327920000000002,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.058833,
+          "submit_ms": 2.003542,
+          "total_ms": 42.275709,
+          "update_ms": 30.657332999999998
+        },
+        {
+          "completion_wait_ms": 1.5267499999999998,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.9115,
+          "submit_ms": 2.004042,
+          "total_ms": 40.492417,
+          "update_ms": 29.029208
+        },
+        {
+          "completion_wait_ms": 1.534416,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.005833,
+          "submit_ms": 1.874333,
+          "total_ms": 40.730000000000004,
+          "update_ms": 29.292417
+        },
+        {
+          "completion_wait_ms": 1.54225,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.911415999999999,
+          "submit_ms": 1.9843330000000001,
+          "total_ms": 41.333917,
+          "update_ms": 29.870875
+        },
+        {
+          "completion_wait_ms": 1.528041,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.939375,
+          "submit_ms": 2.022042,
+          "total_ms": 41.421,
+          "update_ms": 29.911
+        },
+        {
+          "completion_wait_ms": 3.035459,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.881792,
+          "submit_ms": 1.952666,
+          "total_ms": 43.721917,
+          "update_ms": 30.82875
+        },
+        {
+          "completion_wait_ms": 3.039792,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.903542,
+          "submit_ms": 2.0685830000000003,
+          "total_ms": 41.381292,
+          "update_ms": 28.347
+        },
+        {
+          "completion_wait_ms": 1.532125,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 7.987958,
+          "submit_ms": 1.9617499999999999,
+          "total_ms": 40.005084000000004,
+          "update_ms": 28.497208
+        },
+        {
+          "completion_wait_ms": 1.532375,
+          "continuation_frames": 0,
+          "draw_calls": 1,
+          "operations": 1,
+          "paint_ms": 8.046875,
+          "submit_ms": 1.892958,
+          "total_ms": 39.010208999999996,
+          "update_ms": 27.515667
+        }
+      ],
+      "summary": {
+        "completion_wait_ms": {
+          "mean": 1.732126333333334,
+          "p50": 1.531583,
+          "p95": 3.036917,
+          "p99": 3.039792
+        },
+        "continuation_frames": {
+          "mean": 0.0,
+          "p50": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        },
+        "draw_calls": {
+          "mean": 1.0,
+          "p50": 1.0,
+          "p95": 1.0,
+          "p99": 1.0
+        },
+        "paint_ms": {
+          "mean": 8.071369366666666,
+          "p50": 8.024041,
+          "p95": 8.430583,
+          "p99": 8.696417
+        },
+        "submit_ms": {
+          "mean": 2.0431387999999995,
+          "p50": 2.035417,
+          "p95": 2.216791,
+          "p99": 2.286125
+        },
+        "total_ms": {
+          "mean": 41.295827933333335,
+          "p50": 41.381292,
+          "p95": 43.721917,
+          "p99": 54.216667
+        },
+        "update_ms": {
+          "mean": 29.42426663333334,
+          "p50": 29.551375,
+          "p95": 31.663625,
+          "p99": 42.462125
+        }
+      }
+    }
+  },
+  "physical_size": [
+    2400,
+    1500
+  ],
+  "profile": "release",
+  "project": "/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/test_projects/UnendingNight.eldiron",
+  "resources_after": {
+    "immutable_buffers": {
+      "allocations": 0,
+      "cached_cpu_bytes": 0,
+      "cached_gpu_bytes": 0,
+      "live_bytes": 0,
+      "peak_live_bytes": 0,
+      "uploaded_bytes": 0
+    },
+    "immutable_ranges": {
+      "allocations": 3,
+      "byte_limit": 67108864,
+      "cached_cpu_bytes": 264,
+      "cached_gpu_bytes": 196608,
+      "entries": 3,
+      "entry_limit": 16384,
+      "hits": 447,
+      "live_allocations": 3,
+      "live_bytes": 196608,
+      "peak_live_bytes": 196608,
+      "uploaded_bytes": 264
+    },
+    "source_pool": "SourcePoolUsage { bytes: 0, upload_bytes: 0, submissions: 0, byte_limit: 67108864, submission_limit: 4 }",
+    "target_pool": "TargetPoolUsage { live_bytes: 172800000, live_allocations: 2, peak_live_bytes: 172800000, cached_bytes: 172800000, cached_textures: 2, byte_limit: 536870912, texture_limit: 64, allocations: 2, hits: 298, evictions: 0, uncached_allocations: 0 }",
+    "transfers": {
+      "asset_bake_readback_bytes": 0,
+      "capture_requests": 1,
+      "readback_bytes": 14400000,
+      "uploaded_bytes": 2160000000
+    },
+    "unpooled_images": {
+      "allocations": 3,
+      "live_bytes": 28800004,
+      "peak_live_bytes": 28800004
+    },
+    "working_buffers": "WorkingBufferPoolUsage { live_bytes: 0, live_allocations: 0, peak_live_bytes: 0, cached_bytes: 0, cached_buffers: 0, byte_limit: 134217728, buffer_limit: 64, allocations: 0, hits: 0, evictions: 0, uncached_allocations: 0 }"
+  },
+  "resources_before": {
+    "immutable_buffers": {
+      "allocations": 0,
+      "cached_cpu_bytes": 0,
+      "cached_gpu_bytes": 0,
+      "live_bytes": 0,
+      "peak_live_bytes": 0,
+      "uploaded_bytes": 0
+    },
+    "immutable_ranges": {
+      "allocations": 3,
+      "byte_limit": 67108864,
+      "cached_cpu_bytes": 264,
+      "cached_gpu_bytes": 196608,
+      "entries": 3,
+      "entry_limit": 16384,
+      "hits": 87,
+      "live_allocations": 3,
+      "live_bytes": 196608,
+      "peak_live_bytes": 196608,
+      "uploaded_bytes": 264
+    },
+    "source_pool": "SourcePoolUsage { bytes: 0, upload_bytes: 0, submissions: 0, byte_limit: 67108864, submission_limit: 4 }",
+    "target_pool": "TargetPoolUsage { live_bytes: 172800000, live_allocations: 2, peak_live_bytes: 172800000, cached_bytes: 172800000, cached_textures: 2, byte_limit: 536870912, texture_limit: 64, allocations: 2, hits: 58, evictions: 0, uncached_allocations: 0 }",
+    "transfers": {
+      "asset_bake_readback_bytes": 0,
+      "capture_requests": 1,
+      "readback_bytes": 14400000,
+      "uploaded_bytes": 432000000
+    },
+    "unpooled_images": {
+      "allocations": 3,
+      "live_bytes": 28800004,
+      "peak_live_bytes": 28800004
+    },
+    "working_buffers": "WorkingBufferPoolUsage { live_bytes: 0, live_allocations: 0, peak_live_bytes: 0, cached_bytes: 0, cached_buffers: 0, byte_limit: 134217728, buffer_limit: 64, allocations: 0, hits: 0, evictions: 0, uncached_allocations: 0 }"
+  },
+  "scope": "Offscreen input through GPU completion. CPU reference uses persistent RGBA upload plus shared compositor; excludes native window/acquisition/display, physical input latency and driver-wide memory. Phase CPU timings are not GPU timestamps.",
+  "ui_render_scale": 1.5,
+  "view_mode": "D2",
+  "viewport": [
+    51,
+    87,
+    1169,
+    639
+  ],
+  "warmup_frames": 30
+}

@@ -24,6 +24,8 @@ use scenevm::{
     render_output::SceneOutput,
 };
 use std::{collections::HashMap, sync::Arc};
+mod frame_sources;
+pub(crate) use frame_sources::IsometricFrameSources;
 
 pub struct IsometricSceneInput<'a> {
     pub map: &'a Map,

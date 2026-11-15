@@ -87,3 +87,104 @@ fn sampled_lines_preserve_cpu_f32_rounding_at_fractional_densities() {
         }
     }
 }
+
+#[test]
+#[ignore = "requires native GPU; exact batching/order/alpha/clip/transform comparison"]
+fn dense_guide_batches_match_individual_draws_without_losing_repeated_samples() {
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let images = ImageRegistry::new(gpu.clone());
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    for legacy in [false, true] {
+        let mut list = PaintList::default();
+        if legacy {
+            list.ops.push(PaintOp::DisplayCompositing(
+                DisplayCompositing::LegacyOpaque,
+            ));
+        }
+        list.ops.push(PaintOp::PushOpacity(0.73));
+        list.ops
+            .push(PaintOp::PushClip(Rect::new(3., 5., 111., 83.)));
+        list.ops.push(PaintOp::PushTransform(Transform([
+            0.9, 0.2, -0.12, 1.05, 15.25, 9.75,
+        ])));
+        for i in 0..1024 {
+            let color = if i / 128 % 2 == 0 {
+                [0.32, 0.71, 0.49, 0.2]
+            } else {
+                [0.8, 0.2, 0.6, 0.6]
+            };
+            let from = [(i % 37) as f32 * 3.3 - 14.5, (i % 29) as f32 * 2.7 - 8.25];
+            if i % 127 == 0 {
+                list.ops.push(PaintOp::SampledLine {
+                    from,
+                    to: from,
+                    color,
+                });
+            }
+            let to = [
+                from[0] + 7.25 + (i % 3) as f32,
+                from[1] + (i % 4) as f32 * 0.25,
+            ];
+            list.ops.push(PaintOp::SampledLine { from, to, color });
+            if i % 23 == 0 {
+                list.ops.push(PaintOp::SampledLine {
+                    from: to,
+                    to: from,
+                    color,
+                });
+            }
+            if i % 256 == 255 {
+                list.rect(Rect::new(21., 31., 13., 7.), 0., [0.7, 0.2, 0.1, 0.4]);
+            }
+        }
+        list.ops.push(PaintOp::PopTransform);
+        list.ops.push(PaintOp::PopClip);
+        list.ops.push(PaintOp::PopOpacity);
+        let mut individual = PaintList::default();
+        for op in &list.ops {
+            individual.ops.push(op.clone());
+            if matches!(op, PaintOp::SampledLine { .. }) {
+                individual
+                    .ops
+                    .push(PaintOp::PushTransform(Transform::default()));
+                individual.ops.push(PaintOp::PopTransform);
+            }
+        }
+        for density in [1f32, 1.25, 1.5, 1.75, 2.] {
+            let size = ((128. * density) as u32, (96. * density) as u32);
+            let mut results = Vec::new();
+            let mut calls = Vec::new();
+            for paint in [&list, &individual] {
+                let output = GpuImage::new(&gpu, ImageDescriptor::rgba(size.0, size.1)).unwrap();
+                renderer
+                    .render(
+                        paint,
+                        &images,
+                        &output.view,
+                        output.descriptor.format,
+                        size,
+                        density,
+                        [0.1, 0.2, 0.3, 1.],
+                    )
+                    .unwrap();
+                calls.push(renderer.frame_stats().draw_calls);
+                let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();
+                gpu.device
+                    .poll(wgpu::PollType::Wait {
+                        submission_index: None,
+                        timeout: Some(std::time::Duration::from_secs(30)),
+                    })
+                    .unwrap();
+                results.push(capture.try_finish(&gpu).unwrap().unwrap().pixels().to_vec());
+            }
+            assert!(
+                calls[0] * 8 < calls[1],
+                "batch must reduce real draws: {calls:?}"
+            );
+            assert!(
+                results[0] == results[1],
+                "pixel mismatch: legacy={legacy}, density={density}"
+            );
+        }
+    }
+}

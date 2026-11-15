@@ -4,7 +4,7 @@
 //! IndexMap iteration order can affect authored asset selection and draw order.
 use super::Project;
 use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, de::*};
+use serde::{Deserializer, de::*};
 use serde_json::{Error, Value, value::RawValue};
 use std::{collections::BTreeMap, fmt};
 
@@ -399,7 +399,7 @@ impl<'de, A: VariantAccess<'de>> VariantAccess<'de> for Variant<A> {
 mod tests {
     use super::*;
     use indexmap::IndexMap;
-    use serde::Serialize;
+    use serde::{Deserialize, Serialize};
 
     fn project_json(path: &std::path::Path) -> Vec<u8> {
         let bytes = std::fs::read(path).unwrap();
