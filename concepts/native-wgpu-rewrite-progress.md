@@ -18781,3 +18781,34 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   source templates, continue actual current browser validation and refresh all
   canonical release launchers. Physical platform/IME/monitor and final
   performance gates remain open. Full goal is not complete.
+
+- Current f51c8044 browser Creator/player optimized packaging36545terminalPASS;
+  actual first four-case run90497 failed a HARNESS frame-count condition after
+  successful Creator3DStarter source-ready boot, generation1->2 recovery and
+  before/recovered screenshots. Resize produced current1856x1097 ready output
+  and presentation4, then correct idle sleep; harness incorrectly waited for
+  recovered_count+3 frames. No GPU/JS errors, normal copies/readback/Canvas2D0.
+  Saved actual timeout state and images under
+  /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-compact-browser-g16r823v.
+- Corrected resize proof to one newer ready presentation plus exact physical
+  canvas metrics. Creator terrain proof uses harmless hover events to request
+  stable-camera frames and requires observed GPU base-copy store+restore before,
+  after loss and after resize. Does not assume an idle editor paints endlessly.
+  Current owned run log /private/tmp/eldiron-release-ground-residency-browser-ready-resize.log.
+  Physical monitor transitions remain separate; stable real150% startup/resize
+  only. No production edit made for this test orchestration issue.
+
+- Current f51c8044 actual browser16880 terminalPASS4: Creator3DStarter,
+  CreatorUnending, PlayerHideout actual StartGame, PlayerUnending actual world.
+  Release optimized WASM, actual Chrome152 Metal baseline8storage buffers,
+  real150% startup2400x1500 and resized1856x1097; source-ready boot,
+  device generation1->2 recovery, retained document/session/dirty state.
+  CreatorUnending observed retained terrain GPU store+restore before loss,
+  after loss, after resize; no normal color readbacks/copies, Canvas2D,
+  GPU/JS errors. Explicit editable MaterialZ bakes accounted separately.
+  Durable release-residency-browser-summary.json, all four full states and
+  initial/recovered/resized images. Physical monitor/IME/latency still open.
+- Refreshing current f51c8044 canonical optimized native Creator, common WGPU
+  player and classic player entry point, serialized log
+  /private/tmp/eldiron-release-residency-native-launchers.log. CPU terminal
+  remains an independent build after this handle is terminal.

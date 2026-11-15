@@ -1,0 +1,218 @@
+{
+  "app": "player",
+  "project": "Hideout2D.eldiron",
+  "initial": {
+    "attrs": {
+      "data-eldiron-inspect-view": "",
+      "data-eldiron-state": "playing",
+      "data-eldiron-codec-workers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+      "data-eldiron-readback-bytes": "0",
+      "data-eldiron-gpu-generation": "1",
+      "data-eldiron-presentations": "30",
+      "data-eldiron-session": "37d18497-6e24-4e63-bef0-b744c1eb153d",
+      "data-eldiron-ticks": "4"
+    },
+    "source": null,
+    "probe": {
+      "contexts2D": 0,
+      "colorCopies": 0,
+      "assetBakeColorCopies": 0,
+      "groundCopies": 0,
+      "gpuErrors": [],
+      "errors": [],
+      "devices": [
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        }
+      ],
+      "copyDetails": []
+    },
+    "metrics": {
+      "dpr": 1.5,
+      "focus": true,
+      "inner": [
+        1600,
+        1000
+      ],
+      "canvas": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 1000,
+          "top": 0,
+          "right": 1600,
+          "bottom": 1000,
+          "left": 0
+        }
+      ]
+    },
+    "canvas": [
+      {
+        "width": 2400,
+        "height": 1500
+      }
+    ],
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
+  },
+  "recovered": {
+    "attrs": {
+      "data-eldiron-inspect-view": "",
+      "data-eldiron-state": "playing",
+      "data-eldiron-codec-workers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+      "data-eldiron-readback-bytes": "0",
+      "data-eldiron-gpu-generation": "2",
+      "data-eldiron-presentations": "49",
+      "data-eldiron-session": "37d18497-6e24-4e63-bef0-b744c1eb153d",
+      "data-eldiron-ticks": "7"
+    },
+    "source": null,
+    "probe": {
+      "contexts2D": 0,
+      "colorCopies": 0,
+      "assetBakeColorCopies": 0,
+      "groundCopies": 0,
+      "gpuErrors": [],
+      "errors": [],
+      "devices": [
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        },
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        }
+      ],
+      "copyDetails": []
+    },
+    "metrics": {
+      "dpr": 1.5,
+      "focus": true,
+      "inner": [
+        1600,
+        1000
+      ],
+      "canvas": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 1600,
+          "height": 1000,
+          "top": 0,
+          "right": 1600,
+          "bottom": 1000,
+          "left": 0
+        }
+      ]
+    },
+    "canvas": [
+      {
+        "width": 2400,
+        "height": 1500
+      }
+    ],
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
+  },
+  "resized": {
+    "attrs": {
+      "data-eldiron-inspect-view": "",
+      "data-eldiron-state": "playing",
+      "data-eldiron-codec-workers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+      "data-eldiron-readback-bytes": "0",
+      "data-eldiron-gpu-generation": "2",
+      "data-eldiron-presentations": "69",
+      "data-eldiron-session": "37d18497-6e24-4e63-bef0-b744c1eb153d",
+      "data-eldiron-ticks": "9"
+    },
+    "source": null,
+    "probe": {
+      "contexts2D": 0,
+      "colorCopies": 0,
+      "assetBakeColorCopies": 0,
+      "groundCopies": 0,
+      "gpuErrors": [],
+      "errors": [],
+      "devices": [
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        },
+        {
+          "features": [
+            "core-features-and-limits"
+          ],
+          "storageBuffers": 8,
+          "adapter": {
+            "vendor": "apple",
+            "architecture": "metal-3",
+            "device": "",
+            "description": ""
+          }
+        }
+      ],
+      "copyDetails": []
+    },
+    "metrics": {
+      "dpr": 1.5,
+      "focus": true,
+      "inner": [
+        1237,
+        731
+      ],
+      "canvas": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 1237.3333740234375,
+          "height": 731.3333740234375,
+          "top": 0,
+          "right": 1237.3333740234375,
+          "bottom": 731.3333740234375,
+          "left": 0
+        }
+      ]
+    },
+    "canvas": [
+      {
+        "width": 1856,
+        "height": 1097
+      }
+    ],
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
+  },
+  "scope": "Actual Chrome WebGPU ready scene/game input, real device reconstruction and stable real150% CSS resize. Source cache copy commands traced for Creator terrain. Screenshot via DevTools only. No physical input, monitor transition or cross-browser claim."
+}

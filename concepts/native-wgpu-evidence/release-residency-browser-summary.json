@@ -1,0 +1,189 @@
+{
+  "source_commit": "f51c8044",
+  "status": "PASS",
+  "release": true,
+  "scale": 1.5,
+  "browser": "Chrome152 Apple Metal baseline8 storage buffers",
+  "cases": [
+    {
+      "case": "creator-3DStarter",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "1",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 0,
+          "asset_bake_copies": 0
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "4",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 0,
+          "asset_bake_copies": 0
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "5",
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ],
+          "ground_copies": 0,
+          "asset_bake_copies": 0
+        }
+      ]
+    },
+    {
+      "case": "creator-UnendingNight",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "11",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 8,
+          "asset_bake_copies": 10
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "18",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 16,
+          "asset_bake_copies": 18
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "23",
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ],
+          "ground_copies": 24,
+          "asset_bake_copies": 26
+        }
+      ]
+    },
+    {
+      "case": "player-Hideout2D",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "30",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 0,
+          "asset_bake_copies": 0
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "49",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 0,
+          "asset_bake_copies": 0
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "69",
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ],
+          "ground_copies": 0,
+          "asset_bake_copies": 0
+        }
+      ]
+    },
+    {
+      "case": "player-UnendingNight",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "37",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 0,
+          "asset_bake_copies": 0
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "48",
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ],
+          "ground_copies": 0,
+          "asset_bake_copies": 0
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "71",
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ],
+          "ground_copies": 0,
+          "asset_bake_copies": 0
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "Headless browser, no physical monitor/IME/input latency proof",
+    "Explicit editable MaterialZ asset bakes classified separately from normal viewport readbacks"
+  ]
+}
