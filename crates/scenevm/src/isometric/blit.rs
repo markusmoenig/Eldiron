@@ -153,10 +153,10 @@ pub struct IsometricBlitter {
     layout: wgpu::BindGroupLayout,
     clear: wgpu::ComputePipeline,
     blit: wgpu::ComputePipeline,
-    params: wgpu::Buffer,
+    params: renderkit::WorkingBufferLease,
     capacity: u64,
     stride: u64,
-    protection: wgpu::Buffer,
+    protection: renderkit::WorkingBufferLease,
     protection_capacity: u64,
 }
 impl IsometricBlitter {
@@ -220,8 +220,8 @@ impl IsometricBlitter {
         let stride = (std::mem::size_of::<Params>() as u64).div_ceil(u64::from(
             context.device.limits().min_uniform_buffer_offset_alignment,
         )) * u64::from(context.device.limits().min_uniform_buffer_offset_alignment);
-        let params = Self::arena(&context.device, stride);
-        let protection = Self::mask_arena(&context.device, 4);
+        let params = Self::arena(&context, stride)?;
+        let protection = Self::mask_arena(&context, 4)?;
         Ok(Self {
             protection,
             protection_capacity: 4,
@@ -234,21 +234,14 @@ impl IsometricBlitter {
             stride,
         })
     }
-    fn arena(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-        device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("iso-blit-params"),
-            size,
+    fn arena(context: &GpuContext, size: u64) -> Result<renderkit::WorkingBufferLease> {
+        context.acquire_working_buffer(renderkit::WorkingBufferDescriptor {
+            bytes: size,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
         })
     }
-    fn mask_arena(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-        device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("iso-contact-masks"),
-            size,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        })
+    fn mask_arena(context: &GpuContext, size: u64) -> Result<renderkit::WorkingBufferLease> {
+        context.acquire_working_buffer(renderkit::WorkingBufferDescriptor::storage(size))
     }
     pub fn render(
         &mut self,
@@ -453,18 +446,20 @@ impl IsometricBlitter {
         }
         let mask_bytes = bytemuck::cast_slice(&masks);
         if mask_bytes.len() as u64 > self.protection_capacity {
+            self.protection = Self::mask_arena(&self.context, mask_bytes.len() as u64)?;
             self.protection_capacity = mask_bytes.len() as u64;
-            self.protection = Self::mask_arena(&self.context.device, self.protection_capacity);
         }
         self.context
             .queue
-            .write_buffer(&self.protection, 0, mask_bytes);
+            .write_buffer(self.protection.buffer(), 0, mask_bytes);
         self.context.record_upload(mask_bytes.len() as u64);
         if count > self.capacity {
+            self.params = Self::arena(&self.context, count)?;
             self.capacity = count;
-            self.params = Self::arena(&self.context.device, count);
         }
-        self.context.queue.write_buffer(&self.params, 0, &params);
+        self.context
+            .queue
+            .write_buffer(self.params.buffer(), 0, &params);
         self.context.record_upload(params.len() as u64);
         let bind = self
             .context
@@ -476,7 +471,7 @@ impl IsometricBlitter {
                     wgpu::BindGroupEntry {
                         binding: 0,
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &self.params,
+                            buffer: self.params.buffer(),
                             offset: 0,
                             size: NonZeroU64::new(std::mem::size_of::<Params>() as u64),
                         }),
@@ -495,7 +490,7 @@ impl IsometricBlitter {
                     },
                     wgpu::BindGroupEntry {
                         binding: 4,
-                        resource: self.protection.as_entire_binding(),
+                        resource: self.protection.buffer().as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 5,

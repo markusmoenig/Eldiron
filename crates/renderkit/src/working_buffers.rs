@@ -8,6 +8,8 @@ const ENTRY_LIMIT: usize = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WorkingBufferDescriptor {
+    /// Allocation bytes. Uniform arenas may contain many dynamic-offset records;
+    /// each consumer must bind a range within max_uniform_buffer_binding_size.
     pub bytes: u64,
     pub usage: wgpu::BufferUsages,
 }
@@ -143,8 +145,6 @@ impl WorkingBuffers {
             || !(descriptor.usage & !allowed).is_empty()
             || (descriptor.usage.contains(wgpu::BufferUsages::STORAGE)
                 && descriptor.bytes > u64::from(limits.max_storage_buffer_binding_size))
-            || (descriptor.usage.contains(wgpu::BufferUsages::UNIFORM)
-                && descriptor.bytes > u64::from(limits.max_uniform_buffer_binding_size))
         {
             return Err(RenderError("invalid or lost-device working buffer".into()));
         }

@@ -91,6 +91,11 @@ fn gpu_produced_isometric_canvases_light_without_implicit_cpu_storage_or_capture
     let context = pollster::block_on(GpuContext::headless()).unwrap();
     let ca = IsometricCanvas::new(&context, 17, 9).unwrap();
     let cb = IsometricCanvas::new(&context, 11, 7).unwrap();
+    assert_eq!(context.working_buffer_pool_usage().live_allocations, 8);
+    assert_eq!(
+        context.working_buffer_pool_usage().live_bytes,
+        24 * (17 * 9 + 11 * 7)
+    );
     let mut a = IsometricRenderer::new(context.clone()).unwrap();
     let mut b = IsometricRenderer::new(context.clone()).unwrap();
     produce(&context, &ca, 0xff0000ff, true, 0.);
@@ -229,6 +234,11 @@ fn gpu_produced_isometric_canvases_light_without_implicit_cpu_storage_or_capture
         "native packed surfaces must occlude particles"
     );
     assert!(!a.has_cpu_storage() && !a.has_readback_storage());
+    drop((ca, cb, large, particle_canvas, a, b, repeated));
+    context.set_working_buffer_cache_limits(0, 0);
+    context.set_target_cache_limits(0, 0);
+    assert_eq!(context.working_buffer_pool_usage().live_bytes, 0);
+    assert_eq!(context.target_pool_usage().live_bytes, 0);
 }
 #[test]
 #[ignore = "requires native GPU; run with --ignored"]
@@ -317,6 +327,27 @@ fn sprite_blits_reject_invalid_sources_and_domains_before_modifying_the_canvas()
             .chunks_exact(4)
             .all(|p| p == [255, 0, 0, 255])
     );
+    let instances = context.device.limits().max_uniform_buffer_binding_size
+        / u64::from(context.device.limits().min_uniform_buffer_offset_alignment)
+        + 1;
+    let batch = vec![placement(&source); instances as usize];
+    blitter.render(&canvas, [0; 4], &batch).unwrap();
+    assert!(
+        context.working_buffer_pool_usage().live_bytes
+            > u64::from(context.device.limits().max_uniform_buffer_binding_size)
+    );
+    let allocations = context.working_buffer_pool_usage().allocations;
+    blitter.render(&canvas, [0; 4], &batch).unwrap();
+    assert_eq!(context.working_buffer_pool_usage().allocations, allocations);
+    let large = renderer
+        .render(&canvas, &uniforms(&canvas), &[], &[], &[], &[], None, 2)
+        .unwrap();
+    assert!(
+        pixels(&context, large.image)
+            .chunks_exact(4)
+            .all(|p| p == [255, 0, 0, 255])
+    );
+    drop(batch);
     drop((source, unrelated));
     drop((canvas, blitter, renderer));
     assert_eq!(context.working_buffer_pool_usage().live_bytes, 0);

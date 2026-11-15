@@ -11,12 +11,14 @@ use std::sync::Arc;
 /// Albedo is one packed RGBA8 word per pixel. Geometry is one `[u32; 2]` per
 /// pixel, with the same encoding as the reference adapter. Producers must write
 /// every visible pixel; empty geometry uses `[0, f32::INFINITY.to_bits()]`.
-/// No CPU canvas or staging/readback allocation is owned here.
+/// No CPU canvas or staging/readback allocation is owned here. Retain this owner
+/// until all producer/consumer commands submit. Acquisition clears all planes on
+/// the GPU, preserving fresh-zero storage before the producer initializes them.
 pub struct IsometricCanvas {
-    albedo: wgpu::Buffer,
-    surfaces: wgpu::Buffer,
-    owners: wgpu::Buffer,
-    terrain: wgpu::Buffer,
+    albedo: renderkit::WorkingBufferLease,
+    surfaces: renderkit::WorkingBufferLease,
+    owners: renderkit::WorkingBufferLease,
+    terrain: renderkit::WorkingBufferLease,
     size: (u32, u32),
     generation: u64,
 }
@@ -36,32 +38,42 @@ impl IsometricCanvas {
                 "invalid isometric canvas size or GPU domain".into(),
             ));
         }
-        let make = |label, stride| {
-            context.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some(label),
-                size: pixels * stride,
-                usage: wgpu::BufferUsages::STORAGE
-                    | wgpu::BufferUsages::COPY_SRC
-                    | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            })
+        let make = |stride| {
+            context.acquire_working_buffer(renderkit::WorkingBufferDescriptor::storage(
+                pixels * stride,
+            ))
         };
-        Ok(Self {
-            albedo: make("iso-gpu-albedo", 4),
-            surfaces: make("iso-gpu-surfaces", 8),
-            owners: make("iso-gpu-sprite-owners", 4),
-            terrain: make("iso-gpu-terrain-depth-height", 8),
+        let canvas = Self {
+            albedo: make(4)?,
+            surfaces: make(8)?,
+            owners: make(4)?,
+            terrain: make(8)?,
             size: (width, height),
             generation: context.generation(),
-        })
+        };
+        let mut encoder = context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("isometric canvas initialization"),
+            });
+        for buffer in [
+            canvas.albedo(),
+            canvas.surfaces(),
+            canvas.owners(),
+            canvas.terrain(),
+        ] {
+            encoder.clear_buffer(buffer, 0, None);
+        }
+        context.queue.submit([encoder.finish()]);
+        Ok(canvas)
     }
     /// GPU-only instance ownership for supporting-floor protection.
     pub fn owners(&self) -> &wgpu::Buffer {
-        &self.owners
+        self.owners.buffer()
     }
     /// GPU ground depth/height used for terrain testing and sprite occlusion.
     pub fn terrain(&self) -> &wgpu::Buffer {
-        &self.terrain
+        self.terrain.buffer()
     }
     pub fn size(&self) -> (u32, u32) {
         self.size
@@ -70,10 +82,10 @@ impl IsometricCanvas {
         self.generation
     }
     pub fn albedo(&self) -> &wgpu::Buffer {
-        &self.albedo
+        self.albedo.buffer()
     }
     pub fn surfaces(&self) -> &wgpu::Buffer {
-        &self.surfaces
+        self.surfaces.buffer()
     }
 }
 
@@ -124,7 +136,7 @@ impl IsometricRenderer {
             .draw_gpu(
                 &self.context,
                 uniforms,
-                (&canvas.albedo, &canvas.surfaces),
+                (canvas.albedo(), canvas.surfaces()),
                 lights,
                 casters,
                 columns,
@@ -137,9 +149,17 @@ impl IsometricRenderer {
             .as_ref()
             .is_none_or(|image| (image.descriptor.width, image.descriptor.height) != canvas.size)
         {
-            self.image = Some(Arc::new(GpuImage::from_texture(
+            self.image = Some(GpuImage::from_target(
                 &self.context,
-                self.pass.output.gpu.as_ref().unwrap().texture.clone(),
+                self.pass
+                    .output
+                    .gpu
+                    .as_ref()
+                    .unwrap()
+                    .target_lease
+                    .as_ref()
+                    .ok_or_else(|| RenderError("isometric output has no allocation lease".into()))?
+                    .clone(),
                 ImageDescriptor {
                     width,
                     height,
@@ -147,7 +167,7 @@ impl IsometricRenderer {
                     color_space: ColorSpace::Srgb,
                     alpha_mode: AlphaMode::Straight,
                 },
-            )?));
+            )?);
         }
         Ok(SceneOutput {
             image: self.image.as_ref().unwrap().clone(),

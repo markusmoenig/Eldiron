@@ -15698,3 +15698,44 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Actual wasm Creator browser-host release compile PASS25.13s:
   /private/tmp/eldiron-overview-owner-release-wasm.log. All handles terminal;
   diff whitespace clean. Proceed with isometric metadata arena ownership.
+
+## Isometric deferred canvas/output and dynamic arena ownership (2026-11-15)
+
+- Isometric sprite/surface parameter arenas and supporting contact masks now use
+  retained working-buffer leases. The no-paint bind group also retains and zeros
+  its own leased sentinel. Capacity updates follow successful acquisition so a
+  failed growth cannot leave an old allocation with a falsely enlarged capacity.
+  Uniform allocation size is checked against max_buffer_size; each explicit small
+  dynamic binding still obeys its separate max_uniform_buffer_binding_size.
+- All four deferred canvas planes (24 bytes/pixel) retain device buffer leases.
+  Acquisition clears them on the GPU to preserve fresh-zero storage; producers
+  still write the channels their passes use. Canonical lighting creates pooled
+  output textures and publishes their leases through GpuImage, preserving resize,
+  mip initialization and final particle composition. Reference CPU rendering stays
+  on its explicit path. No CPU canvas/readback was introduced.
+- Initial arena native release compile PASS25.81s; with canvas/output ownership
+  PASS23.55s: /private/tmp/eldiron-isometric-arena-canvas-owner-release-native.log.
+  Focused release isometric output contracts PASS2/2 in0.18s (build5.78s), checking
+  actual output/resize/particles/invalid domains, large dynamic sprite arenas, warm
+  reuse and full active lease retirement:
+  /private/tmp/eldiron-isometric-arena-canvas-owner-release-contract.log. Initial
+  test compile exposed u64/u32 limit division; corrected alignment conversion.
+- Surface invalid-resource and real append/ground/actor checks PASS2/2 in the
+  first filtered run. The new large arena fixture initially used zero lighting
+  and therefore had no observable red coverage; switched its explicit policy to
+  unlit. Focused large surface arena then passes (see
+  /private/tmp/eldiron-isometric-arena-canvas-owner-release-surface.log), preserving
+  exact small/large-batch pixels, warm allocations and final owner retirement.
+  Initial failures remain in the corresponding *-initial-failed.log files.
+  Actual wasm release compilation in flight; broad acceptance still deferred.
+- Next: deferred lighting metadata and mesh shadow caches still have raw GPU
+  allocation paths. Sun depth is16MiB; point depth can grow to192MiB for32 lights,
+  outside shared live/peak accounting. Integrate injected ownership while keeping
+  reference allocation isolated, exact source/version reuse and initialized
+  sentinels/tails. Cold source CPU work/transfer/time quotas and all final M0–M9
+  workflow/platform/resource/performance gates remain open.
+
+- Focused large surface arena PASS0.13s (build1.97s). Actual wasm Creator browser-
+  host release compile passes:
+  /private/tmp/eldiron-isometric-arena-canvas-owner-release-wasm.log. All handles
+  terminal; diff whitespace clean. Proceed with lighting/shadow storage ownership.

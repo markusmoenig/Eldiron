@@ -460,6 +460,13 @@ mod gpu {
                 self.buffers[i].write(&context.device, &context.queue, data, i == 0);
                 context.record_upload(data.len() as u64);
             }
+            let [width, height, _, _] = u.counts;
+            if self.output.width != width || self.output.height != height
+                || self.output.gpu.as_ref().is_none_or(|gpu| gpu.target_lease.is_none())
+            {
+                self.output = Texture::pooled_render_target(context, width, height)
+                    .map_err(|error| SceneVMError::BufferAllocationFailed(error.to_string()))?;
+            }
             self.encode_frame(
                 &context.device,
                 &context.queue,

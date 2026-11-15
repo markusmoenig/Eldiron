@@ -48,11 +48,12 @@ pub struct IsometricSurfaceRenderer {
     source_layout: wgpu::BindGroupLayout,
     paint_layout: wgpu::BindGroupLayout,
     empty_paint: wgpu::BindGroup,
+    _empty_paint_storage: renderkit::WorkingBufferLease,
     pipeline: wgpu::ComputePipeline,
-    params: wgpu::Buffer,
+    params: renderkit::WorkingBufferLease,
     capacity: u64,
     stride: u64,
-    masks: wgpu::Buffer,
+    masks: renderkit::WorkingBufferLease,
     mask_capacity: u64,
 }
 impl IsometricSurfaceRenderer {
@@ -117,7 +118,9 @@ impl IsometricSurfaceRenderer {
                         count: None,
                     }],
                 });
-        let empty = Self::buffer(&context.device, 4, false);
+        let empty = Self::buffer(&context, 4, false)?;
+        context.queue.write_buffer(empty.buffer(), 0, &[0; 4]);
+        context.record_upload(4);
         let empty_paint = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -125,7 +128,7 @@ impl IsometricSurfaceRenderer {
                 layout: &paint_layout,
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: empty.as_entire_binding(),
+                    resource: empty.buffer().as_entire_binding(),
                 }],
             });
         let shader = context
@@ -162,14 +165,15 @@ impl IsometricSurfaceRenderer {
             });
         let alignment = u64::from(context.device.limits().min_uniform_buffer_offset_alignment);
         let stride = (std::mem::size_of::<Params>() as u64).div_ceil(alignment) * alignment;
-        let params = Self::buffer(&context.device, stride, true);
-        let masks = Self::buffer(&context.device, 4, false);
+        let params = Self::buffer(&context, stride, true)?;
+        let masks = Self::buffer(&context, 4, false)?;
         Ok(Self {
             context,
             layout,
             source_layout,
             paint_layout,
             empty_paint,
+            _empty_paint_storage: empty,
             pipeline,
             params,
             capacity: stride,
@@ -178,17 +182,19 @@ impl IsometricSurfaceRenderer {
             mask_capacity: 4,
         })
     }
-    fn buffer(device: &wgpu::Device, size: u64, uniform: bool) -> wgpu::Buffer {
-        device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("iso-surface-metadata"),
-            size,
+    fn buffer(
+        context: &GpuContext,
+        size: u64,
+        uniform: bool,
+    ) -> Result<renderkit::WorkingBufferLease> {
+        context.acquire_working_buffer(renderkit::WorkingBufferDescriptor {
+            bytes: size,
             usage: wgpu::BufferUsages::COPY_DST
                 | if uniform {
                     wgpu::BufferUsages::UNIFORM
                 } else {
                     wgpu::BufferUsages::STORAGE
                 },
-            mapped_at_creation: false,
         })
     }
     /// Append geometry to a canvas cleared on the GPU by IsometricBlitter. Each
@@ -336,16 +342,20 @@ impl IsometricSurfaceRenderer {
         }
         let mask_bytes = bytemuck::cast_slice(&masks);
         if size > self.capacity {
+            self.params = Self::buffer(&self.context, size, true)?;
             self.capacity = size;
-            self.params = Self::buffer(&self.context.device, size, true);
         }
         if mask_bytes.len() as u64 > self.mask_capacity {
+            self.masks = Self::buffer(&self.context, mask_bytes.len() as u64, false)?;
             self.mask_capacity = mask_bytes.len() as u64;
-            self.masks = Self::buffer(&self.context.device, self.mask_capacity, false);
         }
-        self.context.queue.write_buffer(&self.params, 0, &bytes);
+        self.context
+            .queue
+            .write_buffer(self.params.buffer(), 0, &bytes);
         self.context.record_upload(bytes.len() as u64);
-        self.context.queue.write_buffer(&self.masks, 0, mask_bytes);
+        self.context
+            .queue
+            .write_buffer(self.masks.buffer(), 0, mask_bytes);
         self.context.record_upload(mask_bytes.len() as u64);
         let bind = self
             .context
@@ -357,7 +367,7 @@ impl IsometricSurfaceRenderer {
                     wgpu::BindGroupEntry {
                         binding: 0,
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &self.params,
+                            buffer: self.params.buffer(),
                             offset: 0,
                             size: NonZeroU64::new(std::mem::size_of::<Params>() as u64),
                         }),
@@ -380,7 +390,7 @@ impl IsometricSurfaceRenderer {
                     },
                     wgpu::BindGroupEntry {
                         binding: 5,
-                        resource: self.masks.as_entire_binding(),
+                        resource: self.masks.buffer().as_entire_binding(),
                     },
                 ],
             });

@@ -718,3 +718,79 @@ fn surface_batches_reject_bad_geometry_and_foreign_resources_before_touching_the
         "invalid batches must preserve all previous canvas pixels"
     );
 }
+
+#[test]
+#[ignore = "native GPU; pooled dynamic uniform arena and contact ownership"]
+fn surface_uniform_arenas_exceed_one_binding_and_retire_with_their_owner() {
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut sources = IsometricMaterialSources::new(gpu.clone(), 0, 0);
+    let source = sources
+        .prepare(
+            &material([180, 20, 10], false),
+            0,
+            IsometricSourceVersion {
+                namespace: Uuid::new_v4(),
+                content: ContentRevision(1),
+                tiles: 1,
+            },
+        )
+        .unwrap();
+    let canvas = IsometricCanvas::new(&gpu, 8, 8).unwrap();
+    let mut blitter = IsometricBlitter::new(gpu.clone()).unwrap();
+    let mut raster = IsometricSurfaceRenderer::new(gpu.clone()).unwrap();
+    let mut renderer = IsometricRenderer::new(gpu.clone()).unwrap();
+    let projection = Projection {
+        origin: Vec2::new(4., 4.),
+        unit: 4.,
+    };
+    let triangle = || SurfaceTriangle {
+        vertices: [[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]],
+        source: &source,
+        secondary: None,
+        paint: None,
+        kind: SurfaceKind::Floor,
+        repeat: true,
+        uv_bounds: [0., 0., 1., 1.],
+        clip_cell: None,
+        contacts: SpriteContacts {
+            owner: 0,
+            protected: &[],
+        },
+    };
+    let uniforms = scenevm::isometric::Uniforms {
+        counts: [8, 8, 0, 0],
+        projection: [4., 4., 4., 8.],
+        shadow: [0., 0., 0., -1.],
+        ..Default::default()
+    };
+    blitter.render(&canvas, [0; 4], &[]).unwrap();
+    raster.append(&canvas, projection, &[triangle()]).unwrap();
+    let output = renderer
+        .render(&canvas, &uniforms, &[], &[], &[], &[], None, 1)
+        .unwrap();
+    let expected = capture(&gpu, output.image);
+    assert!(expected.chunks_exact(4).any(|p| p[0] > 0));
+    let count = gpu.device.limits().max_uniform_buffer_binding_size
+        / u64::from(gpu.device.limits().min_uniform_buffer_offset_alignment)
+        + 1;
+    let triangles: Vec<_> = (0..count).map(|_| triangle()).collect();
+    blitter.render(&canvas, [0; 4], &[]).unwrap();
+    raster.append(&canvas, projection, &triangles).unwrap();
+    assert!(
+        gpu.working_buffer_pool_usage().live_bytes
+            > u64::from(gpu.device.limits().max_uniform_buffer_binding_size)
+    );
+    let allocations = gpu.working_buffer_pool_usage().allocations;
+    raster.append(&canvas, projection, &triangles).unwrap();
+    assert_eq!(gpu.working_buffer_pool_usage().allocations, allocations);
+    let output = renderer
+        .render(&canvas, &uniforms, &[], &[], &[], &[], None, 2)
+        .unwrap();
+    assert_eq!(capture(&gpu, output.image), expected);
+    drop(triangles);
+    drop((source, sources, canvas, raster, blitter, renderer));
+    gpu.set_working_buffer_cache_limits(0, 0);
+    gpu.set_target_cache_limits(0, 0);
+    assert_eq!(gpu.working_buffer_pool_usage().live_bytes, 0);
+    assert_eq!(gpu.target_pool_usage().live_bytes, 0);
+}
