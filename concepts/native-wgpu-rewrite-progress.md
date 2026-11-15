@@ -17293,3 +17293,65 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   summary}.json plus both PNGs. Thirty samples are a pilot, not final p99 budgets
   or app-wide speed claims. Next larger top-down/isometric projects and density
   profiles, then measured fixes/repeat acceptance.
+
+- Hideout2D matched release pilot PASS both processes4851/42357terminal, actual
+  editorD2/mapTwoD at1600×1000@1,30samples/mode. Matching project, camera,
+  viewport/layout, density and adapter. Native p50 stationary10.81/hover11.01/
+  pan13.08/zoom12.62ms versus reference7.54/7.62/7.55/7.54ms. This confirms
+  a real top-down regression despite the faster3D-isometric case. No app-wide
+  performance acceptance claimed. Durable release-perf-pilot-hideout-* evidence.
+- Breakdown: native preparation4.6–5.8ms, compositor submission2.8–3.0ms,
+  completion wait3.1ms; reference update3.1–3.2ms, raster UI1.8ms, root upload/
+  submit1.0–1.1ms, wait1.5ms. Native compositor757–759draws versus reference
+  one uploaded-root draw. Added existing opt-in FrameProfile laps around native
+  layout/view preparation/UI paint to locate CPU cost before a targeted fix.
+  Diagnostic tracing is separate from final uninstrumented performance evidence.
+
+- Diagnostic stage trace92047terminalPASS: native view preparation median5ms,
+  layout0.05ms, UI command paint0.36ms. Independent uninstrumented CPU sampling
+  of owned benchmarkPID91771 (63651terminalPASS) isolates863samples under
+  SceneOverview.prepare/binding; source_map cloning/full JSON serialization
+  dominates. Main world render only16samples. Diagnostics
+  /private/tmp/eldiron-release-profile-hideout-{stages.log,cpu-sample.txt};
+  sampling run excluded from numerical performance claims.
+- Replacing overview per-frame full-map clone/JSON fingerprint with one owned
+  immutable CPU source snapshot and monotonic source revision. Borrowed typed
+  content comparisons ignore root camera/selection/occupants while catching
+  public in-place edits/undo with reused Map.changed. Nested authored profiles
+  retain their prior serialized inputs. Pending source changes still invalidate
+  navigation until matching presentation; device recovery retains CPU source.
+  Added CPU ownership/regression coverage; release compilation/pixels/performance
+  verification now required. No source/project serialization attributes changed.
+
+- Initial source-cache compile18945terminal stopped on existing manual
+  Linedef/Sector PartialEq implementations. They intentionally compare only
+  geometry, so source identity must not use them or alter their semantics.
+  Removed the conflicting derives and added borrowed, exhaustive field views
+  including endpoint direction, boundary order, IDs/properties. No failed test
+  execution is counted; /private/tmp/eldiron-minimap-residency-source-contract.log.
+
+- Corrected retained-source CPU ownership contract PASS1/1, build1m44s, runtime
+  <0.01s; /private/tmp/eldiron-minimap-residency-source-contract-fixed.log;70957
+  terminal. Navigation/selection share one immutable Arc, authored property edits
+  with unchanged Map.changed revoke source, old snapshots stay unchanged, new
+  document/deactivation lifetimes receive fresh monotonic revisions. Borrowed
+  exhaustive Linedef/Sector source views preserve existing geometric equality.
+- Next fresh assembled Creator GPU gate verifies all original minimap pixels,
+  screen/isometric/parent contexts and navigation receipts, followed by identical
+  Hideout2D native release timing. No speedup accepted until those runs finish.
+
+- Retained source assembled Creator GPU gate PASS1/1,23.89s, build0.22s;
+  /private/tmp/eldiron-minimap-residency-assembled.log. All original minimap
+  pixels, isometric/screen/parent contexts, navigation/receipts and full assembled
+  paint/document/runtime checks pass.53947terminal after separate native pilot.
+- Same Hideout2D release pilot improves p50 idle10.81→8.84, hover11.01→8.98,
+  pan13.08→10.18, zoom12.62→10.11ms. Preparation falls to2.67–3.84ms; original
+  camera/layout match. Full-color normal transfer delta remainszero. Main
+  viewport pixel-delta analysis follows in tool output; durable resident pilot
+  JSON/PNG retained. Still slower than reference7.54–7.62ms; keep performance
+  gate open. Further duplicate content checks/compositor work need measurement.
+- Startup trace separately identifies7.68s in common load_ruleset_items during
+  first project load; both backends share this. Record it for subsequent matched
+  startup work, not as an already-fixed renderer regression.
+
+- Captured main viewport before/after residency fix is byte-identical (RGBA maximum delta0). Root/minimap ROI comparisons are separately reported; assembled GPU tests already retain exact independent minimap references.

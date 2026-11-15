@@ -13,6 +13,9 @@ use theframework::{
 };
 
 use crate::scene_source as sources;
+#[path = "native_scene_source.rs"]
+mod source_cache;
+use source_cache::SourceCache;
 
 #[derive(Clone, PartialEq)]
 struct Binding {
@@ -126,6 +129,7 @@ pub(crate) struct SceneOverview {
     gpu: Option<Gpu>,
     waiting: bool,
     source: Option<sources::Source>,
+    source_cache: SourceCache,
 }
 impl Default for SceneOverview {
     fn default() -> Self {
@@ -138,6 +142,7 @@ impl Default for SceneOverview {
             gpu: None,
             waiting: false,
             source: None,
+            source_cache: SourceCache::default(),
         }
     }
 }
@@ -178,25 +183,14 @@ fn separate_source(project: &Project, server: &CreatorContext, map: &Map) -> boo
                 .get_map(&server.shared)
                 .is_none_or(|editing| editing.id != map.id))
 }
-fn source_map(map: &Map) -> (Map, u64) {
-    let mut map = map.clone();
-    // Camera movement only changes the marker, not the fitted scene or terrain
-    // used for navigation. Runtime occupants never appear in a static overview.
-    map.offset = Vec2::zero();
-    map.grid_size = 1.;
-    map.changed = 0;
-    map.entities.clear();
-    map.items.clear();
-    map.clear_selection();
-    map.clear_temp();
-    map.curr_mouse_pos = None;
-    let mut hash = DefaultHasher::new();
-    serde_json::to_vec(&map)
-        .expect("serializable minimap source")
-        .hash(&mut hash);
-    (map, hash.finish())
-}
 impl SceneOverview {
+    fn refresh_source(&mut self, project: &Project, server: &CreatorContext) {
+        if let Some((map, _)) = overview_map(project, server) {
+            self.source_cache.publish(server.shared.document_instance, map);
+        } else {
+            self.source_cache.clear();
+        }
+    }
     pub(crate) fn advance_source(
         &mut self,
         project: &Project,
@@ -212,31 +206,34 @@ impl SceneOverview {
             self.source = None;
             return false;
         };
-        let (map, source) = source_map(map);
+        let snapshot = self.source_cache.publish(server.shared.document_instance, map);
         let key = sources::SourceKey {
             document: server.shared.document_instance,
             map: map.id,
-            source,
+            source: u64::from(snapshot.revision),
             assets: asset_revision,
         };
         if self.source.as_ref().is_none_or(|old| old.key != key) {
-            self.source = Some(sources::Source::new(key, map, assets));
+            self.source = Some(sources::Source::new(key, snapshot.map.as_ref().clone(), assets));
         }
         self.source.as_mut().unwrap().advance()
     }
     fn binding(
+        &self,
         project: &Project,
         server: &CreatorContext,
         ui: &mut TheUI,
         ctx: &TheContext,
-    ) -> Option<(Binding, Map)> {
+    ) -> Option<(Binding, Arc<Map>)> {
         let (original, region) = overview_map(project, server)?;
         let view = ui.get_render_view("MiniMap")?;
         let dim = *view.dim();
         if dim.width <= 0 || dim.height <= 0 {
             return None;
         }
-        let (map, source) = source_map(original);
+        let snapshot = self.source_cache.current(server.shared.document_instance, original)?;
+        let map = snapshot.map;
+        let source = u64::from(snapshot.revision);
         Some((
             Binding {
                 document: server.shared.document_instance,
@@ -261,9 +258,13 @@ impl SceneOverview {
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> bool {
-        if Self::binding(project, server, ui, ctx).is_none() {
+        if !ui.get_render_view("MiniMap").is_some_and(|view| view.dim().is_valid())
+            || overview_map(project, server).is_none()
+        {
             return false;
         }
+        self.refresh_source(project, server);
+        if self.binding(project, server, ui, ctx).is_none() { return false; }
         if !self.enabled {
             self.invalidate(ui);
             ui.get_render_view("MiniMap")
@@ -304,7 +305,8 @@ impl SceneOverview {
             self.gpu = None;
             return Ok(None);
         }
-        let Some((binding, mut map)) = Self::binding(project, server, ui, ctx) else {
+        self.refresh_source(project, server);
+        let Some((binding, map)) = self.binding(project, server, ui, ctx) else {
             self.invalidate(ui);
             return Ok(None);
         };
@@ -395,7 +397,15 @@ impl SceneOverview {
                 .ok_or("minimap source generation exhausted")?;
             // Source caches must distinguish replacement/undo even when authored
             // IDs and serialized revision numbers have been reused.
-            map.changed = gpu.version;
+            // Only the producers which use Map.changed for their derived cache
+            // need a temporary versioned projection. Ordinary overview frames
+            // and navigation retain the immutable CPU source publication.
+            let render_map = if raster_overview || iso {
+                let mut projection = map.as_ref().clone();
+                projection.changed = gpu.version;
+                Some(projection)
+            } else { None };
+            let render_map = render_map.as_ref().unwrap_or(map.as_ref());
             let size = (binding.rect[2] as u32, binding.rect[3] as u32);
             if !raster_overview {
                 if let Some(output) = gpu.overview_output.take() {
@@ -406,7 +416,7 @@ impl SceneOverview {
             if raster_overview {
                 let mut builder = rusterix::D2PreviewBuilder::new();
                 let scene = builder.build(
-                    &map,
+                    render_map,
                     assets,
                     Vec2::new(size.0 as f32, size.1 as f32),
                     &Default::default(),
@@ -456,14 +466,14 @@ impl SceneOverview {
                     image: handle,
                     descriptor: image.descriptor,
                     revision: gpu.version as u64,
-                    content_revision: map.changed as u64,
+                    content_revision: gpu.version as u64,
                 });
             } else if iso {
                 gpu.scenes
                     .prepare_isometric_overview(
                         gpu.view,
                         size,
-                        &map,
+                        render_map,
                         assets,
                         isometric_minimap_projection(Vec2::new(size.0 as f32, size.1 as f32), bbox),
                         gpu.version as u64,
@@ -590,7 +600,7 @@ impl SceneOverview {
             .ok_or("minimap receipt exhausted")?;
         let frame = Arc::new(Frame {
             binding,
-            map: Arc::new(map),
+            map,
             bbox,
             output,
             image,
@@ -635,6 +645,7 @@ impl SceneOverview {
         self.enabled = false;
         self.waiting = false;
         self.source = None;
+        self.source_cache.clear();
     }
     pub(crate) fn device_reset(&mut self, ui: &mut TheUI) {
         self.invalidate(ui);
@@ -659,7 +670,7 @@ impl SceneOverview {
         if overview_map(project, server).is_none() {
             return Ok(None);
         }
-        let (binding, _) = Self::binding(project, server, ui, ctx).ok_or(())?;
+        let (binding, _) = self.binding(project, server, ui, ctx).ok_or(())?;
         let frame = self.presented.as_ref().ok_or(())?;
         if frame.binding != binding || frame.binding.view != *id {
             return Err(());

@@ -262,8 +262,11 @@ impl UiApplication for NativeCreatorApplication {
         }
     }
     fn frame(&mut self, ui: &mut UiSession, images: &mut UiFrameImages<'_>) -> Result<PaintList> {
+        let mut profile = crate::misc::FrameProfile::new();
         self.editor.pre_ui(&mut ui.context);
+        profile.lap("native_pre_ui");
         ui.ui.prepare_paint_layout(&mut ui.context);
+        profile.lap("native_frame_layout");
         self.pending = match self
             .editor
             .prepare_native_views(&mut ui.ui, &mut ui.context, images)
@@ -277,6 +280,7 @@ impl UiApplication for NativeCreatorApplication {
                 return Err(RenderError(error));
             }
         };
+        profile.lap("native_views");
         let mut list = match ui.paint(images) {
             Ok(list) => list,
             Err(error) => {
@@ -287,6 +291,7 @@ impl UiApplication for NativeCreatorApplication {
                 return Err(RenderError(error.to_string()));
             }
         };
+        profile.lap("native_ui_paint");
         list.ops.insert(
             0,
             theframework::paint::PaintOp::DisplayCompositing(

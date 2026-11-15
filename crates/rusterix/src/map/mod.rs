@@ -8,6 +8,7 @@ pub mod linedef;
 pub mod meta;
 pub mod mini;
 pub mod organic;
+mod overview_source;
 pub mod particle;
 pub mod pixelsource;
 pub mod sector;

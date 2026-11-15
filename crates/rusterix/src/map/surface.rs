@@ -101,14 +101,14 @@ pub struct ProfileLoop {
 }
 
 /// Represents a geometric plane defined by an origin and a normal vector.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
 pub struct Plane {
     pub origin: Vec3<f32>,
     pub normal: Vec3<f32>,
 }
 
 /// Represents a 3D basis with right, up, and normal vectors.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
 pub struct Basis3 {
     pub right: Vec3<f32>,
     pub up: Vec3<f32>,
@@ -116,7 +116,7 @@ pub struct Basis3 {
 }
 
 /// Defines an editable plane with origin, axes for 2D editing, and a scale factor.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
 pub struct EditPlane {
     pub origin: Vec3<f32>,
     pub right: Vec3<f32>,
@@ -135,7 +135,7 @@ pub struct Attachment {
 }
 
 /// UV mapping strategy for extruded side walls and caps.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub enum ExtrudeUV {
     /// U follows edge length; V follows depth. Scales apply as multipliers.
     Stretch { scale_u: f32, scale_v: f32 },
@@ -162,7 +162,7 @@ pub enum ExtrusionMode {
 }
 
 /// How this surface turns into 3D geometry.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct ExtrusionSpec {
     pub enabled: bool, // if false, flat cap only
     pub depth: f32,    // thickness along +N (negative = -N in Auto mode)
