@@ -89,6 +89,12 @@ impl TheTextLineEdit {
             ),
             true,
         );
+        ctx.ui.editor_clock.register(
+            self.id.uuid,
+            ctx.ui.focus.as_ref().map(|id| id.uuid),
+            focused && self.dim.is_valid(),
+            self.native_editor.editor.is_composing(),
+        );
     }
     fn notify_native_value(&mut self, ctx: &mut TheContext) {
         if let Some(layout) = &self.layout_id {

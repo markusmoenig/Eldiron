@@ -257,6 +257,12 @@ impl TheTextAreaEdit {
         self.native
             .view
             .prepare(&mut ctx.text, options(), plan.viewport, false);
+        ctx.ui.editor_clock.register(
+            self.id.uuid,
+            ctx.ui.focus.as_ref().map(|id| id.uuid),
+            !self.readonly && self.native.view.editor.accepts_text_input() && self.dim.is_valid(),
+            self.native.view.editor.is_composing(),
+        );
         self.native.horizontal = plan.horizontal;
         self.native.vertical = plan.vertical;
         if self.pending_scroll_row.take().is_some() {
@@ -355,7 +361,7 @@ impl TheTextAreaEdit {
             p.text,
             p.list,
             self.native.colors,
-            !self.readonly,
+            !self.readonly && p.ui.editor_clock.visible(self.id.uuid),
             &self.native.annotations,
         );
         if let StatusbarType::Widget(dim) = &self.statusbar_type {

@@ -33,7 +33,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 
 ## Native window validation correction (2026-11-12)
 
-Earlier Winit `--smoke` entries counted prepared paint lists rather than successful surface presentations. Reclassify those logs as startup/paint-preparation evidence only; they do **not** verify desktop-window presentation. Explicit presentation acknowledgements now show **zero** successful Winit presentations while this Mac is locked (`/private/tmp/eldiron-text-target-window.log`). Live keyboard automation also reports that the Mac is locked. These interactive checks remain unavailable until it is unlocked; other implementation and validation continue. Headless GPU pixel captures and detached CAMetalLayer tests that explicitly assert `PresentResult::Presented` remain valid evidence. The host now acquires a drawable before calling application frame preparation, defers without visual work, and bounds smoke runs with a failure deadline.
+Earlier Winit `--smoke` entries counted prepared paint lists rather than successful surface presentations. Reclassify those logs as startup/paint-preparation evidence only; they do **not** verify desktop-window presentation. The locked-Mac run `/private/tmp/eldiron-text-target-window.log` correctly reported zero presentations. That lock blocker is historical: later fresh native_gpu_window and canonical Creator runs each acknowledged three physical surface presentations and exited successfully (`/private/tmp/eldiron-acceptance-current-winit-surface.log`, `/private/tmp/eldiron-acceptance-canonical-creator-smoke.log`; see the release-only execution checkpoint below). Those later runs were debug builds before the release-only instruction and are not performance baselines. Full release interactive/platform acceptance remains outstanding. Headless GPU pixel captures and detached CAMetalLayer tests explicitly asserting `PresentResult::Presented` remain valid evidence. The host acquires a drawable before application frame preparation, defers without visual work, and bounds smoke runs with a failure deadline.
 
 ## Implementation and verification
 
@@ -54,7 +54,7 @@ behavior is ready to verify.
 
 ## Next work
 
-1. Finish retained UI/layout contributions and independent Creator/job/editor deadlines. Typed layout/paint/resource/scene invalidation and generic hover-help/file-request deadlines are now connected; static controls already have the first retained-command slice. Creator still requests periodic application updates for its runtime/worker/service work; close that ownership before removing its wakeups. Complete integration before the consolidated tests.
+1. Finish retained layout/collection contributions and independent Creator/job/service deadlines. Typed layout/paint/resource/scene invalidation, hover-help/file-request/caret deadlines and16 retained standard control families are now connected. Creator still requests periodic application updates for its runtime/worker/service work; close that ownership before removing its wakeups. Complete integration before the consolidated tests.
 2. Close remaining live source/publication/worker policy and canonical Creator/player ownership/adapters. Private bake large-source paging is release-compiled; do not keep adding isolated bake edge-case test runs while port implementation remains. Preserve actual shipped workflows and avoid inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
@@ -13887,8 +13887,9 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   deadlines are merged with UI deadlines after platform state/event processing.
   Creator still explicitly requests its target-FPS update interval: runtime,
   scene workers, Scepter, previews and other application services need their
-  own wake policy before that can safely be removed. Editor caret/animation
-  deadlines and broader retained layout/control coverage remain implementation.
+  own wake policy before that can safely be removed. Editor caret deadlines and more control retention are connected in the next
+  checkpoint below; broader retained layout/control and application deadlines
+  remain implementation.
 - Canonical Creator/classic player/WGPU player/terminal release compilation
   PASS29.12s. Log:/private/tmp/eldiron-ui-invalidation-port-release.log.
   Browser Creator release compilation PASS28.76s; log:
@@ -13903,3 +13904,68 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   /private/tmp/eldiron-ui-invalidation-port-release-cpu-ui.log. No compiler left
   running. Next: editor animation/caret and application worker/runtime deadlines,
   retained layout/control coverage and remaining live-source/ownership work.
+
+
+## Editor caret clock and standard-control retention (2026-11-15)
+
+- Previous goal turn is progress:d5ea3743 typed UI invalidation and pending-work
+  deadlines. Tracked worktree was clean at start; untracked networking concept
+  remains untouched. Goal remains active across all M0-M9; release compilation
+  during implementation, consolidated functional/GPU/performance checks deferred.
+- Added UI-owned EditorClock, independent of runtime/scene cadence. A prepared
+  native single-line/multiline editor registers its widget and focused owner
+  (including an embedded field's composite). Focus/scope loss, omitted fields
+  and zero-size UI retire its deadline. Only an active editable field blinks;
+  readonly displays schedule none. Composition holds the caret visible without
+  a blink wake; ending composition starts a fresh interval. Delayed updates
+  advance once rather than replaying missed animation events.
+- Native editor paint consumes that visibility flag. Consumed editing, native
+  text/clipboard operations, pointer gestures and explicit editor commands reset
+  the interval and expose a hidden caret immediately. Normal hover does not
+  postpone the deadline. The generic UI deadline merges caret, hover-help and
+  actual file-dialog polling with the application's independent request. Input
+  scope activation now occurs before field preparation, retaining a single scope
+  traversal per layout pass so restored fields register their first deadline.
+- Extended bounded command retention from6 to16 standard control families:
+  check/color/group buttons, short status/tool-list text, menubar/toolbar/traybar/
+  sectionbar chrome and dividers. Every instance has its own content identity;
+  replacing a different control with the same widget ID cannot reuse stale
+  commands. Existing frame/font/theme/image/density/geometry/interaction checks,
+  budget limits and receipt rejection remain. Text admission is bounded; dynamic
+  editor and scene producers still run rather than replaying receipts.
+- Audited the newly retained content setters. Dirty visual mutations retire the
+  content identity. Embedded checkbox chrome, group item insertion/width and
+  tool-list text previously changed without invalidation; these now request a
+  fresh paint. Local source/state revisions remain CPU-only and unserialized.
+- Replaced preparation's revision-only font check with an environment stamp
+  containing font registry identity+revision, theme cache identity and UI/display
+  density. Changes now request layout/resource preparation even when the font
+  revision number happens to equal a replaced registry. Custom themes that opt
+  out of stable cache identities continue to opt out of command retention.
+- Initial canonical four-application release compilation PASS28.73s; initial
+  browser Creator release compilation PASS31.94s. Logs:
+  /private/tmp/eldiron-ui-caret-retention-port-release.log and
+  /private/tmp/eldiron-ui-caret-retention-port-release-web.log. Final environment
+  integration exposed an E0502 comparison borrow; cached the observed environment
+  before comparison and rebuilding. No runtime/visual/speedup acceptance claim.
+- Next implementation: application-owned wake signals and explicit runtime/job/
+  service deadlines (Creator currently still supplies its target-FPS update),
+  retained layout/collection coverage, live changed-source/worker publication,
+  canonical ownership/adapters and host lifecycle completion. Useful source
+  points: platform/session.rs HostContext; Winit HostEvent/next_update; foreign
+  host update; Creator's Scepter sender and job owners; UpdateTracker's deadlines.
+  Preserve stopped2D/Prefab FX animation and minimized runtime timing while
+  removing redundant work. No platform availability is an implementation blocker.
+- Final canonical four-application release compilation PASS30.93s after the
+  environment comparison fix; log:
+  /private/tmp/eldiron-ui-caret-retention-port-release-final.log. Corrected the
+  prominent historical window-validation paragraph to agree with the later
+  actual three-presentation evidence; those old debug runs remain ineligible as
+  release performance baselines. Full current runtime acceptance remains open.
+- Final browser Creator release compilation PASS29.74s and UI-only/no-text/
+  no-GPU/no-window Framework release compilation PASS. Logs:
+  /private/tmp/eldiron-ui-caret-retention-port-release-web-final.log and
+  /private/tmp/eldiron-ui-caret-retention-port-release-cpu-ui.log. All compiler
+  handles terminal; no functional/GPU/performance suite run. Verify scope/focus/
+  embedded fields/composition/caret and retained mutation/replacement/font/theme/
+  DPI behavior in the later integrated matrix; compilation is not that proof.

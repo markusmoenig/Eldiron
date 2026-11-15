@@ -6,6 +6,7 @@ impl TheUI {
     /// committed content or undo history, and changes the native callback token.
     pub(crate) fn synchronize_editor_scope(&mut self, ctx: &mut TheContext) -> bool {
         let Some(id) = ctx.ui.focus.clone() else {
+            ctx.ui.editor_clock.clear();
             return false;
         };
         let mut visible = false;
@@ -29,6 +30,9 @@ impl TheUI {
         }
         if let Some(widget) = self.get_widget_abs(None, Some(&id.uuid)) {
             widget.editor_set_active(visible, ctx);
+        }
+        if !visible {
+            ctx.ui.editor_clock.clear();
         }
         visible
     }
@@ -114,12 +118,37 @@ impl TheUI {
             return false;
         };
         self.is_dirty |= response.input.redraw;
+        if response.input.consumed {
+            self.is_dirty |= ctx.ui.editor_clock.restart();
+        }
         self.process_events(ctx);
         true
     }
     /// Consumption is based on routing/capture, never inferred from a redraw flag.
     /// Exactly one widget path receives each input operation.
     pub fn dispatch_input(&mut self, event: &InputEvent, ctx: &mut TheContext) -> InputResponse {
+        let mut response = self.dispatch_widget_input(event, ctx);
+        ctx.ui.editor_clock.retain_focus(ctx.ui.focus.as_ref().map(|id| id.uuid));
+        let editing = matches!(
+            event,
+            InputEvent::Key { pressed: true, .. }
+                | InputEvent::Text(_)
+                | InputEvent::TextFor { .. }
+                | InputEvent::Composition { .. }
+                | InputEvent::CompositionFor { .. }
+                | InputEvent::NativeText { .. }
+                | InputEvent::Clipboard { .. }
+                | InputEvent::PointerButton { .. }
+        ) || matches!(event, InputEvent::PointerMoved { .. }) && self.mouse_capture_id.is_some();
+        if response.consumed && editing {
+            let changed = ctx.ui.editor_clock.restart();
+            self.is_dirty |= changed;
+            response.redraw |= changed;
+        }
+        response
+    }
+
+    fn dispatch_widget_input(&mut self, event: &InputEvent, ctx: &mut TheContext) -> InputResponse {
         let modal = self.dialog.is_some()
             || self.popover.is_some()
             || self.context_menu.is_some()

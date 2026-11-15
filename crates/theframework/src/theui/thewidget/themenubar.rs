@@ -1,6 +1,8 @@
 use crate::prelude::*;
 
 pub struct TheMenubar {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
 
     limiter: TheSizeLimiter,
@@ -11,6 +13,11 @@ pub struct TheMenubar {
 }
 
 impl TheWidget for TheMenubar {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        Some(self.paint_revision)
+    }
+
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -30,6 +37,8 @@ impl TheWidget for TheMenubar {
         limiter.set_max_height(43);
 
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
 

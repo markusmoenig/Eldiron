@@ -2,10 +2,26 @@ use super::paint::{UiImageResources, UiPaintError, WidgetPainter, bounds};
 use super::*;
 use crate::paint::{PaintList, PaintOp, Rect};
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) struct PaintEnvironment {
+    fonts: (u64, u64),
+    theme: Option<Uuid>,
+    density: [u32; 2],
+}
+
 impl TheUI {
+    fn current_paint_environment(&mut self, ctx: &TheContext) -> PaintEnvironment {
+        PaintEnvironment {
+            fonts: ctx.text.font_stamp(),
+            theme: self.style.theme().paint_cache_key(),
+            density: [ctx.scale_factor.to_bits(), ctx.ui_render_scale.to_bits()],
+        }
+    }
+
     pub fn needs_paint(&mut self, ctx: &TheContext) -> bool {
-        let reason = if self.paint_font_revision != ctx.text.font_revision() {
-            Some("fonts")
+        let environment = self.current_paint_environment(ctx);
+        let reason = if self.paint_environment != Some(environment) {
+            Some("font/theme/density")
         } else if self.is_dirty {
             Some("UI")
         } else if ctx.ui.needs_full_paint() {
@@ -32,8 +48,9 @@ impl TheUI {
     }
 
     pub fn prepare_paint_layout(&mut self, ctx: &mut TheContext) {
-        if self.paint_font_revision != ctx.text.font_revision() {
-            self.paint_font_revision = ctx.text.font_revision();
+        let environment = self.current_paint_environment(ctx);
+        if self.paint_environment != Some(environment) {
+            self.paint_environment = Some(environment);
             ctx.ui.invalidate_layout();
             ctx.ui.invalidate_resources();
         }
@@ -49,6 +66,7 @@ impl TheUI {
             }
         }
         if ctx.width == 0 || ctx.height == 0 {
+            ctx.ui.editor_clock.clear();
             return;
         }
         if self.canvas.resize(ctx.width as i32, ctx.height as i32, ctx) {
@@ -58,7 +76,11 @@ impl TheUI {
         if ctx.ui.needs_layout() {
             self.relayout(ctx);
         }
+        // A newly restored scope must be active before its fields register
+        // caret deadlines; otherwise its first frame could have no next wake.
+        self.synchronize_editor_scope(ctx);
         ctx.ui.input_transforms.clear();
+        ctx.ui.editor_clock.begin_layout();
         let theme_owner = self.style.theme();
         let _theme = theme_owner.as_ref();
         self.canvas.prepare_paint(ctx, _theme);
@@ -71,7 +93,7 @@ impl TheUI {
         if let Some(menu) = &mut self.context_menu {
             menu.prepare_commands_layout(ctx);
         }
-        self.synchronize_editor_scope(ctx);
+        ctx.ui.editor_clock.finish_layout();
     }
 
     /// Prepare and paint the UI tree directly. Unsupported widget families return

@@ -2,6 +2,8 @@ use crate::prelude::*;
 use crate::thecontext::TheCursorIcon;
 
 pub struct TheCheckButton {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
     limiter: TheSizeLimiter,
     status: Option<String>,
@@ -14,7 +16,22 @@ pub struct TheCheckButton {
     embedded: bool,
 }
 
+impl TheCheckButton {
+    fn invalidate_retained_paint(&mut self) {
+        self.is_dirty = true;
+        #[cfg(feature = "text")]
+        {
+            self.paint_revision = Uuid::new_v4();
+        }
+    }
+}
+
 impl TheWidget for TheCheckButton {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        Some(self.paint_revision)
+    }
+
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -72,6 +89,8 @@ impl TheWidget for TheCheckButton {
         limiter.set_max_size(Vec2::new(16, 18));
 
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
             status: None,
@@ -106,7 +125,10 @@ impl TheWidget for TheCheckButton {
     }
 
     fn set_embedded(&mut self, embedded: bool) {
-        self.embedded = embedded;
+        if self.embedded != embedded {
+            self.embedded = embedded;
+            self.invalidate_retained_paint();
+        }
     }
 
     #[allow(clippy::single_match)]
@@ -127,18 +149,18 @@ impl TheWidget for TheCheckButton {
                     self.id(),
                     TheValue::Bool(self.state == TheWidgetState::Selected),
                 );
-                self.is_dirty = true;
+                self.invalidate_retained_paint();
                 redraw = true;
             }
             TheEvent::Hover(_coord) => {
                 if self.state != TheWidgetState::Selected && !self.id().equals(&ctx.ui.hover) {
-                    self.is_dirty = true;
+                    self.invalidate_retained_paint();
                     ctx.ui.set_hover(self.id());
                     redraw = true;
                 }
             }
             // TheEvent::MouseUp(_coord) => {
-            //     self.is_dirty = true;
+            //     self.invalidate_retained_paint();
             //     redraw = true;
             // }
             _ => {}
@@ -157,7 +179,7 @@ impl TheWidget for TheCheckButton {
     fn set_dim(&mut self, dim: TheDim, _ctx: &mut TheContext) {
         if self.dim != dim {
             self.dim = dim;
-            self.is_dirty = true;
+            self.invalidate_retained_paint();
         }
     }
 
@@ -174,7 +196,11 @@ impl TheWidget for TheCheckButton {
     }
 
     fn set_needs_redraw(&mut self, redraw: bool) {
-        self.is_dirty = redraw;
+        if redraw {
+            self.invalidate_retained_paint();
+        } else {
+            self.is_dirty = false;
+        }
     }
 
     fn state(&self) -> TheWidgetState {
@@ -183,7 +209,7 @@ impl TheWidget for TheCheckButton {
 
     fn set_state(&mut self, state: TheWidgetState) {
         self.state = state;
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
 
     fn supports_hover(&mut self) -> bool {
@@ -206,7 +232,7 @@ impl TheWidget for TheCheckButton {
                 } else {
                     self.state = TheWidgetState::None;
                 }
-                self.is_dirty = true;
+                self.invalidate_retained_paint();
             }
             _ => {}
         }

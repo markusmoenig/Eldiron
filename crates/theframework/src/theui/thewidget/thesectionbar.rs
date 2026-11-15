@@ -1,6 +1,8 @@
 use crate::prelude::*;
 
 pub struct TheSectionbar {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
     limiter: TheSizeLimiter,
 
@@ -9,6 +11,11 @@ pub struct TheSectionbar {
 }
 
 impl TheWidget for TheSectionbar {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        Some(self.paint_revision)
+    }
+
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -29,6 +36,8 @@ impl TheWidget for TheSectionbar {
         limiter.set_max_height(21);
 
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
 

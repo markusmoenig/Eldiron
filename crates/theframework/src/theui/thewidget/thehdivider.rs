@@ -1,6 +1,8 @@
 use crate::prelude::*;
 
 pub struct TheHDivider {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
     limiter: TheSizeLimiter,
 
@@ -8,6 +10,11 @@ pub struct TheHDivider {
 }
 
 impl TheWidget for TheHDivider {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        Some(self.paint_revision)
+    }
+
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -35,6 +42,8 @@ impl TheWidget for TheHDivider {
         limiter.set_max_size(Vec2::new(16, 20));
 
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
 

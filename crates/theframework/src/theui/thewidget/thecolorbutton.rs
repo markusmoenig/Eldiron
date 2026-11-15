@@ -2,6 +2,8 @@ use crate::prelude::*;
 use crate::thecontext::TheCursorIcon;
 
 pub struct TheColorButton {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
     limiter: TheSizeLimiter,
     state: TheWidgetState,
@@ -14,7 +16,22 @@ pub struct TheColorButton {
     cursor_icon: Option<TheCursorIcon>,
 }
 
+impl TheColorButton {
+    fn invalidate_retained_paint(&mut self) {
+        self.is_dirty = true;
+        #[cfg(feature = "text")]
+        {
+            self.paint_revision = Uuid::new_v4();
+        }
+    }
+}
+
 impl TheWidget for TheColorButton {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        Some(self.paint_revision)
+    }
+
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -43,6 +60,8 @@ impl TheWidget for TheColorButton {
         let mut limiter = TheSizeLimiter::new();
         limiter.set_max_size(Vec2::new(20, 20));
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
             state: TheWidgetState::None,
@@ -84,19 +103,19 @@ impl TheWidget for TheColorButton {
             TheEvent::MouseDown(_coord) => {
                 self.state = TheWidgetState::Clicked;
                 ctx.ui.send_widget_state_changed(self.id(), self.state);
-                self.is_dirty = true;
+                self.invalidate_retained_paint();
                 ctx.ui.send(TheEvent::ColorButtonClicked(self.id.clone()));
                 redraw = true;
             }
             TheEvent::MouseUp(_coord) => {
                 self.state = TheWidgetState::None;
                 ctx.ui.send_widget_state_changed(self.id(), self.state);
-                self.is_dirty = true;
+                self.invalidate_retained_paint();
                 redraw = true;
             }
             TheEvent::Hover(_coord) => {
                 if !self.id().equals(&ctx.ui.hover) {
-                    self.is_dirty = true;
+                    self.invalidate_retained_paint();
                     ctx.ui.set_hover(self.id());
                     redraw = true;
                 }
@@ -117,13 +136,13 @@ impl TheWidget for TheColorButton {
     fn set_dim(&mut self, dim: TheDim, _ctx: &mut TheContext) {
         if self.dim != dim {
             self.dim = dim;
-            self.is_dirty = true;
+            self.invalidate_retained_paint();
         }
     }
 
     fn set_state(&mut self, state: TheWidgetState) {
         self.state = state;
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
 
     fn limiter(&self) -> &TheSizeLimiter {
@@ -139,7 +158,11 @@ impl TheWidget for TheColorButton {
     }
 
     fn set_needs_redraw(&mut self, redraw: bool) {
-        self.is_dirty = redraw;
+        if redraw {
+            self.invalidate_retained_paint();
+        } else {
+            self.is_dirty = false;
+        }
     }
 
     fn supports_hover(&mut self) -> bool {
@@ -149,7 +172,7 @@ impl TheWidget for TheColorButton {
     fn set_value(&mut self, value: TheValue) {
         if let TheValue::ColorObject(color) = value {
             self.color = color.to_u8_array();
-            self.is_dirty = true;
+            self.invalidate_retained_paint();
         }
     }
 

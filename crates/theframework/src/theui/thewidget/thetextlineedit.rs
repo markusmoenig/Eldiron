@@ -245,7 +245,9 @@ impl TheWidget for TheTextLineEdit {
             caret: p.color(TextEditCursorColor),
             composition: p.color(TextEditCursorColor),
         };
-        self.native_editor.paint(p.text, p.list, colors, true);
+        self.native_editor.paint(
+            p.text, p.list, colors, p.ui.editor_clock.visible(self.id.uuid),
+        );
         if let Some(palette) = &self.palette {
             if let Some(value) = self.value().to_i32() {
                 if value >= 0 {

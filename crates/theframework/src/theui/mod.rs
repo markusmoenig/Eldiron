@@ -1,5 +1,7 @@
 #[cfg(feature = "text")]
 mod input;
+#[cfg(feature = "text")]
+mod editor_clock;
 pub mod invalidation;
 #[cfg(feature = "text")]
 pub mod paint;
@@ -382,7 +384,7 @@ pub struct TheUI {
     pub right_mouse_down: bool,
     mouse_capture_id: Option<TheId>,
     #[cfg(feature = "text")]
-    paint_font_revision: u64,
+    paint_environment: Option<paint_frame::PaintEnvironment>,
 }
 
 impl Default for TheUI {
@@ -424,7 +426,7 @@ impl TheUI {
             right_mouse_down: false,
             mouse_capture_id: None,
             #[cfg(feature = "text")]
-            paint_font_revision: 0,
+            paint_environment: None,
         }
     }
 
@@ -1201,6 +1203,11 @@ impl TheUI {
             .as_ref()
             .filter(|help| !help.visible)
             .map(|help| self.hover_help_delay.saturating_sub(help.started_at.elapsed()));
+        #[cfg(feature = "text")]
+        let deadline = match (deadline, ctx.ui.editor_clock.next_wake_after()) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
         // Legacy desktop file dialogs have a receiver rather than a host wake
         // callback. Poll only for the lifetime of an actual queued/open dialog.
         #[cfg(all(
@@ -1235,6 +1242,15 @@ impl TheUI {
         }
 
         self.process_events(ctx);
+        #[cfg(feature = "text")]
+        {
+            ctx.ui.editor_clock.retain_focus(ctx.ui.focus.as_ref().map(|id| id.uuid));
+            if ctx.width == 0 || ctx.height == 0 {
+                ctx.ui.editor_clock.clear();
+            } else {
+                self.is_dirty |= ctx.ui.editor_clock.advance();
+            }
+        }
         if let Some(help) = &mut self.hover_help
             && !help.visible
             && help.started_at.elapsed() >= self.hover_help_delay

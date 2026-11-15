@@ -32,6 +32,8 @@ pub struct FileRequest {
 }
 pub struct TheUIContext {
     #[cfg(feature = "text")]
+    pub(super) editor_clock: super::editor_clock::EditorClock,
+    #[cfg(feature = "text")]
     pub(super) retained_paint: std::cell::RefCell<super::retained_paint::RetainedPaint>,
     #[cfg(feature = "text")]
     pub(super) icon_revision: u64,
@@ -190,6 +192,8 @@ impl TheUIContext {
         }
 
         Self {
+            #[cfg(feature = "text")]
+            editor_clock: Default::default(),
             #[cfg(feature = "text")]
             retained_paint: Default::default(),
             #[cfg(feature = "text")]

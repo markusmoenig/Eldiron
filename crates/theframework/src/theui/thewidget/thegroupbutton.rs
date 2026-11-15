@@ -1,6 +1,8 @@
 use crate::prelude::*;
 
 pub struct TheGroupButton {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
     limiter: TheSizeLimiter,
     state: TheWidgetState,
@@ -21,7 +23,23 @@ pub struct TheGroupButton {
     is_dirty: bool,
 }
 
+impl TheGroupButton {
+    fn invalidate_retained_paint(&mut self) {
+        self.is_dirty = true;
+        #[cfg(feature = "text")]
+        {
+            self.paint_revision = Uuid::new_v4();
+        }
+    }
+}
+
 impl TheWidget for TheGroupButton {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        (self.text.len() <= 32 && self.text.iter().map(String::len).sum::<usize>() <= 1024)
+            .then_some(self.paint_revision)
+    }
+
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -85,6 +103,8 @@ impl TheWidget for TheGroupButton {
         let mut limiter = TheSizeLimiter::new();
         limiter.set_max_size(Vec2::new(60, 20));
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
             state: TheWidgetState::None,
@@ -127,13 +147,13 @@ impl TheWidget for TheGroupButton {
                 if index < self.text.len() {
                     ctx.ui.send(TheEvent::IndexChanged(self.id.clone(), index));
                     self.selected_index = Some(index);
-                    self.is_dirty = true;
+                    self.invalidate_retained_paint();
                     redraw = true;
                 }
             }
             TheEvent::Hover(coord) => {
                 if !self.id().equals(&ctx.ui.hover) {
-                    self.is_dirty = true;
+                    self.invalidate_retained_paint();
                     ctx.ui.set_hover(self.id());
                     redraw = true;
                 }
@@ -145,13 +165,13 @@ impl TheWidget for TheGroupButton {
                 if index < self.text.len() && Some(index) != self.hover_index {
                     self.hover_index = Some(index);
                     redraw = true;
-                    self.is_dirty = true;
+                    self.invalidate_retained_paint();
                 }
             }
             TheEvent::LostHover(_id) => {
                 self.hover_index = None;
                 redraw = true;
-                self.is_dirty = true;
+                self.invalidate_retained_paint();
             }
             _ => {}
         }
@@ -177,7 +197,7 @@ impl TheWidget for TheGroupButton {
     fn set_dim(&mut self, dim: TheDim, _ctx: &mut TheContext) {
         if self.dim != dim {
             self.dim = dim;
-            self.is_dirty = true;
+            self.invalidate_retained_paint();
         }
     }
 
@@ -188,14 +208,14 @@ impl TheWidget for TheGroupButton {
     fn set_disabled(&mut self, disabled: bool) {
         if disabled != self.is_disabled {
             self.is_disabled = disabled;
-            self.is_dirty = true;
+            self.invalidate_retained_paint();
             self.state = TheWidgetState::None;
         }
     }
 
     fn set_state(&mut self, state: TheWidgetState) {
         self.state = state;
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
 
     fn limiter(&self) -> &TheSizeLimiter {
@@ -211,7 +231,11 @@ impl TheWidget for TheGroupButton {
     }
 
     fn set_needs_redraw(&mut self, redraw: bool) {
-        self.is_dirty = redraw;
+        if redraw {
+            self.invalidate_retained_paint();
+        } else {
+            self.is_dirty = false;
+        }
     }
 
     fn supports_hover(&mut self) -> bool {
@@ -227,7 +251,7 @@ impl TheWidget for TheGroupButton {
         match value {
             TheValue::Int(value) => {
                 self.selected_index = Some(value as usize);
-                self.is_dirty = true;
+                self.invalidate_retained_paint();
             }
             _ => {}
         }
@@ -418,23 +442,29 @@ impl TheGroupButtonTrait for TheGroupButton {
         self.text.push(text);
         self.status_text.push(None);
         self.icon.push(None);
+        self.invalidate_retained_paint();
     }
     fn add_text_status(&mut self, text: String, status: String) {
         self.text.push(text);
         self.status_text.push(Some(status));
         self.icon.push(None);
+        self.invalidate_retained_paint();
     }
     fn add_text_status_icon(&mut self, text: String, status: String, icon: String) {
         self.text.push(text);
         self.status_text.push(Some(status));
         self.icon.push(Some(icon));
+        self.invalidate_retained_paint();
     }
     fn set_item_width(&mut self, width: usize) {
-        self.item_width = width;
+        if self.item_width != width {
+            self.item_width = width;
+            self.invalidate_retained_paint();
+        }
     }
     fn set_index(&mut self, index: i32) {
         self.selected_index = Some(index as usize);
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn index(&self) -> i32 {
         self.selected_index.unwrap_or(0) as i32

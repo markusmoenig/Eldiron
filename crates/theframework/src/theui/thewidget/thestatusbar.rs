@@ -1,6 +1,8 @@
 use crate::prelude::*;
 
 pub struct TheStatusbar {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
 
     limiter: TheSizeLimiter,
@@ -10,7 +12,22 @@ pub struct TheStatusbar {
     is_dirty: bool,
 }
 
+impl TheStatusbar {
+    fn invalidate_retained_paint(&mut self) {
+        self.is_dirty = true;
+        #[cfg(feature = "text")]
+        {
+            self.paint_revision = Uuid::new_v4();
+        }
+    }
+}
+
 impl TheWidget for TheStatusbar {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        (self.text.len() <= 256).then_some(self.paint_revision)
+    }
+
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -45,6 +62,8 @@ impl TheWidget for TheStatusbar {
         limiter.set_max_height(21);
 
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
             text: "".to_string(),
@@ -73,7 +92,7 @@ impl TheWidget for TheStatusbar {
     fn set_dim(&mut self, dim: TheDim, _ctx: &mut TheContext) {
         if self.dim != dim {
             self.dim = dim;
-            self.is_dirty = true;
+            self.invalidate_retained_paint();
         }
     }
 
@@ -160,7 +179,7 @@ impl TheStatusbarTrait for TheStatusbar {
             .to_string();
         if self.text != text {
             self.text = text;
-            self.is_dirty = true;
+            self.invalidate_retained_paint();
         }
     }
 }

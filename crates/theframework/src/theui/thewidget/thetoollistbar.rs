@@ -1,6 +1,8 @@
 use crate::prelude::*;
 
 pub struct TheToolListBar {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
     limiter: TheSizeLimiter,
 
@@ -10,7 +12,22 @@ pub struct TheToolListBar {
     is_dirty: bool,
 }
 
+impl TheToolListBar {
+    fn invalidate_retained_paint(&mut self) {
+        self.is_dirty = true;
+        #[cfg(feature = "text")]
+        {
+            self.paint_revision = Uuid::new_v4();
+        }
+    }
+}
+
 impl TheWidget for TheToolListBar {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        (self.text.len() <= 256).then_some(self.paint_revision)
+    }
+
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -47,6 +64,8 @@ impl TheWidget for TheToolListBar {
         limiter.set_max_height(23);
 
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
 
@@ -76,7 +95,7 @@ impl TheWidget for TheToolListBar {
     fn set_dim(&mut self, dim: TheDim, _ctx: &mut TheContext) {
         if self.dim != dim {
             self.dim = dim;
-            self.is_dirty = true;
+            self.invalidate_retained_paint();
         }
     }
 
@@ -148,7 +167,10 @@ impl TheWidget for TheToolListBar {
 
     fn set_value(&mut self, value: TheValue) {
         if let TheValue::Text(value) = value {
-            self.text = value;
+            if self.text != value {
+                self.text = value;
+                self.invalidate_retained_paint();
+            }
         }
     }
 
