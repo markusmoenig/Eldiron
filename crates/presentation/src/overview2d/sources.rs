@@ -5,7 +5,8 @@ struct Entry {
 }
 pub(super) struct Source {
     pub view: wgpu::TextureView,
-    pub sizes: wgpu::Buffer,
+    pub sizes: renderkit::WorkingBufferLease,
+    _array: renderkit::TargetLease,
     pub layers: u32,
     bytes: usize,
 }
@@ -66,25 +67,9 @@ impl Sources {
             .and_then(|n| n.checked_mul(layers as usize))
             .and_then(|n| n.checked_add(layers as usize * 16))
             .ok_or_else(|| RenderError("overview source extent overflow".into()))?;
-        let texture = self
-            .context
-            .device
-            .create_texture(&wgpu::TextureDescriptor {
-                label: Some("overview source frames"),
-                size: wgpu::Extent3d {
-                    width: width as u32,
-                    height: height as u32,
-                    depth_or_array_layers: layers,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8Uint,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                view_formats: &[],
-            });
-        let mut sizes = Vec::new();
-        for (layer, source) in frames.iter().enumerate() {
+        // Pool contents can be old. Validate all layers before allocation, and
+        // upload every texel that the per-layer dimensions permit sampling.
+        for source in frames {
             if source.width == 0
                 || source.height == 0
                 || source
@@ -95,10 +80,23 @@ impl Sources {
             {
                 return Err(RenderError("invalid overview source pixels".into()));
             }
+        }
+        let array = self.context.acquire_target(renderkit::TargetDescriptor {
+            array_layers: layers,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            ..renderkit::TargetDescriptor::color(
+                width as u32,
+                height as u32,
+                wgpu::TextureFormat::Rgba8Uint,
+            )
+        })?;
+        let texture = array.texture();
+        let mut sizes = Vec::new();
+        for (layer, source) in frames.iter().enumerate() {
             self.context.record_upload(source.data.len() as u64);
             self.context.queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
-                    texture: &texture,
+                    texture,
                     mip_level: 0,
                     origin: wgpu::Origin3d {
                         x: 0,
@@ -121,21 +119,23 @@ impl Sources {
             );
             sizes.push([source.width as u32, source.height as u32, 0, 0]);
         }
-        self.context.record_upload((sizes.len() * 16) as u64);
-        let sizes = self
-            .context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("overview source sizes"),
-                contents: bytemuck::cast_slice(&sizes),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
+        let size_data = bytemuck::cast_slice(&sizes);
+        let sizes =
+            self.context
+                .acquire_working_buffer(renderkit::WorkingBufferDescriptor::storage(
+                    size_data.len() as u64,
+                ))?;
+        self.context
+            .queue
+            .write_buffer(sizes.buffer(), 0, size_data);
+        self.context.record_upload(size_data.len() as u64);
         let source = Arc::new(Source {
             view: texture.create_view(&wgpu::TextureViewDescriptor {
                 dimension: Some(wgpu::TextureViewDimension::D2Array),
                 ..Default::default()
             }),
             sizes,
+            _array: array,
             layers,
             bytes,
         });

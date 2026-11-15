@@ -11,6 +11,9 @@ const TEXTURE_LIMIT: usize = 64;
 pub struct TargetDescriptor {
     pub width: u32,
     pub height: u32,
+    /// D2 source arrays share the same lifetime/accounting policy. Multisampled
+    /// attachments require one layer; estimated bytes include every layer/mip.
+    pub array_layers: u32,
     pub format: wgpu::TextureFormat,
     pub samples: u32,
     pub mip_levels: u32,
@@ -21,6 +24,7 @@ impl TargetDescriptor {
         Self {
             width,
             height,
+            array_layers: 1,
             format,
             samples: 1,
             mip_levels: 1,
@@ -34,6 +38,7 @@ impl TargetDescriptor {
         Self {
             width,
             height,
+            array_layers: 1,
             format,
             samples,
             mip_levels: 1,
@@ -61,6 +66,7 @@ impl TargetDescriptor {
                 .checked_mul(u64::from(height.div_ceil(h)))
                 .and_then(|n| n.checked_mul(u64::from(block)))
                 .and_then(|n| n.checked_mul(u64::from(self.samples)))
+                .and_then(|n| n.checked_mul(u64::from(self.array_layers)))
                 .ok_or_else(|| RenderError("target storage size overflow".into()))?;
             total = total
                 .checked_add(level)
@@ -188,12 +194,15 @@ impl TargetPool {
         if context.is_lost()
             || descriptor.width == 0
             || descriptor.height == 0
+            || descriptor.array_layers == 0
+            || descriptor.array_layers > context.device.limits().max_texture_array_layers
             || descriptor.width > limit
             || descriptor.height > limit
             || !matches!(descriptor.samples, 1 | 2 | 4 | 8 | 16)
             || descriptor.mip_levels == 0
             || descriptor.mip_levels > 32 - descriptor.width.max(descriptor.height).leading_zeros()
-            || (descriptor.samples > 1 && descriptor.mip_levels != 1)
+            || (descriptor.samples > 1
+                && (descriptor.mip_levels != 1 || descriptor.array_layers != 1))
             || descriptor.usage.is_empty()
         {
             return Err(RenderError("invalid or lost-device render target".into()));
@@ -230,7 +239,7 @@ impl TargetPool {
             size: wgpu::Extent3d {
                 width: descriptor.width,
                 height: descriptor.height,
-                depth_or_array_layers: 1,
+                depth_or_array_layers: descriptor.array_layers,
             },
             mip_level_count: descriptor.mip_levels,
             sample_count: descriptor.samples,

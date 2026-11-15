@@ -15665,3 +15665,36 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Actual wasm Creator browser-host release compile PASS22.84s:
   /private/tmp/eldiron-isometric-source-owner-release-wasm.log. All handles terminal,
   diff whitespace clean. Continue with overview resource/submission ownership.
+
+## Overview frame submission and source-array ownership (2026-11-15)
+
+- Overview outputs now publish pooled target leases through GpuImage; packed GPU
+  color, source-size tables, empty metadata and per-frame batch metadata use device
+  working-buffer leases. Every batch retains its metadata and immutable source
+  until the whole ordered frame encoder submits, so equal-sized buffers cannot
+  alias and mid-frame source-cache eviction cannot release a source early.
+- TargetPool now supports D2 source arrays, checks layer limits/multisample policy
+  and includes all layers/mips in byte accounting. Ordinary GpuImage publication
+  rejects arrays/multisampled storage. Original overview arrays retain leases in
+  source owners; every coordinate reachable through each layer's validated size
+  is uploaded before publication. Unused padding is never sampled. Current source
+  and destination shaders/formats/serialization are unchanged.
+- Initial presentation check found two explicit bake TargetDescriptor literals
+  missing the new array_layers field; set both to1. Canonical four-application
+  native release compile then PASS25.78s:
+  /private/tmp/eldiron-overview-owner-release-native.log. Focused release overview
+  contract PASS0.30s (build50.52s):
+  /private/tmp/eldiron-overview-owner-release-contract.log. Covers ordered equal-size
+  batches, two unequal-sized source layers, exact colors, warm zero-allocation
+  reuse, retained output after resize/owner retirement/unrelated writes and final
+  active bytes returning to zero. Focused layer/mip pool validation PASS0.05s:
+  /private/tmp/eldiron-overview-owner-release-array.log. Actual wasm release check
+  in flight. Broad workflow/performance/platform acceptance stays deferred.
+- Next: isometric surface/blit parameter and contact-mask arenas still use raw
+  allocations. Dynamic uniform arenas may validly exceed the maximum single
+  uniform binding size because each dispatch binds one explicit small range;
+  preserve that distinction when moving their owners into the shared pool.
+
+- Actual wasm Creator browser-host release compile PASS25.13s:
+  /private/tmp/eldiron-overview-owner-release-wasm.log. All handles terminal;
+  diff whitespace clean. Proceed with isometric metadata arena ownership.

@@ -74,6 +74,8 @@ impl GpuImage {
         if context.is_lost() || lease.device_generation() != context.generation()
             || lease.texture().width() != descriptor.width
             || lease.texture().height() != descriptor.height
+            || lease.texture().depth_or_array_layers() != 1
+            || lease.texture().sample_count() != 1
             || lease.texture().format() != descriptor.format {
             return Err(RenderError("pooled image descriptor/device mismatch".into()));
         }

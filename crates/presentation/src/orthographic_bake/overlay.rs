@@ -138,6 +138,7 @@ impl OrthographicBakeOverlay {
             let lease = self.context.acquire_target(TargetDescriptor {
                 width: size.0,
                 height: size.1,
+                array_layers: 1,
                 format: descriptor.format,
                 samples: 1,
                 mip_levels: 1,

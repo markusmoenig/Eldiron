@@ -91,3 +91,55 @@ fn leased_targets_do_not_alias_and_eviction_preserves_queued_work() {
     clear(&replacement, &rebuilt, wgpu::Color::RED);
     assert_eq!(pixel(&replacement, rebuilt), [255, 0, 0, 255]);
 }
+
+#[test]
+#[ignore = "native GPU; source array pool extent and accounting contract"]
+fn source_array_layers_and_mips_are_separate_owned_storage() {
+    let context = pollster::block_on(GpuContext::headless()).unwrap();
+    context.set_target_cache_limits(0, 0);
+    let descriptor = TargetDescriptor {
+        array_layers: 3,
+        mip_levels: 2,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        ..TargetDescriptor::color(8, 4, wgpu::TextureFormat::Rgba8Unorm)
+    };
+    let array = context.acquire_target(descriptor).unwrap();
+    assert_eq!(array.texture().depth_or_array_layers(), 3);
+    assert_eq!(context.target_pool_usage().live_bytes, 480);
+    assert!(
+        GpuImage::from_target(
+            &context,
+            array.clone(),
+            ImageDescriptor {
+                width: 8,
+                height: 4,
+                format: descriptor.format,
+                ..ImageDescriptor::rgba(8, 4)
+            },
+        )
+        .is_err(),
+        "ordinary image bindings reject array storage"
+    );
+    let before = context.target_pool_usage();
+    for invalid in [
+        TargetDescriptor {
+            array_layers: 0,
+            ..descriptor
+        },
+        TargetDescriptor {
+            array_layers: context.device.limits().max_texture_array_layers + 1,
+            ..descriptor
+        },
+        TargetDescriptor {
+            samples: 4,
+            mip_levels: 1,
+            ..descriptor
+        },
+    ] {
+        assert!(context.acquire_target(invalid).is_err());
+        assert_eq!(context.target_pool_usage(), before);
+    }
+    drop(array);
+    assert_eq!(context.target_pool_usage().live_bytes, 0);
+    assert_eq!(context.target_pool_usage().live_allocations, 0);
+}

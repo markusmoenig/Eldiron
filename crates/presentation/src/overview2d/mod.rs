@@ -6,7 +6,6 @@ use rusterix::{Assets, PrimitiveMode, RepeatMode, Scene, Tile};
 use scenevm::prelude::{Mat3, Vec3};
 use std::{collections::HashMap, sync::Arc};
 use theframework_core::Uuid;
-use wgpu::util::DeviceExt;
 mod sources;
 use sources::{Source, Sources};
 const CELL: u32 = 8;
@@ -34,7 +33,7 @@ struct Occlusion {
 }
 struct Target {
     size: (u32, u32),
-    packed: wgpu::Buffer,
+    packed: renderkit::WorkingBufferLease,
     image: Arc<GpuImage>,
 }
 /// A view retains this owner independently of the host surface and other views.
@@ -47,7 +46,7 @@ pub struct Overview2DRenderer {
     resolve: wgpu::ComputePipeline,
     target: Option<Target>,
     sources: Sources,
-    empty: wgpu::Buffer,
+    empty: renderkit::WorkingBufferLease,
     dummy: Arc<Source>,
 }
 impl Overview2DRenderer {
@@ -122,12 +121,10 @@ impl Overview2DRenderer {
                     cache: None,
                 })
         };
-        let empty = context.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("overview empty metadata"),
-            size: 96,
-            usage: wgpu::BufferUsages::STORAGE,
-            mapped_at_creation: false,
-        });
+        let empty =
+            context.acquire_working_buffer(renderkit::WorkingBufferDescriptor::storage(96))?;
+        context.queue.write_buffer(empty.buffer(), 0, &[0; 96]);
+        context.record_upload(96);
         let mut sources = Sources::new(context.clone());
         let dummy = sources.dummy()?;
         Ok(Self {
@@ -145,23 +142,20 @@ impl Overview2DRenderer {
     pub fn source_resident_bytes(&self) -> usize {
         self.sources.bytes()
     }
-    fn buffer(&self, label: &str, bytes: &[u8], usage: wgpu::BufferUsages) -> Result<wgpu::Buffer> {
-        let limit = u64::from(self.context.device.limits().max_storage_buffer_binding_size)
-            .min(self.context.device.limits().max_buffer_size);
-        if bytes.len() as u64 > limit {
-            return Err(RenderError(
-                "overview metadata exceeds device limits".into(),
-            ));
-        }
-        self.context.record_upload(bytes.len() as u64);
-        Ok(self
+    fn buffer(
+        &self,
+        bytes: &[u8],
+        usage: wgpu::BufferUsages,
+    ) -> Result<renderkit::WorkingBufferLease> {
+        let lease = self
             .context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(label),
-                contents: bytes,
-                usage,
-            }))
+            .acquire_working_buffer(renderkit::WorkingBufferDescriptor {
+                bytes: bytes.len() as u64,
+                usage: usage | wgpu::BufferUsages::COPY_DST,
+            })?;
+        self.context.queue.write_buffer(lease.buffer(), 0, bytes);
+        self.context.record_upload(bytes.len() as u64);
+        Ok(lease)
     }
     fn target(&mut self, size: (u32, u32)) -> Result<()> {
         if self.target.as_ref().is_some_and(|t| t.size == size) {
@@ -177,28 +171,15 @@ impl Overview2DRenderer {
         {
             return Err(RenderError("invalid overview target size".into()));
         }
-        let texture = self
-            .context
-            .device
-            .create_texture(&wgpu::TextureDescriptor {
-                label: Some("overview output"),
-                size: wgpu::Extent3d {
-                    width: size.0,
-                    height: size.1,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8Unorm,
-                usage: wgpu::TextureUsages::STORAGE_BINDING
-                    | wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::COPY_SRC,
-                view_formats: &[],
-            });
-        let image = Arc::new(GpuImage::from_texture(
+        let lease = self.context.acquire_target(renderkit::TargetDescriptor {
+            usage: wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            ..renderkit::TargetDescriptor::color(size.0, size.1, wgpu::TextureFormat::Rgba8Unorm)
+        })?;
+        let image = GpuImage::from_target(
             &self.context,
-            texture,
+            lease,
             ImageDescriptor {
                 width: size.0,
                 height: size.1,
@@ -206,13 +187,10 @@ impl Overview2DRenderer {
                 color_space: renderkit::ColorSpace::Srgb,
                 alpha_mode: renderkit::AlphaMode::Opaque,
             },
-        )?);
-        let packed = self.context.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("overview GPU color storage"),
-            size: bytes,
-            usage: wgpu::BufferUsages::STORAGE,
-            mapped_at_creation: false,
-        });
+        )?;
+        let packed = self
+            .context
+            .acquire_working_buffer(renderkit::WorkingBufferDescriptor::storage(bytes))?;
         self.target = Some(Target {
             size,
             packed,
@@ -241,7 +219,7 @@ impl Overview2DRenderer {
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: target.packed.as_entire_binding(),
+                        resource: target.packed.buffer().as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
@@ -261,7 +239,7 @@ impl Overview2DRenderer {
                     },
                     wgpu::BindGroupEntry {
                         binding: 6,
-                        resource: source.sizes.as_entire_binding(),
+                        resource: source.sizes.buffer().as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 7,
@@ -368,7 +346,6 @@ impl Overview2DRenderer {
             occlusions.clone()
         };
         let occlusion_buffer = self.buffer(
-            "overview occlusions",
             bytemuck::cast_slice(&occlusion_data),
             wgpu::BufferUsages::STORAGE,
         )?;
@@ -392,16 +369,12 @@ impl Overview2DRenderer {
                 255,
             ],
         };
-        let clear_params = self.buffer(
-            "overview clear params",
-            bytemuck::bytes_of(&params),
-            wgpu::BufferUsages::UNIFORM,
-        )?;
+        let clear_params = self.buffer(bytemuck::bytes_of(&params), wgpu::BufferUsages::UNIFORM)?;
         let clear_bindings = self.bindings(
-            &clear_params,
-            &self.empty,
-            &self.empty,
-            &occlusion_buffer,
+            clear_params.buffer(),
+            self.empty.buffer(),
+            self.empty.buffer(),
+            occlusion_buffer.buffer(),
             &self.dummy,
         );
         let mut encoder =
@@ -411,6 +384,9 @@ impl Overview2DRenderer {
                     label: Some("overview frame"),
                 });
         Self::dispatch(&mut encoder, &self.clear, &clear_bindings, size);
+        // Raw bind-group/encoder handles do not pin pooled allocations. Keep
+        // every batch and source lease until all ordered passes are submitted.
+        let mut batch_leases = Vec::new();
         for batch in scene.d2_static.iter().chain(&scene.d2_dynamic) {
             if batch.mode != PrimitiveMode::Triangles {
                 return Err(RenderError(
@@ -459,15 +435,11 @@ impl Overview2DRenderer {
                 self.context.device.limits().max_storage_buffer_binding_size as usize / 4,
             )?;
             let triangle_buffer = self.buffer(
-                "overview triangles",
                 bytemuck::cast_slice(&triangles),
                 wgpu::BufferUsages::STORAGE,
             )?;
-            let bin_buffer = self.buffer(
-                "overview geometry bins",
-                bytemuck::cast_slice(&bins),
-                wgpu::BufferUsages::STORAGE,
-            )?;
+            let bin_buffer =
+                self.buffer(bytemuck::cast_slice(&bins), wgpu::BufferUsages::STORAGE)?;
             let base = tile.frame_index(scene.animation_frame);
             let pages = tile.uv_pages.as_ref().filter(|pages| {
                 batch.repeat_mode == RepeatMode::RepeatXY && pages.size.iter().all(|n| *n > 0)
@@ -521,19 +493,16 @@ impl Overview2DRenderer {
                 }
                 params.period[2] = 1.;
             }
-            let uniform = self.buffer(
-                "overview batch params",
-                bytemuck::bytes_of(&params),
-                wgpu::BufferUsages::UNIFORM,
-            )?;
+            let uniform = self.buffer(bytemuck::bytes_of(&params), wgpu::BufferUsages::UNIFORM)?;
             let bindings = self.bindings(
-                &uniform,
-                &triangle_buffer,
-                &bin_buffer,
-                &occlusion_buffer,
+                uniform.buffer(),
+                triangle_buffer.buffer(),
+                bin_buffer.buffer(),
+                occlusion_buffer.buffer(),
                 &source,
             );
             Self::dispatch(&mut encoder, &self.draw, &bindings, size);
+            batch_leases.push((source, uniform, triangle_buffer, bin_buffer));
         }
         Self::dispatch(&mut encoder, &self.resolve, &clear_bindings, size);
         self.context.queue.submit([encoder.finish()]);
