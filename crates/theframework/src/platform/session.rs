@@ -17,6 +17,7 @@ pub enum HostRequest {
 /// Logical positions use floating-point precision; density is applied once by
 /// the presenter and native platform adapters, including Swift/Xcode hosts.
 pub struct HostContext {
+    pub wake: super::ApplicationWake,
     pub physical_size: (u32, u32),
     pub logical_size: [f32; 2],
     pub density: f32,
@@ -28,6 +29,7 @@ pub struct HostContext {
 impl HostContext {
     pub fn new(logical_size: (u32, u32)) -> Self {
         Self {
+            wake: Default::default(),
             physical_size: logical_size,
             logical_size: [logical_size.0 as f32, logical_size.1 as f32],
             density: 1.,

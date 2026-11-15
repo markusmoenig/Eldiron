@@ -120,7 +120,7 @@ mod tests {
     }
 }
 
-pub(super) fn start(slug: String, tx: std::sync::mpsc::Sender<Result<Palette, String>>) {
+pub(super) fn start(slug: String, tx: theframework::platform::WakeSender<Result<Palette, String>>) {
     #[cfg(not(target_arch = "wasm32"))]
     std::thread::spawn(move || {
         let _ = tx.send(fetch(&slug));

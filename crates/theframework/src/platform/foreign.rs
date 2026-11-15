@@ -18,11 +18,23 @@ pub struct ForeignApplicationHost<A: GpuApplication> {
 
 impl<A: GpuApplication> ForeignApplicationHost<A> {
     pub fn new(
+        application: A,
+        presenter: GpuPresenter<'static>,
+        density: f32,
+    ) -> Result<Self> {
+        Self::with_wake(application, presenter, density, ApplicationWake::default())
+    }
+
+    /// A native wrapper can resume its display callback when work arrives.
+    /// Continuous display-link hosts can use the default flag-only signal.
+    pub fn with_wake(
         mut application: A,
         mut presenter: GpuPresenter<'static>,
         density: f32,
+        wake: ApplicationWake,
     ) -> Result<Self> {
         let mut host = HostContext::new(presenter.surface.physical_size());
+        host.wake = wake;
         host.resize(presenter.surface.physical_size(), density);
         application.initialize(&mut host, &mut presenter.images)?;
         let now = Instant::now();
@@ -55,7 +67,7 @@ impl<A: GpuApplication> ForeignApplicationHost<A> {
     /// callbacks faster than the requested cadence do not multiply CPU updates.
     pub fn update(&mut self) {
         let now = Instant::now();
-        if self.next_update.is_some_and(|deadline| now >= deadline) {
+        if self.host.wake.take_pending() || self.next_update.is_some_and(|deadline| now >= deadline) {
             let request = self
                 .application
                 .update(&mut self.host, now - self.last_update);

@@ -57,7 +57,7 @@ use std::sync::mpsc::Receiver;
 ))]
 use std::sync::{
     Arc, Mutex,
-    mpsc::{Sender, channel},
+    mpsc::channel,
 };
 
 #[cfg(all(
@@ -484,6 +484,7 @@ pub struct Editor {
 
     server_ctx: CreatorContext,
 
+    application_wake: Option<theframework::platform::ApplicationWake>,
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -491,7 +492,7 @@ pub struct Editor {
     #[cfg(not(target_arch = "wasm32"))]
     scepter_receiver: Option<Receiver<ScepterEvent>>,
     #[cfg(not(target_arch = "wasm32"))]
-    scepter_sender: Option<std::sync::mpsc::Sender<ScepterEvent>>,
+    scepter_sender: Option<theframework::platform::WakeSender<ScepterEvent>>,
     #[cfg(not(target_arch = "wasm32"))]
     scepter_tracking: scepter_context::Tracking,
     #[cfg(not(target_arch = "wasm32"))]
@@ -510,7 +511,7 @@ pub struct Editor {
         feature = "self-update",
         any(target_os = "windows", target_os = "linux", target_os = "macos")
     ))]
-    self_update_tx: Sender<SelfUpdateEvent>,
+    self_update_tx: theframework::platform::WakeSender<SelfUpdateEvent>,
     #[cfg(all(
         feature = "self-update",
         any(target_os = "windows", target_os = "linux", target_os = "macos")
@@ -5207,7 +5208,9 @@ impl Editor {
 
         let (tx, rx) = std::sync::mpsc::channel();
         self.example_loader_rx = Some(rx);
-        Self::start_example_manifest(tx);
+        Self::start_example_manifest(theframework::platform::WakeSender::new(
+            tx, self.application_wake.clone(),
+        ));
     }
 
     fn rebuild_example_project_list(&self, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -7927,6 +7930,7 @@ impl TheTrait for Editor {
 
             server_ctx: CreatorContext::default(),
 
+            application_wake: None,
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
             #[cfg(not(target_arch = "wasm32"))]
@@ -7953,7 +7957,7 @@ impl TheTrait for Editor {
                 feature = "self-update",
                 any(target_os = "windows", target_os = "linux", target_os = "macos")
             ))]
-            self_update_tx,
+            self_update_tx: self_update_tx.into(),
             #[cfg(all(
                 feature = "self-update",
                 any(target_os = "windows", target_os = "linux", target_os = "macos")
@@ -7985,7 +7989,7 @@ impl TheTrait for Editor {
     fn init(&mut self, _ctx: &mut TheContext) {
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let (service, receiver) = ScepterService::start();
+            let (service, receiver) = ScepterService::start_with_wake(self.application_wake.clone());
             self.scepter_sender = service.sender();
             self.scepter_receiver = Some(receiver);
             println!("{}", service.status_line());
@@ -10939,7 +10943,12 @@ impl TheTrait for Editor {
                                     TheId::empty(),
                                     fl!("example_loading_project"),
                                 ));
-                                Self::start_example_project(project_path, manifest_id, tx);
+                                Self::start_example_project(
+                                    project_path, manifest_id,
+                                    theframework::platform::WakeSender::new(
+                                        tx, self.application_wake.clone(),
+                                    ),
+                                );
                             } else {
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),

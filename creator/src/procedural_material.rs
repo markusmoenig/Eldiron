@@ -1340,6 +1340,7 @@ fn insertion_index(row: &format::Row, after: Option<&str>) -> Result<usize, Stri
 
 #[derive(Default)]
 pub struct ProceduralMaterialEditor {
+    application_wake: Option<theframework::platform::ApplicationWake>,
     mesh_material: bool,
     back_label: Option<bool>,
     composition_parents: Vec<(Uuid, usize, Option<shared::material_composition::MapMaterialBinding>, bool)>,
@@ -1388,6 +1389,12 @@ pub struct ProceduralMaterialEditor {
     model_sources: model_source::State,
 }
 impl ProceduralMaterialEditor {
+    pub(crate) fn bind_wake(&mut self, wake: theframework::platform::ApplicationWake) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.model_sources.bind_wake(wake.clone());
+        self.application_wake = Some(wake);
+    }
+
     fn native_preview_enabled(&self) -> bool {
         #[cfg(feature = "native-render")]
         { self.native.enabled }
@@ -1518,6 +1525,9 @@ impl ProceduralMaterialEditor {
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.model_sources = Default::default();
+            if let Some(wake) = &self.application_wake {
+                self.model_sources.bind_wake(wake.clone());
+            }
         }
         self.requested.clear();
         #[cfg(feature = "native-render")]

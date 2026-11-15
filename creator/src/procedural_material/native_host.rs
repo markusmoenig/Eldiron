@@ -365,6 +365,13 @@ impl Host {
     }
 }
 impl ProceduralMaterialEditor {
+    pub(crate) fn native_preview_animated(&self) -> bool {
+        self.active && self.native.latest.is_some()
+            && self.native.source.as_ref().is_some_and(|source| {
+                source.frames > 1 && matches!(&source.asset, Ok(Some(_)))
+            })
+    }
+
     pub(crate) fn enable_gpu_preview(&mut self) {
         self.native.enabled = true;
         self.worker = None;
@@ -451,7 +458,9 @@ impl ProceduralMaterialEditor {
         if ((graph_visible && self.tile.is_some()) || self.native.needs_asset_worker)
             && self.native.worker_generation != Some(images.context().generation())
         {
-            self.worker = Some(gpu::Worker::new_asset_bakes(images.context().clone()));
+            self.worker = Some(gpu::Worker::new_asset_bakes_with_wake(
+                images.context().clone(), self.application_wake.clone(),
+            ));
             self.native.worker_generation = Some(images.context().generation());
             self.native.asset_job_pending = true;
             self.requested.clear();

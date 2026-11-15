@@ -297,12 +297,17 @@ pub struct Worker {
 }
 #[derive(Default)]
 pub struct State {
+    wake: Option<theframework::platform::ApplicationWake>,
     worker: Option<Worker>,
     input: Option<u64>,
     requested: std::collections::HashMap<(Uuid, String), u64>,
     pending: std::collections::HashMap<(Uuid, String), u64>,
 }
 impl State {
+    pub fn bind_wake(&mut self, wake: theframework::platform::ApplicationWake) {
+        self.wake = Some(wake);
+    }
+
     pub fn pending(&self, tile: Uuid) -> bool {
         self.pending.keys().any(|(id, _)| *id == tile)
     }
@@ -413,7 +418,7 @@ impl State {
                 self.input = None;
                 return changed;
             };
-            self.worker = Some(Worker::new(device, queue));
+            self.worker = Some(Worker::with_wake(device, queue, self.wake.clone()));
         }
         let snapshot = Arc::new(project.clone());
         for (tile, operation, key, settings) in requests {
@@ -431,9 +436,10 @@ impl State {
     }
 }
 impl Worker {
-    pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
+    fn with_wake(device: wgpu::Device, queue: wgpu::Queue, wake: Option<theframework::platform::ApplicationWake>) -> Self {
         let (jobs, incoming) = mpsc::channel::<Request>();
         let (done, results) = mpsc::channel();
+        let done = theframework::platform::WakeSender::new(done, wake);
         std::thread::Builder::new()
             .name("MZ model images".into())
             .spawn(move || {

@@ -86,6 +86,7 @@ impl UiApplication for NativeCreatorApplication {
     }
     fn initialize(&mut self, ui: &mut UiSession, images: &mut UiFrameImages<'_>) -> Result<()> {
         let mut profile = crate::misc::FrameProfile::new();
+        self.editor.bind_native_wake(ui.wake.clone());
         self.editor
             .bind_native_reference_context(images.registry.context().clone());
         // Preserve Creator's existing root/layout bootstrap before docks are
@@ -235,12 +236,17 @@ impl UiApplication for NativeCreatorApplication {
         // A smoke run deliberately needs three presentation acknowledgements;
         // a normal static editor must not redraw merely to satisfy this probe.
         redraw |= self.smoke && self.presentations < 3;
+        let wake_after = self.editor.native_update_wake_after(redraw)
+            .into_iter()
+            .chain(self.deadline.filter(|_| self.presentations < 3)
+                .map(|due| due.saturating_duration_since(Instant::now())))
+            .chain(self.idle_probe.as_ref().and_then(|probe| probe.started.map(|(start, _)| {
+                probe.duration.saturating_sub(start.elapsed())
+            })))
+            .min();
         FrameRequest {
             redraw,
-            wake_after: Some(self.editor.native_runtime_wake_after().map_or(
-                Duration::from_secs_f64(1. / self.editor.target_fps().clamp(1., 240.)),
-                |audio| audio.min(Duration::from_secs_f64(1. / self.editor.target_fps().clamp(1., 240.))),
-            )),
+            wake_after,
         }
     }
     fn frame(&mut self, ui: &mut UiSession, images: &mut UiFrameImages<'_>) -> Result<PaintList> {

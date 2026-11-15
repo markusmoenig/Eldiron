@@ -96,19 +96,37 @@ impl UpdateTracker {
 
         if now >= self.next_redraw_update {
             redraw_update = true;
-            while self.next_redraw_update <= now {
-                self.next_redraw_update += redraw_period;
-            }
+            Self::advance_deadline(&mut self.next_redraw_update, now, redraw_period);
         }
 
         if now >= self.next_tick_update {
             tick_update = true;
-            while self.next_tick_update <= now {
-                self.next_tick_update += tick_period;
-            }
+            Self::advance_deadline(&mut self.next_tick_update, now, tick_period);
         }
 
         (redraw_update, tick_update)
+    }
+
+    /// Preserve the original clock phase without replaying elapsed periods
+    /// after a long idle/suspend. This is scheduling, not simulation catch-up.
+    fn advance_deadline(deadline: &mut Instant, now: Instant, period: Duration) {
+        let remainder = now.duration_since(*deadline).as_nanos() % period.as_nanos();
+        let remainder = Duration::new(
+            (remainder / 1_000_000_000) as u64,
+            (remainder % 1_000_000_000) as u32,
+        );
+        *deadline = now + (period - remainder);
+    }
+
+    pub fn wake_after(&self, redraw: bool, tick: bool) -> Option<Duration> {
+        let now = Instant::now();
+        redraw.then_some(self.next_redraw_update)
+            .into_iter()
+            // Editor visual animation retains its previous presentation cap.
+            // The GameSession clock supplies simulation/audio deadlines itself.
+            .chain(tick.then_some(self.next_tick_update.max(self.next_redraw_update)))
+            .map(|deadline| deadline.saturating_duration_since(now))
+            .min()
     }
 
     // fn calculate_and_reset_fps(&mut self) {

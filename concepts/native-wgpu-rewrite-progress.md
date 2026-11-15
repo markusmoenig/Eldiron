@@ -54,7 +54,7 @@ behavior is ready to verify.
 
 ## Next work
 
-1. Finish retained layout/collection contributions and independent Creator/job/service deadlines. Typed layout/paint/resource/scene invalidation, hover-help/file-request/caret deadlines and16 retained standard control families are now connected. Creator still requests periodic application updates for its runtime/worker/service work; close that ownership before removing its wakeups. Complete integration before the consolidated tests.
+1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,16 retained standard control families and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
 2. Close remaining live source/publication/worker policy and canonical Creator/player ownership/adapters. Private bake large-source paging is release-compiled; do not keep adding isolated bake edge-case test runs while port implementation remains. Preserve actual shipped workflows and avoid inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
@@ -13969,3 +13969,78 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   handles terminal; no functional/GPU/performance suite run. Verify scope/focus/
   embedded fields/composition/caret and retained mutation/replacement/font/theme/
   DPI behavior in the later integrated matrix; compilation is not that proof.
+
+
+## Application wake ownership and Creator deadlines (2026-11-15)
+
+- Previous goal turn is progress:6b3e7702 editor caret clock/control retention.
+  Tracked worktree clean at start; concurrent networking concept untouched.
+  Full M0-M9 remains active. User continues to prioritize implementation before
+  broad functional/GPU/performance validation; compilation uses release only.
+- Added backend-neutral ApplicationWake and WakeSender. Each host owns one
+  coalescing pending flag; messages are queued before requesting an update.
+  Native callback closures are Send+Sync; browser callback closures stay on the
+  owning event loop and do not falsely advertise GPU/proxy Send guarantees.
+  Winit maps notifications to its user-event queue. Foreign display-link hosts
+  consume the flag before their next requested update, and with_wake permits a
+  native wrapper to supply a display-resume callback. A wake itself never marks
+  a rendered frame dirty. Host/UI/application clones share only their own owner.
+- Creator binds this host signal before UI/services/jobs start. Scepter request/
+  prepared-edit channels, example manifest/project loading, Lospec palette
+  loading, optional self-update messages, native MaterialZ asset results and
+  model-image results now wake their owner. Material model-source reset preserves
+  the bound wake signal. Existing cancellation, source/request/revision checks,
+  result queues and native/browser backpressure remain in their original owners.
+- Browser correction: procedural_material.rs selects browser_bakes.rs as gpu
+  on wasm; the native gpu.rs constructor is not the browser implementation.
+  Wake delivery is added to that existing bounded/abortable cooperative worker,
+  preserving its64-job queue and two-result backpressure. No duplicate browser
+  worker or OS-thread branch added. An initial browser compile rejected the
+  overly strong native callback bounds; target-specific callback ownership fixes
+  that without unsafe Send/Sync. The first browser constructor rename was also
+  corrected against the actual cfg-selected module. Final connected browser
+  release compilation PASS11.65s; log:
+  /private/tmp/eldiron-creator-wake-port-release-web-final.log.
+- Extracted Creator scheduling into editor/native_schedule.rs. Its next update
+  comes from settling work, active Play/GameInput, owned camera motion, recent
+  interaction, pending scene/view/bake work, existing2D/Prefab FX/minimap
+  animation and the independent GameSession/audio clock. Smoke/idle probes keep
+  their own expiration deadlines. Inactive camera/context work does not keep
+  waking a stopped authoring view; unowned empty-project scene queues are not
+  treated as runnable. Idle source delivery can wake an application that asked
+  for no periodic update.
+- UpdateTracker exposes its actual next visual deadlines. Constant-time phase
+  advancement replaces loops over every elapsed period after long idle/suspend.
+  It still emits one update decision, preserving phase rather than introducing
+  simulation catch-up. Visual tick wakes retain the prior presentation cap;
+  GameSession supplies independent simulation/audio deadlines. Animated native
+  material previews also declare their tick demand from their visible prepared
+  source's frame count so sleeping cannot freeze an animated preview.
+- Initial canonical four-application release compilation PASS29.37s. Later full
+  native release PASS28.57s; Apple/staticlib feature release PASS41.88s; UI-only
+  Framework release PASS2.35s; self-update feature release PASS30.55s. Logs:
+  /private/tmp/eldiron-creator-wake-port-release{,-final,-apple,-cpu-ui,-self-update}.log.
+  Final material-animation/presentation-cap integration native release PASS12.09s
+  and browser Creator release PASS28.51s; logs:
+  /private/tmp/eldiron-creator-wake-port-release-scheduled-final.log and
+  /private/tmp/eldiron-creator-wake-port-release-web-scheduled-final.log. These are compilation checks,
+  not physical Apple, actual idle/timing, lifecycle or measured speedup evidence.
+- Required integrated checks remain: idle then external service/source delivery;
+  two independent hosts; queue pressure/coalescing and retirement while work is
+  pending; document switch/reset and GPU reconstruction; animation/caret/menu
+  behavior, short and long tick periods, pause/minimize/resume and low-FPS
+  simulation/audio delivery; actual wake/update/present counts and matched
+  release CPU/native timing/latency/peak memory. No functional/GPU/performance
+  suite run in this implementation batch. Current project/paint serialization
+  unchanged. Next: retained layout/collection coverage and live changed paint/
+  stamp source worker/publication policy, then remaining ownership/platform work.
+- Winit consumes the pending flag in about_to_wait rather than scheduling
+  another update from an already-consumed queued wake event. This preserves
+  coalescing when notifications overlap normal input/deadline updates. Final
+  host compilation is being collected; no runtime coalescing proof claimed.
+- Final host/coalescing integration Creator release compilation PASS28.27s
+  and browser Creator release PASS27.73s. Logs:
+  /private/tmp/eldiron-creator-wake-port-release-host-final.log and
+  /private/tmp/eldiron-creator-wake-port-release-web-host-final.log. All compiler
+  sessions terminal. No functional/GPU/performance test batch ran; no M0-M9 gate
+  is marked complete from compilation. Concurrent networking concept unmodified.

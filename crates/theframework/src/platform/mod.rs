@@ -2,6 +2,8 @@
 //! or CPU framebuffer is owned by this layer.
 mod ime;
 mod input;
+mod wake;
+pub use wake::{ApplicationWake, WakeSender};
 pub mod image_clipboard;
 pub use image_clipboard::{ImageClipboardRequest, ImageClipboardResult};
 pub use ime::ImeSession;

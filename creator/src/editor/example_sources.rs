@@ -27,7 +27,9 @@ impl Editor {
             .unwrap_or_default()
     }
 
-    pub(super) fn start_example_manifest(tx: std::sync::mpsc::Sender<Vec<ExampleProjectEntry>>) {
+    pub(super) fn start_example_manifest(
+        tx: theframework::platform::WakeSender<Vec<ExampleProjectEntry>>,
+    ) {
         #[cfg(not(target_arch = "wasm32"))]
         std::thread::spawn(move || {
             let _ = tx.send(Self::load_example_manifest());
@@ -64,7 +66,7 @@ impl Editor {
     pub(super) fn start_example_project(
         path: String,
         manifest: String,
-        tx: std::sync::mpsc::Sender<(String, Option<Project>)>,
+        tx: theframework::platform::WakeSender<(String, Option<Project>)>,
     ) {
         #[cfg(not(target_arch = "wasm32"))]
         std::thread::spawn(move || {

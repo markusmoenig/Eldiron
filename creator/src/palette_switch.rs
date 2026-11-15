@@ -5,6 +5,7 @@ mod lospec;
 const DIALOG: &str = "Switch Project Palette";
 #[derive(Default)]
 pub struct PaletteSwitchController {
+    wake: Option<theframework::platform::ApplicationWake>,
     pending: Option<PaletteSwitch>,
     receiver: Option<std::sync::mpsc::Receiver<Result<lospec::Palette, String>>>,
     source_label: Option<String>,
@@ -63,6 +64,10 @@ pub(crate) fn ramps(project: &Project) -> Vec<Vec<u16>> {
     result
 }
 impl PaletteSwitchController {
+    pub(crate) fn bind_wake(&mut self, wake: theframework::platform::ApplicationWake) {
+        self.wake = Some(wake);
+    }
+
     pub fn reset(&mut self) {
         self.pending = None;
         self.receiver = None;
@@ -147,7 +152,9 @@ impl PaletteSwitchController {
                             Ok(slug) => {
                                 let (tx, rx) = std::sync::mpsc::channel();
                                 self.receiver = Some(rx);
-                                lospec::start(slug, tx);
+                                lospec::start(
+                                    slug, theframework::platform::WakeSender::new(tx, self.wake.clone()),
+                                );
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
                                     "Loading Lospec palette…".into(),

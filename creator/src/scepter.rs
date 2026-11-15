@@ -8,7 +8,8 @@ use std::sync::{
 pub mod jobs;
 mod transport;
 use std::net::{TcpListener, TcpStream};
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::mpsc::{Receiver, channel};
+use theframework::platform::{ApplicationWake, WakeSender};
 use std::thread;
 use std::time::Duration;
 
@@ -52,18 +53,19 @@ impl Default for ScepterRegionRequest {
 pub struct ScepterService {
     address: String,
     started: bool,
-    tx: Option<Sender<ScepterEvent>>,
+    tx: Option<WakeSender<ScepterEvent>>,
     stop: Arc<AtomicBool>,
     worker: Option<thread::JoinHandle<()>>,
 }
 
 impl ScepterService {
-    pub fn sender(&self) -> Option<Sender<ScepterEvent>> {
+    pub fn sender(&self) -> Option<WakeSender<ScepterEvent>> {
         self.tx.clone()
     }
 
-    pub fn start() -> (Self, Receiver<ScepterEvent>) {
+    pub fn start_with_wake(wake: Option<ApplicationWake>) -> (Self, Receiver<ScepterEvent>) {
         let (tx, rx) = channel();
+        let tx = WakeSender::new(tx, wake);
         let address = format!("{SCEPTER_HOST}:{SCEPTER_PORT}");
         let mut service = Self {
             address: address.clone(),
@@ -114,7 +116,7 @@ impl Drop for ScepterService {
         }
     }
 }
-fn run_listener(listener: TcpListener, tx: Sender<ScepterEvent>, stop: Arc<AtomicBool>) {
+fn run_listener(listener: TcpListener, tx: WakeSender<ScepterEvent>, stop: Arc<AtomicBool>) {
     let registry = Arc::new(jobs::Registry::default());
     let active = Arc::new(AtomicUsize::new(0));
     while !stop.load(Ordering::Acquire) {
@@ -148,7 +150,7 @@ fn run_listener(listener: TcpListener, tx: Sender<ScepterEvent>, stop: Arc<Atomi
         }
     }
 }
-fn handle_stream(mut stream: TcpStream, tx: &Sender<ScepterEvent>, registry: &jobs::Registry) {
+fn handle_stream(mut stream: TcpStream, tx: &WakeSender<ScepterEvent>, registry: &jobs::Registry) {
     let _ = stream.set_nonblocking(false);
     let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
     let request = match transport::read(&mut stream) {
@@ -356,12 +358,13 @@ mod tests {
     use super::*;
     use std::io::Read;
     fn exchange(
-        tx: Sender<ScepterEvent>,
+        tx: impl Into<WakeSender<ScepterEvent>>,
         registry: Arc<jobs::Registry>,
         method: &str,
         path: &str,
         body: serde_json::Value,
     ) -> (u16, serde_json::Value) {
+        let tx = tx.into();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         let server = thread::spawn(move || {

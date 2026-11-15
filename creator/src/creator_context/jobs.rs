@@ -8,6 +8,12 @@ pub struct CreatorJobs {
     scene: OnceCell<RefCell<SceneManager>>,
 }
 impl CreatorJobs {
+    pub fn has_pending_scene(&self) -> bool {
+        self.scene
+            .get()
+            .is_some_and(|scene| scene.borrow().has_pending_geometry())
+    }
+
     pub fn receive_scene(&self) -> Option<SceneManagerResult> {
         self.existing_scene_mut()
             .and_then(|mut scene| scene.receive())

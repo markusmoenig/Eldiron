@@ -41,7 +41,10 @@ mod worker {
         pub results: Results,
     }
     impl Worker {
-        pub fn new_asset_bakes(context: Arc<renderkit::GpuContext>) -> Self {
+        pub fn new_asset_bakes_with_wake(
+            context: Arc<renderkit::GpuContext>,
+            wake: Option<theframework::platform::ApplicationWake>,
+        ) -> Self {
             let inbox = Rc::new(RefCell::new(Inbox::default()));
             let queue = inbox.clone();
             let canceled = Arc::new(AtomicBool::new(false));
@@ -86,7 +89,12 @@ mod worker {
                     };
                     loop {
                         match send.try_send(completed) {
-                            Ok(()) => break,
+                            Ok(()) => {
+                                if let Some(wake) = &wake {
+                                    wake.request_update();
+                                }
+                                break;
+                            }
                             Err(mpsc::TrySendError::Disconnected(_)) => return,
                             Err(mpsc::TrySendError::Full(result)) => {
                                 completed = result;

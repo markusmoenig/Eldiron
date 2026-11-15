@@ -8,6 +8,8 @@ mod world;
 mod play;
 #[path = "native_game_input.rs"]
 mod game_input;
+#[path = "native_schedule.rs"]
+mod schedule;
 use play::NativePlayFrame;
 use viewport::NativeDisplayFrame;
 pub(crate) use viewport::NativeViewport;
@@ -154,6 +156,7 @@ impl Editor {
         running
             || self.authoring_is_interacting()
             || self.geometry_editor.wants_realtime()
+            || (tick && self.procedural_material.native_preview_animated())
             || (tick
                 && self.native_world_owns_viewport()
                 && (self.server_ctx.shared.editor_view_mode == EditorViewMode::D2

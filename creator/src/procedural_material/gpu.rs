@@ -140,8 +140,15 @@ impl Worker {
     }
     /// Native display has its own GPU outputs. This worker returns authored
     /// tile/surface-page assets; interactive graph thumbnails stay on the GPU.
-    #[cfg(feature = "native-render")]
+    #[cfg(all(feature = "native-render", test))]
     pub(super) fn new_asset_bakes(context: std::sync::Arc<renderkit::GpuContext>) -> Self {
+        Self::new_asset_bakes_with_wake(context, None)
+    }
+    #[cfg(feature = "native-render")]
+    pub(super) fn new_asset_bakes_with_wake(
+        context: std::sync::Arc<renderkit::GpuContext>,
+        wake: Option<theframework::platform::ApplicationWake>,
+    ) -> Self {
         let (jobs, rx) = mpsc::sync_channel::<Job>(64);
         let (tx, results) = mpsc::sync_channel(2);
         let canceled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -183,6 +190,9 @@ impl Worker {
                         .is_err()
                     {
                         break;
+                    }
+                    if let Some(wake) = &wake {
+                        wake.request_update();
                     }
                 }
             })

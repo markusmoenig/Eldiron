@@ -30,6 +30,7 @@ struct ClipboardState {
 }
 
 enum HostEvent {
+    Wake,
     GpuFault(u64),
     Ready(u64, Result<GpuPresenter<'static>>),
     Clipboard(u64, ClipboardResult),
@@ -358,6 +359,9 @@ impl ApplicationHandler<HostEvent> for Host {
     }
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: HostEvent) {
         match event {
+            // The event wakes the loop; about_to_wait consumes the coalesced
+            // flag. A stale queued event must not schedule a second update.
+            HostEvent::Wake => (),
             HostEvent::GpuFault(epoch) => {
                 if epoch != self.epoch || self.suspended { return; }
                 let Some(presenter) = &self.presenter else { return; };
@@ -653,6 +657,9 @@ impl ApplicationHandler<HostEvent> for Host {
             return;
         }
         let now = Instant::now();
+        if self.context.wake.take_pending() {
+            self.next_update = Some(now);
+        }
         if self.next_update.is_some_and(|next| now >= next) {
             let request = self.app.update(&mut self.context, now - self.last_update);
             self.last_update = now;
@@ -888,11 +895,16 @@ pub fn run(app: Box<dyn GpuApplication>) -> Result<()> {
         .map_err(|e| RenderError(e.to_string()))?;
     let proxy = event_loop.create_proxy();
     let size = app.initial_size();
+    let mut context = HostContext::new(size);
+    let wake_proxy = proxy.clone();
+    context.wake = ApplicationWake::with_notify(move || {
+        let _ = wake_proxy.send_event(HostEvent::Wake);
+    });
     let now = Instant::now();
     #[allow(unused_mut)]
     let mut host = Host {
         app,
-        context: HostContext::new(size),
+        context,
         window: None,
         presenter: None,
         fault_listener: None,

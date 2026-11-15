@@ -195,7 +195,7 @@ mod tests {
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(800, 600, 1.);
         let (tx, rx) = std::sync::mpsc::channel();
-        editor.scepter_sender = Some(tx);
+        editor.scepter_sender = Some(tx.into());
         let id = Uuid::new_v4();
         let command = |dry_run| {
             ScepterCommand::Transaction(Transaction {

@@ -8,6 +8,7 @@ use crate::{
 };
 use renderkit::{ImageRegistry, RenderError, Result};
 pub struct UiSession {
+    pub wake: ApplicationWake,
     pub ui: TheUI,
     pub context: TheContext,
     pub requests: Vec<HostRequest>,
@@ -28,6 +29,7 @@ impl UiSession {
         let mut ui = TheUI::new();
         ui.init(&mut context);
         Self {
+            wake: Default::default(),
             ui,
             context,
             requests: Vec::new(),
@@ -284,6 +286,7 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
         self.platform_state(host);
     }
     fn initialize(&mut self, host: &mut HostContext, images: &mut ImageRegistry) -> Result<()> {
+        self.session.wake = host.wake.clone();
         self.resize(host);
         self.application
             .initialize(&mut self.session, &mut self.images.frame(images))?;
