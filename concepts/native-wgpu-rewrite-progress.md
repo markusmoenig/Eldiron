@@ -18403,3 +18403,52 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   /private/tmp/eldiron-release-cpu-consolidated-source-alpha.log. Existing unrelated
   ruleset/shipped-data baseline failures remain classified, not repaired through
   authored data changes. No ignored maintenance/export/profile cases included.
+
+- CPU3349terminal exit101 after835PASS,6FAIL,2ignored: ruleset85PASS,runtime7PASS,
+  shared175PASS(+1ignored decoder profile),core9PASS; Rusterix559PASS/6FAIL/1ignored.
+  Exact same six documented baseline failures: unbound ruleset icon base color,
+  Nessa advice[], shipped Torch source, door message, startup previous-item
+  context unwrap, official defaults4vs7. No new CPU failures; strict nested
+  source guard passes. No authored data modified. Durable release-cpu-source-alpha.json.
+- Pan/zoom profile follow-up found avoidable backend compute encoder creation.
+  WGPU29.0.3 command/compute.rs:279–367 explicitly creates a fresh usage scope
+  and drains storage barriers before EACH dispatch, even unchanged bindings.
+  WebGPU specifies per-dispatch compute usage scopes:
+  https://www.w3.org/TR/webgpu/#programming-model-synchronization . Separate
+  passes are not required for the existing wave dependencies.
+- Performance implementation now coalesces batched surfaces into one compute
+  pass while keeping every wave and dispatch in identical order, same shader,
+  bindings, headers and f32 math. Existing individual fallback remains unchanged.
+  Diagnostic now distinguishes one actual pass from dependency wave count.
+  No backend-specific feature/limit assumptions or weakened ordering.
+- Current sole release GPU handle18543 verifies noncommutative storage checksum
+  through4101dependent dispatches in ONE pass, alongside original4101multi-pass
+  bounded-queue contract. /private/tmp/eldiron-release-compute-dispatch-order.log.
+  Next frozen exact original-individual/batched surface comparison and original
+  isometric integrations, current Creator release and fresh large native pilot.
+  Current615foundation snapshot predates this production performance change;
+  no new speedup/source-equality claim until results are observed.
+
+- Per-dispatch order18543terminalPASS2/2 in0.24s, including original128pass
+  submission-bounded4101dependency test and new one-pass4101noncommutative
+  checksum with unchanged bindings. No GPU loss or color readback.
+- Coalesced surface20509terminalPASS4/4 library contracts (frozen individual GPU
+  vs batched ALLRGBAbyteexact over fractional large-world terrain/floors, repeat/
+  clamp and secondary blends; overlap wave proofs and acknowledged input), plus
+  original11/11 occlusion/paint/receipts/surfaces integrations. No source math,
+  alpha/depth/protection or tolerance changes. Logs
+  /private/tmp/eldiron-release-coalesced-{surface-exactness,isometric-integrations}.log.
+- Current sole release Creator compiler/assembled handle27748;
+  /private/tmp/eldiron-release-coalesced-creator-assembled.log. Next fresh native
+  diagnostic to compare actual pan/zoom CPU/GPU-completion timings and source
+  output, then available current browser/Apple and remaining Creator/player
+  broad acceptance. No performance improvement claim yet.
+
+- Coalesced Creator27748terminalPASS1/1 original assembled integration24.06s.
+  Fresh profiled native53444guard terminalPASS12.05s/owned8687,peak3284910080B;
+  cold7.15s, normal color-readback delta0. Trace confirms actual1compute pass
+  while retaining260dependencywaves/694dispatches for initial35593main triangles.
+  P50 idle8.96/hover9.41/pan39.05/zoom50.94ms versus pre-coalesce44.90/64.75
+  pan/zoom. This sample has verbose isometric tracing+external guard, not final
+  timing; still slower than CPU28.00/41.19 pan/zoom in previous matched pilot.
+  Need uninstrumented longer matched runs; no all-app speedup claim.

@@ -3,6 +3,16 @@ use renderkit::{GpuContext, OrderedCompute, StatusReadback, wgpu};
 #[test]
 #[ignore = "requires native GPU; run with --ignored"]
 fn large_ordered_compute_keeps_storage_order_without_exhausting_backend_commands() {
+    check_ordered_compute(false);
+}
+
+#[test]
+#[ignore = "native GPU; storage hazards synchronize every dispatch within one pass"]
+fn one_compute_pass_preserves_noncommutative_storage_order_across_4101_dispatches() {
+    check_ordered_compute(true);
+}
+
+fn check_ordered_compute(single_pass: bool) {
     let gpu = pollster::block_on(GpuContext::headless()).unwrap();
     let storage = gpu.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("ordered-compute-state"),
@@ -45,15 +55,31 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>, @builtin(num_workgroups) c
     });
     let mut work = OrderedCompute::new(&gpu, "large-ordered-compute-fixture");
     let mut expected = 0u32;
-    for index in 0..4101u32 {
-        let count = index % 7 + 1;
-        expected = expected.wrapping_mul(3).wrapping_add(count);
+    if single_pass {
         let mut pass = work.begin_pass();
         pass.set_pipeline(&pipeline);
         pass.set_bind_group(0, &bind, &[]);
-        pass.dispatch_workgroups(count, 1, 1);
+        for index in 0..4101u32 {
+            let count = index % 7 + 1;
+            expected = expected.wrapping_mul(3).wrapping_add(count);
+            pass.dispatch_workgroups(count, 1, 1);
+        }
+    } else {
+        for index in 0..4101u32 {
+            let count = index % 7 + 1;
+            expected = expected.wrapping_mul(3).wrapping_add(count);
+            let mut pass = work.begin_pass();
+            pass.set_pipeline(&pipeline);
+            pass.set_bind_group(0, &bind, &[]);
+            pass.dispatch_workgroups(count, 1, 1);
+        }
     }
-    assert!(work.finish() > 1);
+    let submissions = work.finish();
+    if single_pass {
+        assert_eq!(submissions, 1);
+    } else {
+        assert!(submissions > 1);
+    }
     let staging = gpu.device.create_buffer(&wgpu::BufferDescriptor {
         label: None,
         size: 4,

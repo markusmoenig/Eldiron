@@ -1,5 +1,5 @@
 //! Dependency waves for per-pixel surface operations. Disjoint screen regions
-//! commute; every overlapping pair retains its original order across passes.
+//! commute; every overlapping pair retains its original order across dispatches.
 // Fine buckets reduce false dependencies for dense/subpixel terrain, especially
 // fitted overviews. Planning still touches bounded rectangle metadata only;
 // large footprints retain the conservative global fence below.

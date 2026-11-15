@@ -155,13 +155,14 @@ pub(super) fn append(
     let (pairs, paints) = super::bindings::sources(renderer, triangles);
     let mut encoder =
         renderkit::OrderedCompute::new(&renderer.context, "iso-batched-surface-raster");
-    for range in ranges {
-        if range.is_empty() {
-            continue;
-        }
+    {
+        // Compute usage scopes are per dispatch, not per pass. WGPU inserts
+        // storage barriers before each conflicting dispatch, including when
+        // bindings are unchanged. Retain every wave's order without creating
+        // hundreds of separate backend compute encoders for that ordering.
         let mut pass = encoder.begin_pass();
         pass.set_pipeline(&renderer.batch_pipeline);
-        for index in range {
+        for index in ranges.into_iter().flatten() {
             let d = &dispatches[index];
             let t = &triangles[d.triangle];
             let other = t.secondary.map_or(t.source, |(s, _)| s);
@@ -182,7 +183,7 @@ pub(super) fn append(
     #[cfg(not(target_arch = "wasm32"))]
     if std::env::var_os("ELDIRON_PROFILE_ISOMETRIC").is_some() {
         eprintln!(
-            "Isometric batched surfaces: {} passes, {} dispatches, {} active triangles, {} metadata bytes, {} uniform bytes",
+            "Isometric batched surfaces: 1 compute pass, {} dependency waves, {} dispatches, {} active triangles, {} metadata bytes, {} uniform bytes",
             waves.len(),
             dispatches.len(),
             active,

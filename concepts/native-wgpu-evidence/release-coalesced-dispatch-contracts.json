@@ -1,0 +1,38 @@
+{
+  "scope": "Release targeted synchronization/source contracts and guarded profiled 30-sample pilot only",
+  "ordering_support": [
+    "https://www.w3.org/TR/webgpu/#programming-model-synchronization",
+    "wgpu-core-29.0.3/src/command/compute.rs:279-367 and dispatch:835-859"
+  ],
+  "contracts": [
+    {
+      "name": "dependent noncommutative 4101 dispatches, one pass and original bounded multipass",
+      "passed": 2,
+      "log": "/private/tmp/eldiron-release-compute-dispatch-order.log"
+    },
+    {
+      "name": "exact individual/batched source pixels and wave/input invariants",
+      "passed": 4,
+      "log": "/private/tmp/eldiron-release-coalesced-surface-exactness.log"
+    },
+    {
+      "name": "original isometric integrations",
+      "passed": 11,
+      "log": "/private/tmp/eldiron-release-coalesced-isometric-integrations.log"
+    },
+    {
+      "name": "full assembled Creator",
+      "passed": 1,
+      "seconds": 24.06,
+      "log": "/private/tmp/eldiron-release-coalesced-creator-assembled.log"
+    }
+  ],
+  "guard": {
+    "exit": 0,
+    "problem": null,
+    "wall_seconds": 12.045724750000002,
+    "child_max_rss_reported": 3284910080
+  },
+  "profiler_excluded_from_acceptance": "/private/tmp/eldiron-isometric-coalesced-sampled-native.sample.txt",
+  "limits": "Pilot has verbose isometric tracing and guard sampling; root draw counts exclude offscreen layer draws. Not final p99, physical latency or complete GPU driver memory. Pan/zoom still slower than CPU."
+}

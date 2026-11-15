@@ -1,0 +1,36 @@
+{
+  "profile": "release",
+  "graphics": "disabled, independently resolved CPU-only consumers",
+  "log": "/private/tmp/eldiron-release-cpu-consolidated-source-alpha.log",
+  "exit": 101,
+  "results": {
+    "eldiron-ruleset": {
+      "passed": 85
+    },
+    "eldiron-runtime": {
+      "passed": 7
+    },
+    "eldiron-shared": {
+      "passed": 175,
+      "ignored": 1
+    },
+    "rusterix": {
+      "passed": 559,
+      "failed": 6,
+      "ignored": 1
+    },
+    "theframework-core": {
+      "passed": 9
+    }
+  },
+  "total_passed": 835,
+  "failures": [
+    "ruleset_material::tests::native_ruleset_icons_are_palette_bound_32px_and_transparent",
+    "server::nodes::tests::hideout2d_nessa_opens_her_stock_from_the_shipped_graph",
+    "server::nodes::tests::shipped_fixtures_carry_no_eldrin",
+    "server::region::ruleset_progression_tests::block_prop_door_interaction_is_authoritative_and_instance_local",
+    "server::region::ruleset_progression_tests::spawned_grid_player_startup_ignores_previous_item_context",
+    "server::region_host::tests::official_ruleset_applies_character_defaults_and_unlocks"
+  ],
+  "classification": "All six failures match previously recorded baseline ruleset/shipped-data failures. No authored fixtures/rulesets changed to suppress them. Latest strict nested-source identity and streamed decoder/serialization/archive contracts pass. This is not a wholly green CPU suite."
+}
