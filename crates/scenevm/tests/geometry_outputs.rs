@@ -213,3 +213,103 @@ fn sdf_table_growth_and_empty_sentinels_retire_with_the_scene() {
     assert_eq!(context.working_buffer_pool_usage().live_bytes, 0);
     assert_eq!(context.working_buffer_pool_usage().live_allocations, 0);
 }
+
+#[test]
+#[ignore = "native GPU; private Raster3D attachment group ownership"]
+fn raster_attachment_groups_survive_eviction_msaa_changes_and_resize() {
+    let context = pollster::block_on(GpuContext::headless()).unwrap();
+    let make = |color: Vec<u8>| {
+        let mut scene =
+            SceneVM::new_with_context_and_atlas(context.clone(), 17, 9, SharedAtlas::new(64, 64));
+        let tile = uuid::Uuid::new_v4();
+        scene.execute(Atom::AddTile {
+            id: tile,
+            width: 1,
+            height: 1,
+            frames: vec![color],
+            material_frames: None,
+        });
+        scene.execute(Atom::BuildAtlas);
+        scene.execute(Atom::SetRenderMode(RenderMode::Raster3D));
+        scene.execute(Atom::SetRaster3DMsaaSamples(1));
+        scene.execute(Atom::SetGP3(Vec4::one()));
+        scene.execute(Atom::SetGP8(Vec4::new(0., 0., 1., 1.)));
+        scene.execute(Atom::SetGP9(Vec4::new(0., 0., 1., 2.2)));
+        scene.set_background_lighting(false);
+        scene.execute(Atom::SetCamera3D {
+            camera: Camera3D::builder()
+                .with_kind(CameraKind::OrthoIso)
+                .with_pos(Vec3::new(0., 0., 4.))
+                .with_basis(Vec3::new(0., 0., -1.), Vec3::unit_y())
+                .with_ortho_half_h(1.2),
+        });
+        scene.execute(Atom::AddChunk {
+            id: uuid::Uuid::new_v4(),
+            chunk: chunk(tile, true, 1),
+        });
+        scene
+    };
+    let capture = |image| {
+        let mut ticket = ReadbackTicket::capture(&context, image).unwrap();
+        context
+            .device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(20)),
+            })
+            .unwrap();
+        ticket
+            .try_finish(&context)
+            .unwrap()
+            .unwrap()
+            .pixels()
+            .to_vec()
+    };
+    let mut a = make(vec![210, 30, 20, 255]);
+    let mut b = make(vec![20, 30, 210, 255]);
+    let mut ta = SceneRenderTarget::new(context.clone(), 17, 9).unwrap();
+    let mut tb = SceneRenderTarget::new(context.clone(), 17, 9).unwrap();
+    let red = a.render_gpu(&mut ta, 1).unwrap();
+    let blue = b.render_gpu(&mut tb, 1).unwrap();
+    assert_eq!(context.transfers().readback_bytes, 0);
+    let expected_red = capture(red.image.clone());
+    let expected_blue = capture(blue.image.clone());
+    assert!(
+        expected_red
+            .chunks_exact(4)
+            .any(|p| p[0] as u32 > p[2] as u32 + 30)
+    );
+    assert!(
+        expected_blue
+            .chunks_exact(4)
+            .any(|p| p[2] as u32 > p[0] as u32 + 30)
+    );
+    let ga = a.vm.gpu.as_ref().unwrap();
+    let gb = b.vm.gpu.as_ref().unwrap();
+    assert_ne!(ga.raster3d_scene_tex, gb.raster3d_scene_tex);
+    assert_ne!(ga.raster3d_depth_tex, gb.raster3d_depth_tex);
+    assert_ne!(ga.raster3d_shadow_tex, gb.raster3d_shadow_tex);
+    context.set_target_cache_limits(0, 0);
+    for samples in [1, 4, 1] {
+        a.execute(Atom::SetRaster3DMsaaSamples(samples));
+        let frame = a.render_gpu(&mut ta, samples as u64).unwrap();
+        let pixels = capture(frame.image);
+        let allocations = context.target_pool_usage().allocations;
+        let warm = a.render_gpu(&mut ta, 10 + samples as u64).unwrap();
+        assert_eq!(context.target_pool_usage().allocations, allocations);
+        assert_eq!(capture(warm.image), pixels);
+        assert_eq!(capture(blue.image.clone()), expected_blue);
+    }
+    assert_eq!(capture(red.image.clone()), expected_red);
+    let mut larger = SceneRenderTarget::new(context.clone(), 23, 11).unwrap();
+    let enlarged = a.render_gpu(&mut larger, 20).unwrap();
+    assert_ne!(enlarged.image.texture, red.image.texture);
+    assert_eq!(capture(red.image.clone()), expected_red);
+    drop((a, b, ta, tb, larger, enlarged));
+    context.set_working_buffer_cache_limits(0, 0);
+    assert_eq!(context.working_buffer_pool_usage().live_bytes, 0);
+    assert_eq!(context.target_pool_usage().live_allocations, 2);
+    assert_eq!(context.target_pool_usage().live_bytes, 2 * 784);
+    drop((red, blue));
+    assert_eq!(context.target_pool_usage().live_bytes, 0);
+}

@@ -15848,3 +15848,37 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Actual wasm Creator browser-host release compile PASS22.87s:
   /private/tmp/eldiron-scene-table-owner-release-wasm.log. All handles terminal;
   diff whitespace clean. Proceed with the Raster3D attachment group.
+
+## Raster3D private attachment group ownership (2026-11-15)
+
+- Canonical private scene/bloom/MSAA/depth/shadow textures now retain device target
+  leases in VMGpu. Exact formats, usage flags, dimensions and sample counts remain
+  unchanged. The complete four-attachment frame group installs only after every
+  acquisition succeeds; shadow resolution has its separate lease. Reference owners
+  retain dedicated allocations. Producer-private raw clones do not pin storage
+  after the VM retires; all actual consumers retain their VM through submission.
+  Full base passes clear their attachments, bloom extraction clears before final
+  composition, and partial replay keeps the owned group intact between attempts.
+- Library release check PASS1.44s; canonical four-application native release check
+  PASS23.70s: /private/tmp/eldiron-raster-attachments-owner-release-native.log.
+  Focused geometry/table/attachment contracts PASS3/3 in0.15s and surface output
+  lifetime contract PASS0.08s (release Metal):
+  /private/tmp/eldiron-raster-attachments-owner-release-contract.log. New fixture
+  verifies two independent colored views, distinct scene/depth/shadow allocations,
+  eviction with active owners,1x/4x/1x MSAA, warm reuse, resize and exact retained
+  outputs; only the two published output mip chains remain after owner retirement,
+  and final allocation bytes reach0 after those outputs drop.
+- Existing focused private Raster3D paint pressure/residency/replay contract
+  PASS0.18s (release build52.90s):
+  /private/tmp/eldiron-raster-attachments-owner-release-replay.log. Includes4x MSAA,
+  complete-residency receipt bypass and withheld incomplete output. Actual wasm
+  release check in flight; broad acceptance is still deferred.
+- Next: new_with_context_and_atlas/rebind_context eagerly allocate an unused
+  legacy GPUState.surface target for every canonical view. Make that adapter
+  storage lazy, initialize it at explicit legacy composition/blit entry points,
+  and verify normal GPU outputs/recovery never allocate it while explicit capture
+  remains functional. Continue remaining ownership/source policy after that.
+
+- Actual wasm Creator browser-host release compile passes:
+  /private/tmp/eldiron-raster-attachments-owner-release-wasm.log. All handles
+  terminal, diff whitespace clean. Continue directly with lazy adapter storage.

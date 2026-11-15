@@ -647,6 +647,10 @@ pub struct VMGpu {
     pub paint_surface_vbuf_capacity: u64,
     pub paint_surface_vertex_count: u32,
     pub shadow_sampler_compare: Option<wgpu::Sampler>,
+    // Producer-private attachments. Retain the VM through consumer submission;
+    // raw texture/view clones alone cannot prevent reuse after VM retirement.
+    raster3d_shadow_lease: Option<renderkit::TargetLease>,
+    raster3d_frame_leases: [Option<renderkit::TargetLease>; 4],
     pub raster3d_shadow_tex: Option<wgpu::Texture>,
     pub raster3d_shadow_view: Option<wgpu::TextureView>,
     pub raster3d_shadow_res: u32,
@@ -6798,6 +6802,8 @@ impl VM {
             paint_surface_vbuf_capacity: 0,
             paint_surface_vertex_count: 0,
             shadow_sampler_compare: None,
+            raster3d_shadow_lease: None,
+            raster3d_frame_leases: Default::default(),
             raster3d_shadow_tex: None,
             raster3d_shadow_view: None,
             raster3d_shadow_res: 0,
@@ -12081,7 +12087,7 @@ impl VM {
             retain_regions = self.paint_dispatch.is_some() && self.raster_paint_initialized
                 && g.raster3d_fb_size == (fb_w, fb_h) && g.raster3d_sample_count == raster_samples
                 && g.raster3d_scene_tex.is_some();
-            g.ensure_raster3d_targets(device, fb_w, fb_h, shadow_res, raster_samples);
+            g.ensure_raster3d_targets(device, self.target_context.as_deref(), fb_w, fb_h, shadow_res, raster_samples)?;
             queue.write_buffer(
                 g.u_raster3d_buf.as_ref().unwrap(),
                 0,
