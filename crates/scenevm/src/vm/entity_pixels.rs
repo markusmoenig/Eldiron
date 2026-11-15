@@ -1,7 +1,8 @@
 //! Characters and ground items keep real meshes, lighting and shadows, but rasterize
 //! on a coarse screen grid. The expansion pass writes their sampled depth into the
 //! full-resolution world depth buffer, so walls and other surfaces still occlude them.
-use super::{Vert3DPod, raster3d_material_source};
+use super::{Vert3DPod, raster_paint, raster3d_material_source};
+use crate::paint_pages::PaintDispatchRegion;
 use wgpu::util::DeviceExt;
 
 const COMPOSITE: &str = r#"
@@ -39,6 +40,7 @@ pub(super) struct EntityPixelPass {
     block: u32,
     samples: u32,
     paint_paging: bool,
+    region_clear: Option<raster_paint::RegionClear>,
 }
 impl EntityPixelPass {
     fn targets(
@@ -104,6 +106,7 @@ impl EntityPixelPass {
         block: u32,
         samples: u32,
         paint_paging: bool,
+        regional: bool,
         indices: &[u32],
     ) {
         if slot
@@ -311,6 +314,7 @@ impl EntityPixelPass {
                 block,
                 samples,
                 paint_paging,
+                region_clear: None,
             });
         }
         let pass = slot.as_mut().unwrap();
@@ -319,6 +323,9 @@ impl EntityPixelPass {
                 Self::targets(device, width, height, block, &pass.composite_layout);
             pass.size = (width, height);
             pass.block = block;
+        }
+        if regional && !indices.is_empty() {
+            raster_paint::RegionClear::prepare(&mut pass.region_clear, device, queue, 1, [0.; 4]);
         }
         // Reuse the index allocation across animated poses.
         let bytes = bytemuck::cast_slice(indices);
@@ -342,6 +349,8 @@ impl EntityPixelPass {
         viewport: Option<[f32; 4]>,
         width: u32,
         height: u32,
+        region: Option<PaintDispatchRegion>,
+        retain_regions: bool,
     ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("entity-pixels-low-resolution"),
@@ -349,7 +358,11 @@ impl EntityPixelPass {
                 view: &self.color,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    load: if retain_regions {
+                        wgpu::LoadOp::Load
+                    } else {
+                        wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
+                    },
                     store: wgpu::StoreOp::Store,
                 },
                 depth_slice: None,
@@ -357,7 +370,11 @@ impl EntityPixelPass {
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.depth,
                 depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.),
+                    load: if retain_regions {
+                        wgpu::LoadOp::Load
+                    } else {
+                        wgpu::LoadOp::Clear(1.)
+                    },
                     store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
@@ -366,6 +383,30 @@ impl EntityPixelPass {
             occlusion_query_set: None,
             multiview_mask: None,
         });
+        if let Some(region) = region {
+            let origin = region.origin.map(|value| value / self.block);
+            let end = [
+                (region.origin[0] + region.size[0]).div_ceil(self.block),
+                (region.origin[1] + region.size[1]).div_ceil(self.block),
+            ];
+            // Expand to whole sampled entity cells; every cell contributing to
+            // the final region must resolve its paint before publication.
+            let grid_region = PaintDispatchRegion {
+                origin,
+                size: [end[0] - origin[0], end[1] - origin[1]],
+            };
+            raster_paint::scissor(
+                &mut pass,
+                grid_region,
+                [
+                    0,
+                    0,
+                    width.div_ceil(self.block),
+                    height.div_ceil(self.block),
+                ],
+            );
+            self.region_clear.as_ref().unwrap().draw(&mut pass);
+        }
         let [x, y, w, h] = viewport.unwrap_or([0., 0., width as f32, height as f32]);
         let x = x.max(0.).min((width - 1) as f32).floor();
         let y = y.max(0.).min((height - 1) as f32).floor();
@@ -390,6 +431,7 @@ impl EntityPixelPass {
         resolve: Option<&wgpu::TextureView>,
         depth: &wgpu::TextureView,
         viewport: Option<[f32; 4]>,
+        region: Option<PaintDispatchRegion>,
     ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("entity-pixels-expand-and-depth-test"),
@@ -414,12 +456,17 @@ impl EntityPixelPass {
             occlusion_query_set: None,
             multiview_mask: None,
         });
+        let mut viewport_scissor = [0, 0, self.size.0, self.size.1];
         if let Some([x, y, w, h]) = viewport {
             let x = x.max(0.).min((self.size.0 - 1) as f32) as u32;
             let y = y.max(0.).min((self.size.1 - 1) as f32) as u32;
             let w = w.max(1.).min((self.size.0 - x) as f32) as u32;
             let h = h.max(1.).min((self.size.1 - y) as f32) as u32;
+            viewport_scissor = [x, y, w, h];
             pass.set_scissor_rect(x, y, w, h);
+        }
+        if let Some(region) = region {
+            raster_paint::scissor(&mut pass, region, viewport_scissor);
         }
         pass.set_pipeline(&self.composite_pipeline);
         pass.set_bind_group(0, &self.composite_group, &[]);

@@ -56,8 +56,11 @@ pub struct LayerHistoryCheckpoint {
     pub(crate) _lease: Option<renderkit::TargetLease>,
 }
 impl SceneVM {
-    /// None restores ordinary full-frame clear/dispatch behavior. While Some,
-    /// the owner must resolve every region before publishing the working image.
+    /// None restores ordinary full-frame clear/dispatch behavior. Compute3D and
+    /// Raster3D support private regions on the unchanged full-camera target.
+    /// While Some, keep camera/scene/settings fixed and resolve every region
+    /// before publishing. Raster retains raw color/depth/entity cells, clears
+    /// only the retried rectangle and runs post effects over the complete image.
     pub fn set_layer_paint_dispatch(
         &mut self,
         layer: usize,

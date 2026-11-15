@@ -14905,3 +14905,40 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Browser Creator release compilation PASS26.41s:
   /private/tmp/eldiron-residency-lookup-owner-release-web.log. All compiler handles
   terminal before regional raster implementation. Concurrent concept untouched.
+
+
+## Regional raster retry primitive (2026-11-15, implementation continuing)
+
+- Extended private PaintDispatchRegion support to Raster3D. A small dedicated
+  raster_paint module owns a cached color/depth rectangle-clear pipeline. First
+  attempt initializes raw scene/MSAA/depth targets; subsequent attempts load them,
+  clear only the requested rectangle, and scissor all material/transparent/line/
+  billboard passes to its intersection with the original camera viewport. Empty
+  intersections stay empty. Camera projection and full target coordinates do not
+  change. Ordinary nonregional drawing retains its existing full-frame path.
+- Coarse entity color/depth survives between regions. Retries clear/redraw whole
+  coarse cells contributing to the absolute full-resolution region; expansion
+  writes only that region, including depth. Completed raw world pixels remain
+  intact. Bloom/post processing still uses the complete raw frame; partial output
+  must stay private until every dependency/region resolves. The producer must
+  freeze scene/camera/settings and restart after resize/source changes. No live
+  owner/canonical adoption is claimed by this primitive alone.
+- Canonical four-application release compile PASS27.22s:
+  /private/tmp/eldiron-regional-raster-release.log. Empty-scene release pipeline
+  compile/run PASS6.54s:
+  /private/tmp/eldiron-regional-raster-release-shader.log.
+- Strengthened the focused release example with actual painted cube geometry and
+  an overlapping coarse character billboard. Missing raster source slot1 is
+  reported by a fragment receipt. Repeated-left/then-right regional rendering on
+  odd31x23 targets equals full rendering byte-for-byte at1x and4x MSAA, including
+  world/entity overlap. PASS (example build0.88s):
+  /private/tmp/eldiron-regional-raster-release-retry.log.
+  These are explicit small fixture captures only; ordinary targets still assert
+  no CPU/readback storage and compatibility GPU remains cold. This does not
+  establish arbitrary paint filtering/pressure, every effect or platform parity.
+- Browser Creator release compilation PASS27.11s:
+  /private/tmp/eldiron-regional-raster-release-web.log. All compiler handles
+  terminal before next edits. Full M0-M9 acceptance and measured performance
+  remain open. Next: private frozen-frame ownership and delayed overlay composition
+  (overlays must not advance their own history once per failed base attempt), then
+  canonical source/view integration, cancellation and publication/input receipts.

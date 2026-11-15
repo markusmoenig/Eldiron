@@ -123,6 +123,7 @@ impl VM {
     ) {
         if region.is_none() || self.paint_dispatch.is_none() {
             self.partial_target_initialized = false;
+            self.raster_paint_initialized = false;
             self.last_compute_history = None;
         }
         self.paint_dispatch = region;

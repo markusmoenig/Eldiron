@@ -12,6 +12,7 @@ mod entity_pixels;
 mod irradiance;
 mod raster3d;
 mod raster_mesh;
+mod raster_paint;
 mod surface_gpu;
 mod paint_pages;
 mod organic;
@@ -689,6 +690,7 @@ pub struct VMGpu {
     raster3d_surface_paint_entries_shared: bool,
     raster3d_paint_feedback: Option<wgpu::Buffer>,
     raster3d_paint_paging: bool,
+    raster_paint_clear: Option<raster_paint::RegionClear>,
     pub paint_surface_world_tex: Option<wgpu::Texture>,
     pub paint_surface_world_view: Option<wgpu::TextureView>,
     pub paint_surface_normal_tex: Option<wgpu::Texture>,
@@ -3720,6 +3722,7 @@ pub struct VM {
     history_epoch: u64,
     paint_dispatch: Option<crate::paint_pages::PaintDispatchRegion>,
     partial_target_initialized: bool,
+    raster_paint_initialized: bool,
     pub(crate) last_compute_history: Option<crate::paint_pages::LayerHistoryCheckpoint>,
     ping_pong_enabled: bool,
     progressive_sample_index: Option<u32>,
@@ -5631,6 +5634,7 @@ impl VM {
             history_epoch: 0,
             paint_dispatch: None,
             partial_target_initialized: false,
+            raster_paint_initialized: false,
             last_compute_history: None,
             ping_pong_enabled: false,
             progressive_sample_index: None,
@@ -6831,6 +6835,7 @@ impl VM {
             raster3d_surface_paint_entries_shared: false,
             raster3d_paint_feedback: None,
             raster3d_paint_paging: false,
+            raster_paint_clear: None,
             paint_surface_world_tex: None,
             paint_surface_world_view: None,
             paint_surface_normal_tex: None,
@@ -11382,6 +11387,9 @@ impl VM {
         fb_w: u32,
         fb_h: u32,
     ) -> crate::SceneVMResult<()> {
+        if self.paint_dispatch.is_some_and(|region| !region.fits([fb_w, fb_h])) {
+            return Err(crate::SceneVMError::InvalidOperation("raster paint region exceeds its full target".into()));
+        }
         let debug_total_start = instant::Instant::now();
         let mut debug_geometry_ms = 0.0;
         let mut debug_visibility_ms = 0.0;
@@ -12054,6 +12062,7 @@ impl VM {
         };
         let (organic_ms, irradiance_ms, tables_ms, targets_ms, mesh_ms, indices_ms);
         let full_geometry_upload;
+        let retain_regions;
         {
             self.upload_organic_billboard_ssbo(device, queue)?;
             self.prepare_raster_paint_feedback(device, queue);
@@ -12064,6 +12073,9 @@ impl VM {
             self.upload_raster3d_paint_overlay(device, queue);
             tables_ms = upload_elapsed();
             let g = self.gpu.as_mut().unwrap();
+            retain_regions = self.paint_dispatch.is_some() && self.raster_paint_initialized
+                && g.raster3d_fb_size == (fb_w, fb_h) && g.raster3d_sample_count == raster_samples
+                && g.raster3d_scene_tex.is_some();
             g.ensure_raster3d_targets(device, fb_w, fb_h, shadow_res, raster_samples);
             queue.write_buffer(
                 g.u_raster3d_buf.as_ref().unwrap(),
@@ -12390,6 +12402,7 @@ impl VM {
                 self.entity_pixel_size_3d,
                 raster_samples,
                 g.raster3d_paint_paging,
+                self.paint_dispatch.is_some(),
                 &entity_indices,
             );
         }
@@ -12419,6 +12432,15 @@ impl VM {
         // Ordinary base rendering is opaque. A dynamic-only base pass must
         // preserve transparency so it can be composited over baked geometry.
         let clear_alpha = self.raster3d_clear_alpha();
+        if self.paint_dispatch.is_some() {
+            raster_paint::RegionClear::prepare(
+                &mut self.gpu.as_mut().unwrap().raster_paint_clear, device, queue, raster_samples,
+                [sky_srgb[0], sky_srgb[1], sky_srgb[2], clear_alpha],
+            );
+            if let Some(context) = &self.target_context {
+                context.record_upload(if entity_indices.is_empty() { 16 } else { 32 });
+            }
+        }
         {
             let g = self.gpu.as_ref().unwrap();
             if g.i3d_raster_count > 0 && shadow_enabled {
@@ -12455,6 +12477,8 @@ impl VM {
                     self.viewport_rect2d,
                     fb_w,
                     fb_h,
+                    self.paint_dispatch,
+                    retain_regions,
                 );
             }
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -12471,12 +12495,12 @@ impl VM {
                         None
                     },
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                        load: if retain_regions { wgpu::LoadOp::Load } else { wgpu::LoadOp::Clear(wgpu::Color {
                             r: sky_srgb[0] as f64,
                             g: sky_srgb[1] as f64,
                             b: sky_srgb[2] as f64,
                             a: clear_alpha as f64,
-                        }),
+                        }) },
                         store: wgpu::StoreOp::Store,
                     },
                     depth_slice: None,
@@ -12484,7 +12508,7 @@ impl VM {
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: g.raster3d_depth_view.as_ref().unwrap(),
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
+                        load: if retain_regions { wgpu::LoadOp::Load } else { wgpu::LoadOp::Clear(1.0) },
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,
@@ -12493,6 +12517,11 @@ impl VM {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
+            if let Some(region) = self.paint_dispatch {
+                raster_paint::scissor(&mut pass, region, [0, 0, fb_w, fb_h]);
+                g.raster_paint_clear.as_ref().unwrap().draw(&mut pass);
+            }
+            let mut viewport_scissor = [0, 0, fb_w, fb_h];
             if let Some([x, y, w, h]) = self.viewport_rect2d
                 && w > 0.0
                 && h > 0.0
@@ -12501,6 +12530,7 @@ impl VM {
                 let sy = y.max(0.0).min(fb_h as f32) as u32;
                 let sw = w.max(0.0).min((fb_w as f32) - sx as f32) as u32;
                 let sh = h.max(0.0).min((fb_h as f32) - sy as f32) as u32;
+                viewport_scissor = [sx, sy, sw.max(1), sh.max(1)];
                 pass.set_scissor_rect(sx, sy, sw.max(1), sh.max(1));
                 pass.set_viewport(
                     sx as f32,
@@ -12510,6 +12540,9 @@ impl VM {
                     0.0,
                     1.0,
                 );
+            }
+            if let Some(region) = self.paint_dispatch {
+                raster_paint::scissor(&mut pass, region, viewport_scissor);
             }
             if g.i3d_raster_opaque_count > 0 {
                 pass.set_pipeline(g.raster3d_pipeline.as_ref().unwrap());
@@ -12552,6 +12585,7 @@ impl VM {
                     },
                     g.raster3d_depth_view.as_ref().unwrap(),
                     self.viewport_rect2d,
+                    self.paint_dispatch,
                 );
                 pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("vm-3d-transparent-after-entities"),
@@ -12589,9 +12623,13 @@ impl VM {
                     let sy = y.max(0.0).min((fb_h - 1) as f32) as u32;
                     let sw = w.max(1.0).min((fb_w - sx) as f32) as u32;
                     let sh = h.max(1.0).min((fb_h - sy) as f32) as u32;
+                    viewport_scissor = [sx, sy, sw, sh];
                     pass.set_scissor_rect(sx, sy, sw, sh);
                     pass.set_viewport(sx as f32, sy as f32, sw as f32, sh as f32, 0.0, 1.0);
                 }
+            }
+            if let Some(region) = self.paint_dispatch {
+                raster_paint::scissor(&mut pass, region, viewport_scissor);
             }
             if g.i3d_raster_transparent_count > 0 {
                 pass.set_pipeline(g.raster3d_alpha_pipeline.as_ref().unwrap());
@@ -12750,6 +12788,7 @@ impl VM {
         let debug_encode_ms = debug_encode_start.elapsed().as_secs_f64() * 1000.0;
         let debug_submit_start = instant::Instant::now();
         queue.submit(Some(encoder.finish()));
+        self.raster_paint_initialized = self.paint_dispatch.is_some();
         let debug_submit_ms = debug_submit_start.elapsed().as_secs_f64() * 1000.0;
         if self.ping_pong_enabled {
             self.ping_pong_front = next_front;
