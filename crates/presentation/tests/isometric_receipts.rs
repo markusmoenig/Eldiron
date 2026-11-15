@@ -10,6 +10,7 @@ use rusterix::{
 use scenevm::prelude::{Vec2, Vec3};
 use std::collections::HashMap;
 use theframework_core::Uuid;
+#[allow(dead_code)]
 mod isometric_support;
 
 #[test]

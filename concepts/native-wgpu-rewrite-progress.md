@@ -17940,3 +17940,125 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Source audit also finds missing stopped-editor preview_character_setup on
   canonical view versus reference authoring; it plausibly explains missing blue
   avatar, but not fixed/verified yet. Background/large-scene sampling also open.
+
+- Local checkpoint1edc34c3 stores verified guide/source handoff code and prior
+  complete diagnostic evidence. Current Creator83360terminalPASS1m51s.
+- New guarded native6078terminalPASS, ownedPID2284,53.47s total,
+  peak3843047424B. Coldfirstcomplete7.91s. Root snapshot byte-identical in ALL RGBA
+  channels to pre-batch/pre-handoff native image (full2400×1500,maxdelta0).
+  No source/pixel behavior changes hidden by this optimization.
+- New p50 idle304.99/hover305.75/pan300.93/zoom247.58ms. UI submit3.95–5.47ms
+  versus147–159ms; draws~726–732 versus21676–23064. CPU prepare~62ms versus197ms.
+  Warm source uploads +1701595704B/120frames versus16914918744B (~90%reduction),
+  normal capture/readback delta0, working live350906236B/221allocations stable.
+  GPU completion wait now~238ms. The UI no longer masks terrain GPU execution:
+  ~35k dispatches main/59k minimap remain. Still much slower than reference;
+  M0/full large-scene acceptance remains open. Diagnostic traces/guard exclude
+  final p99/numerical budget claims. Durable release-unending-guide-handoff-native.
+- Next renderer work: batch disjoint triangles within existing proven dependency
+  waves into shared compute dispatches, respecting material/paint bindings and
+  differing extents, without relaxing painter/depth/owner/alpha order. Metadata
+  must fit existing eight storage-binding limits on Apple/WebGPU and retain a
+  GPU-only fallback for oversized arenas. Then targeted exact GPU contracts,
+  fresh Creator build/pilot. Also still fix missing stopped-editor character
+  preview flag/avatar, black/gray clear parity and sampling differences before
+  claiming source/reference visual acceptance; generic sprite/alpha/live and
+  strict source identity audits remain open. No pending user approval.
+
+
+## Disjoint terrain dispatch batching (2026-11-15)
+
+- Added private surface_renderer/batch + bindings modules. Original proven
+  dependency waves unchanged. Within each wave, source/secondary/paint identity
+  and power-of-two dispatch extents group disjoint triangles; each dispatch Z
+  selects a triangle. Bucket extents bound extra invocations<4× individually
+  padded work, and Z groups split at device dimension limit. All overlaps remain
+  separated by the original compute-pass/ordered-queue boundaries.
+- Compact original176B triangle parameters, protection masks and triangle indices
+  share the existing read-only protection storage binding. A small dynamic
+  uniform selects each batch. Still eight storage bindings total; no increased
+  device limits, float precision reduction, CPU viewport rasterization or source
+  format changes. Original individual GPU pipeline remains the fallback if the
+  combined metadata exceeds one storage-binding limit. Old arena size/domain/
+  geometry/mask validations occur before any GPU writes. Both shaders use the
+  same sampling/depth/alpha/normal/owner logic; only parameter fetch differs.
+- Release actual Metal64009terminalPASS11/11 (build8.12s): occlusion2,paint2,
+  receipts2(including37.7MBsource handoff),surfaces5 (including uniform arenas
+  exceeding one binding, pages/overrides/blends/clamp, terrain depth/live lighting,
+  owner protection, transparent source material/paint and independent appends).
+  /private/tmp/eldiron-isometric-batched-dispatch-contracts.log.
+- Diagnostic now reports actual packed metadata/header bytes and batch dispatch
+  counts. Current Creator release rebuild active;
+  /private/tmp/eldiron-batched-terrain-creator-build.log. Next new exact binary
+  into fresh guarded native pilot; compare ALL RGBA bytes to previous native
+  snapshot and actual latency/allocations/uploads/peak. No large-scene batching
+  performance/pixel claim yet. Then remaining stopped-editor avatar/clear/source
+  parity and generic sprite/alpha/strict source ownership work, followed by broad
+  acceptance only after implementation is finished. Goal remains open.
+
+- Batched-terrain Creator81964terminalPASS1m06s. Native21957guarded diagnostic
+  terminalPASS15.10s/ownedPID2841,peak3614146560B,coldfirstcomplete7.27s. Main
+  35593active triangles now1495dispatches/603passes (10434856B metadata+
+  382720B headers); minimap59168triangles4750dispatches/3682passes. Storage
+  bindings remain8; no device loss/guard hit. P50 idle11.37/hover11.90ms versus
+  previous305ms and reference27.5ms. Pan55.14/zoom73.10ms still worse than
+  reference27.86/41.38ms; prepare38–44ms and GPUwait10–22ms remain. No broad
+  speedup/final p99 claim from30samples/guarded trace. Warm source uploads
+  +670469908B/120frames, no normal captures/readback.
+- Durable release-unending-batched-terrain-native JSON/PNG. Full RGBA comparison
+  to previous native snapshot: meanabsRGB0.00338/0.00284/0.00155, max31/32/22;
+  alpha identical. Unlike guide/source handoff (allbytesexact), this is NOT exact
+  image equality. Time/animation differences versus parameter-fetch rounding
+  need isolation before accepting it. Existing11targeted GPU fixtures pass.
+- New deterministic original-individual versus batched shader test uses same
+  frozen high-contrast translucent terrain, fractional projection and large world
+  coordinates; private append_impl switch only for test/reference GPU execution.
+  First compile84419 stopped on private RenderSettings.transitions field in a
+  test struct-update expression; corrected to mutate Default. Fixed focused
+  release GPU comparison now running;
+  /private/tmp/eldiron-isometric-batched-parameter-exactness-fixed.log.
+- Owned CPU diagnostic66859terminalPASS; sample at
+  /private/tmp/eldiron-isometric-batched-terrain-sampled-native.sample.txt.
+  This run is sampling-instrumented, excluded from numerical acceptance. Guide
+  generation and scene preparation still appear; interpret full stacks before
+  further optimization. Continue available work without waiting on approval.
+
+- Frozen original/batched test11691 found a REAL precision regression, not only
+  animation: at unit12.5 nine changed channels/three high-contrast terrain pixels,
+  max197. This failure blocks acceptance despite prior11fixture passes. Log:
+  /private/tmp/eldiron-isometric-batched-parameter-exactness-fixed.log.
+- Preserved observable f32 rounding around projection, cross products, barycentric
+  division/interpolation using the same runtime-zero opaque identity approach as
+  the accepted DDA painter (reserved cell.w always0). Prevents backend contraction
+  changing math when parameters move from uniform to storage. No f16 reduction,
+  alternate source pixels, epsilon widening, ordering relaxation or test tolerance
+  change. GPUcomparison76236PASS1/1, exactALLRGBA, fractional large-coordinate
+  terrain; fixture asserts nontrivial visible output.
+- Extended the same float discipline to flat-floor inverse projection and clamped
+  UV mapping. Expanded11202PASS1/1 with terrain+raisedfloors × repeat/clamp × two
+  fractional projections, exactALLRGBA against individual GPU path. Log:
+  /private/tmp/eldiron-isometric-batched-parameter-all-kinds.log.
+- Added high-contrast secondary-material/spatial blend coverage; focused release
+  GPU comparison now active, /private/tmp/eldiron-isometric-batched-parameter-blends.log.
+  Next rerun original11isometric contracts with corrected math, then fresh Creator
+  build. Previous Creator/bench binary1333e70 is STALE for this precision fix;
+  earlier11ms/55ms/73ms numbers are pre-fix diagnostic evidence only. Pending
+  shipped avatar/clear parity, sprite live/alpha/strict source guards and full
+  broad/platform/performance acceptance remain; do not mark complete.
+
+- Secondary-blend frozen32169terminalPASS1/1 in0.24s. No extra blend arithmetic
+  changes needed; exact individual/batched colors with varying four-corner
+  weights and high-contrast translucent sources at all eight frozen settings.
+- CPU sample interprets remaining pan/zoom cost:316/575samples in surface append,
+  209inbatch append,174in OrderedCompute→Metal compute encoder creation/finish;
+  not primarily source sampling/readback. Finer2px dependency buckets reduce
+  conservative false overlap versus8px, keeping bounded512bucket visits/region
+  and global fences for larger footprints. No colored CPU destination buffer.
+- Fine ordering81746terminalPASS3/3: original randomized all-overlap dependency
+  proof, floor per-cell ordering/partition proof and exact frozen GPU comparison.
+  Original rounded integration69310terminalPASS11/11 (floor/terrain/material/
+  paint/occlusion/sourcehandoff), no assertions/tolerances relaxed.
+  /private/tmp/eldiron-isometric-{fine-order-contracts,batched-rounded-integration}.log.
+- Durable release-isometric-batched-dispatch-contracts.json records corrected
+  acceptance scope. Current 2px+precision source still needs fresh Creator
+  release rebuild/runtime; earlier15s pilot is pre-fix. No broad acceptance claim.

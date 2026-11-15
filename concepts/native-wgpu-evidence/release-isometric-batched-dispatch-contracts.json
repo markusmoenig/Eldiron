@@ -1,0 +1,33 @@
+{
+  "date": "2026-11-15",
+  "profile": "release",
+  "backend": "Metal",
+  "contracts": {
+    "original_integrations": {
+      "passed": 11,
+      "log": "/private/tmp/eldiron-isometric-batched-rounded-integration.log"
+    },
+    "ordering_and_frozen_gpu": {
+      "passed": 3,
+      "log": "/private/tmp/eldiron-isometric-fine-order-contracts.log"
+    },
+    "secondary_blend_exactness": {
+      "passed": 1,
+      "log": "/private/tmp/eldiron-isometric-batched-parameter-blends.log"
+    }
+  },
+  "precision_regression": {
+    "initial_changed_channels": 9,
+    "initial_max_delta": 197,
+    "fixed": true,
+    "resolution": "Explicit f32 rounding of projection, cross products, barycentric/flat-floor inversion and clamped UVs; original individual vs batched outputs now exact for frozen raised-floor/terrain/repeat/clamp/secondary-blend inputs."
+  },
+  "architecture": {
+    "storage_bindings": 8,
+    "source_precision": "f32 unchanged",
+    "bounded_extent_waste_factor": 4,
+    "large_metadata": "Original GPU-only individual-dispatch fallback",
+    "dependency_buckets_pixels": 2
+  },
+  "diagnostic_runtime": "Prior 11/55/73ms idle/pan/zoom pilot precedes the precision and fine-bucket changes; fresh release Creator runtime remains required. Full visual/platform/performance acceptance is open."
+}

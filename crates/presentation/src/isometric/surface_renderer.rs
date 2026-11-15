@@ -10,6 +10,10 @@ use scenevm::{
     prelude::{Vec2, Vec3},
 };
 use std::{num::NonZeroU64, sync::Arc};
+mod batch;
+mod bindings;
+#[cfg(test)]
+mod tests;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SurfaceKind {
@@ -50,6 +54,7 @@ pub struct IsometricSurfaceRenderer {
     empty_paint: wgpu::BindGroup,
     _empty_paint_storage: renderkit::WorkingBufferLease,
     pipeline: wgpu::ComputePipeline,
+    batch_pipeline: wgpu::ComputePipeline,
     params: renderkit::WorkingBufferLease,
     capacity: u64,
     stride: u64,
@@ -136,12 +141,7 @@ impl IsometricSurfaceRenderer {
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("iso-gpu-surfaces"),
                 source: wgpu::ShaderSource::Wgsl(
-                    format!(
-                        "{}\n{}\n{}",
-                        include_str!("surface.wgsl"),
-                        include_str!("material_sample.wgsl"),
-                        include_str!("paint_sample.wgsl")
-                    )
+                    batch::shader_source(false)
                     .into(),
                 ),
             });
@@ -164,6 +164,15 @@ impl IsometricSurfaceRenderer {
                 cache: None,
             });
         let alignment = u64::from(context.device.limits().min_uniform_buffer_offset_alignment);
+        let batch_shader = context.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("iso-batched-gpu-surfaces"),
+            source: wgpu::ShaderSource::Wgsl(batch::shader_source(true).into()),
+        });
+        let batch_pipeline = context.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("iso-batched-surface-raster"), layout: Some(&pipeline_layout),
+            module: &batch_shader, entry_point: Some("raster"),
+            compilation_options: Default::default(), cache: None,
+        });
         let stride = (std::mem::size_of::<Params>() as u64).div_ceil(alignment) * alignment;
         let params = Self::buffer(&context, stride, true)?;
         let masks = Self::buffer(&context, 4, false)?;
@@ -175,6 +184,7 @@ impl IsometricSurfaceRenderer {
             empty_paint,
             _empty_paint_storage: empty,
             pipeline,
+            batch_pipeline,
             params,
             capacity: stride,
             stride,
@@ -198,12 +208,19 @@ impl IsometricSurfaceRenderer {
         })
     }
     /// Append geometry to a canvas cleared on the GPU by IsometricBlitter. Each
-    /// dispatch sees earlier floor/terrain writes; lighting/capture remain separate.
+    /// overlap dependencies remain ordered; disjoint triangles may share a
+    /// dispatch. Lighting/capture remain separate.
     pub fn append(
         &mut self,
         canvas: &IsometricCanvas,
         projection: Projection,
         triangles: &[SurfaceTriangle<'_>],
+    ) -> Result<()> {
+        self.append_impl(canvas, projection, triangles, true)
+    }
+    fn append_impl(
+        &mut self, canvas: &IsometricCanvas, projection: Projection,
+        triangles: &[SurfaceTriangle<'_>], allow_batch: bool,
     ) -> Result<()> {
         if self.context.is_lost() || canvas.device_generation() != self.context.generation() {
             return Err(RenderError(
@@ -346,6 +363,11 @@ impl IsometricSurfaceRenderer {
         if masks.is_empty() {
             masks.push(0);
         }
+        let waves = super::surface_waves::floor_waves(triangles, &regions)
+            .unwrap_or_else(|| super::surface_order::waves(&regions, canvas.size()));
+        if allow_batch && batch::append(self, canvas, triangles, &bytes, &masks, &regions, &waves)? {
+            return Ok(());
+        }
         let mask_bytes = bytemuck::cast_slice(&masks);
         if size > self.capacity {
             self.params = Self::buffer(&self.context, size, true)?;
@@ -363,83 +385,8 @@ impl IsometricSurfaceRenderer {
             .queue
             .write_buffer(self.masks.buffer(), 0, mask_bytes);
         self.context.record_upload(mask_bytes.len() as u64);
-        let bind = self
-            .context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("iso-surface-canvas"),
-                layout: &self.layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: self.params.buffer(),
-                            offset: 0,
-                            size: NonZeroU64::new(std::mem::size_of::<Params>() as u64),
-                        }),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: canvas.albedo().as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: canvas.surfaces().as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 3,
-                        resource: canvas.owners().as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 4,
-                        resource: canvas.terrain().as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 5,
-                        resource: self.masks.buffer().as_entire_binding(),
-                    },
-                ],
-            });
-        let mut pairs = FxHashMap::default();
-        for t in triangles {
-            let other = t.secondary.map_or(t.source, |(source, _)| source);
-            let key = (t.source as *const _ as usize, other as *const _ as usize);
-            pairs.entry(key).or_insert_with(|| {
-                self.context
-                    .device
-                    .create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some("iso-surface-sources"),
-                        layout: &self.source_layout,
-                        entries: &[
-                            wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: t.source.buffer().as_entire_binding(),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 1,
-                                resource: other.buffer().as_entire_binding(),
-                            },
-                        ],
-                    })
-            });
-        }
-        let mut paints = FxHashMap::default();
-        for source in triangles.iter().filter_map(|t| t.paint) {
-            paints
-                .entry(source as *const _ as usize)
-                .or_insert_with(|| {
-                    self.context
-                        .device
-                        .create_bind_group(&wgpu::BindGroupDescriptor {
-                            label: Some("iso-surface-paint"),
-                            layout: &self.paint_layout,
-                            entries: &[wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: source.buffer().as_entire_binding(),
-                            }],
-                        })
-                });
-        }
+        let bind = bindings::canvas(self, canvas);
+        let (pairs, paints) = bindings::sources(self, triangles);
         let mut encoder = renderkit::OrderedCompute::new(&self.context, "iso-surface-raster");
         let dispatch = |pass: &mut wgpu::ComputePass<'_>, i: usize| {
             let t = &triangles[i];
@@ -462,8 +409,6 @@ impl IsometricSurfaceRenderer {
                 1,
             );
         };
-        let waves = super::surface_waves::floor_waves(triangles, &regions)
-            .unwrap_or_else(|| super::surface_order::waves(&regions, canvas.size()));
         #[cfg(not(target_arch = "wasm32"))]
         if std::env::var_os("ELDIRON_PROFILE_ISOMETRIC").is_some() {
             eprintln!("Isometric surface waves: {} passes, {} active dispatches", waves.len(), waves.iter().map(Vec::len).sum::<usize>());

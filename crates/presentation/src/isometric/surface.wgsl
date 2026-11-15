@@ -12,10 +12,27 @@ struct SurfaceParams {
 @group(1) @binding(0) var<storage,read> material_a:array<vec4<u32>>;
 @group(1) @binding(1) var<storage,read> material_b:array<vec4<u32>>;
 @group(2) @binding(0) var<storage,read> paint_data:array<u32>;
-fn project(v:vec3<f32>)->vec2<f32> {
-    return p.projection.xy+vec2<f32>((v.x+v.z)*p.projection.z,(v.z-v.x)*p.projection.z*0.5-v.y*p.projection.z*1.2247449);
+// cell.w is a runtime zero in every CPU parameter record. As in the DDA
+// painter, the opaque identity preserves observable f32 rounding: changing
+// uniform versus storage parameter fetch must not change fused operations at
+// nearest-texel or triangle ownership boundaries.
+fn surface_fp(value:f32)->f32 {return bitcast<f32>(bitcast<u32>(value)^bitcast<u32>(p.cell.w));}
+fn surface_fp2(value:vec2<f32>)->vec2<f32> {return bitcast<vec2<f32>>(bitcast<vec2<u32>>(value)^vec2<u32>(bitcast<u32>(p.cell.w)));}
+fn surface_fp3(value:vec3<f32>)->vec3<f32> {return bitcast<vec3<f32>>(bitcast<vec3<u32>>(value)^vec3<u32>(bitcast<u32>(p.cell.w)));}
+fn surface_divide(a:f32,b:f32)->f32 {
+    let q=surface_fp(a/b);
+    return surface_fp(q+surface_fp(fma(-q,b,a)/b));
 }
-fn cross2(a:vec2<f32>,b:vec2<f32>)->f32 {return a.x*b.y-a.y*b.x;}
+fn project(v:vec3<f32>)->vec2<f32> {
+    let x=surface_fp(surface_fp(v.x+v.z)*p.projection.z);
+    let y=surface_fp(surface_fp(surface_fp(v.z-v.x)*p.projection.z)*0.5);
+    let height=surface_fp(surface_fp(v.y*p.projection.z)*1.2247449);
+    return surface_fp2(p.projection.xy+vec2<f32>(x,surface_fp(y-height)));
+}
+fn cross2(a:vec2<f32>,b:vec2<f32>)->f32 {
+    let av=surface_fp2(a);let bv=surface_fp2(b);
+    return surface_fp(surface_fp(av.x*bv.y)-surface_fp(av.y*bv.x));
+}
 fn edge(a:vec2<f32>,b:vec2<f32>,q:vec2<f32>)->f32 {return cross2(b-a,q-a);}
 fn bytes(v:u32)->vec4<u32> {return vec4<u32>(v&255u,(v>>8u)&255u,(v>>16u)&255u,v>>24u);}
 fn word(v:vec4<u32>)->u32 {return v.x|(v.y<<8u)|(v.z<<16u)|(v.w<<24u);}
@@ -61,15 +78,19 @@ fn raster(@builtin(global_invocation_id) id:vec3<u32>) {
     if p.canvas.z!=0u {
         if abs(area)<0.0000001 {return;}
         if !raster_contains(array<vec2<f32>,3>(a,b,c),q,area) {return;}
-        let wa=cross2(b-q,c-q)/area;let wb=cross2(c-q,a-q)/area;let wc=1.0-wa-wb;
+        let wa=surface_divide(cross2(b-q,c-q),area);let wb=surface_divide(cross2(c-q,a-q),area);let wc=surface_fp(surface_fp(1.0-wa)-wb);
         if min(min(wa,wb),wc)< -0.00001{return;}
-        world=p.vertices[0].xyz*wa+p.vertices[1].xyz*wb+p.vertices[2].xyz*wc;
+        world=surface_fp3(surface_fp3(surface_fp3(p.vertices[0].xyz*wa)+surface_fp3(p.vertices[1].xyz*wb))+surface_fp3(p.vertices[2].xyz*wc));
     } else {
         if abs(area)<0.0001{return;}
         if !raster_contains(array<vec2<f32>,3>(a,b,c),q,area) {return;}
         let h=p.vertices[0].y;
-        let point=(q+vec2<f32>(0.0,h*p.projection.z*1.2247449)-p.projection.xy)/max(p.projection.z,0.001);
-        world=vec3<f32>(point.x*0.5-point.y,h,point.x*0.5+point.y);
+        let lift=surface_fp(surface_fp(h*p.projection.z)*1.2247449);
+        let translated=surface_fp2(surface_fp2(q+vec2<f32>(0.0,lift))-p.projection.xy);
+        let unit=max(p.projection.z,0.001);
+        let point=vec2<f32>(surface_divide(translated.x,unit),surface_divide(translated.y,unit));
+        let half_x=surface_fp(point.x*0.5);
+        world=vec3<f32>(surface_fp(half_x-point.y),h,surface_fp(half_x+point.y));
     }
     let sampled=sampling_world(world.xz);
     if p.cell.z!=0 && any(vec2<i32>(floor(sampled))!=p.cell.xy) {return;}
@@ -78,7 +99,11 @@ fn raster(@builtin(global_invocation_id) id:vec3<u32>) {
     let depth=world.z-world.x+world.y*0.8164966;
     if p.canvas.z!=0u&&depth<=terrain[dst].x{return;}
     var uv=sampled;let repeat=p.canvas.w!=0u;
-    if !repeat {uv=(uv-p.uv_bounds.xy)/max(p.uv_bounds.zw-p.uv_bounds.xy,vec2<f32>(0.001));}
+    if !repeat {
+        let delta=surface_fp2(uv-p.uv_bounds.xy);
+        let extent=max(surface_fp2(p.uv_bounds.zw-p.uv_bounds.xy),vec2<f32>(0.001));
+        uv=vec2<f32>(surface_divide(delta.x,extent.x),surface_divide(delta.y,extent.y));
+    }
     let base=sample_material(0u,uv,repeat);var color=base.color;var rme=base.rme;
     if (p.contact.w&1u)!=0u {
         let t=fract(sampled);let l=p.blend.x*(1.0-t.y)+p.blend.w*t.y;let r=p.blend.y*(1.0-t.y)+p.blend.z*t.y;

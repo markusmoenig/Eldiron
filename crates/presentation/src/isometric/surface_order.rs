@@ -1,6 +1,9 @@
 //! Dependency waves for per-pixel surface operations. Disjoint screen regions
 //! commute; every overlapping pair retains its original order across passes.
-const TILE: i32 = 8;
+// Fine buckets reduce false dependencies for dense/subpixel terrain, especially
+// fitted overviews. Planning still touches bounded rectangle metadata only;
+// large footprints retain the conservative global fence below.
+const TILE: i32 = 2;
 const MAX_TILES_PER_REGION: usize = 512;
 
 pub(super) fn waves(regions: &[[i32; 4]], size: (u32, u32)) -> Vec<Vec<usize>> {
