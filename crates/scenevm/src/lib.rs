@@ -1207,6 +1207,7 @@ impl SceneVM {
         rgba_overlay: &mut Option<RgbaOverlayState>,
         rgba_overlay_pipeline: &mut Option<RgbaOverlayCompositingPipeline>,
         composite_rgba_overlay_in_scene: bool,
+        base_prepared: bool,
     ) -> SceneVMResult<()> {
         let debug_total_start = instant::Instant::now();
         let mut debug_composited_layers = 0u32;
@@ -1214,7 +1215,7 @@ impl SceneVM {
         // The surface texture is always created with Rgba8Unorm in `Texture::ensure_gpu_with`
         let target_format = wgpu::TextureFormat::Rgba8Unorm;
         let debug_base_start = instant::Instant::now();
-        if let Err(e) = base_vm.draw_into(device, queue, surface, w, h) {
+        if !base_prepared && let Err(e) = base_vm.draw_into(device, queue, surface, w, h) {
             if log_errors {
                 #[cfg(target_arch = "wasm32")]
                 web_sys::console::error_1(
@@ -2407,6 +2408,7 @@ impl SceneVM {
             &mut self.rgba_overlay,
             &mut self.rgba_overlay_pipeline,
             false,
+            false,
         );
         if let Some(start) = debug_draw_start {
             debug_draw_ms = start.elapsed().as_secs_f64() * 1000.0;
@@ -2636,6 +2638,7 @@ impl SceneVM {
             &mut self.rgba_overlay,
             &mut self.rgba_overlay_pipeline,
             true,
+            false,
         );
         let render_ms = render_start.elapsed().as_secs_f64() * 1000.0;
         let readback_start = instant::Instant::now();
@@ -2686,6 +2689,7 @@ impl SceneVM {
             &mut self.rgba_overlay,
             &mut self.rgba_overlay_pipeline,
             true,
+            false,
         );
 
         // Start readback and await readiness
@@ -2809,6 +2813,7 @@ impl SceneVM {
                 &mut self.rgba_overlay,
                 &mut self.rgba_overlay_pipeline,
                 true,
+                false,
             );
             let device = gpu.device.clone();
             let queue = gpu.queue.clone();

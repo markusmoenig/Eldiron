@@ -14942,3 +14942,59 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   remain open. Next: private frozen-frame ownership and delayed overlay composition
   (overlays must not advance their own history once per failed base attempt), then
   canonical source/view integration, cancellation and publication/input receipts.
+
+
+## Frozen private raster frame owner (2026-11-15, integration continuing)
+
+- Added RasterPaintFrame in presentation, owning a complete SceneHandler, target,
+  resident paint table/pages, region stack and per-attempt receipt. No mutable
+  scene borrow escapes while pending. Output and completed-scene input access
+  require complete regions/composition and a live device. Dropping cancels the
+  private request; failed advances retain a sticky error and withhold output.
+  Completed parts can return to the application for reuse of scene/target/pages.
+- Receipt completion orders page replacement. One advance loads at most one page
+  and makes at most one base attempt or composition, without polling/waiting for
+  the device. Pressure subdivides absolute regions; a single pixel exceeding the
+  working set errors without exposing partial output. CPU generated sources may
+  remain pending. This owner currently targets an active ordinary Raster3D base.
+- SceneVM now offers a base-only GPU attempt and composition with a prepared base.
+  Ordinary render_gpu and reference/window calls retain their previous draw-all
+  behavior. Overlays draw exactly once after the private base resolves, avoiding
+  history advancement once per fault/replay; the base is not rerendered against
+  evicted pages during final composition. All target/device-domain validation
+  remains shared and no implicit viewport readback is added.
+- Canonical four-application release compile PASS27.65s:
+  /private/tmp/eldiron-private-raster-owner-release.log. Presentation-only release
+  compile after complete SceneHandler ownership/lost-device guards PASS22.30s:
+  /private/tmp/eldiron-private-raster-owner-release-handler.log.
+- Focused release raster three-page/two-slot publication regression is in flight:
+  /private/tmp/eldiron-private-raster-owner-release-pressure.log. Do not count it
+  until its terminal result is recorded. Browser feature compilation remains.
+- Canonical SceneViews adoption is not implemented yet. Next dependency: derive
+  the complete CPU key index cooperatively from existing SurfacePaint publications,
+  then install the owner behind live-source/view scope and scheduling guards.
+  Clear/hide/document/session/resize/source replacement must retire pending work;
+  input must use the completed frozen camera. Overall objective and broad release
+  functional/platform/resource/performance acceptance remain unfinished.
+- Focused regression results: initial UV fixture spanned only1.5 pages because
+  raster paint uses32 pixels/unit; corrected to three pages. Full-cube correction
+  then exercised conservative overlapping-face dependencies within one pixel and
+  correctly withheld output at capacity2. Logs:
+  /private/tmp/eldiron-private-raster-owner-release-pressure.log,
+  /private/tmp/eldiron-private-raster-owner-release-pressure-final.log.
+  Raster fault recording can include fragments later rejected by depth; dependency
+  pressure may therefore exceed the nearest visible surface's pages. Occlusion/
+  worst-case working-set policy remains an explicit live integration/performance
+  gate, not a solved bound or permission to drop original source pages.
+- Spatial-pressure fixture now uses one visible face to isolate subdivision.
+  Three pages through two slots complete with subdivisions and byte-exact output
+  against full residency; no output/picking scene is available during pending
+  attempts, and viewport CPU/readback storage stays empty. PASS0.13s, release
+  build8.44s:
+  /private/tmp/eldiron-private-raster-owner-release-spatial.log.
+  This proves that scenario; full overlapping-face success with a sufficient
+  working set, cancellation, overlay history, source/target replacement and lost
+  device behavior still need consolidated acceptance. Browser check in flight.
+- Browser Creator release compilation PASS26.96s:
+  /private/tmp/eldiron-private-raster-owner-release-web.log. Compiler handles
+  terminal before CPU live-source index edits. Concurrent concept remains excluded.

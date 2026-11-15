@@ -21,6 +21,7 @@ pub use viewport::{ScreenViewport, player_binding_key};
 
 pub mod overview2d;
 pub mod orthographic_bake;
+pub mod raster_paint_frame;
 
 /// Project setup bridges for graphical owners and explicit reference hosts.
 pub mod project_bridge;

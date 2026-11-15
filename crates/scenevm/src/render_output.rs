@@ -231,6 +231,40 @@ impl SceneVM {
         target: &mut SceneRenderTarget,
         revision: u64,
     ) -> Result<SceneOutput> {
+        self.render_gpu_base_state(target, revision, false)
+    }
+
+    /// Render only the private base attempt. Overlay history and final target
+    /// composition wait until the requesting owner has resolved every region.
+    pub fn render_base_gpu(&mut self, target: &mut SceneRenderTarget) -> Result<()> {
+        self.validate_render_target(target)?;
+        let gpu = self.gpu.as_ref().unwrap();
+        let (width, height) = target.size();
+        self.size = (width, height);
+        self.vm
+            .draw_into(&gpu.device, &gpu.queue, &mut target.texture, width, height)
+            .map_err(|error| RenderError(format!("private scene base: {error:?}")))
+    }
+
+    /// Compose an already completed base and draw overlays exactly once. The
+    /// caller must have rendered the unchanged base at this exact target size.
+    pub fn compose_prepared_base_gpu(
+        &mut self,
+        target: &mut SceneRenderTarget,
+        revision: u64,
+    ) -> Result<SceneOutput> {
+        self.validate_render_target(target)?;
+        let texture = self
+            .vm
+            .composite_texture()
+            .ok_or_else(|| RenderError("prepared scene base is missing".into()))?;
+        if (texture.width, texture.height) != target.size() || texture.gpu.is_none() {
+            return Err(RenderError("prepared scene base target is stale".into()));
+        }
+        self.render_gpu_base_state(target, revision, true)
+    }
+
+    fn validate_render_target(&self, target: &SceneRenderTarget) -> Result<()> {
         let gpu = self
             .gpu
             .as_ref()
@@ -253,6 +287,17 @@ impl SceneVM {
         if target.context.is_lost() {
             return Err(RenderError("scene GPU device lost".into()));
         }
+        Ok(())
+    }
+
+    fn render_gpu_base_state(
+        &mut self,
+        target: &mut SceneRenderTarget,
+        revision: u64,
+        base_prepared: bool,
+    ) -> Result<SceneOutput> {
+        self.validate_render_target(target)?;
+        let gpu = self.gpu.as_ref().unwrap();
         let (w, h) = target.size();
         self.size = (w, h);
         Self::draw_all_vms(
@@ -268,6 +313,7 @@ impl SceneVM {
             &mut self.rgba_overlay,
             &mut self.rgba_overlay_pipeline,
             true,
+            base_prepared,
         )
         .map_err(|e| RenderError(format!("scene rendering: {e:?}")))?;
         Ok(SceneOutput {
