@@ -175,6 +175,70 @@ struct NativeCreatorHostCheck {
         precondition((state(host)["root_cpu_bytes"] as! NSNumber).uint64Value == 0)
         precondition((state(host)["readback_bytes"] as! NSNumber).uint64Value == 0)
     }
+    static func checkIndependentHosts(_ first: UInt64, _ firstLayer: CAMetalLayer) {
+        let initial = state(first)
+        let document = value(eldiron_creator_document_info_v1(first))["document"] as! String
+        let save = document.withCString { value(eldiron_creator_document_prepare_save_v1(first, $0)) }
+        let ticket = (save["ticket"] as! NSNumber).uint64Value
+        let length = (save["length"] as! NSNumber).uint64Value
+        let secondLayer = CAMetalLayer()
+        let secondPointer = Unmanaged.passUnretained(secondLayer).toOpaque()
+        let second = eldiron_creator_create_v1(1, secondPointer, 960, 640, 1)
+        precondition(second > first, "Different layers need independent Creator owners")
+        let otherDocument = value(eldiron_creator_document_info_v1(second))["document"] as! String
+        precondition(otherDocument != document)
+        precondition(eldiron_creator_create_v1(1, secondPointer, 960, 640, 1) == 0)
+        precondition(!eldiron_creator_replace_layer_v1(first, secondPointer), "A layer has exactly one presenter")
+        precondition(!eldiron_creator_replace_layer_v1(second, Unmanaged.passUnretained(firstLayer).toOpaque()))
+        pump(second, 0.2)
+        precondition(eldiron_creator_resize_v1(second, 900, 600, 1.5))
+        pump(second, 0.1)
+        let secondState = state(second)
+        precondition(secondState["logical_size"] as! [Double] == [600, 400])
+        precondition((secondState["presentations"] as! NSNumber).uint64Value > 0)
+        precondition((secondState["root_cpu_bytes"] as! NSNumber).uint64Value == 0)
+        precondition((secondState["readback_bytes"] as! NSNumber).uint64Value == 0)
+        precondition(state(first)["physical_size"] as! [Double] == initial["physical_size"] as! [Double],
+                     "A versioned forward may not resize another Creator")
+        let firstFrames = (state(first)["presentations"] as! NSNumber).uint64Value
+        precondition(eldiron_creator_suspend_v1(first))
+        pump(second, 0.1)
+        precondition((state(first)["presentations"] as! NSNumber).uint64Value == firstFrames)
+        precondition(eldiron_creator_resume_v1(first))
+        precondition(document.withCString { reply(eldiron_creator_document_prepare_save_v1(second, $0))["ok"] as? Bool } == false)
+        precondition(eldiron_creator_document_copy_save_v1(first, ticket, nil, 0) == length)
+        let otherSave = otherDocument.withCString { value(eldiron_creator_document_prepare_save_v1(second, $0)) }
+        let otherTicket = (otherSave["ticket"] as! NSNumber).uint64Value
+        precondition(rust_render() == -1, "Unversioned callbacks cannot select an arbitrary versioned host")
+        let legacyLayer = CAMetalLayer()
+        precondition(rust_init(Unmanaged.passUnretained(legacyLayer).toOpaque(), 960, 640, 1))
+        precondition(!rust_init(Unmanaged.passUnretained(legacyLayer).toOpaque(), 960, 640, 1))
+        for _ in 0..<3 {
+            precondition(rust_render() >= 0)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        }
+        let legacyPointer = rust_host_state()!
+        let legacyState = try! JSONSerialization.jsonObject(with: Data(String(cString: legacyPointer).utf8)) as! [String: Any]
+        rust_free_string(legacyPointer)
+        precondition((legacyState["presentations"] as! NSNumber).uint64Value > 0)
+        precondition((legacyState["root_cpu_bytes"] as! NSNumber).uint64Value == 0)
+        precondition((legacyState["readback_bytes"] as! NSNumber).uint64Value == 0)
+        rust_shutdown()
+        precondition(rust_render() == -1)
+        precondition(value(eldiron_creator_document_info_v1(first))["document"] as? String == document)
+        precondition(value(eldiron_creator_document_info_v1(second))["document"] as? String == otherDocument)
+        precondition(eldiron_creator_destroy_v1(second))
+        precondition(eldiron_creator_state_v1(second) == nil)
+        precondition(eldiron_creator_document_finish_save_v1(second, otherTicket, true, nil) == nil,
+                     "A retired host's delayed save cannot target the remaining owner")
+        precondition(eldiron_creator_document_copy_save_v1(first, ticket, nil, 0) == length)
+        precondition(reply(eldiron_creator_document_finish_save_v1(first, ticket, false, nil))["ok"] as? Bool == true)
+        pump(first, 0.1)
+        precondition((state(first)["root_cpu_bytes"] as! NSNumber).uint64Value == 0)
+        precondition((state(first)["readback_bytes"] as! NSNumber).uint64Value == 0)
+        withExtendedLifetime((secondLayer, legacyLayer)) {}
+        print("Independent Creator handles/layers/legacy routing/pending save retirement passed")
+    }
     static func main() {
         setbuf(stdout, nil)
         _ = NSApplication.shared
@@ -192,9 +256,14 @@ struct NativeCreatorHostCheck {
         precondition((snapshot["presentations"] as! NSNumber).uint64Value > 0)
         precondition((snapshot["root_cpu_bytes"] as! NSNumber).uint64Value == 0)
         precondition((snapshot["readback_bytes"] as! NSNumber).uint64Value == 0)
+        checkIndependentHosts(host, layer)
+        snapshot = state(host)
         let frames = (snapshot["presentations"] as! NSNumber).uint64Value
         let updates = (snapshot["updates"] as! NSNumber).uint64Value
         _ = eldiron_creator_suspend_v1(host)
+        // A settled editor can have no timer deadline. Supply explicit CPU work
+        // while suspended; presentation suppression must not discard its wake.
+        precondition(eldiron_creator_focus_v1(host, false))
         pump(host, 0.1)
         precondition((state(host)["presentations"] as! NSNumber).uint64Value == frames)
         precondition((state(host)["updates"] as! NSNumber).uint64Value > updates,

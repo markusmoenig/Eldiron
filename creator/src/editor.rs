@@ -151,6 +151,7 @@ impl CreatorTheme {
             Self::Light => Box::new(TheLightTheme::new()),
         };
         ui.set_theme(theme, ctx);
+        server.theme = self;
         profile.lap("theme_widgets");
         server.reference.write().client.editor_canvas_colors = Some([
             *ui.style.theme().color(EditorCanvasBackground),

@@ -17,10 +17,11 @@
 
 #define GAME_TICK_IN_MS 250
 
-// Version 1: main-thread, single active Creator until workspace globals retire.
+// Version 1: independent main-thread Creator owners, one presenter per layer.
 // Handles are monotonic per thread and never recycled. Zero means failure.
 // Destroy the Rust host before releasing its retained CAMetalLayer.
 // Stale handles fail; every asynchronous completion must capture its original handle.
+// Unversioned callbacks address only a separately rust_init-created legacy host.
 uint32_t eldiron_creator_abi_version(void);
 uint64_t eldiron_creator_create_v1(uint32_t version, void *layer, uint32_t width, uint32_t height, float density);
 bool eldiron_creator_destroy_v1(uint64_t host);

@@ -2,7 +2,7 @@
 use crate::{native_application::NativeCreatorApplication, prelude::*};
 use renderkit::SurfaceState;
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     ffi::{CStr, CString, c_char, c_void},
     panic::{AssertUnwindSafe, catch_unwind},
 };
@@ -22,38 +22,128 @@ unsafe extern "C" {
 }
 thread_local! {
     static APP: RefCell<owner::Owner<HostedCreator>> = const { RefCell::new(owner::Owner::new()) };
+    static SELECTED: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 fn with_app<T: Default>(f: impl FnOnce(&mut CreatorHost) -> T) -> T {
     with_hosted(|host| f(&mut host.app))
+}
+// Legacy callbacks are scoped only during a validated synchronous v1 forward.
+// An unversioned caller otherwise addresses its own explicitly created host.
+fn selected(owner: &owner::Owner<HostedCreator>) -> Option<u64> {
+    SELECTED.with(Cell::get).or_else(|| owner.legacy())
+}
+fn with_selected<T>(handle: u64, f: impl FnOnce() -> T) -> Option<T> {
+    if handle == 0
+        || unsafe { pthread_main_np() } == 0
+        || !APP.with(|app| {
+            app.try_borrow()
+                .ok()
+                .is_some_and(|app| app.contains(handle))
+        })
+    {
+        return None;
+    }
+    struct Restore(Option<u64>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            SELECTED.with(|current| current.set(self.0));
+        }
+    }
+    let _restore = Restore(SELECTED.with(|current| current.replace(Some(handle))));
+    Some(f())
 }
 fn with_hosted<T: Default>(f: impl FnOnce(&mut HostedCreator) -> T) -> T {
     if unsafe { pthread_main_np() } == 0 {
         return T::default();
     }
     catch_unwind(AssertUnwindSafe(|| {
-        APP.with(|app| app.borrow_mut().as_mut().map(f).unwrap_or_default())
+        APP.with(|app| {
+            let mut app = app.try_borrow_mut().ok()?;
+            let id = selected(&app)?;
+            app.get_mut(id).map(f)
+        })
     }))
-    .unwrap_or_else(|_| {
-        eprintln!("[EldironCreator] Panic in native callback");
-        T::default()
-    })
+    .ok()
+    .flatten()
+    .unwrap_or_default()
 }
 fn with_hosted_handle<T>(handle: u64, f: impl FnOnce(&mut HostedCreator) -> T) -> Option<T> {
     if handle == 0 || unsafe { pthread_main_np() } == 0 {
         return None;
     }
     catch_unwind(AssertUnwindSafe(|| {
-        APP.with(|app| {
-            let mut app = app.try_borrow_mut().ok()?;
-            if app.id() != handle {
+        APP.with(|app| app.try_borrow_mut().ok()?.get_mut(handle).map(f))
+    }))
+    .ok()
+    .flatten()
+}
+unsafe fn create_host(
+    layer: *mut c_void,
+    width: u32,
+    height: u32,
+    density: f32,
+    legacy: bool,
+) -> Option<u64> {
+    if unsafe { pthread_main_np() } == 0 || layer.is_null() {
+        return None;
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        let available = APP.with(|app| {
+            app.try_borrow().ok().is_some_and(|app| {
+                app.layer_available(layer as usize, None) && (!legacy || app.legacy().is_none())
+            })
+        });
+        if !available {
+            return None;
+        }
+        let _ = crate::i18n::select_system_locales();
+        let presenter = match unsafe { presenter(layer, (width, height)) } {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("[EldironCreator] {error}");
                 return None;
             }
-            app.as_mut().map(f)
+        };
+        let mut host = match ForeignApplicationHost::new(
+            UiApplicationAdapter::new(NativeCreatorApplication::new(
+                vec!["eldiron-creator".into()],
+                false,
+            )),
+            presenter,
+            density,
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("[EldironCreator] {error}");
+                return None;
+            }
+        };
+        #[cfg(not(target_os = "tvos"))]
+        if !legacy {
+            host.application.application.host_enable_document_io();
+        }
+        APP.with(|app| {
+            app.try_borrow_mut().ok()?.install(
+                layer as usize,
+                HostedCreator {
+                    app: host,
+                    clipboard_png: None,
+                },
+                legacy,
+            )
         })
     }))
     .ok()
     .flatten()
+}
+fn destroy_host(handle: u64) -> bool {
+    if with_hosted_handle(handle, |host| host.app.suspend()).is_none() {
+        return false;
+    }
+    // Drop the surface/application after releasing the registry borrow.
+    let host = APP.with(|app| app.borrow_mut().take(handle));
+    host.is_some()
 }
 
 unsafe fn presenter(
@@ -73,41 +163,7 @@ pub unsafe extern "C" fn rust_init(
     height: u32,
     density: f32,
 ) -> bool {
-    if unsafe { pthread_main_np() } == 0 {
-        return false;
-    }
-    catch_unwind(AssertUnwindSafe(|| {
-        APP.with(|app| {
-            if app.borrow().is_some() || layer.is_null() {
-                return false;
-            }
-            let _ = crate::i18n::select_system_locales();
-            let result = unsafe { presenter(layer, (width, height)) }.and_then(|presenter| {
-                ForeignApplicationHost::new(
-                    UiApplicationAdapter::new(NativeCreatorApplication::new(
-                        vec!["eldiron-creator".into()],
-                        false,
-                    )),
-                    presenter,
-                    density,
-                )
-            });
-            match result {
-                Ok(host) => app
-                    .borrow_mut()
-                    .install(HostedCreator {
-                        app: host,
-                        clipboard_png: None,
-                    })
-                    .is_some(),
-                Err(e) => {
-                    eprintln!("[EldironCreator] {e}");
-                    false
-                }
-            }
-        })
-    }))
-    .unwrap_or(false)
+    unsafe { create_host(layer, width, height, density, true) }.is_some()
 }
 
 #[unsafe(no_mangle)]
@@ -115,10 +171,9 @@ pub extern "C" fn rust_shutdown() {
     if unsafe { pthread_main_np() } == 0 {
         return;
     }
-    with_app(|app| app.suspend());
-    APP.with(|app| {
-        app.borrow_mut().take();
-    });
+    if let Some(id) = APP.with(|app| app.borrow().legacy()) {
+        destroy_host(id);
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -146,17 +201,30 @@ pub extern "C" fn rust_render() -> i32 {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn rust_replace_layer(layer: *mut c_void) -> bool {
-    with_app(|app| {
-        match unsafe { presenter(layer, app.host.physical_size) }
-            .and_then(|next| app.replace_presenter(next))
+    if unsafe { pthread_main_np() } == 0 {
+        return false;
+    }
+    let id = APP.with(|app| {
+        let app = app.try_borrow().ok()?;
+        let id = selected(&app)?;
+        app.layer_available(layer as usize, Some(id)).then_some(id)
+    });
+    let Some(id) = id else {
+        return false;
+    };
+    let replaced = with_hosted_handle(id, |host| {
+        match unsafe { presenter(layer, host.app.host.physical_size) }
+            .and_then(|next| host.app.replace_presenter(next))
         {
             Ok(()) => true,
-            Err(e) => {
-                eprintln!("[EldironCreator] {e}");
+            Err(error) => {
+                eprintln!("[EldironCreator] {error}");
                 false
             }
         }
     })
+    .unwrap_or(false);
+    replaced && APP.with(|app| app.borrow_mut().replace_layer(id, layer as usize))
 }
 
 #[unsafe(no_mangle)]
@@ -310,11 +378,13 @@ pub extern "C" fn rust_set_creator_theme(index: u32) {
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_get_creator_theme() -> u32 {
-    match crate::editor::CreatorTheme::load() {
-        crate::editor::CreatorTheme::Brown => 0,
-        crate::editor::CreatorTheme::Black => 1,
-        crate::editor::CreatorTheme::Light => 2,
-    }
+    with_app(|app| Some(app.application.application.host_creator_theme())).unwrap_or_else(|| {
+        match crate::editor::CreatorTheme::load() {
+            crate::editor::CreatorTheme::Brown => 0,
+            crate::editor::CreatorTheme::Black => 1,
+            crate::editor::CreatorTheme::Light => 2,
+        }
+    })
 }
 
 /// Native Edit menu commands use the same controller/clipboard route as keys.

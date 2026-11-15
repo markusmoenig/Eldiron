@@ -95,9 +95,10 @@ fn missing_paint_dependencies_never_publish_or_capture_an_original_sample() {
         assert!(std::time::Instant::now() < deadline);
     };
     assert!(
-        error
-            .to_string()
-            .contains(&format!("paint entry {slot} is not resident"))
+        error.to_string().contains(&format!(
+            "Bake source entry {slot} is not resident; sample withheld"
+        )),
+        "unexpected missing-source diagnostic: {error}"
     );
     let after = context.transfers();
     assert_eq!(

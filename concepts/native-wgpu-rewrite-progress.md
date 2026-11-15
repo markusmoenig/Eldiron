@@ -56,9 +56,9 @@ behavior is ready to verify.
 
 ## Next work
 
-1. Finish the remaining browser geometry material path: portable tile IDs, nonblocking source-addressed compilation, view-owned cancellation, and actual release browser rendering/recovery. These are implementation gaps found by the final ownership audit; current native GPU ownership/output checks pass. See the latest checkpoint at the end of this file.
-2. Close the canonical source/resource audit. Changed-recipe capture, prefab merge capture and placement production now use the cooperative retained owners documented below. Modal/list previews, minimap fallback, material scratch/planes and pending consumer snapshots have also been converted. Verify remaining exceptions are explicit asset/export/reference operations, then close implementation inventory; do not infer whole-app memory or latency guarantees from local cache budgets.
-3. After implementation gaps are closed, run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Browser/Apple supported-target and physical interaction checks remain required; unavailable checks stay open. Update every M0–M9 gate from actual evidence. Broad tests remain deferred until implementation is finished, as requested.
+1. Resume consolidated release acceptance after the Apple ownership gap was closed. Current canonical display/source paths and browser geometry have no further known port gap from the audited callers. Foreign Creator now supports independent simultaneous handle/layer owners; actual optimized Rust/Swift checks pass for two versioned hosts plus a legacy host. This is implementation/focused evidence, not full M0–M9 completion.
+2. Complete presentation integration, CPU/runtime/session, assembled Creator/player, saved-format/document and target checks; fix failures as ordinary work. Renderkit12, Framework296, SceneVM77 and29 isolated dependency boundaries pass. Presentation's obsolete persistent-staging/diagnostic/one-call resize assumptions were corrected and focused contracts pass. Broader suites now resume as requested after implementation.
+3. Measure matched release CPU/native performance (p50/p95/p99, input latency, startup and peak memory). Complete available browser/Apple runtime and physical interaction checks. Apple simulator runtimes are installed; use a separate acceptance simulator to preserve the user's already booted iPad. Unavailable physical Windows/Linux/iOS checks stay open. Update every M0–M9 gate from actual evidence; mark the objective complete only when all acceptance criteria are verified.
 
 ## Blockers
 
@@ -16770,3 +16770,147 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   by implementation plus focused release evidence. Continue canonical final
   source/owner inventory; only after no known implementation gaps remain begin
   consolidated acceptance. No M0–M9 completion or measured speedup claim.
+
+## Final implementation inventory and consolidated acceptance entry (2026-11-15)
+
+- Final follow-up ownership inventory /private/tmp/eldiron-port-final-ownership-
+  followup.txt: direct Creator SceneVM constructors are isolated reference
+  appearance worker, tests and offline art; mem::swap hit is a pair of geometry
+  dimensions, not VM ownership. The locale loader is CPU localization, not a
+  renderer/server/document owner. No global GPU/window or VM swap in canonical
+  NativeCreatorApplication, presentation or native player.
+- Framework unsupported widgets fail explicit paint errors; UiSession.paint only
+  emits paint_commands and cannot synthesize CPU widget/root framebuffer fallback.
+  Prior full built-in command-paint inventory remains applicable. Presentation's
+  fontdue dependency imports authored font assets for compatibility source data;
+  canonical screen text uses the shared text/Swash painter, not rasterized HUDs.
+- Remaining std clocks in MaterialZ are cfg-native; Rusterix get_time has an
+  explicit browser performance clock. SceneVM project-browser clocks belong to
+  its optional legacy UI, absent from canonical presentation; Scepter socket
+  transport is native-only. Browser material asset jobs already have owned
+  Abortable futures, now matched by both material preview compiler families.
+- Known canonical port implementation inventory is closed for the current source.
+  This is an entry into consolidated acceptance, not a milestone/goal completion
+  claim; failures discovered by that gate remain ordinary implementation work.
+  User requested broad tests only after implementation: begin those now, in
+  release, without rerunning unrelated historical loops or asking approval.
+
+- Consolidated release renderkit PASS12/12 (build1.42s), including actual foreign
+  CAMetalLayer lifecycle, target/image/immutable/writable-buffer lease ownership
+  and bounded diagnostic readback. /private/tmp/eldiron-acceptance-final-renderkit.log.
+- Consolidated framework release PASS296/296 (build34.19s), UI/render-wgpu/
+  platform-winit with all ignored GPU contracts included and serial test execution.
+  Paint/text/clipping/DPI/theme/widgets/image-target reuse and platform lifecycle
+  fixtures all pass. /private/tmp/eldiron-acceptance-final-framework.log.
+- Isolated dependency source/consumer matrix PASS, including CPU-only runtime/
+  terminal/project/rulesets, browser codec worker, platform-neutral UI, native/
+  browser/Apple presentation and all canonical launchers. No combined workspace
+  feature-unification shortcut. /private/tmp/eldiron-acceptance-final-boundaries.log.
+- SceneVM consolidated release GPU suite now running (handle97245). Do not edit
+  Rust until terminal. Next presentation/session and assembled Creator/player
+  acceptance, then current saved formats/targets/performance. No milestone gate
+  or physical-platform acceptance implied solely by these foundation suites.
+
+- Consolidated SceneVM release PASS77/77 (build8.69s), CPU/GPU unit tests and
+  independent normal/geometry/isometric/surface/pooled/empty outputs, all actual
+  native GPU cases included. /private/tmp/eldiron-acceptance-final-scenevm.log.
+- Presentation consolidated release reached115 library cases:113PASS,2FAIL; Cargo
+  stopped before integration binaries. /private/tmp/eldiron-acceptance-final-
+  presentation.log. The two assertions predate current owner contracts: missing
+  source diagnostic now says Bake source entry ..., and explicit surface capture
+  now owns request buffers instead of leaving persistent VM staging. Updated
+  exact diagnostic assertion and required absence of persistent staging; retained
+  pixel/ID/depth/readback/publication assertions. Focused corrected checks next.
+- Apple wrapper source audit reopened implementation inventory: foreign Creator
+  registry still rejects every second host and forwards v1 handles through one
+  singleton legacy app. README explicitly describes this transitional restriction.
+  Main Creator owners are now instance-local, so this must migrate to distinct
+  handle/layer owners with isolated legacy routing and real two-host checks.
+  Broad tests pause after the current presentation result; finish this ownership
+  gap and focused checks before resuming the consolidated gate. Earlier inventory
+  closure was limited to the audited canonical runtime/display call sites and
+  did not establish wrapper multiwindow ownership; do not claim port complete.
+- Isolated diagnostic Chrome ignored SIGINT, Browser.close and SIGTERM after
+  its checks. Verified exact PID and private test-profile command before SIGKILL;
+  its handle60638terminal, server32735terminal. No user browser process touched.
+
+## Independent foreign Creator owners, in progress (2026-11-15)
+
+- Replaced singleton Apple Creator owner with independent monotonic handle/layer
+  entries. Creation/replacement rejects a layer still owned by another host.
+  Destroy removes only its addressed application/surface; handles never recycle.
+  Legacy rust_init/shutdown retain a separate compatibility owner and cannot
+  accidentally select a versioned host. Every v1 legacy forward has a scoped
+  selected handle restored on return/unwind; document/image APIs directly borrow
+  their addressed owner. No VM swaps or renderer globals introduced.
+- Applied Creator theme is now per CreatorContext. Foreign get_theme reports
+  the selected UI's theme instead of another host's disk preference; native
+  persisted preference and existing serialized projects stay unchanged.
+- First staticlib release compile exposed two extern-C function items requiring
+  closure adapters and a private Editor field access. Corrected closures and
+  added a narrow Editor theme query; final staticlib release check PASS10.50s.
+  Logs /private/tmp/eldiron-creator-host-owners-release-native-{check,fixed}.log.
+- Added owner contract and extended real Swift NativeCreatorHostCheck: different
+  layers/handles/documents, independent resize/suspend, layer exclusivity, pending
+  saves/stale callback retirement, a separately created legacy host, and survivor
+  liveness. Added tools/check_native_creator_apple.py to build/link/run actual
+  release Rust staticlib and optimized Swift harness. Actual two-host run pending.
+- Corrected missing-source assertion PASS1/0.19s on Metal. Initial sandboxed run
+  could not obtain an adapter, not a code failure. Dynamic surface assertion then
+  exposed a second old persistent-staging assertion and a one-call resize render
+  assumption; both now follow request-owned capture and bounded cooperative
+  preparation/polling. Corrected focused result pending handle49697; Rust source
+  edits frozen until it exits. Preserve the full error history.
+- Python py_compile attempted an external system cache; no file was changed
+  there. Checked the new helper syntax through ast.parse without writing caches.
+- Broad acceptance remains paused for this newly identified wrapper ownership
+  gap. Foundation results12 renderkit/296framework/77SceneVM/29dependencies remain
+  valid; presentation integration suite has not yet run. No goal completion.
+
+- Focused corrected dynamic surface/capture/resize case PASS1/0.16s(build8.27s):
+  /private/tmp/eldiron-acceptance-final-presentation-surface-poll-fixed.log.
+  Isolated optimized registry ownership contract PASS1/0.00s:
+  /private/tmp/eldiron-creator-host-owners-release-owner-contract.log. Both handles
+  terminal. Actual optimized Rust/Swift foreign multi-host build/run now handle
+  28779, /private/tmp/eldiron-creator-host-owners-release-swift.log. No Rust edits
+  until the entire helper exits (it invokes cargo, swiftc and the GPU host).
+
+- Actual Creator release static archive build PASS1m36s, but the new one-file
+  Swift runner needs -parse-as-library for its @main entry. Initial helper
+  stopped at Swift compilation, not a runtime/ownership pass. Added that flag.
+  First detailed logs /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/
+  eldiron-creator-apple-host-bd71_mlo/{rust-release,swift-release}.log. No code
+  or ownership behavior changed for this harness correction. Rerun actual helper.
+
+- Corrected optimized Swift runner compiled and real two-host/third legacy-host
+  checks PASS, including scoped resize, distinct documents and pending-save/stale
+  handle retirement. Subsequent older single-host lifecycle check trapped in
+  main after its new independent-host section. A settled idle editor now has no
+  timer deadline; its old assertion expected arbitrary updates during0.1s suspend.
+  Supply explicit focus input while suspended before testing update delivery,
+  preserving the stronger no-present assertion. Added -g to optimized Swift
+  linkage for useful crash lines; -O remains selected. Rerun full host contract,
+  not counted as complete from the earlier partial two-host pass. Logs
+  .../eldiron-creator-apple-host-p6ddxijb/{rust-release,swift-release,host}.log.
+  Secondary/legacy Creators cannot bind the primary host's fixed Scepter port;
+  they report service unavailable without affecting documents/GPU ownership.
+  This OS port conflict is recorded separately from rendering/FFI correctness.
+
+- Full optimized Rust/Swift foreign Creator PASS, including explicit positive
+  presentation counts/zero root CPU bytes/zero color readback for all3 independent
+  owners, complete prior document/PNG/layer/resize/suspend/recreate contracts,
+  stale callbacks and pending-save retirement. Final helper handle54158terminal.
+  Logs /private/tmp/eldiron-creator-host-owners-release-swift-final.log and
+  /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/
+  eldiron-creator-apple-host-9g3e2uyr/{rust-release,swift-release,host}.log.
+  Actual first archive build1m36s; final unchanged Cargo link evidence0.23s
+  (see detailed log, not a startup/performance measurement). Durable evidence
+  concepts/native-wgpu-evidence/apple-creator-independent-owners.json.
+- xcrun simctl reports installed iOS26.4/26.5/27 runtimes. The user's iOS26.5
+  iPad(A16)6D6BB609-E5EC-49B7-899A-69F8037986B0 is already booted; do not install,
+  launch, reset or stop it. A separate owned acceptance device can exercise
+  available simulator workflows later. Physical-device acceptance remains open.
+- Foreign Creator multiwindow ownership implementation gap is closed by actual
+  release evidence. Resume remaining focused target checks and consolidated
+  acceptance, preserving existing foundation results and concurrent networking
+  concept. No full objective or M0–M9 completion claim.

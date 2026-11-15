@@ -167,6 +167,10 @@ impl Editor {
                         && self.server_ctx.shared.curr_map_tool_type == MapToolType::Effects)))
     }
 
+    pub(crate) fn native_creator_theme(&self) -> super::CreatorTheme {
+        self.server_ctx.theme
+    }
+
     pub(crate) fn enable_native_views(&mut self) {
         self.native_viewport.enabled = true;
         self.server_ctx.tools.write().enable_native_display();

@@ -4,6 +4,14 @@ use super::*;
 use crate::editor::{DocumentInfo, SaveInfo, SaveResult};
 use std::path::PathBuf;
 impl NativeCreatorApplication {
+    pub(crate) fn host_creator_theme(&self) -> u32 {
+        match self.editor.native_creator_theme() {
+            crate::editor::CreatorTheme::Brown => 0,
+            crate::editor::CreatorTheme::Black => 1,
+            crate::editor::CreatorTheme::Light => 2,
+        }
+    }
+
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn host_has_document(&self, document: Uuid) -> bool {
         self.editor.has_document(document)

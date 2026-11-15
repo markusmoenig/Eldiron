@@ -916,11 +916,12 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
     assert!((center.depth - 4.).abs() < 0.00001);
     assert_eq!(center.uv, [0., 0.]);
     assert!(
-        scenes
+        !scenes
             .scene(view)
             .unwrap()
             .vm
-            .has_surface_readback_storage()
+            .has_surface_readback_storage(),
+        "explicit compatibility capture owns its request buffers, not persistent VM staging"
     );
     scenes
         .scene_mut(view)
@@ -950,12 +951,12 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
         "empty query must clear the old dynamic footprint"
     );
     assert!(
-        scenes
+        !scenes
             .scene(view)
             .unwrap()
             .vm
             .has_surface_readback_storage(),
-        "only the explicit compatibility capture requested this optional storage"
+        "a completed capture must not leave optional VM staging resident"
     );
     let static_surface = scenes
         .render_surface_output(newer, SurfaceSelection::Static)
@@ -973,7 +974,13 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
             .unwrap()
             .is_none()
     );
-    let resized = scenes.render(view, 3, &mut images).unwrap().unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    let resized = loop {
+        scenes.begin_surface_paint_upload_frame();
+        if let Some(output) = scenes.render(view, 3, &mut images).unwrap() { break output; }
+        assert!(std::time::Instant::now() < deadline, "resized source upload did not settle");
+        finish(&context);
+    };
     let resized_surface = scenes
         .render_surface_output(resized, SurfaceSelection::Dynamic)
         .unwrap()

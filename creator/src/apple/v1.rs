@@ -5,7 +5,11 @@ const VERSION: u32 = 1;
 fn valid(handle: u64) -> bool {
     handle != 0
         && unsafe { pthread_main_np() } != 0
-        && APP.with(|app| app.try_borrow().ok().is_some_and(|app| app.id() == handle))
+        && APP.with(|app| {
+            app.try_borrow()
+                .ok()
+                .is_some_and(|app| app.contains(handle))
+        })
 }
 fn with_host<T>(handle: u64, f: impl FnOnce(&mut CreatorHost) -> T) -> Option<T> {
     with_hosted_handle(handle, |host| f(&mut host.app))
@@ -50,43 +54,29 @@ pub unsafe extern "C" fn eldiron_creator_create_v1(
     height: u32,
     density: f32,
 ) -> u64 {
-    if version != VERSION || !unsafe { rust_init(layer, width, height, density) } {
+    if version != VERSION {
         return 0;
     }
-    APP.with(|app| {
-        let mut app = app.borrow_mut();
-        #[cfg(not(target_os = "tvos"))]
-        if let Some(host) = app.as_mut() {
-            host.app.application.application.host_enable_document_io();
-        }
-        app.id()
-    })
+    unsafe { create_host(layer, width, height, density, false) }.unwrap_or(0)
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn eldiron_creator_destroy_v1(handle: u64) -> bool {
-    if !valid(handle) {
-        return false;
-    }
-    rust_shutdown();
-    true
+    valid(handle) && destroy_host(handle)
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn eldiron_creator_render_v1(handle: u64) -> i32 {
-    if !valid(handle) {
-        return -1;
-    }
-    rust_render()
+    with_selected(handle, || rust_render()).unwrap_or(-1)
 }
 // These synchronous main-thread forwards preserve the established input/text
-// implementation. Owner validation ends before entering its legacy borrow.
+// implementation. A scoped selection routes every borrow to this exact host.
 macro_rules! queries { ($($name:ident => $old:ident($($arg:ident:$ty:ty),*) -> $ret:ty = $empty:expr;)+) => {$ (
     #[unsafe(no_mangle)] pub extern "C" fn $name(handle:u64,$($arg:$ty),*) -> $ret {
-        if !valid(handle) { return $empty; } super::$old($($arg),*)
+        with_selected(handle, || super::$old($($arg),*)).unwrap_or($empty)
     }
 )+}; }
 macro_rules! setters { ($($name:ident => $old:ident($($arg:ident:$ty:ty),*);)+) => {$ (
     #[unsafe(no_mangle)] pub extern "C" fn $name(handle:u64,$($arg:$ty),*) -> bool {
-        if !valid(handle) { return false; } super::$old($($arg),*); true
+        with_selected(handle, || { super::$old($($arg),*); true }).unwrap_or(false)
     }
 )+}; }
 queries! {
@@ -143,36 +133,30 @@ pub extern "C" fn eldiron_creator_command_v1(handle: u64, code: u32) -> bool {
         17 => "Show Help Sidebar",
         _ => return false,
     };
-    command(name);
-    true
+    with_selected(handle, || command(name)).is_some()
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn eldiron_creator_set_theme_v1(handle: u64, theme: u32) -> bool {
     if !valid(handle) || theme > 2 {
         return false;
     }
-    rust_set_creator_theme(theme);
-    true
+    with_selected(handle, || rust_set_creator_theme(theme)).is_some()
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn eldiron_creator_get_theme_v1(handle: u64) -> u32 {
-    if valid(handle) {
-        rust_get_creator_theme()
-    } else {
-        u32::MAX
-    }
+    with_selected(handle, || rust_get_creator_theme()).unwrap_or(u32::MAX)
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn eldiron_creator_drop_file_v1(handle: u64, path: *const c_char) -> bool {
     if !valid(handle) || path.is_null() {
         return false;
     }
-    unsafe { rust_dropped_file(path) };
-    true
+    with_selected(handle, || unsafe { rust_dropped_file(path) }).is_some()
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn eldiron_creator_replace_layer_v1(handle: u64, layer: *mut c_void) -> bool {
-    valid(handle) && !layer.is_null() && unsafe { rust_replace_layer(layer) }
+    !layer.is_null()
+        && with_selected(handle, || unsafe { rust_replace_layer(layer) }).unwrap_or(false)
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn eldiron_creator_key_v1(
@@ -182,7 +166,10 @@ pub unsafe extern "C" fn eldiron_creator_key_v1(
     repeated: bool,
     logical: *const c_char,
 ) -> bool {
-    valid(handle) && unsafe { rust_physical_key(code, pressed, repeated, logical) }
+    with_selected(handle, || unsafe {
+        rust_physical_key(code, pressed, repeated, logical)
+    })
+    .unwrap_or(false)
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn eldiron_creator_clipboard_complete_v1(
@@ -195,8 +182,10 @@ pub unsafe extern "C" fn eldiron_creator_clipboard_complete_v1(
     if !valid(handle) {
         return false;
     }
-    unsafe { rust_clipboard_complete(request, write, success, text) };
-    true
+    with_selected(handle, || unsafe {
+        rust_clipboard_complete(request, write, success, text)
+    })
+    .is_some()
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn eldiron_creator_text_edit_v1(
@@ -214,7 +203,7 @@ pub unsafe extern "C" fn eldiron_creator_text_edit_v1(
     if !valid(handle) {
         return -1;
     }
-    unsafe {
+    with_selected(handle, || unsafe {
         rust_text_edit(
             target,
             revision,
@@ -226,7 +215,8 @@ pub unsafe extern "C" fn eldiron_creator_text_edit_v1(
             cursor_start,
             cursor_end,
         )
-    }
+    })
+    .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn eldiron_creator_document_info_v1(handle: u64) -> *mut c_char {

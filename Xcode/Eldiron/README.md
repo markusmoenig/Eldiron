@@ -24,10 +24,12 @@ describe the verified SDK configuration; older OS versions remain unverified.
 `Bridge.h` documents the main-thread v1 ABI. The Swift `Renderer` retains the
 nonzero handle from `eldiron_creator_create_v1(1, ...)`, supplies it on every call,
 and destroys it before releasing its layer. Invalid/obsolete handles fail, and
-handles are never recycled. Until the remaining editor globals retire, creating
-a second active Creator is explicitly rejected; separate document tabs are
-supported in that host. Legacy unversioned exports retain their behavior for
-existing callers.
+handles are never recycled. Different layers can own independent Creator hosts,
+with separate documents, controllers, sessions, GPU domains and pending requests.
+A layer already owned by another live host is rejected on creation/replacement.
+Unversioned exports address only the host created by `rust_init`; a scoped v1
+forward cannot change that legacy owner. Separate document tabs remain supported
+inside each host.
 
 Resize dimensions are physical pixels; input is in logical points. Keep the
 layer alive until `eldiron_creator_destroy_v1` or a successful
@@ -56,7 +58,7 @@ also belongs to the Creator instance and ends during teardown.
 
 `Tests/NativeCreatorHostCheck.swift` links to the actual static library and checks
 presentations, zero root bitmap/readback, resize/density, suspend/resume, layer
-replacement, file-request routing, save/reopen/copy limits, handle recreation and
+replacement, file-request routing, save/reopen/copy limits, handle recreation, simultaneous independent Creator hosts, legacy routing and
 stale completions on retained detached layers. Obtain native link arguments with
 `cargo rustc -p eldiron-creator --lib --no-default-features --features staticlib --
 --print native-static-libs`; pass those arguments, `-leldiron_creator`, the library
