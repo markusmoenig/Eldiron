@@ -5,8 +5,22 @@ use theframework::platform::FrameRequest;
 pub(super) struct FrameSchedule {
     next: Duration,
     interval: Option<Duration>,
+    source_deadline: Option<Duration>,
 }
 impl FrameSchedule {
+    pub fn pending_sources(&mut self, request: &mut FrameRequest, now: Duration, pending: bool) {
+        if !pending {
+            self.source_deadline = None;
+            return;
+        }
+        let next = self.source_deadline.get_or_insert(now);
+        if now >= *next {
+            request.redraw = true;
+            *next = now.saturating_add(Duration::from_millis(16));
+        }
+        let wake = next.saturating_sub(now).max(Duration::from_millis(1));
+        request.wake_after = Some(request.wake_after.map_or(wake, |old| old.min(wake)));
+    }
     pub fn request(&mut self, now: Duration, fps: f64, service: Option<Duration>) -> FrameRequest {
         let interval = FrameRequest::continuous(fps).wake_after.unwrap();
         if self.interval != Some(interval) {

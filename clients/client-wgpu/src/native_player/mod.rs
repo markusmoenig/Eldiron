@@ -216,6 +216,7 @@ impl PlayerApplication {
         }
         // Only identities belonging to the last GPU frame need delayed cleanup.
         // Repeated navigation while occluded cannot retain whole old screens.
+        if let Some(gpu) = &mut self.gpu { gpu.views.cancel_surface_paint_uploads(); }
         self.retired_views.extend(self.screen.detach_game_views());
         self.screen = next;
         self.pending_clipboard = None;
@@ -622,6 +623,7 @@ impl GpuApplication for PlayerApplication {
                 self.frames
                     .request(self.visual_elapsed, self.player.settings.target_fps, wake);
             request.redraw |= tooltip_redraw;
+            self.frames.pending_sources(&mut request, self.visual_elapsed, self.screen.has_pending_scene_uploads());
             request
         }
     }

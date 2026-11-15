@@ -260,6 +260,7 @@ impl Editor {
             || self.appearance_workspace.gpu_preview_waiting()
             || self.procedural_material.gpu_preview_waiting()
             || self.native_world_waiting()
+            || self.native_viewport.play.source_uploads_pending()
             || self.native_bake_waiting()
     }
     pub(crate) fn presented_native_views(

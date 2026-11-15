@@ -87,6 +87,7 @@ pub struct GameScreenController {
     view_ids: FxHashMap<Uuid, ViewId>,
     configured_views: FxHashMap<ViewId, ContentRevision>,
     view_images: FxHashMap<Uuid, ViewImage>,
+    pending_scene_uploads: bool,
     text_games: text_game::TextGames,
     inputs: FxHashMap<ScreenTextTarget, theframework::text_edit::EditorView>,
     input_modifiers: theframework::platform::Modifiers,
@@ -216,6 +217,7 @@ impl GameScreenController {
             view_ids: FxHashMap::default(),
             configured_views: FxHashMap::default(),
             view_images: FxHashMap::default(),
+            pending_scene_uploads: false,
             text_games: Default::default(),
             inputs: FxHashMap::default(),
             input_modifiers: Default::default(),
@@ -498,9 +500,20 @@ impl GameScreenController {
         if self.session != world.session_id {
             return Err("Prepare screen layouts after changing their runtime session".into());
         }
+        views.begin_surface_paint_upload_frame();
+        self.pending_scene_uploads = false;
         self.view_images.clear();
         self.text_games.retain(&self.elements);
         self.begin_world_frame(world)?;
+        for (key, id) in &self.view_ids {
+            let active = world.map.is_some() && self.elements.game_widgets.get(key).is_some_and(|widget| {
+                !screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide)
+                    && widget.backend_name != "text" && widget.rect.width > 0. && widget.rect.height > 0.
+            });
+            if !active && views.scene(*id).is_ok() {
+                views.set_surface_paint_source(*id, None).map_err(|e| e.to_string())?;
+            }
+        }
         let Some(map) = world.map else {
             return Ok(());
         };
@@ -516,6 +529,9 @@ impl GameScreenController {
         };
         for (key, widget) in &mut self.elements.game_widgets {
             if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide) {
+                if let Some(id) = self.view_ids.get(key) {
+                    views.set_surface_paint_source(*id, None).map_err(|e| e.to_string())?;
+                }
                 continue;
             }
             if widget.backend_name == "text" {
@@ -566,8 +582,11 @@ impl GameScreenController {
                 self.view_images.insert(*key, output);
             }
         }
+        views.advance_surface_paint_uploads().map_err(|e| e.to_string())?;
+        self.pending_scene_uploads = views.has_pending_surface_paint_frames();
         Ok(())
     }
+    pub fn has_pending_scene_uploads(&self) -> bool { self.pending_scene_uploads }
     /// The host calls this before closing/replacing the screen while retaining
     /// its registry. IDs remain stable if a device owner is rebuilt afterward.
     pub fn release_game_views(
@@ -576,6 +595,7 @@ impl GameScreenController {
         images: &mut ImageRegistry,
     ) -> Result<(), String> {
         self.invalidate_world_input();
+        self.pending_scene_uploads = false;
         for id in self.view_ids.values() {
             views.remove(*id, images).map_err(|e| e.to_string())?;
         }
@@ -588,6 +608,7 @@ impl GameScreenController {
     /// No old screen, source pixels or text layouts need to wait for that frame.
     pub fn detach_game_views(&mut self) -> Vec<ViewId> {
         self.invalidate_world_input();
+        self.pending_scene_uploads = false;
         self.configured_views.clear();
         self.view_images.clear();
         self.view_ids.drain().map(|(_, id)| id).collect()

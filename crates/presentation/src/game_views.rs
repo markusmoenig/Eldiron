@@ -41,6 +41,7 @@ impl SceneViews {
         images: &mut ImageRegistry,
     ) -> Result<()> {
         if logical.0 == 0 || logical.1 == 0 {
+            self.set_surface_paint_source(id, None)?;
             return self.resize(id, (0, 0), images);
         }
         let size = widget.gpu_scene_resolution(logical).map_err(RenderError)?;

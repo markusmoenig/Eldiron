@@ -48,6 +48,7 @@ struct SceneView {
     scene: SceneHandler,
     editor_source: Option<Arc<rusterix::scene_build_index::SceneBuildSnapshot>>,
     surface_paint_source: Option<Arc<rusterix::surface_paint::SurfacePaint>>,
+    surface_paint_ready: bool,
     isometric: bool,
     isometric_renderer: Option<crate::isometric::IsometricSceneRenderer>,
     isometric_frame: Option<crate::isometric::IsometricPreparedFrame>,
@@ -124,6 +125,7 @@ impl SceneViews {
                 scene: SceneHandler::with_vm(vm),
                 editor_source: None,
                 surface_paint_source: None,
+                surface_paint_ready: true,
                 isometric: false,
                 isometric_renderer: None,
                 isometric_frame: None,
@@ -225,11 +227,15 @@ impl SceneViews {
                 "scene device lost; rebuild presentation from application state".into(),
             ));
         }
+        self.advance_surface_paint_uploads()?;
         let view = self
             .views
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
         if view.size.0 == 0 || view.size.1 == 0 {
+            return Ok(None);
+        }
+        if !view.surface_paint_ready {
             return Ok(None);
         }
         if !view.dirty

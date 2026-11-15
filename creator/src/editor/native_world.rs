@@ -1032,6 +1032,7 @@ impl Editor {
         let Some(binding) = next else {
             self.native_viewport.world.stamps.clear();
             self.native_viewport.world.uv.clear();
+            if let Some(gpu) = &mut self.native_viewport.world.gpu { gpu.scenes.cancel_surface_paint_uploads(); }
             return Ok(None);
         };
         if ctx
@@ -1232,6 +1233,7 @@ impl Editor {
                 .scene_source
                 .as_ref()
                 .is_some_and(|old| Arc::ptr_eq(old, &source));
+        gpu.scenes.begin_surface_paint_upload_frame();
         let paint = if camera.is_some() && binding.custom.is_none() {
             Some(paint::capture(&self.documents.project, &self.server_ctx, map, assets)?)
         } else { None };
@@ -1241,6 +1243,8 @@ impl Editor {
             gpu.paint_ready = publication.is_some();
             if let Some(publication) = publication {
                 gpu.scenes.set_surface_paint_source(gpu.view, publication.source()).map_err(|e| e.to_string())?;
+            } else {
+                gpu.scenes.defer_surface_paint_source(gpu.view).map_err(|e| e.to_string())?;
             }
         } else {
             gpu.paint_ready = true;
@@ -1415,10 +1419,22 @@ impl Editor {
             gpu.scene_key = Some(key);
             gpu.scene_source = Some(source.clone());
         }
-        let output = gpu
-            .scenes
-            .output(gpu.view)
-            .ok_or("native world has no visible output")?;
+        gpu.paint_ready &= gpu.scenes.surface_paint_ready(gpu.view).map_err(|e| e.to_string())?;
+        let output = match gpu.scenes.output(gpu.view) {
+            Some(output) => output,
+            None if !gpu.paint_ready => {
+                world.presented = None;
+                world.overlay_input.invalidate();
+                if let Some((id, list)) = world.published.take()
+                    && let Some(view) = ui.get_render_view(&id.name)
+                    && view.id().uuid == id.uuid {
+                    view.clear_paint_list(&list);
+                    ctx.ui.invalidate_paint();
+                }
+                return Ok(None);
+            }
+            None => return Err("native world has no visible output".into()),
+        };
         let world_image = if let Some(source) = &bake_source {
             match gpu.bake.compose(source, bake_camera.as_ref().unwrap(), output,
                 &mut gpu.scenes, &bridge.client, images.registry)? {

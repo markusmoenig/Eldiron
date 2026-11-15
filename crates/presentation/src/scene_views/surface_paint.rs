@@ -1,8 +1,13 @@
-//! Immutable game paint pages share one GPU source on this SceneViews device.
+//! Immutable paint pages share one GPU source on this SceneViews device. Upload
+//! jobs stay private until every original page has been queued on the device.
 use super::*;
 use renderkit::{AlphaMode, ColorSpace, GpuImage, ImageDescriptor, wgpu};
 use rusterix::surface_paint::{PAGE_SIZE, SurfacePaint};
 use scenevm::paint_pages::PaintPageBinding;
+use std::collections::VecDeque;
+
+const FRAME_BYTES: usize = 512 * 1024;
+const PAGE_BYTES: usize = (PAGE_SIZE * PAGE_SIZE * 8) as usize;
 
 /// Logical current allocations and transfer counts, not peak/driver memory.
 #[derive(Clone, Copy, Debug, Default)]
@@ -12,30 +17,51 @@ pub struct SurfacePaintStats {
     pub gpu_plane_bytes: u64,
     pub uploaded_pages: u64,
     pub reused_bindings: u64,
+    pub pending_sources: usize,
+    pub frame_uploaded_bytes: usize,
+}
+struct Upload {
+    color: Arc<GpuImage>,
+    material: Arc<GpuImage>,
+    cursor: usize,
+}
+enum State {
+    Upload(Upload),
+    Ready(Arc<PaintPageBinding>),
 }
 struct BoundSource {
     source: Arc<SurfacePaint>,
-    binding: Arc<PaintPageBinding>,
+    state: State,
 }
-#[derive(Default)]
 pub(super) struct Sources {
     bindings: FxHashMap<usize, BoundSource>,
+    pending: VecDeque<usize>,
     uploaded_pages: u64,
     reused_bindings: u64,
+    frame_bytes: usize,
+    frame_started: Option<web_time::Instant>,
+}
+impl Default for Sources {
+    fn default() -> Self {
+        Self {
+            bindings: Default::default(),
+            pending: VecDeque::new(),
+            uploaded_pages: 0,
+            reused_bindings: 0,
+            frame_bytes: 0,
+            frame_started: None,
+        }
+    }
 }
 impl Sources {
-    fn binding(
-        &mut self,
-        context: &GpuContext,
-        source: &Arc<SurfacePaint>,
-    ) -> Result<Arc<PaintPageBinding>> {
+    fn request(&mut self, context: &GpuContext, source: &Arc<SurfacePaint>) -> Result<()> {
         if context.is_lost() {
             return Err(RenderError("Surface paint device was lost".into()));
         }
         let identity = Arc::as_ptr(source) as usize;
-        if let Some(old) = self.bindings.get(&identity) {
+        if self.bindings.contains_key(&identity) {
             self.reused_bindings += 1;
-            return Ok(old.binding.clone());
+            return Ok(());
         }
         source.validate().map_err(RenderError)?;
         let limits = context.device.limits();
@@ -57,13 +83,48 @@ impl Sources {
         };
         let color = GpuImage::new(context, descriptor(wgpu::TextureFormat::Rgba8Unorm))?;
         let material = GpuImage::new(context, descriptor(wgpu::TextureFormat::Rgba8Uint))?;
-        for page in &source.pages {
+        self.bindings.insert(
+            identity,
+            BoundSource {
+                source: source.clone(),
+                state: State::Upload(Upload {
+                    color,
+                    material,
+                    cursor: 0,
+                }),
+            },
+        );
+        self.pending.push_back(identity);
+        Ok(())
+    }
+    fn advance(&mut self, context: &GpuContext) -> Result<()> {
+        if context.is_lost() {
+            return Err(RenderError("Surface paint device was lost".into()));
+        }
+        while !self.pending.is_empty() && self.frame_bytes + PAGE_BYTES <= FRAME_BYTES {
+            let started = self
+                .frame_started
+                .get_or_insert_with(web_time::Instant::now);
+            if started.elapsed() >= web_time::Duration::from_millis(2) {
+                break;
+            }
+            let identity = self.pending.pop_front().unwrap();
+            let Some(entry) = self.bindings.get_mut(&identity) else {
+                continue;
+            };
+            let State::Upload(upload) = &mut entry.state else {
+                continue;
+            };
+            let page = &entry.source.pages[upload.cursor];
             let origin = wgpu::Origin3d {
                 x: page.atlas_origin[0],
                 y: page.atlas_origin[1],
                 z: 0,
             };
-            for (image, pixels) in [(&color, &page.color_rgba), (&material, &page.material_rgba)] {
+            for (image, pixels) in [
+                (&upload.color, &page.color_rgba),
+                (&upload.material, &page.material_rgba),
+            ] {
                 context.queue.write_texture(
                     wgpu::TexelCopyTextureInfo {
                         texture: &image.texture,
@@ -84,24 +145,29 @@ impl Sources {
                     },
                 );
             }
-            context.record_upload((page.color_rgba.len() + page.material_rgba.len()) as u64);
+            context.record_upload(PAGE_BYTES as u64);
+            self.uploaded_pages += 1;
+            self.frame_bytes += PAGE_BYTES;
+            upload.cursor += 1;
+            if upload.cursor == entry.source.pages.len() {
+                entry.state = State::Ready(PaintPageBinding::new(
+                    context,
+                    upload.color.clone(),
+                    upload.material.clone(),
+                    entry.source.entries.clone(),
+                    entry.source.alpha_geo_ids.clone(),
+                )?);
+            } else {
+                self.pending.push_back(identity);
+            }
         }
-        let binding = PaintPageBinding::new(
-            context,
-            color,
-            material,
-            source.entries.clone(),
-            source.alpha_geo_ids.clone(),
-        )?;
-        self.uploaded_pages += source.pages.len() as u64;
-        self.bindings.insert(
-            identity,
-            BoundSource {
-                source: source.clone(),
-                binding: binding.clone(),
-            },
-        );
-        Ok(binding)
+        Ok(())
+    }
+    fn ready(&self, source: &Arc<SurfacePaint>) -> Option<Arc<PaintPageBinding>> {
+        match &self.bindings.get(&(Arc::as_ptr(source) as usize))?.state {
+            State::Ready(binding) => Some(binding.clone()),
+            State::Upload(_) => None,
+        }
     }
     fn stats(&self) -> SurfacePaintStats {
         SurfacePaintStats {
@@ -125,6 +191,8 @@ impl Sources {
                 .sum(),
             uploaded_pages: self.uploaded_pages,
             reused_bindings: self.reused_bindings,
+            pending_sources: self.pending.len(),
+            frame_uploaded_bytes: self.frame_bytes,
         }
     }
 }
@@ -132,7 +200,55 @@ impl SceneViews {
     pub fn surface_paint_stats(&self) -> SurfacePaintStats {
         self.surface_paint.stats()
     }
-
+    /// One budget covers every view in an application frame, including shared
+    /// sources. The canonical callers invoke this once before their view loops.
+    pub fn begin_surface_paint_upload_frame(&mut self) {
+        self.surface_paint.frame_bytes = 0;
+        self.surface_paint.frame_started = None;
+    }
+    pub fn has_pending_surface_paint_uploads(&self) -> bool {
+        !self.surface_paint.pending.is_empty()
+    }
+    /// A source installed while another view rendered still needs its own
+    /// output/receipt before an otherwise-idle host may stop requesting frames.
+    pub fn has_pending_surface_paint_frames(&self) -> bool {
+        self.has_pending_surface_paint_uploads()
+            || self.views.values().any(|view| {
+                view.surface_paint_source.is_some()
+                    && view.surface_paint_ready
+                    && view.dirty
+                    && view.size.0 > 0
+                    && view.size.1 > 0
+            })
+    }
+    pub fn surface_paint_ready(&self, id: ViewId) -> Result<bool> {
+        self.views
+            .get(&id)
+            .map(|view| view.surface_paint_ready)
+            .ok_or_else(|| RenderError("unknown scene view".into()))
+    }
+    pub fn advance_surface_paint_uploads(&mut self) -> Result<()> {
+        self.surface_paint.advance(&self.context)?;
+        for view in self
+            .views
+            .values_mut()
+            .filter(|view| !view.surface_paint_ready)
+        {
+            if let Some(binding) = view
+                .surface_paint_source
+                .as_ref()
+                .and_then(|source| self.surface_paint.ready(source))
+            {
+                view.scene.vm.set_active_vm(0);
+                view.scene
+                    .vm
+                    .set_paint_page_binding(&self.context, binding)?;
+                view.surface_paint_ready = true;
+                view.dirty = true;
+            }
+        }
+        Ok(())
+    }
     pub(super) fn retire_unused_surface_paint(&mut self) {
         let live: std::collections::HashSet<_> = self
             .views
@@ -146,8 +262,37 @@ impl SceneViews {
         self.surface_paint
             .bindings
             .retain(|identity, _| live.contains(identity));
+        self.surface_paint
+            .pending
+            .retain(|identity| live.contains(identity));
     }
-    /// Bind immutable CPU paint pages on this view's injected device.
+    /// Retire an unfinished GPU request when its CPU producer has been replaced.
+    /// The previous complete VM binding/output may remain until the replacement.
+    pub fn defer_surface_paint_source(&mut self, id: ViewId) -> Result<()> {
+        let view = self
+            .views
+            .get_mut(&id)
+            .ok_or_else(|| RenderError("unknown scene view".into()))?;
+        if !view.surface_paint_ready {
+            view.surface_paint_source = None;
+            self.retire_unused_surface_paint();
+        }
+        Ok(())
+    }
+    /// Hide/detach an owner without retaining partially uploaded GPU images.
+    /// Complete displayed bindings/output remain valid until their normal retire.
+    pub fn cancel_surface_paint_uploads(&mut self) {
+        for view in self
+            .views
+            .values_mut()
+            .filter(|view| !view.surface_paint_ready)
+        {
+            view.surface_paint_source = None;
+        }
+        self.retire_unused_surface_paint();
+    }
+    /// Request immutable CPU pages. Pending uploads remain private; render()
+    /// returns no new output until this source is fully installed.
     pub fn set_surface_paint_source(
         &mut self,
         id: ViewId,
@@ -158,28 +303,25 @@ impl SceneViews {
             .get(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
         let same = match (&view.surface_paint_source, source) {
-            (None, None) => true,
+            (None, None) => view.surface_paint_ready,
             (Some(old), Some(next)) => Arc::ptr_eq(old, next),
             _ => false,
         };
         if same {
             return Ok(());
         }
-        let binding = source
-            .map(|source| self.surface_paint.binding(&self.context, source))
-            .transpose()?;
+        if let Some(source) = source {
+            self.surface_paint.request(&self.context, source)?;
+        }
         let view = self.views.get_mut(&id).unwrap();
+        view.surface_paint_source = source.cloned();
+        view.surface_paint_ready = source.is_none();
         view.scene.vm.set_active_vm(0);
-        if let Some(binding) = binding {
-            view.scene
-                .vm
-                .set_paint_page_binding(&self.context, binding)?;
-        } else {
+        if source.is_none() {
             view.scene
                 .vm
                 .execute(scenevm::Atom::ClearRaster3DPaintOverlay);
         }
-        view.surface_paint_source = source.cloned();
         view.dirty = true;
         self.retire_unused_surface_paint();
         Ok(())

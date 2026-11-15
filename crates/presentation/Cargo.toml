@@ -8,6 +8,7 @@ description = "Shared scene views and graphical game presentation for Eldiron ho
 shared = {package="eldiron-shared",path="../shared",default-features=false}
 fontdue = "0.9.3"
 bytemuck = { version = "1.24", features = ["derive"] }
+web-time = "1.1.0"
 eldiron-runtime = {path="../runtime"}
 toml = "0.9"
 renderkit = {path="../renderkit"}

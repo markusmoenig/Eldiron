@@ -158,6 +158,9 @@ pub(crate) struct NativePlay {
     input_blocked: bool,
 }
 impl NativePlay {
+    pub(super) fn source_uploads_pending(&self) -> bool {
+        self.binding.is_some() && self.screen.as_ref().is_some_and(|screen| screen.screen.has_pending_scene_uploads())
+    }
     fn clear_paint(&mut self, ui: &mut TheUI) {
         if let Some((id, list)) = self.published.take()
             && let Some(view) = ui.get_render_view(&id.name)
@@ -168,6 +171,7 @@ impl NativePlay {
     }
     fn unbind(&mut self, ui: &mut TheUI) {
         self.clear_paint(ui);
+        if let Some(gpu) = &mut self.gpu { gpu.scenes.cancel_surface_paint_uploads(); }
         if let Some(screen) = &mut self.screen {
             screen.cancel();
         }

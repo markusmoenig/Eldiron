@@ -55,7 +55,7 @@ behavior is ready to verify.
 ## Next work
 
 1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,18 retained standard control families, static collection/property-layout contributions and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
-2. Close live source residency, catalogue capture and remaining UV/player source policy. Player UV pages share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection now has an owned page publication below. Player stamp publication still needs ownership integration. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
+2. Close live source residency, catalogue capture and remaining UV/player source policy. Cooperative shared GPU page uploads are connected below; source allocation/metadata/capture scheduling and working-set residency remain open. Player UV pages share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection now has an owned page publication below. Player stamp publication still needs ownership integration. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
 ## Blockers
@@ -14432,3 +14432,72 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   ran. Continuous paint/selection gestures while UV publications are pending,
   presented-frame input readiness and current selection serialization must be
   included in the consolidated acceptance run. Full Goal remains active.
+
+## Cooperative shared GPU paint uploads (2026-11-15, integration active)
+
+- Previous turn was progress (451dfbbc). Tracked worktree clean at preflight;
+  concurrent networking concept preserved. Followed the canonical source path
+  and found bulk GPU uploads still ran all original pages in one frame. Player
+  stamp publication remains an actual separate implementation gap.
+- Source requests now enqueue private immutable GPU upload jobs. One explicit
+  application-frame budget is shared across SceneViews and sources: at most
+  512KiB (16 original 64x64 color/material page pairs), with 2ms elapsed checks
+  between page writes. Sources rotate in a round-robin queue. A PaintPageBinding
+  installs only after all its page writes are queued, preserving queue ordering
+  and source/device identity. No partial texture is published to SceneVM.
+- SceneViews render returns no new output for a source awaiting upload. Creator
+  folds GPU-source readiness into its existing root/input guard, keeping a last
+  complete output when available and treating the first pending output as normal
+  preparation rather than an error. Superseded CPU requests retire unfinished
+  per-view GPU requests; other views can continue using/shared-uploading their
+  own source. Scope/view/source clear prunes queued private jobs.
+- Graphical screen preparation resets the budget once for the whole view loop,
+  retires hidden/removed/text/zero-size/mapless source requests and retains a
+  pending-work signal until every newly installed view has rendered its output.
+  Native player source deadlines are independent of ordinary visual FPS and
+  audio polling; Creator Play and the authoring world also schedule pending
+  source frames. No general background idle polling is introduced.
+- Added pending-source and per-frame uploaded-byte counters. These describe
+  actual page writes/current owners, not physical driver/retired/peak memory.
+  Full GPU source images, allocation/metadata validation and source capture
+  remain separate live residency/resource/scheduling work. The 2ms check is a
+  policy, not a measured upper latency bound for driver calls or metadata work.
+- Added presentation's direct web-time dependency at its already-locked1.1.0
+  version. Offline release Cargo refresh changed only its dependency edge in
+  Cargo.lock; no WGPU/library version upgrade. Initial canonical release compile
+  PASS15.86s:/private/tmp/eldiron-cooperative-paint-upload-release.log. Final
+  locked native/browser and standalone-player feature checks are pending.
+- No broad functional/GPU/performance suite run per user steering. Consolidated
+  checks must include multi-view fairness/byte caps, partially uploaded sources,
+  replacement/clear/defer/device loss, completion while another view renders,
+  hidden/mapless/zero-size views, low-FPS/audio wake separation, first-frame and
+  continuous authoring gestures, and actual release CPU/native performance.
+  Full M0-M9 Goal active; source residency/player stamps/remaining ownership and
+  platform/resource/functional acceptance remain open.
+- Locked canonical four-application release compilation PASS16.09s after frame
+  readiness/deadline refinements:/private/tmp/eldiron-cooperative-paint-upload-release-final.log.
+  Browser Creator release PASS15.12s after explicit hide/navigation retirement:
+  /private/tmp/eldiron-cooperative-paint-upload-release-web.log. Standalone native
+  player (no Creator/shared-graphics feature unification) release PASS18.43s:
+  /private/tmp/eldiron-cooperative-paint-upload-release-player.log. Standalone
+  browser player and final native retirement checks are pending.
+- Added explicit cancellation of unfinished private GPU uploads when Creator
+  Play unbinds, authoring loses its view or player navigation retires a screen.
+  Complete prior outputs/bindings keep their normal lifetime. No runtime parity
+  or resource/performance gate inferred from compilation.
+- Standalone browser native player release compilation PASS30.58s, without
+  Creator feature unification:/private/tmp/eldiron-cooperative-paint-upload-release-player-web.log.
+  Final native canonical retirement check is being collected. No runtime suite
+  was run; caps, fairness and wake semantics remain consolidated acceptance work.
+- Next player stamp path: CPU startup already publishes UV assets through
+  shared/runtime_assets.rs (region loop near1544) and project_bridge.rs. It has
+  no corresponding stamp recipe/source asset. Preserve CPU-only runtime builds
+  and CPU pixels across GPU reconstruction when connecting the player; do not
+  solve it by rerasterizing inside prepare_game or a full-frame CPU overlay.
+  Full source working-set residency and remaining M0-M9 gates stay active.
+- Final locked canonical four-application release compile PASS14.86s after
+  hide/navigation retirement:/private/tmp/eldiron-cooperative-paint-upload-release-current.log.
+  All native, browser and standalone-player compiler handles terminal. git diff
+  --check passed. No functional/GPU/performance suite ran. Resource caps and
+  cross-view atomic readiness are implementation policies awaiting integrated
+  evidence; full M0-M9 completion remains unproven and the Goal stays active.
