@@ -1,0 +1,30 @@
+{
+  "elapsedSeconds": 3.8064979314804077,
+  "finalPresentations": 4,
+  "firstPresentations": 3,
+  "physicalIMEVerified": false,
+  "profile": "release",
+  "readbackBytes": 0,
+  "status": "passed",
+  "uiKitTextProtocolPassed": true,
+  "date": "2026-11-15",
+  "runtime": "iOS26.5 simulator, iPad(A16), arm64",
+  "rust_build_seconds": 56.29,
+  "evidence_directory": "/var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-uikit-release-o3gwhwwq",
+  "log": "/private/tmp/eldiron-acceptance-final-uikit-limits.log",
+  "checked_sources": [
+    "Xcode/Client/SceneVM/SceneVMView.swift",
+    "Xcode/Client/SceneVM/NativeUIKitTextClient.swift",
+    "Xcode/Client/Tests/NativeUIKitHostCheck.swift"
+  ],
+  "verified_contracts": [
+    "UIKit UTF-16 boundaries and stale source rejection",
+    "marked text, delete and unmark protocol",
+    "positive native WGPU presentations",
+    "zero implicit color readback",
+    "zero-size and suspension block frame advancement",
+    "real UIKit view/layer dismantle and recreation retains CPU session",
+    "saved player and document bytes equal authored input"
+  ],
+  "scope": "Optimized simulator runtime; physical iOS/IME, touch workflows and performance remain open."
+}

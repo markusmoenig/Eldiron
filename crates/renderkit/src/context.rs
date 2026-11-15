@@ -74,7 +74,13 @@ impl GpuContext {
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("renderkit-device"),
                 required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
+                // The shared pipelines fit within 15 inter-stage variables.
+                // Metal on iOS/simulator exposes 15 even when all of our other
+                // required limits are supported; WebGPU's default requests 16.
+                required_limits: wgpu::Limits {
+                    max_inter_stage_shader_variables: 15,
+                    ..wgpu::Limits::default()
+                },
                 ..Default::default()
             })
             .await

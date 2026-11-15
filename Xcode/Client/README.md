@@ -53,8 +53,14 @@ controller; revisioned UTF-16 ranges reject stale owners and surrogate splits.
 The Rust editor owns composition, typed insertion, backspace and undo; Swift does
 not draw or maintain a separate editable document. The bridge tool executes the
 macOS client ownership/Unicode checks and typechecks the UIKit protocol harness
-against the simulator SDK. `Tests/NativeUIKitTextClientCheck.swift` is ready for a
-runtime harness; SDK compilation does not execute it.
+against the simulator SDK. `tools/check_native_uikit.py` builds optimized Rust
+and Swift and executes that UIKit protocol check in its own iOS simulator,
+then requires actual WGPU presentations, zero readback and retained session/source
+across dismantling and recreating the real UIKit view/layer. It creates and
+cleans up a separate simulator by default; `--device UUID` uses an explicitly
+supplied booted acceptance device and leaves its lifecycle alone. It never
+selects the user's currently booted device implicitly. This is simulator runtime
+evidence; SDK compilation alone does not execute these checks.
 
 Full physical macOS/iOS and locale/IME interaction, UIKit runtime behavior,
 release measurements and Creator's separate Xcode wrapper remain tracked in

@@ -1,0 +1,10 @@
+{
+  "date": "2026-11-15",
+  "profile": "release",
+  "passed": 44,
+  "failed": 0,
+  "runtime_seconds": 37.25,
+  "build_seconds": 115,
+  "log": "/private/tmp/eldiron-acceptance-final-creator-native-contracts.log",
+  "scope": "Ignored native_ library contracts, excluding separate assembled application gates and manual dialog review. All run on actual Metal with shared inter-stage limit15. Other ignored tests remain separately inventoried."
+}

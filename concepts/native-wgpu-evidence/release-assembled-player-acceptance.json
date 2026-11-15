@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-15",
+  "profile": "release",
+  "passed": 13,
+  "failed": 0,
+  "runtime_seconds": 32.62,
+  "build_seconds": 47.27,
+  "features": "--no-default-features --features native-player",
+  "log": "/private/tmp/eldiron-acceptance-final-native-player.log",
+  "coverage": [
+    "actual Metal shared-player rendering",
+    "Apple ABI and detached foreign-host presentation",
+    "isometric shipped sources",
+    "GPU reconstruction retains runtime edits and clock",
+    "single-delivery audio observation",
+    "real container server transfers",
+    "custom cursors",
+    "preferences",
+    "tooltip deadlines",
+    "stale clipboard incarnation"
+  ],
+  "scope": "All library tests including ignored GPU contracts. Recorded audio is not physical speaker verification; physical window/mobile input and performance remain separate."
+}

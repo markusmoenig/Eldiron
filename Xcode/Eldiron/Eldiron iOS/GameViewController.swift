@@ -14,6 +14,10 @@ class GameViewController: UIViewController {
     var renderer: Renderer!
     var mtkView:  RMTKView!
 
+    // Creator's root viewport fills the view, including its top toolbar. The
+    // system status bar must not cover that toolbar or intercept its touches.
+    override var prefersStatusBarHidden: Bool { true }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 

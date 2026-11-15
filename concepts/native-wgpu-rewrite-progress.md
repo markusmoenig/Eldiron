@@ -19,7 +19,31 @@ Started: 2026-11-11 (Asia/Bangkok). Objective unfinished; full M0–M9 scope rem
 - Preserve serialized legacy core values through identity-compatible re-exports; new CPU image data has size/pixels without UI position/display scale.
 - User instruction (2026-11-14): older experimental paint algorithm versions do not require backwards compatibility. Preserve current paint/project serialization; do not add legacy paint replay requirements to native producers.
 
-## Milestone state
+## Current acceptance checkpoint (2026-11-15)
+
+Implementation is connected across M0–M9; the complete objective is still open.
+The remaining known work is acceptance/fixes, measured release performance and
+platform validation. Earlier per-milestone inventories below are historical;
+later implementation/evidence entries supersede their old remaining-caller lists.
+No percentage is mechanically measured; the chat's roughly85% is an estimate.
+
+- Current release passes: Renderkit12, Framework296, SceneVM77, presentation216,
+  CPU core/shared/runtime205, Creator nonignored641, common player13, assembled
+  Creator1 and large native bake1. Twenty-nine isolated dependency configurations
+  pass. Ignored specialized Creator contracts are inventoried separately.
+- Canonical Creator/player/browser/Apple share explicit presentation owners.
+  Creator foreign handles/layers and Swift close approvals are per owner; actual
+  optimized detached multi-host and retained-window lifetime checks pass.
+- iOS simulator runtime acceptance found an actual shared device-limit issue
+  (request16 inter-stage variables versus Metal15). Correction is under release
+  runtime verification; successful SDK builds were insufficient to reveal it.
+- M0 performance baselines and M5/M6/M7/M8/M9 full functional/platform/resource
+  gates remain open. Physical macOS input/presentation, monitor/clipboard/IME,
+  Windows/Linux and physical mobile checks are not replaced by offscreen tests.
+- Maintain release-only builds. Preserve current projects/paint serialization and
+  concurrent work. Continue available work without waiting for routine approval.
+
+## Historical milestone inventory
 
 - M0: in progress. Baseline compile, explicit ownership/paint/text decisions and GPU visual fixtures exist; release performance baselines and complete workflow inventory remain.
 - M1: in progress. Shared GPU context, scene output leases, explicit captures, native/foreign surface presentation and independent normal/isometric game-view lifecycle/recovery work; main Creator/auxiliary view adoption and full resource/platform acceptance remain.
@@ -57,7 +81,7 @@ behavior is ready to verify.
 ## Next work
 
 1. Resume consolidated release acceptance after the Apple ownership gap was closed. Current canonical display/source paths and browser geometry have no further known port gap from the audited callers. Foreign Creator now supports independent simultaneous handle/layer owners; actual optimized Rust/Swift checks pass for two versioned hosts plus a legacy host. This is implementation/focused evidence, not full M0–M9 completion.
-2. Complete presentation integration, CPU/runtime/session, assembled Creator/player, saved-format/document and target checks; fix failures as ordinary work. Renderkit12, Framework296, SceneVM77 and29 isolated dependency boundaries pass. Presentation's obsolete persistent-staging/diagnostic/one-call resize assumptions were corrected and focused contracts pass. Broader suites now resume as requested after implementation.
+2. Continue current specialized Creator and platform release acceptance; fix failures as ordinary work. Presentation216, CPU/runtime/session205, assembled Creator1, large native bake1, common-player13 and Creator library641 now pass, alongside Renderkit12/Framework296/SceneVM77 and29 dependency configurations. Keep ignored maintenance/demo exporters out of blanket test runs. Verify the shared Metal limit correction on the isolated iOS simulator before claiming mobile rendering.
 3. Measure matched release CPU/native performance (p50/p95/p99, input latency, startup and peak memory). Complete available browser/Apple runtime and physical interaction checks. Apple simulator runtimes are installed; use a separate acceptance simulator to preserve the user's already booted iPad. Unavailable physical Windows/Linux/iOS checks stay open. Update every M0–M9 gate from actual evidence; mark the objective complete only when all acceptance criteria are verified.
 
 ## Blockers
@@ -17093,3 +17117,130 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Rules particle-preview parent clip. Production behavior unchanged. Next full
   common-player release suite, then large bake/current Creator unit coverage and
   available platform/performance acceptance. Overall objective remainsopen.
+
+- Full common-player release library PASS13/13, runtime32.62s, build47.27s;
+  /private/tmp/eldiron-acceptance-final-native-player.log;66632terminal. Includes
+  actual Metal Apple ABI/foreign presentations, assembled game runtime/GPU
+  replacement, isometric shipped sources, container server transfers, timing,
+  audio observation/single delivery, custom cursor, stale clipboard, preferences
+  and tooltip ownership. Durable release-assembled-player-acceptance.json.
+- Created own iOS26.5 iPad(A16) simulator727C85E8-56BD-4AFF-B9EC-B2FD74410A7C
+  for remaining Release runtime acceptance. Existing user-booted device
+  6D6BB609-E5EC-49B7-899A-69F8037986B0 is untouched. Bootstatus handle47086;
+  /private/tmp/eldiron-native-acceptance-simulator-boot.log. Actual SDK/runtime
+  checks still pending. Cleanup must target only our owned simulator.
+
+- Large native progressive-bake release gate PASS1/1, runtime8.57s, build1.29s.
+  /private/tmp/eldiron-acceptance-final-large-bake.log;54995terminal. Fixture
+  asserts actual plan>64MiB, progressive GPU feedback, bounded source-pool cache,
+  explicit asset-bake captures, zero implicit viewport readback/CPU storage,
+  published channels, authored paint/history preservation and saved project.
+  Simulator boot47086terminal; only owned acceptance device was booted.
+
+- Current Creator nonignored library release PASS641/641,0failures,119ignored,
+  runtime85.07s. /private/tmp/eldiron-acceptance-final-creator-library.log;39386
+  terminal. Ignored inventory /private/tmp/eldiron-acceptance-final-creator-
+  ignored-inventory.txt; maintenance exporters/benchmarks must not be blindly
+  enabled. Durable release-creator-library-acceptance.json. Assembled native
+  Creator/player/large-plan gates passed separately; this does not count every
+  ignored contract as verified.
+- Added optimized UIKit runtime acceptance harness/tools/check_native_uikit.py
+  using the actual checked-in MetalContainer and NativeUIKitTextClient. It runs
+  the existing surrogate/range/composition protocol checks in UIKit, requires
+  positive presentations and zero readbacks, then dismantles/recreates the real
+  view/layer with one retained CPU session and byte-exact authored source. No
+  physical IME claim. Initial build/runtime handle21818 is inprogress; log
+  /private/tmp/eldiron-acceptance-final-uikit.log. Use exact owned simulatorUUID.
+
+- Initial optimized iOS simulator harness21818terminalFAIL: actual UIKit text
+  protocol passed, but no GPU surface started. Runtime exact failure: request
+  device max_inter_stage_shader_variables16 exceeds adapter15. Evidence
+  /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-uikit-release-alsm9u_w/
+  {rust,swift,runtime}.log/result.json. Rust release compile1m37s and Swift-O
+  linking passed; SDK success did not catch runtime adapter limits.
+- Shared renderkit requests15 inter-stage variables, sufficient for current
+  shared pipelines, retaining every other existing requested limit. This closes
+  the unnecessary WebGPU-default16 requirement on Metal iOS; actual rerun must
+  establish initialization and subsequent rendering. No CPU fallback added.
+
+- Corrected optimized UIKit runtime PASS on owned iOS26.5 iPad(A16),
+  Rust release build56.29s, Swift-O, actual runtime3.81s. First3/final4 successful
+  WGPU presentations,0readback bytes. UIKit UTF-16/surrogate, stale revision,
+  marked/deletion/unmark protocol passed. Actual MetalContainer dismantle/new
+  layer retains the same CPU session/tick/frame progression; player/document
+  source bytes remain exact. Zero-size/suspend assertions pass.
+  /private/tmp/eldiron-acceptance-final-uikit-limits.log;22806terminal. Full
+  logs/result /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-uikit-
+  release-o3gwhwwq. Durable release-uikit-player-acceptance.json.
+  Physical IME/touch/device and performance are still unverified.
+
+- Added a separate actual Creator UIKit acceptance mode (--creator) to the
+  simulator tool. It uses the checked-in GameViewController/RMTKView/Renderer,
+  asynchronous Swift document load, addressed save/copy/finish, disk reopen,
+  positive WGPU presentation and zero rootCPU/readback assertions. It retains a
+  closed controller to require immediate stale Rust host rejection, then opens
+  the saved project in a new owner. Initial build/runtime is still pending until
+  current specialized native Creator contract batch91880 terminates. No source
+  or project assets are changed by the harness; only sandbox document copies.
+
+- Specialized Creator native_ contracts PASS44/44, runtime37.25s, build1m55s
+  with corrected shared limit15. /private/tmp/eldiron-acceptance-final-creator-
+  native-contracts.log;91880terminal. Geometry/MaterialZ/dialog/recipe/thumbnail,
+  appearance, material/PBR, graph/IME, palette, profile, HUD, native overlays,
+  terrain paint/stamps/undo/reopen/Play and ViewCube references/ownership all pass.
+  Separate assembled/native-large and manual dialog review were excluded.
+  Durable release-creator-native-contracts.json. Remaining hidden-bake scopes,
+  platform and measured release performance are stillopen.
+
+- Actual Creator UIKit release runtime PASS, Rust archive2m02s, Swift-O and
+  runtime14.05s. First/second real controller owners presented3/3frames, rootCPU0
+  and readback0. Checked-in Swift asynchronous load, addressed save/copy/finish,
+  disk-byte equality and saved-project reopen pass. Original controller/view
+  retained after Renderer.close; stale Rust state/document handles reject and
+  second owner remains live. /private/tmp/eldiron-acceptance-final-creator-uikit.log;
+  20680terminal. Logs/result in eldiron-uikit-release-epov2bg6 under temp root;
+  durable release-uikit-creator-acceptance.json. UIKit text protocol passed too.
+  Full mobile Play/touch/IME/device and release performance remainopen.
+- Simulator tool now explicitly overrides inherited desktop SDKROOT with the
+  requested iphonesimulator SDK for C/Swift subprocesses. Earlier linked simulator
+  runtimes worked, but Swift's linker emitted an inherited macOS-sysroot warning;
+  next tool execution verifies the corrected environment. No dependency versions
+  or deployment targets changed.
+
+- Final SDKROOT-corrected Creator simulator tool PASS, Rust release1m39s,
+  Swift-O and runtime10.95s. Both owners3presentations,0rootCPU/readback, all
+  original document/retained-close assertions pass; inherited macOS SDK warning
+  is gone (only duplicate-lSystem linker note remains).
+  /private/tmp/eldiron-acceptance-final-creator-uikit-sdkroot.log;25475terminal;
+  latest evidence eldiron-uikit-release-1k09wz52/result.json. Durable Creator
+  UIKit summary points at this final run. Next actual Release Xcode iOS bundle
+  build with this current simulator static archive, then hidden-bake contracts
+  and matched release profiling. Overall acceptance/physical gates stayopen.
+
+- Actual checked-in Creator Xcode iOS bundle Release BUILD SUCCEEDED, arm64
+  simulator, deployment26.1, current release Rust archive, signingdisabled.
+  /private/tmp/eldiron-acceptance-final-creator-ios-xcode.log;10775terminal.
+  Storyboard/resources and Swift wrapper linked. Install/normal bundle launch
+  now targets only owned simulator727C85E8; next capture/inspect its rendered UI
+  and terminate it before residency/performance checks. This build is not a
+  claim of full mobile interaction or physical-device parity.
+
+- Normal Release Xcode Creator app installed/launched on owned simulator and
+  actual screenshot inspected: native UI/dialog, Swash text, controls and source
+  tiles render. /private/tmp/eldiron-creator-ios-release-bundle.png. Found real
+  iOS wrapper issue: status bar covered the full-view root toolbar. Its UIKit
+  controller now requests hidden status bar, matching its full-view rendering
+  contract and avoiding input/render coordinate offsets. No renderer changed.
+  Exact owned bundle terminated;45131terminal. Rebuild/visual check follows.
+
+- Corrected normal iOS Creator Release bundle rebuilt, installed and launched.
+  Actual screenshot visually inspected: unobscured toolbar, native dialog/text/
+  controls/source tiles. Durable ios-creator-release-startup.png; build log
+  /private/tmp/eldiron-acceptance-final-creator-ios-toolbar.log;10985terminal.
+  Runtime /private/tmp/eldiron-acceptance-final-creator-ios-toolbar-runtime.log;
+  65752terminal after exact app termination. No GPU validation error observed.
+- Shut down/deleted only owned acceptance simulator727C85E8 after all current
+  mobile checks; user's original iPad6D6BB609 remainsbooted and untouched. Saved
+  evidence/logs persist. Current UIKit checks do not replace full mobile Play,
+  real touch/IME or physical-device acceptance. Next hidden-bake scopes, final
+  native package checks and matched release profiling.

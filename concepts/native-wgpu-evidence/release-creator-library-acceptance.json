@@ -1,0 +1,10 @@
+{
+  "date": "2026-11-15",
+  "profile": "release",
+  "passed": 641,
+  "failed": 0,
+  "ignored": 119,
+  "runtime_seconds": 85.07,
+  "log": "/private/tmp/eldiron-acceptance-final-creator-library.log",
+  "scope": "All nonignored Creator library tests. Ignored GPU/long-running/manual/maintenance cases are inventoried separately; this is not full platform or performance acceptance."
+}

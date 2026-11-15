@@ -75,8 +75,17 @@ controllers/windows remain retained; it does not accept physical presentation.
 Window exit/teardown only closes that owner, stops its callbacks, destroys its
 Rust host and then releases the backing layer.
 
+`tools/check_native_uikit.py --creator` builds optimized Rust/Swift and executes
+the checked-in UIKit controller/view/renderer on a separate simulator. It checks
+positive presentations, zero root framebuffer/readback, asynchronous Swift file
+load, addressed save/copy/finish, disk reopen and stale-host rejection while the
+closed controller remains retained. The default creates and cleans up its own
+simulator; `--device UUID` uses only the explicitly supplied booted acceptance
+device and leaves its lifecycle alone. Player mode additionally checks that one
+CPU session survives actual UIKit view/layer reconstruction.
+
 Native macOS/iOS composition/accessibility, complete physical input/document
-workflows, mobile runtime execution, physical multiwindow interaction and
+workflows, full mobile Play/touch/IME coverage, physical multiwindow interaction and
 distribution remain in the rewrite acceptance matrix. Creator reuses the client's
 `NativeTextHost`, AppKit input context and UIKit UITextInput responders. The
 shared Rust UTF-16 protocol validates source identity/revision and Unicode
