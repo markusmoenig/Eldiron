@@ -193,7 +193,7 @@ fn unloaded_material_pages_retain_transparency_and_instance_classification() {
         .unwrap()
         .material_rgba[..4]
         .copy_from_slice(&[254, 20, 128, 255]);
-    layer.surface_instance_owners = vec![IsoPaintOwner::Sector(9), IsoPaintOwner::Sector(7)];
+    layer.surface_instance_owners = vec![IsoPaintOwner::Sector(9), IsoPaintOwner::Sector(7)].into();
     let index = PaintPageIndex::from_layer(&layer, 1024).unwrap();
     assert_eq!(index.alpha_geo_ids(), &[GeoId::Sector(7), GeoId::Sector(9)]);
     assert!(

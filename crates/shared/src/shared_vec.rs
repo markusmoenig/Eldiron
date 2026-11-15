@@ -24,6 +24,13 @@ impl<T> From<Vec<T>> for SharedVec<T> {
     }
 }
 impl<T> SharedVec<T> {
+    pub fn clear(&mut self) {
+        if let Some(values) = Arc::get_mut(&mut self.0) {
+            values.clear();
+        } else {
+            *self = Self::default();
+        }
+    }
     pub fn same_storage(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }

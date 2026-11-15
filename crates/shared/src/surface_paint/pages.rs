@@ -66,7 +66,7 @@ impl PaintPageIndex {
             surface_instance_owners: if current {
                 layer.surface_instance_owners.clone()
             } else {
-                Vec::new()
+                Default::default()
             },
             ..Default::default()
         };

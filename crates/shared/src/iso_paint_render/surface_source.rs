@@ -2,18 +2,27 @@
 //! shared authored pages and emits no renderer, history or stitched atlas.
 use super::*;
 use crate::shared_index_map::SharedIndexMap;
+use crate::shared_vec::SharedVec;
 use crate::surface_paint::Builder;
 use rusterix::surface_paint::{SurfacePaint, SurfacePaintPage, SurfacePaintValidation};
 use std::sync::Arc;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct SurfacePaintRequest {
     visible: bool,
     chunks: SharedIndexMap<String, IsoPaintBakedChunk>,
     selection: Option<IsoPaintSelection>,
-    owners: Vec<IsoPaintOwner>,
+    owners: SharedVec<IsoPaintOwner>,
+}
+impl PartialEq for SurfacePaintRequest {
+    fn eq(&self, other: &Self) -> bool {
+        self.visible == other.visible
+            && self.chunks == other.chunks
+            && self.selection == other.selection
+            && (self.owners.same_storage(&other.owners) || self.owners == other.owners)
+    }
 }
 impl SurfacePaintRequest {
     pub fn capture(layer: &IsoPaintLayer) -> Self {
@@ -35,7 +44,7 @@ impl SurfacePaintRequest {
             owners: if current {
                 layer.surface_instance_owners.clone()
             } else {
-                Vec::new()
+                Default::default()
             },
         }
     }
@@ -49,7 +58,8 @@ impl SurfacePaintRequest {
             display: Default::default(),
             original: self.chunks.clone(),
             original_cursor: 0,
-            owners: self.owners.clone().into_iter(),
+            owners: self.owners.clone(),
+            owner_cursor: 0,
             selections: 0,
             selection,
             request: self,
@@ -103,7 +113,8 @@ pub struct SurfacePaintPreparation {
     request: SurfacePaintRequest,
     original: SharedIndexMap<String, IsoPaintBakedChunk>,
     original_cursor: usize,
-    owners: std::vec::IntoIter<IsoPaintOwner>,
+    owners: SharedVec<IsoPaintOwner>,
+    owner_cursor: usize,
     selection: Option<Arc<IsoPaintSelection>>,
     selections: usize,
     current_selection: Option<SelectionWork>,
@@ -176,10 +187,11 @@ impl SurfacePaintPreparation {
                 }
             }
             Stage::Owners => {
-                if let Some(owner) = self.owners.next() {
-                    if self.has_alpha {
-                        self.alpha(&owner);
-                    }
+                if !self.has_alpha {
+                    self.stage = Stage::Selection;
+                } else if let Some(owner) = self.owners.get(self.owner_cursor).cloned() {
+                    self.owner_cursor += 1;
+                    self.alpha(&owner);
                 } else {
                     self.stage = Stage::Selection;
                 }

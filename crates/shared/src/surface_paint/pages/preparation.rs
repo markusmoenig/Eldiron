@@ -9,7 +9,8 @@ pub struct PaintPageIndexBuilder {
     table_len: usize,
     chunks: crate::shared_index_map::SharedIndexMap<String, IsoPaintBakedChunk>,
     chunk_cursor: usize,
-    owners: std::vec::IntoIter<IsoPaintOwner>,
+    owners: crate::shared_vec::SharedVec<IsoPaintOwner>,
+    owner_cursor: usize,
     alpha_seen: rustc_hash::FxHashSet<GeoId>,
     has_alpha: bool,
     remaining: IsoPaintLayer,
@@ -23,7 +24,7 @@ impl PaintPageIndexBuilder {
         let chunks = std::mem::take(&mut layer.baked_chunks);
         let owners = std::mem::take(&mut layer.surface_instance_owners);
         let chunks = if current { chunks } else { Default::default() };
-        let owners = if current { owners } else { Vec::new() };
+        let owners = if current { owners } else { Default::default() };
         let count = chunks.len();
         let table_len = count
             .checked_mul(2)
@@ -61,7 +62,8 @@ impl PaintPageIndexBuilder {
             table_len,
             chunks,
             chunk_cursor: 0,
-            owners: owners.into_iter(),
+            owners,
+            owner_cursor: 0,
             alpha_seen: rustc_hash::FxHashSet::default(),
             has_alpha: false,
             remaining: layer,
@@ -105,15 +107,18 @@ impl PaintPageIndexBuilder {
                 let chunk = chunk.clone();
                 self.chunk_cursor += 1;
                 self.insert(chunk)?;
-            } else if let Some(owner) = self.owners.next() {
-                if self.has_alpha {
-                    self.insert_alpha(Builder::iso_paint_owner_geo_id(&owner));
-                }
+            } else if !self.has_alpha {
+                // Original pages prove there is no alpha pass to expand.
+                self.owner_cursor = self.owners.len();
+                break;
+            } else if let Some(owner) = self.owners.get(self.owner_cursor).cloned() {
+                self.owner_cursor += 1;
+                self.insert_alpha(Builder::iso_paint_owner_geo_id(&owner));
             } else {
                 break;
             }
         }
-        Ok(self.chunk_cursor == self.chunks.len() && self.owners.len() == 0)
+        Ok(self.chunk_cursor == self.chunks.len() && self.owner_cursor == self.owners.len())
     }
     fn insert(&mut self, chunk: IsoPaintBakedChunk) -> Result<(), String> {
         if chunk.color_rgba.len() != PLANE_BYTES || chunk.material_rgba.len() != PLANE_BYTES {
@@ -169,7 +174,7 @@ impl PaintPageIndexBuilder {
         }
         if self.index.entries.len() != self.table_len
             || self.chunk_cursor != self.chunks.len()
-            || self.owners.len() != 0
+            || self.owner_cursor != self.owners.len()
         {
             return Err("Paint source preparation is incomplete".into());
         }

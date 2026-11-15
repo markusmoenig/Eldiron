@@ -15530,3 +15530,40 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   /private/tmp/eldiron-source-diagnostics-release-native.log. All handles terminal;
   diff whitespace check passes. Inspection code compiled through the actual wasm
   host path; no new benchmarks, GUI sessions or broad tests were started.
+
+
+## Original instance-owner catalogue capture (2026-11-15)
+
+- Derived paint instance-owner lists now use immutable SharedVec backing. Current
+  view snapshots and SurfacePaintRequest share that list; exact unchanged backing
+  equality avoids re-copying/comparing every owner before alpha classification.
+  Both current publication and PaintPageIndexBuilder expand the original list by
+  a metadata-unit cursor. Original pages proven opaque skip unused expansion in
+  constant time. The finished per-view/shared alpha lookup policy stays unchanged.
+- Current presentation_source omits transient stroke-commit IDs: those authoring
+  signals are unused by the current original-page/recipe producers. Authored data
+  retains them; its serialized representation is unchanged (the field is skipped).
+  Shared map/list clear also detaches to empty storage without first cloning a
+  whole retained catalogue merely to discard its contents.
+- Canonical four-application native release compile PASS14.84s:
+  /private/tmp/eldiron-owner-catalogue-release.log. The2,049-page cooperative index
+  contract PASS0.04s (release build58.40s), preserving all key slots, alpha/instance
+  classification and exact original plane backing:
+  /private/tmp/eldiron-owner-catalogue-release-index.log. Focused current selection/
+  translucent instance-owner reference parity PASS0.00s:
+  /private/tmp/eldiron-owner-catalogue-release-selection.log. CPU-only current wire/
+  frozen-source regression PASS0.00s (release build18.86s), now also checking that
+  presentation snapshots omit commit bookkeeping:
+  /private/tmp/eldiron-owner-catalogue-release-wire.log. Actual wasm target check
+  is in flight; broad workflow/performance suites remain deferred.
+- Next concrete ownership gap found in surface queries: world/metadata/depth
+  targets and query vertex buffers still allocate outside shared device pools.
+  SurfaceOutput currently retains raw textures only. Move canonical allocations
+  into pooled leases, retain target leases in returned outputs/captures through
+  submission, and preserve explicit reference allocation plus pixel/depth behavior.
+
+- Actual wasm Creator browser target release compilation PASS13.92s:
+  /private/tmp/eldiron-owner-catalogue-release-wasm.log. All handles terminal;
+  diff whitespace check passes. Continue directly with pooled surface-query
+  allocations and output/capture lifetime leases, preserving its existing
+  same-size producer-reuse contract and explicit-only CPU capture.

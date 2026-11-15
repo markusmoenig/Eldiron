@@ -33,7 +33,9 @@ fn paint_wire_fields_and_terrain_publications_keep_frozen_pixel_ownership() {
         [0, 0],
     );
     layer.set_active_selection(selection);
+    layer.surface_commit_strokes.push(Uuid::new_v4());
     let snapshot = layer.presentation_source(true);
+    assert!(snapshot.surface_commit_strokes.is_empty());
     assert!(snapshot.baked_chunks.same_storage(&layer.baked_chunks));
     assert!(
         snapshot

@@ -10,7 +10,6 @@ impl IsoPaintLayer {
             chunk_size: self.chunk_size,
             baked_version: ISO_PAINT_BAKE_VERSION,
             selection_visible: selection,
-            surface_commit_strokes: self.surface_commit_strokes.clone(),
             surface_instance_owners: self.surface_instance_owners.clone(),
             ..Default::default()
         };

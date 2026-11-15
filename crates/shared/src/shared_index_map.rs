@@ -26,6 +26,13 @@ impl<K, V> From<IndexMap<K, V>> for SharedIndexMap<K, V> {
     }
 }
 impl<K, V> SharedIndexMap<K, V> {
+    pub fn clear(&mut self) {
+        if let Some(map) = Arc::get_mut(&mut self.0) {
+            map.clear();
+        } else {
+            *self = Self::default();
+        }
+    }
     pub fn same_storage(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }

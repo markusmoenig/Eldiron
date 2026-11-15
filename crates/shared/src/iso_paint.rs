@@ -747,7 +747,7 @@ pub struct IsoPaintLayer {
     /// This transient expansion lets translucent surface paint route every rendered instance
     /// through the alpha pass without duplicating the persistent paint chunks.
     #[serde(skip)]
-    pub surface_instance_owners: Vec<IsoPaintOwner>,
+    pub surface_instance_owners: SharedVec<IsoPaintOwner>,
     #[serde(default = "default_operation")]
     pub active_operation: String,
     #[serde(default = "default_brush")]
@@ -815,7 +815,7 @@ impl Default for IsoPaintLayer {
             active_selection_id: None,
             selection_visible: false,
             surface_commit_strokes: Vec::new(),
-            surface_instance_owners: Vec::new(),
+            surface_instance_owners: Default::default(),
             active_operation: default_operation(),
             active_brush: default_brush(),
             active_source: None, source_images: Default::default(), source_revision: None,

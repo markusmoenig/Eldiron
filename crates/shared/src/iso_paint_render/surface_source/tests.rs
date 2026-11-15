@@ -10,15 +10,20 @@ fn shared_catalogue_preparation_matches_current_selection_reference() {
         for pixel in page.color_rgba.chunks_exact_mut(4) {
             pixel.copy_from_slice(&[80, 150, 220, if x < 0 { 160 } else { 255 }]);
         }
+        if x < 0 {
+            page.material_rgba[..4].copy_from_slice(&[254, 20, 128, 255]);
+        }
         layer.baked_chunks.insert(x.to_string(), page);
     }
     let mut selection = IsoPaintSelection::new(owner.clone());
     selection.set_pixel(owner.clone(), geo, [1, 1]);
     selection.set_pixel(owner, geo, [-65, 4]);
     layer.set_active_selection(selection);
+    layer.surface_instance_owners.push(IsoPaintOwner::Sector(9));
     let frozen = layer.presentation_source(true);
     let request = SurfacePaintRequest::capture(&frozen);
     assert!(request.chunks.same_storage(&layer.baked_chunks));
+    assert!(request.owners.same_storage(&layer.surface_instance_owners));
     assert!(
         request
             .selection
@@ -57,6 +62,10 @@ fn shared_catalogue_preparation_matches_current_selection_reference() {
     let publication = prep.finish().unwrap();
     let source = publication.source().unwrap();
     assert_eq!([source.width, source.height], [width, height]);
+    assert_eq!(
+        source.alpha_geo_ids.as_slice(),
+        IsoPaintRenderer::surface_paint_alpha_geo_ids(&frozen)
+    );
     assert_eq!(source.entries.as_ref(), entries);
     for page in &source.pages {
         for row in 0..ISO_PAINT_BAKED_CHUNK_SIZE as usize {
