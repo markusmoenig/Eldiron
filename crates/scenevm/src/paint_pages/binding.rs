@@ -10,6 +10,7 @@ pub struct PaintPageBinding {
     pub(crate) alpha_geo_ids: Vec<GeoId>,
     pub(crate) has_missing: bool,
     pub(crate) raster_entries: Option<wgpu::Buffer>,
+    pub(crate) resident_table: Option<Arc<super::residency::ResidentTable>>,
 }
 /// Private table validation for cooperative live producers. The images/table
 /// remain immutable for this preparation; finish rechecks its device domain.
@@ -61,6 +62,7 @@ impl PaintPageBindingPreparation {
                 alpha_geo_ids,
                 has_missing: false,
                 raster_entries: None,
+                resident_table: None,
             }),
             cursor: 0,
             failure: None,

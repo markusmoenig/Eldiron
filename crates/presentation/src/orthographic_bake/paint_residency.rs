@@ -1,7 +1,7 @@
 //! Private producer residency. One fault loads at most one original page; a
 //! dispatch pins the dependencies it discovers until it succeeds or subdivides.
 use super::*;
-use scenevm::paint_pages::PaintPageBinding;
+use scenevm::paint_pages::{PaintPageBinding, PaintResidencyTable};
 use shared::surface_paint::pages::PaintPageIndex;
 use std::collections::{HashMap, HashSet};
 
@@ -22,6 +22,8 @@ pub struct PaintResidencyUsage {
     pub pinned: usize,
     pub page_uploads: u64,
     pub uploaded_bytes: u64,
+    pub gpu_table_bytes: u64,
+    pub table_uploaded_bytes: u64,
 }
 pub struct PaintPageResidency {
     context: Arc<GpuContext>,
@@ -33,6 +35,7 @@ pub struct PaintPageResidency {
     residents: HashMap<u32, usize>,
     pinned: HashSet<u32>,
     uploads: u64,
+    table: PaintResidencyTable,
 }
 impl PaintPageResidency {
     pub fn new(
@@ -66,7 +69,15 @@ impl PaintPageResidency {
         };
         let color = GpuImage::new(&context, descriptor(wgpu::TextureFormat::Rgba8Unorm))?;
         let material = GpuImage::new(&context, descriptor(wgpu::TextureFormat::Rgba8Uint))?;
+        let table = PaintResidencyTable::new(
+            context.clone(),
+            color.clone(),
+            material.clone(),
+            source.unloaded_entries().to_vec().into(),
+            source.alpha_geo_ids().to_vec(),
+        )?;
         Ok(Self {
+            table,
             context,
             source,
             color,
@@ -107,6 +118,9 @@ impl PaintPageResidency {
             return Ok(PaintPageRequest::Pending);
         };
         let columns = self.size[0] / PAGE;
+        let atlas_origin = [slot as u32 % columns * PAGE, slot as u32 / columns * PAGE];
+        self.table
+            .replace(self.slots[slot], source_slot, atlas_origin)?;
         let origin = wgpu::Origin3d {
             x: slot as u32 % columns * PAGE,
             y: slot as u32 / columns * PAGE,
@@ -143,32 +157,9 @@ impl PaintPageResidency {
         Ok(PaintPageRequest::Loaded)
     }
     pub fn binding(&self) -> Result<Arc<PaintPageBinding>> {
-        let columns = self.size[0] / PAGE;
-        let residents: Vec<_> = self
-            .slots
-            .iter()
-            .enumerate()
-            .filter_map(|(at, slot)| {
-                slot.map(|slot| {
-                    (
-                        slot,
-                        [at as u32 % columns * PAGE, at as u32 / columns * PAGE],
-                    )
-                })
-            })
-            .collect();
-        let entries = self
-            .source
-            .resident_entries(self.size, &residents)
-            .map_err(RenderError)?;
-        PaintPageBinding::new(
-            &self.context,
-            self.color.clone(),
-            self.material.clone(),
-            entries.into(),
-            self.source.alpha_geo_ids().to_vec(),
-        )
+        self.table.binding()
     }
+
     pub fn usage(&self) -> PaintResidencyUsage {
         PaintResidencyUsage {
             gpu_plane_bytes: self.slots.len() as u64 * PAGE_BYTES,
@@ -177,6 +168,8 @@ impl PaintPageResidency {
             pinned: self.pinned.len(),
             page_uploads: self.uploads,
             uploaded_bytes: self.uploads * PAGE_BYTES,
+            gpu_table_bytes: self.table.allocated_bytes(),
+            table_uploaded_bytes: self.table.uploaded_bytes(),
         }
     }
 }

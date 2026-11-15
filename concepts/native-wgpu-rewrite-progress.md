@@ -14863,3 +14863,45 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Browser Creator release compilation also PASS28.53s:
   /private/tmp/eldiron-raster-paint-dependency-release-web.log. All compiler handles
   terminal before the next implementation edits. Broad acceptance remains open.
+
+
+## Private residency lookup lifetime (2026-11-15, implementation continuing)
+
+- Replaced per-fault full source-table reconstruction, validation and CPU upload
+  with one PaintResidencyTable owner in SceneVM's paint_pages module. It retains
+  immutable original keys, one GPU lookup buffer, resident-origin ownership and
+  one revision record. A page replacement validates both changes before queuing
+  at most two 16-byte atlas rectangle writes. Binding retrieval is an Arc clone;
+  it no longer rebuilds all source entries or alpha-owner sets for every fault.
+- Integrated the owner into private orthographic paint/stamp residency. Original
+  immutable CPU pages, complete keys, pinning and receipt-before-slot-replacement
+  rules remain. Shared ordinary live sources continue using immutable bindings.
+  This mutable owner is private to one replay operation; retained bindings lease
+  allocation lifetime, not a historical copy of its pixels/rectangles.
+- Compute retains its existing auxiliary layout and shares the base CPU entries
+  directly. First use, skipped revisions or auxiliary replacement copy the current
+  lookup on the GPU; consecutive revisions copy only changed rectangles (<=32
+  bytes) to the existing auxiliary buffer. Unchanged revisions copy nothing.
+  Auxiliary replacement resets mirror identity. Same-binding VM installation is
+  O(1) after device checks, avoiding repeated alpha-set rebuilds and invalidation.
+- Usage diagnostics now distinguish lookup allocation/CPU write bytes from the
+  original color/material page uploads. One-time source-key capture/validation/
+  initial table upload and alpha classification remain synchronous for this
+  explicit private producer. First-use/full-revision GPU copies remain bounded by
+  the complete table, not a subframe work quota. No serialization changes.
+- Release canonical four-application compile PASS28.92s; final sparse-mirror/
+  same-binding refinement PASS28.81s. Logs:
+  /private/tmp/eldiron-residency-lookup-owner-release.log,
+  /private/tmp/eldiron-residency-lookup-owner-release-final.log.
+- One focused existing GPU regression was run in release, not the broad suite:
+  subdivision_preserves_originals_when_three_pages_exceed_two_slots PASS7.24s,
+  build1m32s. Beauty, albedo, material and normal all reported max difference0
+  against original reference channels through pressure, eviction and replay.
+  /private/tmp/eldiron-residency-lookup-owner-release-replay.log.
+  This verifies that scenario only; full cancellation/resource/platform/performance
+  acceptance stays open. Browser compile is being collected. Next dependency:
+  regional raster retry/composition primitives, then private live-frame ownership,
+  residency integration and input/publication gating. Broad tests stay deferred.
+- Browser Creator release compilation PASS26.41s:
+  /private/tmp/eldiron-residency-lookup-owner-release-web.log. All compiler handles
+  terminal before regional raster implementation. Concurrent concept untouched.

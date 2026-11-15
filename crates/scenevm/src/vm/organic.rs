@@ -234,7 +234,14 @@ impl VM {
                 .min(u64::from(device.limits().max_storage_buffer_binding_size)),
         )?;
         let dummy = Raster3DSurfacePaintEntry::zeroed();
-        let (surface, surface_changed) = {
+        let (surface, surface_changed) = if let Some(binding) = &self.paged_surface_paint {
+            let changed = self
+                .gpu
+                .as_ref()
+                .and_then(|gpu| gpu.compute3d_aux_surface.as_ref())
+                .is_none_or(|old| !Arc::ptr_eq(old, &binding.entries));
+            (binding.entries.clone(), changed)
+        } else {
             let current = self
                 .paint_entries()
                 .filter(|entries| !entries.is_empty())
@@ -296,6 +303,7 @@ impl VM {
                 },
             ));
             gpu.compute3d_aux_ssbo_size = byte_len;
+            gpu.compute3d_paint_table = None;
         } else {
             let buffer = gpu.compute3d_aux_ssbo.as_ref().unwrap();
             // Reset the dependency prefix for each ordered dispatch. Ordinary
@@ -317,6 +325,7 @@ impl VM {
         }
         gpu.compute3d_aux_surface = Some(surface);
         gpu.compute3d_aux_organic = Some(organic);
+        self.sync_compute_paint_table(device, queue)?;
         Ok(())
     }
 }

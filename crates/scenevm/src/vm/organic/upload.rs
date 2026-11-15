@@ -141,7 +141,9 @@ impl VM {
         if self.gpu.is_none() {
             self.init_gpu(device)?;
         }
-        let surface = if compute {
+        let surface = if compute && self.paged_surface_paint.is_some() {
+            Some(self.paged_surface_paint.as_ref().unwrap().entries.clone())
+        } else if compute {
             let dummy = Raster3DSurfacePaintEntry::zeroed();
             let current = self
                 .paint_entries()
@@ -282,6 +284,7 @@ impl VM {
         let pending = gpu.pending_source_upload.take().unwrap();
         if compute {
             gpu.compute3d_aux_ssbo = Some(pending.buffer);
+            gpu.compute3d_paint_table = None;
             gpu.compute3d_aux_ssbo_size = bytes;
             gpu.compute3d_aux_surface = surface;
             gpu.compute3d_aux_organic = Some(organic);

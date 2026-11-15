@@ -42,6 +42,9 @@ impl PaintDispatchRegion {
     }
 }
 
+mod residency;
+pub use residency::PaintResidencyTable;
+
 mod binding;
 pub use binding::{PaintPageBinding, PaintPageBindingPreparation};
 

@@ -34,6 +34,51 @@ pub(super) fn upload_entries(
     g.raster3d_surface_paint_entries_shared = false;
 }
 impl VM {
+    /// Compute's existing auxiliary layout embeds the paint table. A consecutive
+    /// producer revision mirrors at most two rectangles entirely on the GPU.
+    /// First use or skipped revisions copy the complete current GPU table.
+    pub(super) fn sync_compute_paint_table(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> crate::SceneVMResult<()> {
+        let table = self
+            .paged_surface_paint
+            .as_ref()
+            .and_then(|binding| binding.resident_table.as_ref());
+        let gpu = self.gpu.as_mut().unwrap();
+        let Some(table) = table else {
+            gpu.compute3d_paint_table = None;
+            return Ok(());
+        };
+        let update = table.update.lock().map_err(|_| {
+            crate::SceneVMError::InvalidOperation("paint residency update was interrupted".into())
+        })?;
+        let previous = gpu
+            .compute3d_paint_table
+            .as_ref()
+            .filter(|(buffer, _)| *buffer == table.buffer)
+            .map(|(_, revision)| *revision);
+        if previous == Some(update.revision) {
+            return Ok(());
+        }
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("private compute paint lookup mirror"),
+        });
+        let destination = gpu.compute3d_aux_ssbo.as_ref().unwrap();
+        if previous.and_then(|revision| revision.checked_add(1)) == Some(update.revision) {
+            for slot in update.rectangles.into_iter().flatten() {
+                let offset = u64::from(slot) * size_of::<Raster3DSurfacePaintEntry>() as u64
+                    + std::mem::offset_of!(Raster3DSurfacePaintEntry, atlas_rect) as u64;
+                encoder.copy_buffer_to_buffer(&table.buffer, offset, destination, 20 + offset, 16);
+            }
+        } else {
+            encoder.copy_buffer_to_buffer(&table.buffer, 0, destination, 20, table.buffer.size());
+        }
+        queue.submit(Some(encoder.finish()));
+        gpu.compute3d_paint_table = Some((table.buffer.clone(), update.revision));
+        Ok(())
+    }
     pub(super) fn paint_has_missing_pages(&self) -> bool {
         self.paged_surface_paint.as_ref().map_or_else(
             || {
@@ -94,6 +139,13 @@ impl VM {
             return Err(renderkit::RenderError(
                 "paint binding belongs to a lost or different scene device".into(),
             ));
+        }
+        if self
+            .paged_surface_paint
+            .as_ref()
+            .is_some_and(|old| Arc::ptr_eq(old, &binding))
+        {
+            return Ok(());
         }
         let alpha: FxHashSet<_> = binding.alpha_geo_ids.iter().copied().collect();
         if alpha != self.raster3d_paint_alpha_geo_ids {
