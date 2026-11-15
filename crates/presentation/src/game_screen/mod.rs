@@ -88,6 +88,7 @@ pub struct GameScreenController {
     view_ids: FxHashMap<Uuid, ViewId>,
     configured_views: FxHashMap<ViewId, ContentRevision>,
     view_images: FxHashMap<Uuid, ViewImage>,
+    completed_view_scopes: FxHashMap<ViewId, (Uuid, Uuid)>,
     pending_scene_uploads: bool,
     stamp_sources: stamp_sources::Sources,
     source_wake: Option<theframework::platform::ApplicationWake>,
@@ -222,6 +223,7 @@ impl GameScreenController {
             view_ids: FxHashMap::default(),
             configured_views: FxHashMap::default(),
             view_images: FxHashMap::default(),
+            completed_view_scopes: FxHashMap::default(),
             pending_scene_uploads: false,
             stamp_sources: Default::default(),
             source_wake: None,
@@ -277,6 +279,7 @@ impl GameScreenController {
         self.geometry = None;
         self.configured_views.clear();
         self.view_images.clear();
+        self.completed_view_scopes.clear();
         true
     }
     /// Distribute each addressed batch once. Reflow/painting do not consume it
@@ -529,6 +532,7 @@ impl GameScreenController {
                     && widget.backend_name != "text" && widget.rect.width > 0. && widget.rect.height > 0.
             });
             if !active && views.scene(*id).is_ok() {
+                views.cancel_scene_source_uploads(*id).map_err(|e| e.to_string())?;
                 views.set_surface_paint_source(*id, None).map_err(|e| e.to_string())?;
                 views.set_stamp_paint(*id, None).map_err(|e| e.to_string())?;
             }
@@ -558,6 +562,7 @@ impl GameScreenController {
                 if let Some(id) = self.view_ids.remove(key) {
                     views.remove(id, images).map_err(|e| e.to_string())?;
                     self.configured_views.remove(&id);
+                    self.completed_view_scopes.remove(&id);
                 }
                 let size = (
                     widget.rect.width.round().max(0.) as u32,
@@ -609,12 +614,20 @@ impl GameScreenController {
             } else {
                 views.set_stamp_paint(id, None).map_err(|e| e.to_string())?;
             }
+            views.prepare_scene_source_uploads(id).map_err(|e| e.to_string())?;
             if let Some(output) = views
                 .render(id, self.animation_frame as u64, images)
                 .map_err(|e| e.to_string())?
             {
                 self.world
                     .push_view(*key, widget, output, map, views.isometric_targets(output))?;
+                self.completed_view_scopes.insert(id, (world.session_id, map.id));
+                self.view_images.insert(*key, output);
+            } else if self.completed_view_scopes.get(&id) == Some(&(world.session_id, map.id))
+                && let Some(output) = views.output(id)
+            {
+                // Keep a complete image visible while replacement data uploads.
+                // It receives no fresh world input receipt/camera publication.
                 self.view_images.insert(*key, output);
             }
         }
@@ -650,6 +663,7 @@ impl GameScreenController {
         }
         self.configured_views.clear();
         self.view_images.clear();
+        self.completed_view_scopes.clear();
         Ok(())
     }
     /// Detach only GPU view identities when replacing a CPU screen outside a
@@ -660,6 +674,7 @@ impl GameScreenController {
         self.pending_scene_uploads = false;
         self.configured_views.clear();
         self.view_images.clear();
+        self.completed_view_scopes.clear();
         self.view_ids.drain().map(|(_, id)| id).collect()
     }
     pub fn view_images(&self) -> &FxHashMap<Uuid, ViewImage> {

@@ -55,7 +55,7 @@ behavior is ready to verify.
 ## Next work
 
 1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,18 retained standard control families, static collection/property-layout contributions and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
-2. Close live source residency, catalogue capture and remaining UV/player source policy. Cooperative shared GPU page uploads are connected below; source allocation/metadata/capture scheduling and working-set residency remain open. Player UV pages share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection now has an owned page publication below. Player stamp CPU publication/controller ownership is connected in the latest in-flight checkpoint; standalone feature verification and consolidated runtime acceptance remain. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
+2. Close live source residency, catalogue capture and remaining UV/player source policy. Cooperative shared GPU page uploads and live world/player billboard buffer uploads are connected below; source allocation/CPU packing/metadata/capture scheduling and working-set residency remain open. Player UV pages share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection now has an owned page publication below. Player stamp CPU publication/controller ownership is connected in the latest in-flight checkpoint; standalone feature verification and consolidated runtime acceptance remain. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
 ## Blockers
@@ -14552,3 +14552,75 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   git diff --check passed. All compiler sessions terminal; no runtime suite ran.
 - Final canonical native release result: Finished `release` profile [optimized] target(s) in 18.06s. Log:
   /private/tmp/eldiron-player-stamp-publication-release-final.log.
+
+## Cooperative live scene billboard buffers (2026-11-15, integration active)
+
+- Player source checkpoint56c8a619 is progress. Continued immediately into the
+  next remaining live upload adapter. No unrelated networking edits or new
+  approval/input dependency. Full M0-M9 Goal remains active.
+- Added scenevm::source_upload::SourceUploadBudget and private per-VM replacement
+  buffers for live raster organic data and compute paint/organic auxiliary data.
+  New payloads are written in <=64KiB pieces under a shared512KiB buffer-transfer
+  budget with2ms elapsed checks. This buffer budget is separate from the existing
+ 512KiB UV-page budget; neither is an upper latency guarantee for CPU packing,
+  allocation, driver calls or total application frame time.
+- Header, surface table, instance and source spans retain independent write
+  cursors. Updating placements while source pixels are uploading resets only
+  the changed span. Replacement buffers install only when every current span is
+  complete. Existing presented textures and installed VM buffers remain valid.
+  Camera-only prefixes that fit the remaining budget update in place without
+  allocating/retransferring source pixels. Warm unchanged sources enqueue no
+  additional organic pixel writes. The shader layouts and packed math are intact.
+- Repeated clears of already-empty organic/paint sources no longer invalidate
+  them. Geometry/source invalidation retains prior spans and reuses them only
+  after exact packed equality. This prevents no-op guide/source refreshes from
+  restarting a large pending pixel upload. CPU source packing itself is still
+  synchronous and remains explicit implementation work; no residency or peak
+  memory gate is claimed from retaining spans.
+- Live GameScreenController views and the canonical Creator authoring world
+  explicitly prepare these uploads after current source/placement preparation.
+  New output and input readiness wait for completion. Existing pending-source
+  deadlines drive continuation; source waits do not tick the runtime. Clear,
+  hidden/zero-size views, scope teardown, suspension, device reconstruction and
+  source cancellation retire private jobs. Explicit offscreen/reference/bake
+  callers retain their own source policy; remaining such producers must still
+  be classified/adopted before final retirement.
+- Actual queued bytes are available on SceneViews and recorded on the injected
+  GpuContext, including writes before an error. Source preparation rejects lost/
+  replaced domains. Stats are transfer/current-owner diagnostics, not peak or
+  physical-driver memory evidence.
+- Initial canonical native four-application release compile PASS45.48s:
+  /private/tmp/eldiron-live-scene-source-upload-release.log. Final native and
+  browser release compilation is being collected after cancellation/no-op-source
+  refinements. No broad functional/GPU/performance suite run per user steering.
+- Consolidated checks must cover raster/compute exact layouts, partial sources,
+  edits/clear/moving placements mid-upload, multiple views/layers, cancellation,
+  first/last complete outputs, device reconstruction, continuation/wake fairness
+  and release memory/timing. Continuously changing above-budget metadata and full
+  source CPU capture/packing/residency remain open. This is implementation
+  progress, not proof of those acceptance gates or a measured performance gain.
+- Refined graphical publication while any UV/stamp/buffer source is pending:
+  keep the last complete game-view image only for its recorded session/map.
+  Do not add a fresh world-input receipt/camera snapshot for that older image.
+  Device detach, session switch, text-view removal and view teardown clear these
+  completed scopes. Consolidated runtime verification remains pending.
+- Final native release checks PASS38.29s after cancellation/span-identity work,
+  and PASS17.89s after completed-image scope publication. Browser Creator release
+  PASS29.66s; current standalone browser player release PASS20.34s. Logs:
+  /private/tmp/eldiron-live-scene-source-upload-release-final.log,
+  /private/tmp/eldiron-live-scene-source-upload-release-current.log,
+  /private/tmp/eldiron-live-scene-source-upload-release-web.log,
+  /private/tmp/eldiron-live-scene-source-upload-release-player-web.log.
+- Next source-management implementation: move large live organic CPU packing
+  out of the synchronous draw/preparation handoff, retaining immutable source
+  descriptors and cooperative packing progress across camera/guide changes.
+  Finish source working-set residency, capture/metadata scheduling and remaining
+  canonical ownership/adapters; then run the consolidated matrix per user
+  steering. Multiple-view upload fairness and continuously changing above-budget
+  instance metadata still need implementation review and integrated evidence.
+- Isolated CPU-only runtime release compile PASS11.74s:
+  /private/tmp/eldiron-live-scene-source-upload-release-runtime.log. No GPU
+  dependency/feature was added to the runtime. All compiler handles terminal;
+  git diff --check passed. No functional/GPU/performance suite run. Networking
+  concept remains untouched and excluded from the checkpoint. All unverified
+  M0-M9 acceptance gates remain open; no full-goal completion claim.

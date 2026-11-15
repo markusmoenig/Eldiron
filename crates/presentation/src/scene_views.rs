@@ -51,6 +51,7 @@ struct SceneView {
     surface_paint_source: Option<Arc<rusterix::surface_paint::SurfacePaint>>,
     surface_paint_ready: bool,
     stamp_paint_ready: bool,
+    scene_sources_ready: bool,
     stamp_uploaded: Option<shared::iso_paint_render::stamp_billboards::StampUploadKey>,
     isometric: bool,
     isometric_renderer: Option<crate::isometric::IsometricSceneRenderer>,
@@ -72,6 +73,7 @@ pub struct SceneViews {
     atlas: SharedAtlas,
     views: FxHashMap<ViewId, SceneView>,
     surface_paint: surface_paint::Sources,
+    source_upload_budget: scenevm::source_upload::SourceUploadBudget,
 }
 impl SceneViews {
     pub fn new(images: &ImageRegistry, atlas: SharedAtlas) -> Self {
@@ -81,6 +83,7 @@ impl SceneViews {
             atlas,
             views: FxHashMap::default(),
             surface_paint: Default::default(),
+            source_upload_budget: Default::default(),
         }
     }
     pub fn context(&self) -> &Arc<GpuContext> {
@@ -130,6 +133,7 @@ impl SceneViews {
                 surface_paint_source: None,
                 surface_paint_ready: true,
                 stamp_paint_ready: true,
+                scene_sources_ready: true,
                 stamp_uploaded: None,
                 isometric: false,
                 isometric_renderer: None,
@@ -211,6 +215,10 @@ impl SceneViews {
         // Zero-sized/suspended views retain their last target but produce no
         // paint output or render work. Resuming at the same size reuses it.
         view.size = size;
+        if size.0 == 0 || size.1 == 0 {
+            view.scene.vm.cancel_source_uploads();
+            view.scene_sources_ready = true;
+        }
         view.dirty = true;
         Ok(())
     }
@@ -240,7 +248,7 @@ impl SceneViews {
         if view.size.0 == 0 || view.size.1 == 0 {
             return Ok(None);
         }
-        if !view.surface_paint_ready || !view.stamp_paint_ready {
+        if !view.surface_paint_ready || !view.stamp_paint_ready || !view.scene_sources_ready {
             return Ok(None);
         }
         if !view.dirty

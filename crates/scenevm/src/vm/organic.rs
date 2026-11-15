@@ -1,5 +1,7 @@
 //! Retained CPU billboard descriptions and segmented compute metadata uploads.
 use super::*;
+mod upload;
+pub(super) use upload::Pending;
 
 /// The shader's unchanged contiguous layout, retained as independent CPU spans.
 /// Source metadata/pixels survive placement updates; GPU owners track each span.
@@ -47,18 +49,31 @@ impl Words {
 
 impl VM {
     pub(super) fn invalidate_organic_source(&mut self) {
-        self.cached_organic_words = None;
+        self.organic_sources_dirty = true;
+        self.organic_instances_dirty = true;
     }
     fn organic_words(&mut self) -> Words {
         if let Some(old) = &self.cached_organic_words {
-            if !self.organic_instances_dirty {
+            if !self.organic_sources_dirty && !self.organic_instances_dirty {
                 return old.clone();
             }
-            let sources = old.sources.clone();
-            self.cached_organic_words = Some(Words {
-                instances: self.build_organic_instance_words().into(),
-                sources,
-            });
+            let sources = if self.organic_sources_dirty {
+                let next = self.build_organic_sprite_words();
+                if old.sources.as_ref() == next.as_slice() {
+                    old.sources.clone()
+                } else {
+                    next.into()
+                }
+            } else {
+                old.sources.clone()
+            };
+            let next = self.build_organic_instance_words();
+            let instances = if old.instances.as_ref() == next.as_slice() {
+                old.instances.clone()
+            } else {
+                next.into()
+            };
+            self.cached_organic_words = Some(Words { instances, sources });
         } else {
             self.cached_organic_words = Some(Words {
                 instances: self.build_organic_instance_words().into(),
@@ -66,6 +81,7 @@ impl VM {
             });
         }
         self.organic_instances_dirty = false;
+        self.organic_sources_dirty = false;
         self.cached_organic_words.as_ref().unwrap().clone()
     }
     pub fn compute_organic_source_bytes(&self) -> u64 {

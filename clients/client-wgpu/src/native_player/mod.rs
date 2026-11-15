@@ -230,6 +230,7 @@ impl PlayerApplication {
         self.screen.set_scene_source_wake(Some(host.wake.clone()));
         if self.suspended || host.physical_size.0 == 0 || host.physical_size.1 == 0 {
             self.screen.suspend_scene_sources();
+            if let Some(gpu) = &mut self.gpu { gpu.views.cancel_surface_paint_uploads(); }
         }
         if self.screen.runtime_session() != self.player.runtime.view().session_id {
             self.pending_clipboard = None;
@@ -681,6 +682,7 @@ impl GpuApplication for PlayerApplication {
         }
         self.suspended = true;
         self.screen.suspend_scene_sources();
+        if let Some(gpu) = &mut self.gpu { gpu.views.cancel_surface_paint_uploads(); }
         self.services.set_suspended(true);
         self.route(&InputEvent::Focus(false), host)
             .unwrap_or_else(|error| {

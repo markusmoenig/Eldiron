@@ -1413,6 +1413,7 @@ impl Editor {
                         .vm.set_layer_enabled(0, false);
                 }
             }
+            gpu.scenes.prepare_scene_source_uploads(gpu.view).map_err(|e| e.to_string())?;
             gpu.scenes
                 .render(gpu.view, map.changed as u64, images.registry)
                 .map_err(|e| e.to_string())?;
@@ -1420,6 +1421,7 @@ impl Editor {
             gpu.scene_source = Some(source.clone());
         }
         gpu.paint_ready &= gpu.scenes.surface_paint_ready(gpu.view).map_err(|e| e.to_string())?;
+        gpu.paint_ready &= gpu.scenes.scene_sources_ready(gpu.view).map_err(|e| e.to_string())?;
         let output = match gpu.scenes.output(gpu.view) {
             Some(output) => output,
             None if !gpu.paint_ready => {

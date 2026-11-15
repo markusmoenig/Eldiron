@@ -2,6 +2,8 @@
 #[cfg(feature = "gpu")]
 pub mod render_output;
 #[cfg(feature = "gpu")]
+pub mod source_upload;
+#[cfg(feature = "gpu")]
 pub mod surface_output;
 #[cfg(feature = "gpu")]
 pub mod paint_feedback;

@@ -203,6 +203,7 @@ impl SceneViews {
     /// One budget covers every view in an application frame, including shared
     /// sources. The canonical callers invoke this once before their view loops.
     pub fn begin_surface_paint_upload_frame(&mut self) {
+        self.source_upload_budget.reset();
         self.surface_paint.frame_bytes = 0;
         self.surface_paint.frame_started = None;
     }
@@ -214,7 +215,7 @@ impl SceneViews {
     pub fn has_pending_surface_paint_frames(&self) -> bool {
         self.has_pending_surface_paint_uploads()
             || self.views.values().any(|view| {
-                view.surface_paint_source.is_some()
+                (view.surface_paint_source.is_some() || !view.scene_sources_ready)
                     && view.surface_paint_ready
                     && view.stamp_paint_ready
                     && view.dirty
@@ -274,6 +275,7 @@ impl SceneViews {
             .views
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
+        view.scene.vm.cancel_source_uploads();
         if !view.surface_paint_ready {
             view.surface_paint_source = None;
             self.retire_unused_surface_paint();
@@ -283,6 +285,10 @@ impl SceneViews {
     /// Hide/detach an owner without retaining partially uploaded GPU images.
     /// Complete displayed bindings/output remain valid until their normal retire.
     pub fn cancel_surface_paint_uploads(&mut self) {
+        for view in self.views.values_mut() {
+            view.scene.vm.cancel_source_uploads();
+            view.scene_sources_ready = true;
+        }
         for view in self
             .views
             .values_mut()

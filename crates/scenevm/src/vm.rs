@@ -677,6 +677,7 @@ pub struct VMGpu {
     pub compute3d_aux_ssbo_size: usize,
     compute3d_aux_surface: Option<Arc<[Raster3DSurfacePaintEntry]>>,
     compute3d_aux_organic: Option<organic::Words>,
+    pub(crate) pending_source_upload: Option<organic::Pending>,
     pub raster3d_paint_color_tex: Option<wgpu::Texture>,
     pub raster3d_paint_color_view: Option<wgpu::TextureView>,
     pub raster3d_paint_material_tex: Option<wgpu::Texture>,
@@ -3787,6 +3788,7 @@ pub struct VM {
     tile_gpu_dirty: bool,
     cached_scene_data_hash: u64,
     cached_organic_words: Option<organic::Words>,
+    organic_sources_dirty: bool,
     organic_instances_dirty: bool,
     irradiance_grid_dirty: bool,
     cached_irradiance_grid_data: Vec<[f32; 4]>,
@@ -5704,6 +5706,7 @@ impl VM {
             tile_gpu_dirty: true,
             cached_scene_data_hash: 0,
             cached_organic_words: None,
+            organic_sources_dirty: true,
             organic_instances_dirty: false,
             irradiance_grid_dirty: true,
             cached_irradiance_grid_data: Self::disabled_irradiance_grid_data(),
@@ -6419,8 +6422,13 @@ impl VM {
                 self.invalidate_organic_source();
             }
             Atom::ClearOrganicBillboards => {
-                self.organic_billboards = OrganicBillboardData::default();
-                self.invalidate_organic_source();
+                if !self.organic_billboards.sprites.is_empty()
+                    || !self.organic_billboards.paged_sprites.is_empty()
+                    || !self.organic_billboards.instances.is_empty()
+                {
+                    self.organic_billboards = OrganicBillboardData::default();
+                    self.invalidate_organic_source();
+                }
             }
             Atom::SetPagedPaintBillboards { sprites, instances } => {
                 // Reject as a set: filtering would shift stable source indices.
@@ -6484,8 +6492,13 @@ impl VM {
                 self.organic_instances_dirty = true;
             }
             Atom::ClearPaintBillboards => {
-                self.paint_billboards = OrganicBillboardData::default();
-                self.invalidate_organic_source();
+                if !self.paint_billboards.sprites.is_empty()
+                    || !self.paint_billboards.paged_sprites.is_empty()
+                    || !self.paint_billboards.instances.is_empty()
+                {
+                    self.paint_billboards = OrganicBillboardData::default();
+                    self.invalidate_organic_source();
+                }
             }
             Atom::RemoveAvatarBillboardData { id } => {
                 self.dynamic_avatar_data.remove(&id);
@@ -6769,6 +6782,7 @@ impl VM {
             compute3d_aux_ssbo_size: 0,
             compute3d_aux_surface: None,
             compute3d_aux_organic: None,
+            pending_source_upload: None,
             raster3d_paint_color_tex: None,
             raster3d_paint_color_view: None,
             raster3d_paint_material_tex: None,

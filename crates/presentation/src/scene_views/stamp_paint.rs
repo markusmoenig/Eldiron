@@ -4,12 +4,56 @@ use super::*;
 use shared::iso_paint::IsoPaintLayer;
 use shared::iso_paint_render::stamp_billboards::{StampSpriteSet, upload_sprite_set};
 impl SceneViews {
+    pub fn scene_source_uploaded_bytes(&self) -> usize {
+        self.source_upload_budget.uploaded_bytes()
+    }
+    /// Live owners call after source/placement preparation, before rendering.
+    /// Private buffer writes share a budget across every live view in this frame.
+    pub fn prepare_scene_source_uploads(&mut self, id: ViewId) -> Result<bool> {
+        let view = self
+            .views
+            .get_mut(&id)
+            .ok_or_else(|| RenderError("unknown scene view".into()))?;
+        if view.isometric || view.size.0 == 0 || view.size.1 == 0 {
+            view.scene.vm.cancel_source_uploads();
+            view.scene_sources_ready = true;
+            return Ok(true);
+        }
+        if !view.surface_paint_ready || !view.stamp_paint_ready {
+            view.scene.vm.cancel_source_uploads();
+            view.scene_sources_ready = false;
+            return Ok(false);
+        }
+        let ready = view
+            .scene
+            .vm
+            .prepare_source_uploads(&mut self.source_upload_budget)?;
+        view.dirty |= !view.scene_sources_ready || !ready;
+        view.scene_sources_ready = ready;
+        Ok(ready)
+    }
+    pub fn scene_sources_ready(&self, id: ViewId) -> Result<bool> {
+        self.views
+            .get(&id)
+            .map(|view| view.scene_sources_ready)
+            .ok_or_else(|| RenderError("unknown scene view".into()))
+    }
+    pub fn cancel_scene_source_uploads(&mut self, id: ViewId) -> Result<()> {
+        let view = self
+            .views
+            .get_mut(&id)
+            .ok_or_else(|| RenderError("unknown scene view".into()))?;
+        view.scene.vm.cancel_source_uploads();
+        view.scene_sources_ready = true;
+        Ok(())
+    }
     pub fn defer_stamp_paint(&mut self, id: ViewId) -> Result<()> {
         let view = self
             .views
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
         view.stamp_paint_ready = false;
+        view.scene.vm.cancel_source_uploads();
         view.dirty = true;
         Ok(())
     }
