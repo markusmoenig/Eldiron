@@ -79,12 +79,12 @@ impl PaintPageResidencyPreparation {
         };
         let color = GpuImage::new(&context, descriptor(wgpu::TextureFormat::Rgba8Unorm))?;
         let material = GpuImage::new(&context, descriptor(wgpu::TextureFormat::Rgba8Uint))?;
-        let table = PaintResidencyTablePreparation::new_indexed(
+        let table = PaintResidencyTablePreparation::new_indexed_alpha(
             context.clone(),
             color.clone(),
             material.clone(),
             source.unloaded_entries_shared(),
-            source.alpha_geo_ids().to_vec(),
+            source.alpha_owners_shared(),
         )?;
         Ok(Self {
             table,

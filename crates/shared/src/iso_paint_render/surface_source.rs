@@ -286,7 +286,7 @@ impl SurfacePaintPreparation {
                         height: self.size[1],
                         pages: std::mem::take(&mut self.pages),
                         entries: std::mem::take(&mut self.entries).into(),
-                        alpha_geo_ids: std::mem::take(&mut self.alpha),
+                        alpha_geo_ids: Arc::new(std::mem::take(&mut self.alpha)),
                     });
                     self.validation = Some(SurfacePaintValidation::new(source)?);
                     self.stage = Stage::Validate;

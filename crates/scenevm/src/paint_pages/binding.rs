@@ -2,13 +2,19 @@
 use super::PaintEntryStorage;
 use crate::{GeoId, Raster3DSurfacePaintEntry};
 use renderkit::{GpuContext, GpuImage, RenderError, Result, wgpu};
+use rustc_hash::FxHashSet;
 use std::sync::Arc;
+
+pub(super) enum AlphaInput {
+    Ids(Arc<Vec<GeoId>>),
+    Ready(Arc<FxHashSet<GeoId>>),
+}
 
 pub struct PaintPageBinding {
     pub(crate) color: Arc<GpuImage>,
     pub(crate) material: Arc<GpuImage>,
     pub(crate) entries: PaintEntryStorage,
-    pub(crate) alpha_geo_ids: Vec<GeoId>,
+    pub(crate) alpha_geo_ids: Arc<FxHashSet<GeoId>>,
     pub(crate) has_missing: bool,
     pub(crate) raster_entries: Option<wgpu::Buffer>,
     pub(crate) resident_table: Option<Arc<super::residency::ResidentTable>>,
@@ -21,6 +27,9 @@ pub struct PaintPageBindingPreparation {
     failure: Option<String>,
     uploaded_bytes: usize,
     require_unloaded: bool,
+    alpha_ids: Option<Arc<Vec<GeoId>>>,
+    alpha_set: FxHashSet<GeoId>,
+    alpha_cursor: usize,
 }
 impl PaintPageBindingPreparation {
     pub fn new(
@@ -35,7 +44,23 @@ impl PaintPageBindingPreparation {
             color,
             material,
             PaintEntryStorage::Slice(entries),
-            alpha_geo_ids,
+            AlphaInput::Ids(Arc::new(alpha_geo_ids)),
+            false,
+        )
+    }
+    pub fn new_shared_alpha(
+        context: &GpuContext,
+        color: Arc<GpuImage>,
+        material: Arc<GpuImage>,
+        entries: Arc<[Raster3DSurfacePaintEntry]>,
+        alpha_geo_ids: Arc<Vec<GeoId>>,
+    ) -> Result<Self> {
+        Self::new_entries(
+            context,
+            color,
+            material,
+            PaintEntryStorage::Slice(entries),
+            AlphaInput::Ids(alpha_geo_ids),
             false,
         )
     }
@@ -44,7 +69,7 @@ impl PaintPageBindingPreparation {
         color: Arc<GpuImage>,
         material: Arc<GpuImage>,
         entries: PaintEntryStorage,
-        alpha_geo_ids: Vec<GeoId>,
+        alpha: AlphaInput,
         require_unloaded: bool,
     ) -> Result<Self> {
         if context.is_lost()
@@ -73,6 +98,10 @@ impl PaintPageBindingPreparation {
                 "invalid paint page binding/device/table".into(),
             ));
         }
+        let (alpha_ids, alpha_geo_ids) = match alpha {
+            AlphaInput::Ids(ids) => (Some(ids), Arc::new(FxHashSet::default())),
+            AlphaInput::Ready(owners) => (None, owners),
+        };
         Ok(Self {
             binding: Some(PaintPageBinding {
                 color,
@@ -87,9 +116,12 @@ impl PaintPageBindingPreparation {
             failure: None,
             uploaded_bytes: 0,
             require_unloaded,
+            alpha_ids,
+            alpha_set: FxHashSet::default(),
+            alpha_cursor: 0,
         })
     }
-    /// Check at most `units` table slots, including unused slots.
+    /// Check at most `units` table slots/alpha owners, including unused slots.
     pub fn advance(&mut self, units: usize) -> Result<bool> {
         if let Some(error) = &self.failure {
             return Err(RenderError(error.clone()));
@@ -127,8 +159,25 @@ impl PaintPageBindingPreparation {
                 return Err(RenderError(error.into()));
             }
         }
+        let remaining = units.saturating_sub(end - self.cursor);
         self.cursor = end;
-        Ok(self.cursor == binding.entries.len())
+        if self.cursor == binding.entries.len()
+            && let Some(ids) = &self.alpha_ids
+        {
+            let end = self.alpha_cursor.saturating_add(remaining).min(ids.len());
+            if let Err(error) = self.alpha_set.try_reserve(end - self.alpha_cursor) {
+                self.failure = Some(format!("cannot reserve paint alpha lookup: {error}"));
+                return Err(RenderError(self.failure.clone().unwrap()));
+            }
+            self.alpha_set
+                .extend(ids[self.alpha_cursor..end].iter().copied());
+            self.alpha_cursor = end;
+        }
+        Ok(self.cursor == binding.entries.len()
+            && self
+                .alpha_ids
+                .as_ref()
+                .is_none_or(|ids| self.alpha_cursor == ids.len()))
     }
     /// Live producers preupload one shared raster lookup buffer. Explicit
     /// reference/compute producers may finish without it and keep their policy.
@@ -144,6 +193,10 @@ impl PaintPageBindingPreparation {
             || binding.color.device_generation() != context.generation()
             || binding.material.device_generation() != context.generation()
             || self.cursor != binding.entries.len()
+            || self
+                .alpha_ids
+                .as_ref()
+                .is_some_and(|ids| self.alpha_cursor != ids.len())
         {
             return Err(RenderError(
                 "paint binding validation is incomplete or its device was replaced".into(),
@@ -206,6 +259,10 @@ impl PaintPageBindingPreparation {
             || binding.color.device_generation() != context.generation()
             || binding.material.device_generation() != context.generation()
             || self.cursor != binding.entries.len()
+            || self
+                .alpha_ids
+                .as_ref()
+                .is_some_and(|ids| self.alpha_cursor != ids.len())
             || (binding.raster_entries.is_some()
                 && self.uploaded_bytes != size_of_val(binding.entries.as_ref()))
         {
@@ -213,7 +270,11 @@ impl PaintPageBindingPreparation {
                 "paint binding validation is incomplete or its device was replaced".into(),
             ));
         }
-        Ok(Arc::new(self.binding.take().unwrap()))
+        let mut binding = self.binding.take().unwrap();
+        if self.alpha_ids.is_some() {
+            binding.alpha_geo_ids = Arc::new(std::mem::take(&mut self.alpha_set));
+        }
+        Ok(Arc::new(binding))
     }
 }
 impl PaintPageBinding {

@@ -168,11 +168,12 @@ impl VM {
             return Ok(());
         }
         self.release_paint_gpu_bindings();
-        let alpha: FxHashSet<_> = binding.alpha_geo_ids.iter().copied().collect();
-        if alpha != self.raster3d_paint_alpha_geo_ids {
+        if !Arc::ptr_eq(&binding.alpha_geo_ids, &self.raster3d_paint_alpha_geo_ids)
+            && binding.alpha_geo_ids.as_ref() != self.raster3d_paint_alpha_geo_ids.as_ref()
+        {
             self.cached_static_raster_indices_valid = false;
         }
-        self.raster3d_paint_alpha_geo_ids = alpha;
+        self.raster3d_paint_alpha_geo_ids = binding.alpha_geo_ids.clone();
         self.raster3d_paint_overlay = None;
         self.raster3d_surface_paint = None;
         self.paged_surface_paint = Some(binding);

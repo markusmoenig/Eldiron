@@ -28,7 +28,8 @@ impl SurfacePaintIndexBuilder {
             generated: Default::default(),
             entries: Arc::new(Vec::new()),
             sources_by_slot: Vec::new(),
-            alpha_geo_ids: Vec::new(),
+            alpha_geo_ids: source.alpha_geo_ids.clone(),
+            alpha_owners: Arc::new(rustc_hash::FxHashSet::default()),
         };
         Arc::get_mut(&mut index.entries)
             .unwrap()
@@ -37,10 +38,6 @@ impl SurfacePaintIndexBuilder {
         index
             .sources_by_slot
             .try_reserve_exact(source.entries.len())
-            .map_err(|e| e.to_string())?;
-        index
-            .alpha_geo_ids
-            .try_reserve_exact(source.alpha_geo_ids.len())
             .map_err(|e| e.to_string())?;
         Ok(Self {
             source,
@@ -105,7 +102,13 @@ impl SurfacePaintIndexBuilder {
                 self.index.sources_by_slot.push(source);
                 self.entry += 1;
             } else if let Some(alpha) = self.source.alpha_geo_ids.get(self.alpha) {
-                self.index.alpha_geo_ids.push(*alpha);
+                Arc::get_mut(&mut self.index.alpha_owners)
+                    .unwrap()
+                    .try_reserve(1)
+                    .map_err(|e| e.to_string())?;
+                Arc::get_mut(&mut self.index.alpha_owners)
+                    .unwrap()
+                    .insert(*alpha);
                 self.alpha += 1;
             } else {
                 break;

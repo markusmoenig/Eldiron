@@ -95,7 +95,7 @@ fn live_indexed_source_completes_with_frozen_content_revision() {
     for at in 0..3 {
         let mut page = IsoPaintBakedChunk::new(IsoPaintOwner::Sector(1), geo, [at * 64, 0]);
         for pixel in page.color_rgba.chunks_exact_mut(4) {
-            pixel.copy_from_slice(&[30 + at as u8 * 75, 190, 60, 255]);
+            pixel.copy_from_slice(&[30 + at as u8 * 75, 190, 60, if at == 1 { 160 } else { 255 }]);
         }
         layer.baked_chunks.insert(at.to_string(), page);
     }
@@ -122,7 +122,7 @@ fn live_indexed_source_completes_with_frozen_content_revision() {
             .resident_entries([192, 64], &residents)
             .unwrap()
             .into(),
-        alpha_geo_ids: Vec::new(),
+        alpha_geo_ids: Arc::new(index.alpha_geo_ids().to_vec()),
     });
     let reference_id = ViewId::new();
     let mut reference = SceneViews::new(&images, atlas.clone());

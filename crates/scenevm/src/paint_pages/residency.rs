@@ -1,5 +1,6 @@
 //! One private producer's mutable residency table. Source keys remain immutable;
 //! only atlas rectangles change after the producer's preceding receipt completes.
+use super::binding::AlphaInput;
 use super::*;
 use crate::{GeoId, Raster3DSurfacePaintEntry};
 use renderkit::{GpuImage, RenderError};
@@ -43,7 +44,22 @@ impl PaintResidencyTablePreparation {
             color,
             material,
             PaintEntryStorage::Vec(entries),
-            alpha_geo_ids,
+            AlphaInput::Ids(Arc::new(alpha_geo_ids)),
+        )
+    }
+    pub fn new_indexed_alpha(
+        context: Arc<GpuContext>,
+        color: Arc<GpuImage>,
+        material: Arc<GpuImage>,
+        entries: Arc<Vec<Raster3DSurfacePaintEntry>>,
+        alpha: Arc<rustc_hash::FxHashSet<GeoId>>,
+    ) -> Result<Self> {
+        Self::new_entries(
+            context,
+            color,
+            material,
+            PaintEntryStorage::Vec(entries),
+            AlphaInput::Ready(alpha),
         )
     }
     fn new_entries(
@@ -51,15 +67,10 @@ impl PaintResidencyTablePreparation {
         color: Arc<GpuImage>,
         material: Arc<GpuImage>,
         entries: PaintEntryStorage,
-        alpha_geo_ids: Vec<GeoId>,
+        alpha: AlphaInput,
     ) -> Result<Self> {
         let preparation = PaintPageBindingPreparation::new_entries(
-            &context,
-            color,
-            material,
-            entries,
-            alpha_geo_ids,
-            true,
+            &context, color, material, entries, alpha, true,
         )?;
         Ok(Self {
             context,
@@ -117,7 +128,7 @@ impl PaintResidencyTable {
             color,
             material,
             PaintEntryStorage::Slice(entries),
-            alpha_geo_ids,
+            AlphaInput::Ids(Arc::new(alpha_geo_ids)),
         )?;
         preparation.advance(usize::MAX)?;
         while !preparation.upload_ready() {

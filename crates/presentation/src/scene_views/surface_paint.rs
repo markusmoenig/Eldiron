@@ -312,7 +312,7 @@ impl Sources {
                 }
                 upload.cursor += 1;
                 if upload.cursor == entry.source.pages.len() {
-                    entry.state = State::Binding(PaintPageBindingPreparation::new(
+                    entry.state = State::Binding(PaintPageBindingPreparation::new_shared_alpha(
                         context,
                         upload.color.clone(),
                         upload.material.clone(),

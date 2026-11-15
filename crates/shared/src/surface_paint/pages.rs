@@ -44,7 +44,8 @@ pub struct PaintPageIndex {
     generated: generated::GeneratedPages,
     entries: Arc<Vec<Raster3DSurfacePaintEntry>>,
     sources_by_slot: Vec<Option<usize>>,
-    alpha_geo_ids: Vec<GeoId>,
+    alpha_geo_ids: Arc<Vec<GeoId>>,
+    alpha_owners: Arc<rustc_hash::FxHashSet<GeoId>>,
 }
 impl PaintPageIndex {
     /// `table_byte_limit` bounds the complete GPU lookup payload before any
@@ -91,6 +92,10 @@ impl PaintPageIndex {
     /// Builders retain exclusive mutation until finish; no second key-table copy.
     pub fn unloaded_entries_shared(&self) -> Arc<Vec<Raster3DSurfacePaintEntry>> {
         self.entries.clone()
+    }
+    /// Exact CPU lookup shared by every derived GPU/view owner.
+    pub fn alpha_owners_shared(&self) -> Arc<rustc_hash::FxHashSet<GeoId>> {
+        self.alpha_owners.clone()
     }
     pub fn alpha_geo_ids(&self) -> &[GeoId] {
         &self.alpha_geo_ids

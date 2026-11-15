@@ -31,7 +31,7 @@ Started: 2026-11-11 (Asia/Bangkok). Objective unfinished; full M0–M9 scope rem
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Persistent region 3D paint now also crosses the CPU asset boundary into independent per-view GPU uploads; actual painted browser rendering/device recovery and native integration pass. Browser worker hosting, uncommon Prefab/stamp/live paint publication, remaining game-mode/HUD policy parity and performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Remaining adapter retirement and full platform acceptance are pending. Canonical Creator now defaults to its shared native GPU host (TheApp/Pixels is explicit reference-only); canonical desktop clients share the common player; the Xcode client and versioned Creator host use Rust-created CAMetalLayer surfaces with retained compatibility exports. Addressed document load/save, owned CPU transfers and application lifetime checks have compiled/linked/runtime evidence. Browser player and Creator now use the shared WebGPU host, with actual source loading, Swash/fallback/IME, scene/pixel/material rendering, explicit asset bakes, OPFS save, addressed cancellation and idle device recovery evidence below. Physical native/monitor/clipboard/mobile workflows, remaining ownership/adapter retirement, resource budgets and measured release performance remain open. Compile checks and detached-layer tests do not establish complete platform parity.
 
-- M5/M6 live residency checkpoint (2026-11-15): large current UV publications now use complete CPU indices and per-view bounded planes in canonical SceneViews, with frozen Raster3D/Compute3D replay, captured output revisions and scoped player/Creator continuation. Targeted release pixel/pressure/cancellation checks pass. Initial alpha metadata, aggregate budgets, complete interaction/platform acceptance and measured latency/throughput remain open; this is not M5/M6 completion.
+- M5/M6 live residency checkpoint (2026-11-15): large current UV publications now use complete CPU indices and per-view bounded planes in canonical SceneViews, with frozen Raster3D/Compute3D replay, captured output revisions and scoped player/Creator continuation. Targeted release pixel/pressure/cancellation checks pass. Shared alpha metadata is now connected below; aggregate budgets, complete interaction/platform acceptance and measured latency/throughput remain open; this is not M5/M6 completion.
 
 ## Native window validation correction (2026-11-12)
 
@@ -15206,3 +15206,39 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   terminal; git diff --check passes. Next implementation: alpha-owner metadata
   sharing/preparation and remaining instance/source ownership, then the deferred
   consolidated functional/platform/resource/release-performance acceptance run.
+
+
+## Shared alpha-owner metadata (2026-11-15, implementation continuing)
+
+- SurfacePaint now retains its derived alpha-ID list through immutable Arc<Vec>;
+  CPU producers move their finished Vec into it without a second list copy.
+  Current project/IsoPaint serialization is unchanged (SurfacePaint is derived,
+  nonserialized data). CPU page indices share this list and prepare an exact
+  FxHashSet lookup cooperatively; from-layer builders move their existing dedup
+  set into the finished index. Every private view on that index shares the lookup.
+- Ordinary shared bindings classify alpha owners after their lookup entries under
+  the same metadata-unit cursor. Upload/finish reject incomplete classification.
+  VM installation retains the complete lookup Arc; it no longer clones owner IDs
+  or constructs another set per view. Clear/detach assigns a fresh empty owner,
+  preserving other views' shared lookups. Explicit raw/reference Atom setters keep
+  their separate owned-set construction. Existing public Vec binding constructors
+  remain; canonical paths use the shared/prepared metadata entry points.
+- Exact set comparison on a changed lookup still protects static-index reuse;
+  hash-table growth/allocation costs and original authoring descriptor capture
+  remain subject to the later measured metadata/latency audit. This is sharing
+  and item-budget policy, not a claimed hard wall-clock bound for every allocator.
+- Native canonical four-application release compile PASS24.40s:
+  /private/tmp/eldiron-paint-alpha-owner-release.log. CPU-only runtime release
+  compile after sharing the index's original list PASS9.00s:
+  /private/tmp/eldiron-paint-alpha-owner-release-cpu.log. Focused SceneViews parity
+  now includes translucent pixels/alpha-owner classification and is in flight.
+  Browser/final feature checks remain; broad acceptance/performance stays deferred.
+
+- Focused translucent canonical SceneViews release parity PASS0.16s (build54.97s):
+  /private/tmp/eldiron-paint-alpha-owner-release-view.log. Browser-host Creator
+  feature compile PASS31.23s and final four canonical native applications
+  PASS20.02s: /private/tmp/eldiron-paint-alpha-owner-release-web.log and
+  /private/tmp/eldiron-paint-alpha-owner-release-final.log. An initial browser
+  command used a nonexistent feature name; corrected to browser-host before
+  compiling. All compiler handles terminal. Broad acceptance remains deferred.
+  Next: cooperative instance metadata and frozen source-upload ownership.

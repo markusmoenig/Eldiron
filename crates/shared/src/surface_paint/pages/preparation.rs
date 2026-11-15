@@ -9,7 +9,7 @@ pub struct PaintPageIndexBuilder {
     table_len: usize,
     chunks: indexmap::map::IntoValues<String, IsoPaintBakedChunk>,
     owners: std::vec::IntoIter<IsoPaintOwner>,
-    alpha_seen: HashSet<GeoId>,
+    alpha_seen: rustc_hash::FxHashSet<GeoId>,
     has_alpha: bool,
     remaining: IsoPaintLayer,
     failure: Option<String>,
@@ -40,7 +40,8 @@ impl PaintPageIndexBuilder {
             generated: Default::default(),
             entries: Arc::new(Vec::new()),
             sources_by_slot: Vec::new(),
-            alpha_geo_ids: Vec::new(),
+            alpha_geo_ids: Arc::new(Vec::new()),
+            alpha_owners: Arc::new(rustc_hash::FxHashSet::default()),
         };
         index
             .pages
@@ -59,7 +60,7 @@ impl PaintPageIndexBuilder {
             table_len,
             chunks: chunks.into_values(),
             owners: owners.into_iter(),
-            alpha_seen: HashSet::new(),
+            alpha_seen: rustc_hash::FxHashSet::default(),
             has_alpha: false,
             remaining: layer,
             failure: None,
@@ -153,10 +154,12 @@ impl PaintPageIndexBuilder {
     }
     fn insert_alpha(&mut self, geo: GeoId) {
         if self.alpha_seen.insert(geo) {
-            self.index.alpha_geo_ids.push(geo);
+            Arc::get_mut(&mut self.index.alpha_geo_ids)
+                .unwrap()
+                .push(geo);
         }
     }
-    pub fn finish(self) -> Result<(PaintPageIndex, IsoPaintLayer), String> {
+    pub fn finish(mut self) -> Result<(PaintPageIndex, IsoPaintLayer), String> {
         if let Some(error) = self.failure {
             return Err(error);
         }
@@ -166,6 +169,7 @@ impl PaintPageIndexBuilder {
         {
             return Err("Paint source preparation is incomplete".into());
         }
+        self.index.alpha_owners = Arc::new(self.alpha_seen);
         Ok((self.index, self.remaining))
     }
 }

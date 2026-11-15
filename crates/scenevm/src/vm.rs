@@ -3760,7 +3760,7 @@ pub struct VM {
     raster3d_paint_overlay: Option<Raster3DPaintOverlayData>,
     raster3d_surface_paint: Option<Raster3DSurfacePaintData>,
     paged_surface_paint: Option<std::sync::Arc<crate::paint_pages::PaintPageBinding>>,
-    raster3d_paint_alpha_geo_ids: FxHashSet<GeoId>,
+    raster3d_paint_alpha_geo_ids: Arc<FxHashSet<GeoId>>,
     raster3d_paint_overlay_dirty: bool,
     pub palette: [[f32; 4]; 256],
     pub palette_dirty: bool,
@@ -5672,7 +5672,7 @@ impl VM {
             raster3d_paint_overlay: None,
             raster3d_surface_paint: None,
             paged_surface_paint: None,
-            raster3d_paint_alpha_geo_ids: FxHashSet::default(),
+            raster3d_paint_alpha_geo_ids: Arc::new(FxHashSet::default()),
             raster3d_paint_overlay_dirty: true,
             transform2d: Mat3::identity(),
             transform3d: Mat4::identity(),
@@ -5934,7 +5934,7 @@ impl VM {
                     let alpha_geo_changed = !self.raster3d_paint_alpha_geo_ids.is_empty();
                     self.raster3d_paint_overlay = None;
                     self.raster3d_surface_paint = None;
-                    self.raster3d_paint_alpha_geo_ids.clear();
+                    self.raster3d_paint_alpha_geo_ids = Arc::new(FxHashSet::default());
                     self.raster3d_paint_overlay_dirty = true;
                     if alpha_geo_changed {
                         self.cached_static_raster_indices_valid = false;
@@ -5960,11 +5960,11 @@ impl VM {
                         .unwrap_or(true)
                         || self.raster3d_surface_paint.is_some();
                     let alpha_geo_changed =
-                        self.raster3d_paint_alpha_geo_ids != next_paint_alpha_geo_ids;
+                        self.raster3d_paint_alpha_geo_ids.as_ref() != &next_paint_alpha_geo_ids;
                     if changed || alpha_geo_changed {
                         self.raster3d_paint_overlay = Some(next);
                         self.raster3d_surface_paint = None;
-                        self.raster3d_paint_alpha_geo_ids = next_paint_alpha_geo_ids;
+                        self.raster3d_paint_alpha_geo_ids = Arc::new(next_paint_alpha_geo_ids);
                         self.raster3d_paint_overlay_dirty = true;
                         if alpha_geo_changed {
                             self.cached_static_raster_indices_valid = false;
@@ -5993,7 +5993,7 @@ impl VM {
                     let alpha_geo_changed = !self.raster3d_paint_alpha_geo_ids.is_empty();
                     self.raster3d_paint_overlay = None;
                     self.raster3d_surface_paint = None;
-                    self.raster3d_paint_alpha_geo_ids.clear();
+                    self.raster3d_paint_alpha_geo_ids = Arc::new(FxHashSet::default());
                     self.raster3d_paint_overlay_dirty = true;
                     if alpha_geo_changed {
                         self.cached_static_raster_indices_valid = false;
@@ -6021,11 +6021,11 @@ impl VM {
                         .unwrap_or(true)
                         || self.raster3d_paint_overlay.is_some();
                     let alpha_geo_changed =
-                        self.raster3d_paint_alpha_geo_ids != next_paint_alpha_geo_ids;
+                        self.raster3d_paint_alpha_geo_ids.as_ref() != &next_paint_alpha_geo_ids;
                     if changed || alpha_geo_changed {
                         self.raster3d_paint_overlay = None;
                         self.raster3d_surface_paint = Some(next);
-                        self.raster3d_paint_alpha_geo_ids = next_paint_alpha_geo_ids;
+                        self.raster3d_paint_alpha_geo_ids = Arc::new(next_paint_alpha_geo_ids);
                         self.raster3d_paint_overlay_dirty = true;
                         if alpha_geo_changed {
                             self.cached_static_raster_indices_valid = false;
@@ -6045,7 +6045,7 @@ impl VM {
                     let alpha_geo_changed = !self.raster3d_paint_alpha_geo_ids.is_empty();
                     self.raster3d_paint_overlay = None;
                     self.raster3d_surface_paint = None;
-                    self.raster3d_paint_alpha_geo_ids.clear();
+                    self.raster3d_paint_alpha_geo_ids = Arc::new(FxHashSet::default());
                     self.raster3d_paint_overlay_dirty = true;
                     self.release_paint_gpu_bindings();
                     if alpha_geo_changed {
@@ -16643,7 +16643,7 @@ mod shader_tests {
             });
             vm.raster_mesh_cache.push(cache);
         }
-        vm.raster3d_paint_alpha_geo_ids.insert(GeoId::Item(13));
+        Arc::make_mut(&mut vm.raster3d_paint_alpha_geo_ids).insert(GeoId::Item(13));
         vm.cached_tri_visibility = vec![63];
         vm.raster_static_geometry_ready = true;
         let mut camera = crate::Camera3D::default();

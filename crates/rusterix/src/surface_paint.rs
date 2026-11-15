@@ -20,7 +20,7 @@ pub struct SurfacePaint {
     pub height: u32,
     pub pages: Vec<SurfacePaintPage>,
     pub entries: Arc<[scenevm::Raster3DSurfacePaintEntry]>,
-    pub alpha_geo_ids: Vec<scenevm::GeoId>,
+    pub alpha_geo_ids: Arc<Vec<scenevm::GeoId>>,
 }
 mod validation;
 pub use validation::SurfacePaintValidation;

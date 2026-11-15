@@ -97,7 +97,7 @@ impl Builder {
             height: dimension(rows)?,
             pages,
             entries: Self::surface_paint_entry_table(entries).into(),
-            alpha_geo_ids: Self::surface_paint_alpha_geo_ids(layer),
+            alpha_geo_ids: std::sync::Arc::new(Self::surface_paint_alpha_geo_ids(layer)),
         };
         source.validate()?;
         Ok(source)
