@@ -27,6 +27,7 @@ struct Source {
     pixels: Pixels,
 }
 struct Snapshot {
+    layout: Arc<super::instances::Layout>,
     sources: Vec<Source>,
     words: usize,
 }
@@ -66,7 +67,23 @@ impl Snapshot {
                 Pixels::Rgba(sprite.rgba.clone()),
             )?;
         }
-        for chunk in vm.chunks_map.values() {
+        let mut chunks = Vec::new();
+        let mut sprite_base = vm.organic_billboards.sprites.len();
+        let mut chunk_instances = 0usize;
+        for (id, chunk) in &vm.chunks_map {
+            if !chunk.organic_billboard_instances.is_empty() {
+                chunks.push((
+                    *id,
+                    u32::try_from(sprite_base)
+                        .map_err(|_| error("organic sprite base overflow"))?,
+                ));
+                chunk_instances = chunk_instances
+                    .checked_add(chunk.organic_billboard_instances.len())
+                    .ok_or_else(|| error("organic instance count overflow"))?;
+            }
+            sprite_base = sprite_base
+                .checked_add(chunk.organic_billboard_sprites.len())
+                .ok_or_else(|| error("organic sprite count overflow"))?;
             for sprite in &chunk.organic_billboard_sprites {
                 push(
                     sprite.width,
@@ -97,7 +114,19 @@ impl Snapshot {
             .checked_mul(4)
             .and_then(|count| count.checked_add(pixel_words))
             .ok_or_else(|| error("organic source size overflow"))?;
-        Ok(Self { sources, words })
+        let layout = Arc::new(super::instances::Layout {
+            chunks,
+            chunk_instances,
+            paint_sprite_base: u32::try_from(sprite_base)
+                .map_err(|_| error("organic sprite base overflow"))?,
+            sprite_count: u32::try_from(sources.len())
+                .map_err(|_| error("organic sprite count overflow"))?,
+        });
+        Ok(Self {
+            sources,
+            words,
+            layout,
+        })
     }
     fn same(&self, other: &Self) -> bool {
         self.words == other.words
@@ -109,7 +138,7 @@ impl Snapshot {
                 .all(|(a, b)| a.header == b.header && a.pixels.same(&b.pixels))
     }
 }
-fn error(message: &str) -> crate::SceneVMError {
+pub(super) fn error(message: &str) -> crate::SceneVMError {
     crate::SceneVMError::BufferAllocationFailed(message.into())
 }
 struct Pack {
@@ -209,9 +238,12 @@ pub(in crate::vm) struct SourcePacking {
     requested: Option<Arc<Snapshot>>,
     ready: Option<(Arc<Snapshot>, Arc<Vec<u32>>)>,
     pending: Option<Pack>,
+    layout: Option<Arc<super::instances::Layout>>,
+    instances: Option<super::instances::Pack>,
 }
 impl SourcePacking {
     fn request(&mut self, snapshot: Snapshot) {
+        self.layout = Some(snapshot.layout.clone());
         if self
             .requested
             .as_ref()
@@ -249,6 +281,23 @@ impl SourcePacking {
 impl VM {
     pub(crate) fn cancel_organic_preparation(&mut self) {
         self.organic_packing.pending = None;
+        self.organic_packing.instances = None;
+        self.organic_instances_dirty = true;
+    }
+    pub(super) fn retained_organic_source_bytes(&self) -> Option<u64> {
+        let snapshot = self.organic_packing.requested.as_ref()?;
+        let layout = self.organic_packing.layout.as_ref()?;
+        Some(
+            (snapshot.words as u64)
+                .saturating_mul(4)
+                .saturating_add(32)
+                .saturating_add(
+                    (self.organic_billboards.instances.len() as u64
+                        + self.paint_billboards.instances.len() as u64
+                        + layout.chunk_instances as u64)
+                        .saturating_mul(32),
+                ),
+        )
     }
     pub(super) fn poll_organic_words(
         &mut self,
@@ -263,18 +312,36 @@ impl VM {
         let Some(sources) = self.organic_packing.poll(budget)? else {
             return Ok(None);
         };
-        let instances = if let Some(old) = &self.cached_organic_words
-            && !self.organic_instances_dirty
+        if self.organic_instances_dirty
+            || self.cached_organic_words.is_none() && self.organic_packing.instances.is_none()
         {
-            old.instances.clone()
-        } else {
-            let next = self.build_organic_instance_words();
-            match &self.cached_organic_words {
-                Some(old) if old.instances.as_slice() == next.as_slice() => old.instances.clone(),
-                _ => Arc::new(next),
+            if budget.available_cpu_words() < 8 {
+                return Ok(None);
             }
+            self.organic_packing.instances = Some(super::instances::Pack::new(
+                self,
+                self.organic_packing.layout.as_ref().unwrap().clone(),
+                self.cached_organic_words
+                    .as_ref()
+                    .map(|old| old.instances.clone()),
+                limit,
+            )?);
+            budget.record_cpu_words(8);
+            self.organic_instances_dirty = false;
+        }
+        let instances = if let Some(mut pending) = self.organic_packing.instances.take() {
+            if !pending.advance(self, budget)? {
+                self.organic_packing.instances = Some(pending);
+                return Ok(None);
+            }
+            pending.finish()
+        } else {
+            self.cached_organic_words
+                .as_ref()
+                .unwrap()
+                .instances
+                .clone()
         };
-        self.organic_instances_dirty = false;
         let words = Words { instances, sources };
         self.cached_organic_words = Some(words.clone());
         Ok(Some(words))

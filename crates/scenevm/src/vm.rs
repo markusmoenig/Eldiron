@@ -6459,12 +6459,11 @@ impl VM {
                             && instance.center.iter().all(|v| v.is_finite())
                     })
                     .collect();
-                self.organic_billboards = OrganicBillboardData {
+                self.replace_organic_billboards(OrganicBillboardData {
                     sprites: sanitized_sprites,
                     paged_sprites: Vec::new(),
                     instances: sanitized_instances,
-                };
-                self.invalidate_organic_source();
+                }, false);
             }
             Atom::ClearOrganicBillboards => {
                 if !self.organic_billboards.sprites.is_empty()
@@ -6484,10 +6483,9 @@ impl VM {
                         || !instance.width.is_finite() || instance.width <= 0.
                         || !instance.height.is_finite() || instance.height <= 0.
                         || !instance.center.iter().all(|value| value.is_finite())) { return; }
-                self.paint_billboards = OrganicBillboardData {
+                self.replace_organic_billboards(OrganicBillboardData {
                     sprites: Vec::new(), paged_sprites: sprites, instances,
-                };
-                self.invalidate_organic_source();
+                }, true);
             }
             Atom::SetPaintBillboards { sprites, instances } => {
                 let sanitized_sprites: Vec<OrganicBillboardSprite> = sprites
@@ -6513,12 +6511,11 @@ impl VM {
                             && instance.center.iter().all(|v| v.is_finite())
                     })
                     .collect();
-                self.paint_billboards = OrganicBillboardData {
+                self.replace_organic_billboards(OrganicBillboardData {
                     sprites: sanitized_sprites,
                     paged_sprites: Vec::new(),
                     instances: sanitized_instances,
-                };
-                self.invalidate_organic_source();
+                }, true);
             }
             Atom::SetPaintBillboardInstances { instances } => {
                 let sprite_count = self.paint_billboards.sprites.len()

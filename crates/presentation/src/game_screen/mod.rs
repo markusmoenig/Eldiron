@@ -603,7 +603,7 @@ impl GameScreenController {
             views
                 .prepare_game(id, widget, size, &input, images)
                 .map_err(|e| e.to_string())?;
-            if !views.private_paint_frame_pending(id).map_err(|e| e.to_string())? {
+            if !views.scene_preparation_pending(id).map_err(|e| e.to_string())? {
                 if !screen_model::is_2d_camera(&widget.camera) && size.0 > 0 && size.1 > 0 {
                     let publication = self
                         .stamp_sources

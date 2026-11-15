@@ -1279,7 +1279,9 @@ impl Editor {
             gpu.paint_ready = true;
             gpu.scenes.set_surface_paint_source(gpu.view, None).map_err(|e| e.to_string())?;
         }
-        let continue_private = gpu.scenes.private_paint_frame_pending(gpu.view).map_err(|e| e.to_string())?
+        let continue_private = (gpu.scenes.private_paint_frame_pending(gpu.view).map_err(|e| e.to_string())?
+            || gpu.stamps_ready && gpu.paint_ready
+                && !gpu.scenes.scene_sources_ready(gpu.view).map_err(|e| e.to_string())?)
             && gpu.scene_key.as_ref().is_some_and(|old| key.same_private_scope(old))
             && gpu.scene_source.as_ref().is_some_and(|old| Arc::ptr_eq(old, &source));
         if !same_scene && !continue_private {

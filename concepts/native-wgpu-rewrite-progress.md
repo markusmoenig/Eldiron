@@ -15242,3 +15242,53 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   command used a nonexistent feature name; corrected to browser-host before
   compiling. All compiler handles terminal. Broad acceptance remains deferred.
   Next: cooperative instance metadata and frozen source-upload ownership.
+
+
+## Cooperative instance metadata and frozen upload ownership (2026-11-15)
+
+- Live and reference organic instances now use the same checked packet kernel.
+  The live cursor packs at most256 instances per batch, accounts every emitted
+  word under the existing512KiB/2ms CPU preparation policy, and compares prior
+  metadata incrementally. It reads the owner's fixed raw pose without another
+  full instance-list clone. Chunk order/sprite bases are captured with source
+  descriptors; unchanged poses retain the finished Arc. Source size checks reuse
+  captured source totals instead of scanning every chunk/sprite on pose updates.
+- Regular, paint and paged-paint Atom replacements compare exact immutable source
+  handles/dimensions. Placement-only changes dirty instance metadata rather than
+  invalidating/repacking source pixels. Different instance counts can move the
+  source tail inside its private GPU replacement: unchanged complete source bytes
+  are copied device-to-device, retaining the old buffer through submission.
+  Diagnostic copied bytes are separate from CPU uploaded bytes. This is not an
+  aggregate GPU allocation/queue-copy budget; that resource policy remains open.
+- SceneViews automatically advances source preparation before rendering. Players
+  and Creator retain a stable prepared pose while its multi-frame upload finishes;
+  CPU producers still get polled until publication. Completed output carries the
+  revision that first waited, not the later polling tick. Explicit scene mutation,
+  size, session/map/camera/config/source changes revoke prepared scope as needed.
+  Game scope retains exact stamp source backing too. Changed camera scope retains
+  unchanged CPU source-pixel preparation; it does not restart pixel packing merely
+  because placement changes. Continuous cancellation of huge changed placement
+  requests and its input latency still require the measured performance gate.
+- Initial native four-application release compile PASS24.97s:
+  /private/tmp/eldiron-instance-owner-release.log. Focused release GPU example
+  validate_source_residency PASS (build6.69s):
+  /private/tmp/eldiron-instance-owner-release-source.log. Raster3D and Compute3D
+  each stage582192 CPU bytes across three steps, under both per-frame CPU/upload
+  quotas. Adding one instance packs320064 bytes; device-copy262160 source bytes
+  replaces their CPU retransmission. Actual visible output is byte-exact before/
+  after count growth; target CPU/readback storage stays zero before capture.
+- Focused canonical SceneViews owner test PASS0.07s (release build55.87s):
+  /private/tmp/eldiron-instance-owner-release-view.log. A changing render tick
+  cannot restart the held upload or relabel its completed content revision;
+  pending source work keeps scheduling and explicit mutation revokes its scope.
+  This is a narrow source-owner contract, not the deferred full interaction test.
+  Final native/browser feature compilation remains to collect. Descriptor capture,
+  aggregate memory/transfer policy, remaining ownership/adapters and consolidated
+  functional/platform/performance acceptance remain open. No completion claim.
+
+- Final canonical four-application native release compile PASS12.96s and browser-
+  host Creator release feature compile PASS24.31s:
+  /private/tmp/eldiron-instance-owner-release-final.log,
+  /private/tmp/eldiron-instance-owner-release-web.log. All compiler handles
+  terminal; diff whitespace check passes. Continue into shared resource ownership
+  and CPU catalogue capture; no broad suite or full-port acceptance has run.

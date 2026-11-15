@@ -1,3 +1,4 @@
+use crate::scene_views::GamePaintScope;
 use crate::{SceneViews, ViewId};
 use renderkit::{ImageRegistry, RenderError, Result};
 use rusterix::server::message::RuntimeRenderState;
@@ -59,7 +60,15 @@ impl SceneViews {
                 .camera_d3
                 .as_scenevm_camera_for_surface(size.0 as f32, size.1 as f32),
         );
-        let scope = (input.scope, input.map.id, widget.camera.clone(), stamp);
+        let stamps = if rusterix::client::screen_model::is_2d_camera(&widget.camera) {
+            None
+        } else {
+            input.assets.stamp_paint.get(&input.map.id).cloned()
+        };
+        let scope = GamePaintScope {
+            description: (input.scope, input.map.id, widget.camera.clone(), stamp),
+            stamps: stamps.clone(),
+        };
         if self.keep_game_paint_frame(id, &scope)? {
             return Ok(());
         }
@@ -82,7 +91,10 @@ impl SceneViews {
         );
         self.set_game_paint_scope(
             id,
-            (input.scope, input.map.id, widget.camera.clone(), stamp),
+            GamePaintScope {
+                description: (input.scope, input.map.id, widget.camera.clone(), stamp),
+                stamps,
+            },
         )?;
         // Player/map synchronization can change the camera during preparation.
         self.select_game_mode(id, widget.camera.is_isometric_2d(), images)?;

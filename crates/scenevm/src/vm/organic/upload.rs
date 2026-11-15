@@ -53,6 +53,36 @@ impl Pending {
             }
         }
     }
+    fn copy_retained_source(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        previous: &wgpu::Buffer,
+        previous_offset: u64,
+        budget: &mut SourceUploadBudget,
+    ) {
+        let index = self.spans.len() - 1;
+        let offset = self.spans[..index]
+            .iter()
+            .map(|span| span.data.words().len() as u64 * 4)
+            .sum();
+        let bytes = self.spans[index].data.words().len() as u64 * 4;
+        if bytes == 0
+            || !previous.usage().contains(wgpu::BufferUsages::COPY_SRC)
+            || previous_offset
+                .checked_add(bytes)
+                .is_none_or(|end| end > previous.size())
+        {
+            return;
+        }
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("retain-live-scene-source"),
+        });
+        encoder.copy_buffer_to_buffer(previous, previous_offset, &self.buffer, offset, bytes);
+        queue.submit([encoder.finish()]);
+        self.spans[index].cursor = self.spans[index].data.words().len();
+        budget.record_gpu_copy(bytes);
+    }
     fn advance(&mut self, queue: &wgpu::Queue, budget: &mut SourceUploadBudget) -> bool {
         while self
             .spans
@@ -254,6 +284,22 @@ impl VM {
             .as_ref()
             .is_none_or(|pending| !pending.matches_layout(compute, &data))
         {
+            // A changed instance count moves the source tail; it does not
+            // invalidate its immutable pixels. Keep the old complete buffer
+            // alive through this ordered device-local copy into the replacement.
+            let retained_source = previous
+                .filter(|old| Arc::ptr_eq(&old.sources, &organic.sources))
+                .and_then(|old| {
+                    let (buffer, prefix) = if compute {
+                        (
+                            gpu.compute3d_aux_ssbo.as_ref()?,
+                            20 + size_of_val(gpu.compute3d_aux_surface.as_ref()?.as_ref()) as u64,
+                        )
+                    } else {
+                        (gpu.organic_billboard_ssbo.as_ref()?, 0)
+                    };
+                    Some((buffer.clone(), prefix + old.instances.len() as u64 * 4))
+                });
             gpu.pending_source_upload = Some(Pending {
                 buffer: device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("private-live-scene-source"),
@@ -270,6 +316,12 @@ impl VM {
                 next: 0,
                 compute,
             });
+            if let Some((buffer, offset)) = retained_source {
+                gpu.pending_source_upload
+                    .as_mut()
+                    .unwrap()
+                    .copy_retained_source(device, queue, &buffer, offset, budget);
+            }
         } else {
             gpu.pending_source_upload.as_mut().unwrap().update(data);
         }

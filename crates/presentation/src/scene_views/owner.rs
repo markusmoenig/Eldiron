@@ -7,6 +7,23 @@ use crate::{
 };
 use scenevm::render_output::SceneOutput;
 use std::ops::{Deref, DerefMut};
+#[cfg(test)]
+mod tests;
+
+pub(crate) struct GamePaintScope {
+    pub description: (Uuid, Uuid, rusterix::PlayerCamera, [u32; 17]),
+    pub stamps: Option<Arc<rusterix::stamp_paint::StampPaint>>,
+}
+impl PartialEq for GamePaintScope {
+    fn eq(&self, other: &Self) -> bool {
+        self.description == other.description
+            && match (&self.stamps, &other.stamps) {
+                (None, None) => true,
+                (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                _ => false,
+            }
+    }
+}
 
 pub(super) struct SceneOwner {
     scene: Option<SceneHandler>,
@@ -132,24 +149,25 @@ impl SceneViews {
     pub(crate) fn keep_game_paint_frame(
         &mut self,
         id: ViewId,
-        scope: &(Uuid, Uuid, rusterix::PlayerCamera, [u32; 17]),
+        scope: &GamePaintScope,
     ) -> Result<bool> {
         let view = self
             .views
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
-        if view.scene.pending() && view.game_scope.as_ref() != Some(scope) {
+        let same_scope = view.game_scope.as_ref() == Some(scope);
+        if !same_scope {
             view.scene.cancel();
+            // Placement changes invalidate their own cursor. Retain unchanged
+            // CPU pixel preparation across camera updates instead of restarting it.
             view.pending_content_revision = None;
             view.dirty = true;
         }
-        Ok(view.scene.pending())
+        Ok(same_scope
+            && (view.scene.pending()
+                || !view.scene_sources_ready && view.surface_paint_ready && view.stamp_paint_ready))
     }
-    pub(crate) fn set_game_paint_scope(
-        &mut self,
-        id: ViewId,
-        scope: (Uuid, Uuid, rusterix::PlayerCamera, [u32; 17]),
-    ) -> Result<()> {
+    pub(crate) fn set_game_paint_scope(&mut self, id: ViewId, scope: GamePaintScope) -> Result<()> {
         self.views
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?

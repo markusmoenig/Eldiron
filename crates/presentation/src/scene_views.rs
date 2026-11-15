@@ -9,6 +9,7 @@ use theframework_core::Uuid;
 mod editor;
 mod owner;
 use owner::SceneOwner;
+pub(crate) use owner::GamePaintScope;
 mod isometric;
 mod picking;
 mod surface_paint;
@@ -65,7 +66,7 @@ struct SceneView {
     dirty: bool,
     revision: u64,
     pending_content_revision: Option<u64>,
-    game_scope: Option<(Uuid, Uuid, rusterix::PlayerCamera, [u32; 17])>,
+    game_scope: Option<GamePaintScope>,
 }
 /// Each view retains its own VM/camera/history and target. Immutable atlas source
 /// data and its GPU textures are shared on the host device. UI only sees handles.
@@ -168,6 +169,8 @@ impl SceneViews {
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
         view.dirty = true;
+        view.game_scope = None;
+        view.pending_content_revision = None;
         view.isometric_frame = None;
         Ok(&mut view.scene)
     }
@@ -194,6 +197,9 @@ impl SceneViews {
             return Ok(());
         }
         view.scene.cancel();
+        view.game_scope = None;
+        view.pending_content_revision = None;
+        view.scene.vm.cancel_source_uploads();
         let replace_target = if view.isometric {
             view.last_image
                 .as_ref()
@@ -249,6 +255,7 @@ impl SceneViews {
             ));
         }
         self.advance_surface_paint_uploads()?;
+        self.prepare_scene_source_uploads(id)?;
         let view = self
             .views
             .get_mut(&id)
@@ -257,6 +264,7 @@ impl SceneViews {
             return Ok(None);
         }
         if !view.surface_paint_ready || !view.stamp_paint_ready || !view.scene_sources_ready {
+            view.pending_content_revision.get_or_insert(content_revision);
             return Ok(None);
         }
         if !view.dirty
@@ -270,7 +278,7 @@ impl SceneViews {
             .revision
             .checked_add(1)
             .ok_or_else(|| RenderError("scene output revision exhausted".into()))?;
-        let mut completed_content_revision = content_revision;
+        let mut completed_content_revision = view.pending_content_revision.unwrap_or(content_revision);
         let rendered = if view.isometric {
             let frame = view
                 .isometric_frame
@@ -285,7 +293,7 @@ impl SceneViews {
                 .render_prepared(frame, revision)?
         } else if view.scene.pending() || view.scene.pages.is_some() {
             if !view.scene.pending() {
-                view.pending_content_revision = Some(content_revision);
+                view.pending_content_revision.get_or_insert(content_revision);
                 view.scene.start(self.context.clone(), revision)?;
             }
             let before = view.scene.residency_usage().unwrap();
@@ -316,6 +324,7 @@ impl SceneViews {
             revision,
             content_revision: completed_content_revision,
         };
+        view.pending_content_revision = None;
         view.last_image = Some(rendered.image);
         view.revision = revision;
         view.output = Some(output);

@@ -5,6 +5,7 @@ use renderkit::{RenderError, Result};
 
 pub struct SourceUploadBudget {
     bytes: usize,
+    gpu_copied_bytes: u64,
     started: Option<instant::Instant>,
     cpu_words: usize,
     cpu_steps: usize,
@@ -16,6 +17,7 @@ impl Default for SourceUploadBudget {
     fn default() -> Self {
         Self {
             bytes: 0,
+            gpu_copied_bytes: 0,
             started: None,
             cpu_words: 0,
             cpu_steps: 0,
@@ -50,6 +52,13 @@ impl SourceUploadBudget {
     }
     pub(crate) fn record_cpu_step(&mut self) {
         self.cpu_steps += 1;
+    }
+    /// Device-local retained-source copies, separate from CPU transfer quota.
+    pub fn gpu_copied_bytes(&self) -> u64 {
+        self.gpu_copied_bytes
+    }
+    pub(crate) fn record_gpu_copy(&mut self, bytes: u64) {
+        self.gpu_copied_bytes = self.gpu_copied_bytes.saturating_add(bytes);
     }
     pub fn uploaded_bytes(&self) -> usize {
         self.bytes

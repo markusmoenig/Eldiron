@@ -568,6 +568,8 @@ impl SceneViews {
         }
         let view = self.views.get_mut(&id).unwrap();
         view.scene.retire_paint();
+        view.scene.vm.cancel_source_uploads();
+        view.game_scope = None;
         view.pending_content_revision = None;
         view.surface_paint_source = source.cloned();
         view.surface_paint_ready = source.is_none();

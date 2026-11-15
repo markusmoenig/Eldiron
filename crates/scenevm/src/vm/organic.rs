@@ -1,6 +1,7 @@
 //! Retained CPU billboard descriptions and segmented compute metadata uploads.
 use super::*;
 use crate::paint_pages::PaintEntryStorage;
+mod instances;
 mod packing;
 mod upload;
 pub(super) use packing::SourcePacking;
@@ -51,6 +52,34 @@ impl Words {
 }
 
 impl VM {
+    pub(super) fn replace_organic_billboards(&mut self, data: OrganicBillboardData, paint: bool) {
+        let old = if paint {
+            &mut self.paint_billboards
+        } else {
+            &mut self.organic_billboards
+        };
+        let same = old.sprites.len() == data.sprites.len()
+            && old.paged_sprites.len() == data.paged_sprites.len()
+            && old.sprites.iter().zip(&data.sprites).all(|(a, b)| {
+                a.width == b.width && a.height == b.height && Arc::ptr_eq(&a.rgba, &b.rgba)
+            })
+            && old
+                .paged_sprites
+                .iter()
+                .zip(&data.paged_sprites)
+                .all(|(a, b)| {
+                    a.width == b.width
+                        && a.height == b.height
+                        && a.source_id == b.source_id
+                        && Arc::ptr_eq(&a.alpha_mask, &b.alpha_mask)
+                });
+        *old = data;
+        if same {
+            self.organic_instances_dirty = true;
+        } else {
+            self.invalidate_organic_source();
+        }
+    }
     pub(super) fn invalidate_organic_source(&mut self) {
         self.organic_sources_dirty = true;
         self.organic_instances_dirty = true;
@@ -64,6 +93,11 @@ impl VM {
         })
     }
     pub fn compute_organic_source_bytes(&self) -> u64 {
+        if !self.organic_sources_dirty
+            && let Some(bytes) = self.retained_organic_source_bytes()
+        {
+            return bytes;
+        }
         let mut sprites = self.organic_billboards.sprites.len() as u64
             + self.paint_billboards.sprites.len() as u64
             + self.paint_billboards.paged_sprites.len() as u64;
@@ -98,84 +132,6 @@ impl VM {
             .saturating_add(sprites.saturating_mul(16))
             .saturating_add(instances.saturating_mul(32))
             .saturating_add(pixels)
-    }
-
-    fn build_organic_instance_words(&self) -> Vec<u32> {
-        let chunk_sprite_count: usize = self
-            .chunks_map
-            .values()
-            .map(|chunk| chunk.organic_billboard_sprites.len())
-            .sum();
-        let chunk_instance_count: usize = self
-            .chunks_map
-            .values()
-            .map(|chunk| chunk.organic_billboard_instances.len())
-            .sum();
-        let sprite_count = (self.organic_billboards.sprites.len()
-            + chunk_sprite_count
-            + self.paint_billboards.sprites.len()
-            + self.paint_billboards.paged_sprites.len())
-        .min(u32::MAX as usize) as u32;
-        let instance_count = (self.organic_billboards.instances.len()
-            + chunk_instance_count
-            + self.paint_billboards.instances.len())
-        .min(u32::MAX as usize) as u32;
-        let instance_offset_words = 8u32;
-        let sprite_meta_offset_words = instance_offset_words + instance_count * 8;
-        let pixel_offset_words = sprite_meta_offset_words + sprite_count * 4;
-        let mut words = vec![
-            0x4F42_494Cu32,
-            sprite_count,
-            instance_count,
-            instance_offset_words,
-            sprite_meta_offset_words,
-            pixel_offset_words,
-            0,
-            0,
-        ];
-
-        let mut sprite_base = self.organic_billboards.sprites.len() as u32;
-        for instance in self.organic_billboards.instances.iter() {
-            words.extend_from_slice(&[
-                instance.center[0].to_bits(),
-                instance.center[1].to_bits(),
-                instance.center[2].to_bits(),
-                instance.width.to_bits(),
-                instance.height.to_bits(),
-                instance.sprite_index,
-                instance.flags,
-                0,
-            ]);
-        }
-        for chunk in self.chunks_map.values() {
-            for instance in &chunk.organic_billboard_instances {
-                words.extend_from_slice(&[
-                    instance.center[0].to_bits(),
-                    instance.center[1].to_bits(),
-                    instance.center[2].to_bits(),
-                    instance.width.to_bits(),
-                    instance.height.to_bits(),
-                    sprite_base.saturating_add(instance.sprite_index),
-                    instance.flags,
-                    0,
-                ]);
-            }
-            sprite_base = sprite_base.saturating_add(chunk.organic_billboard_sprites.len() as u32);
-        }
-        for instance in &self.paint_billboards.instances {
-            words.extend_from_slice(&[
-                instance.center[0].to_bits(),
-                instance.center[1].to_bits(),
-                instance.center[2].to_bits(),
-                instance.width.to_bits(),
-                instance.height.to_bits(),
-                sprite_base.saturating_add(instance.sprite_index),
-                instance.flags,
-                0,
-            ]);
-        }
-
-        words
     }
 
     pub(super) fn upload_organic_billboard_ssbo(

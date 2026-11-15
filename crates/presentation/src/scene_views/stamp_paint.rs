@@ -7,6 +7,9 @@ impl SceneViews {
     pub fn scene_source_uploaded_bytes(&self) -> usize {
         self.source_upload_budget.uploaded_bytes()
     }
+    pub fn scene_source_gpu_copied_bytes(&self) -> u64 {
+        self.source_upload_budget.gpu_copied_bytes()
+    }
     pub fn scene_source_packed_cpu_bytes(&self) -> usize {
         self.source_upload_budget.packed_cpu_bytes()
     }
@@ -37,6 +40,19 @@ impl SceneViews {
         view.dirty |= !view.scene_sources_ready || !ready;
         view.scene_sources_ready = ready;
         Ok(ready)
+    }
+    /// A prepared pose remains fixed while its private source packet is staged.
+    /// CPU producers that have not published their source still need polling.
+    pub fn scene_preparation_pending(&self, id: ViewId) -> Result<bool> {
+        self.views
+            .get(&id)
+            .map(|view| {
+                view.scene.pending()
+                    || !view.scene_sources_ready
+                        && view.surface_paint_ready
+                        && view.stamp_paint_ready
+            })
+            .ok_or_else(|| RenderError("unknown scene view".into()))
     }
     pub fn scene_sources_ready(&self, id: ViewId) -> Result<bool> {
         self.views
