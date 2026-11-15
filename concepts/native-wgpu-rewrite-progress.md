@@ -54,7 +54,7 @@ behavior is ready to verify.
 
 ## Next work
 
-1. Finish typed layout/paint/resource/scene invalidation, retained UI/layout contributions and independent deadlines. Static controls already have the first retained-command slice; complete integration before the consolidated tests.
+1. Finish retained UI/layout contributions and independent Creator/job/editor deadlines. Typed layout/paint/resource/scene invalidation and generic hover-help/file-request deadlines are now connected; static controls already have the first retained-command slice. Creator still requests periodic application updates for its runtime/worker/service work; close that ownership before removing its wakeups. Complete integration before the consolidated tests.
 2. Close remaining live source/publication/worker policy and canonical Creator/player ownership/adapters. Private bake large-source paging is release-compiled; do not keep adding isolated bake edge-case test runs while port implementation remains. Preserve actual shipped workflows and avoid inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
@@ -13857,3 +13857,49 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   page work pending; browser latency; and matched release performance. Live
   changed-source preparation and its full-source publication policy, full UI
   invalidation/deadlines and remaining canonical ownership/platform work remain.
+
+
+## Typed UI invalidation and pending-work deadlines (2026-11-15)
+
+- Previous goal turn is progress:06d5e58a lazy stamp pages and retained compute
+  metadata. User asked what remains: implementation still includes retained UI/
+  layout/deadline integration, live changed-source/worker policies, canonical
+  ownership/adapter retirement and host lifecycle completion. Full functional,
+  platform, resource and matched release performance acceptance follow those
+  implementation batches. No new completion percentage or acceptance inferred.
+- Added CPU-only UiInvalidation domains Layout/Paint/Resources/Scene. Removed
+  public global redraw_all/relayout fields and migrated their repository Rust
+  callers to explicit invalidation/completion/predicate methods. Local widget
+  dirty flags remain local paint signals. Layout leaves paint pending; resource
+  changes retire cached UI commands; scene changes request a frame without
+  clearing static control command retention. No serialized project/paint types
+  or formats changed. Concurrent networking concept remains untouched.
+- Icon replacement now declares resource invalidation; font registry changes
+  declare layout+resources. Accepted camera/ViewCube navigation declares scene
+  invalidation. Other authoring callers retain conservative paint invalidation
+  until their UI/tool/source effects are separately owned. UI list validation
+  now precedes consumption of paint/resource invalidation; scene invalidation
+  is consumed only after the application frame's resource assembly succeeds.
+- Removed the generic UiApplicationAdapter's unconditional50ms polling. Pending
+  hover help supplies its actual due time; queued/open legacy desktop file
+  dialogs alone request50ms polling until completion. A disconnected dialog
+  receiver retires as cancellation instead of polling forever. Application
+  deadlines are merged with UI deadlines after platform state/event processing.
+  Creator still explicitly requests its target-FPS update interval: runtime,
+  scene workers, Scepter, previews and other application services need their
+  own wake policy before that can safely be removed. Editor caret/animation
+  deadlines and broader retained layout/control coverage remain implementation.
+- Canonical Creator/classic player/WGPU player/terminal release compilation
+  PASS29.12s. Log:/private/tmp/eldiron-ui-invalidation-port-release.log.
+  Browser Creator release compilation PASS28.76s; log:
+  /private/tmp/eldiron-ui-invalidation-port-release-web.log. No new
+  functional/GPU/performance suite run; prior tests' field references migrated
+  mechanically for the later consolidated validation. This checkpoint does not
+  establish a measured speedup, full invalidation parity or M0-M9 completion.
+- Final canonical release compilation after the deadline formatting/prelude
+  export PASS28.93s; log:
+  /private/tmp/eldiron-ui-invalidation-port-release-final.log. Framework UI-only
+  (no text/GPU/window features) release compilation also PASS; log:
+  /private/tmp/eldiron-ui-invalidation-port-release-cpu-ui.log. No compiler left
+  running. Next: editor animation/caret and application worker/runtime deadlines,
+  retained layout/control coverage and remaining live-source/ownership work.

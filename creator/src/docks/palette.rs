@@ -557,7 +557,7 @@ impl PaletteDock {
         if let Some(layout) = ui.get_text_layout(&self.widget_name("Palette Dock Inspector Layout"))
         {
             self.nodeui.apply_to_text_layout(layout);
-            ctx.ui.relayout = true;
+            ctx.ui.invalidate_layout();
         }
 
         for id in ["Palette Dock New", "Palette Dock Clone", PALETTE_DOCK_HEX] {

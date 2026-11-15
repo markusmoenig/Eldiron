@@ -73,7 +73,7 @@ pub fn sync(ui: &mut TheUI, project: &Project, server: &CreatorContext, ctx: &mu
         let height = if map.is_some() { 270 } else { 0 };
         if layout.limiter().get_max_height() != height {
             layout.limiter_mut().set_max_height(height);
-            ctx.ui.relayout = true;
+            ctx.ui.invalidate_layout();
         }
     }
     let Some(map) = map else {
@@ -148,7 +148,7 @@ pub fn handle_event(
                     ),
                     ctx,
                 );
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
             }
         }
         return true;
@@ -204,7 +204,7 @@ pub fn handle_event(
                     TheId::named("Soft Update Minimap"),
                     TheValue::Empty,
                 ));
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
             }
             return true;
         }
@@ -245,7 +245,7 @@ pub fn handle_event(
         map.curr_rectangle = None;
         map.changed = map.changed.wrapping_add(1);
         server.reference.write().set_dirty();
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
     true
 }

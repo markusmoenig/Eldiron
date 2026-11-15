@@ -821,7 +821,7 @@ impl TheLayout for TheTreeLayout {
     }
 
     fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
-        if self.dim != dim || ctx.ui.relayout || self.layout_dirty_flag.load(Ordering::Relaxed) {
+        if self.dim != dim || ctx.ui.needs_layout() || self.layout_dirty_flag.load(Ordering::Relaxed) {
             self.dim = dim;
             self.recalculate_layout(ctx);
         }

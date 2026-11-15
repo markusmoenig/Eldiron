@@ -263,7 +263,7 @@ impl Creator {
             ctx,
             TheValue::Text(fl!("project_chooser_cancel")),
         );
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
     }
     fn read(&mut self, ui: &mut TheUI) {
         let int = |ui: &mut TheUI, name: &str, old: i32| {
@@ -446,7 +446,7 @@ impl Creator {
                         if let Some(w) = ui.get_widget("Tileset Error") {
                             w.set_value(TheValue::Text(error));
                         }
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                 }
                 return true;
@@ -579,7 +579,7 @@ impl Creator {
             TheValue::Empty,
         ));
         server.reference.write().set_dirty();
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         Ok(())
     }
 }

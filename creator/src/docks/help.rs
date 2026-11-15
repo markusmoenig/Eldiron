@@ -569,8 +569,8 @@ impl HelpDock {
                 TheSharedVLayoutMode::Top
             });
         }
-        ctx.ui.relayout = true;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_layout();
+        ctx.ui.invalidate_paint();
     }
 
     fn install_response(
@@ -601,7 +601,7 @@ impl HelpDock {
         if let Some(forward) = ui.get_widget(HELP_FORWARD) {
             forward.set_disabled(self.history_index + 1 >= self.history.len());
         }
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
 
     fn reset_history(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {

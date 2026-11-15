@@ -315,7 +315,7 @@ impl MapEditor {
             TheId::named("Update Action Parameters"),
             TheValue::Empty,
         ));
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         true
     }
 
@@ -410,7 +410,7 @@ impl MapEditor {
         ));
         ctx.ui
             .set_widget_state("Paste".to_string(), TheWidgetState::None);
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         true
     }
 
@@ -710,7 +710,7 @@ impl MapEditor {
                         server_ctx.shared.curr_region_content = content;
                         server_ctx.shared.cc = content;
                         set_project_context(ctx, ui, project, server_ctx, pc);
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                 } else if id.name == "Map Selection Changed" {
                     set_code(ui, ctx, project, server_ctx);

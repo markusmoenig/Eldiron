@@ -1189,8 +1189,8 @@ impl ProceduralMaterialEditor {
         );
         layout.add_pair(String::new(), Box::new(advanced));
         self.composition_ui_key = Some((key.0, key.1, self.composition_layer));
-        ctx.ui.relayout = true;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_layout();
+        ctx.ui.invalidate_paint();
     }
     fn save_composition_copy(
         &self,
@@ -2473,8 +2473,8 @@ mod tests {
         let control = ui.get_widget(POSITION).unwrap().id().uuid;
         let (sender, receiver) = std::sync::mpsc::channel();
         ctx.ui.state_events_sender = Some(sender);
-        ctx.ui.relayout = false;
-        ctx.ui.redraw_all = false;
+        ctx.ui.layout_completed();
+        ctx.ui.paint_completed();
         host.handle_event(
             &TheEvent::ValueChanged(TheId::named(POSITION), TheValue::Float(0.4)),
             &mut ui,
@@ -2485,7 +2485,7 @@ mod tests {
         host.sync_compositions(&mut p, &mut ui, &mut ctx);
         host.composition_view(&mut ui, &mut ctx, &p);
         assert_eq!(ui.get_widget(POSITION).unwrap().id().uuid, control);
-        assert!(!ctx.ui.relayout && !ctx.ui.redraw_all);
+        assert!(!ctx.ui.needs_layout() && !ctx.ui.needs_full_paint());
         assert!(
             !receiver
                 .try_iter()

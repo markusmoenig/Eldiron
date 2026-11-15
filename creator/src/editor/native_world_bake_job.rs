@@ -181,7 +181,7 @@ impl Editor {
                     .write()
                     .sync_persisted_asset(map.id, map.orthographic_bake.as_ref());
                 self.server_ctx.shared.background_progress = None;
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 self.native_viewport.world.bake_jobs = jobs;
                 return;
             }
@@ -214,7 +214,7 @@ impl Editor {
                 if !self.documents.sessions.is_empty() {
                     self.documents.sessions[self.documents.active_session].dirty = true;
                 }
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
             }
             jobs.active = None;
             self.server_ctx.shared.background_progress = None;
@@ -354,7 +354,7 @@ impl Editor {
                         self.server_ctx.shared.background_progress = None;
                         jobs.active = None;
                         ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                 }
             }

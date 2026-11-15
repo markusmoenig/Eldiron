@@ -307,7 +307,7 @@ impl PrefabNodePane {
             [d.width as f32, d.height as f32],
             &GraphTheme::default(),
         );
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
     fn store(
         &mut self,

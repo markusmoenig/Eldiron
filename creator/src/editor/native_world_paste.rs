@@ -236,7 +236,7 @@ impl Editor {
                     && frame.stamp == SourceStamp::new(map)
                     && frame.camera == current_camera
             }) else {
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 return true;
             };
             let ignored = frame.paste_ignored.clone();
@@ -254,7 +254,7 @@ impl Editor {
                     },
                 )
             }) else {
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 return true;
             };
             let Some(position) = surface_target(&pick) else {
@@ -271,7 +271,7 @@ impl Editor {
         self.server_ctx.shared.hover_surface_hit_pos = None;
         self.server_ctx.shared.hover_surface_normal = None;
         let moved = old_target != Stamp::target(&self.server_ctx);
-        ctx.ui.redraw_all |= moved;
+        ctx.ui.invalidate_paint_if(moved);
         if !matches!(input, MapEvent::MapClicked(_)) {
             return true;
         }
@@ -282,7 +282,7 @@ impl Editor {
             && world.presented.as_ref().is_some_and(|frame| {
                 frame.binding == *binding && world.frame_is_fresh(frame, map, &current_camera)
             });
-        ctx.ui.redraw_all |= !accepted;
+        ctx.ui.invalidate_paint_if(!accepted);
         !accepted
     }
 }

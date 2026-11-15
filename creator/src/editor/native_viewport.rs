@@ -112,7 +112,7 @@ impl Editor {
                 .prepare_native_display(&binding, map, &self.server_ctx);
         let Some(frame) = frame else {
             self.invalidate_native_display_viewport(ui);
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             return Ok(None);
         };
         let list = frame
@@ -153,7 +153,7 @@ impl Editor {
             &self.server_ctx,
         );
         if !accepted {
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
     }
     pub(crate) fn handle_native_display_input(

@@ -60,7 +60,7 @@ impl Action for ToggleGrid {
             TheId::named("Update Geometry Overlay 3D"),
             TheValue::Empty,
         ));
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         None
     }
 

@@ -445,7 +445,7 @@ impl PropsOverlay {
                     if let Some((rect, action)) = action {
                         self.dispatch_action(rect, action, ui, ctx, server);
                     }
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 }
                 PanelEvent::Consumed
             }

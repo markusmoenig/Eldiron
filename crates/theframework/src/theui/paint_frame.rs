@@ -8,10 +8,12 @@ impl TheUI {
             Some("fonts")
         } else if self.is_dirty {
             Some("UI")
-        } else if ctx.ui.redraw_all {
+        } else if ctx.ui.needs_full_paint() {
             Some("redraw_all")
-        } else if ctx.ui.relayout {
+        } else if ctx.ui.needs_layout() {
             Some("relayout")
+        } else if ctx.ui.needs_frame() {
+            Some("scene")
         } else if self.canvas.needs_redraw() {
             Some("canvas")
         } else if self.dialog.as_mut().is_some_and(|c| c.needs_redraw()) {
@@ -32,12 +34,12 @@ impl TheUI {
     pub fn prepare_paint_layout(&mut self, ctx: &mut TheContext) {
         if self.paint_font_revision != ctx.text.font_revision() {
             self.paint_font_revision = ctx.text.font_revision();
-            ctx.ui.relayout = true;
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_layout();
+            ctx.ui.invalidate_resources();
         }
         if !ctx.ui.command_paint {
             ctx.ui.command_paint = true;
-            ctx.ui.relayout = true;
+            ctx.ui.invalidate_layout();
             self.canvas.release_raster_cache();
             if let Some(dialog) = &mut self.dialog {
                 dialog.release_raster_cache();
@@ -51,9 +53,9 @@ impl TheUI {
         }
         if self.canvas.resize(ctx.width as i32, ctx.height as i32, ctx) {
             ctx.ui.send(TheEvent::Resize);
-            ctx.ui.relayout = false;
+            ctx.ui.layout_completed();
         }
-        if ctx.ui.relayout {
+        if ctx.ui.needs_layout() {
             self.relayout(ctx);
         }
         ctx.ui.input_transforms.clear();
@@ -99,7 +101,7 @@ impl TheUI {
         let retained_frame = super::retained_paint::RetainedPaint::begin(
             &ctx.ui.retained_paint,
             frame_key,
-            ctx.ui.redraw_all,
+            ctx.ui.needs_full_paint(),
         );
         let mut p = WidgetPainter {
             list: &mut list,
@@ -248,9 +250,9 @@ impl TheUI {
         }
         drop(p);
         drop(retained_frame);
-        ctx.ui.redraw_all = false;
-        self.is_dirty = false;
         list.validate().map_err(|e| UiPaintError(e.into()))?;
+        ctx.ui.paint_completed();
+        self.is_dirty = false;
         Ok(list)
     }
 }

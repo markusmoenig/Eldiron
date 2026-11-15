@@ -150,7 +150,7 @@ impl CollisionProbeTool {
             .unwrap_or(reference_y);
         server_ctx.shared.collision_probe_result = Some(result);
         server_ctx.reference.write().set_overlay_dirty();
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         Some(Vec3::new(target.x, target_y, target.z))
     }
 
@@ -437,13 +437,13 @@ impl Tool for CollisionProbeTool {
             ToolEvent::Activate => {
                 server_ctx.shared.curr_map_tool_type = MapToolType::CollisionProbe;
                 Self::clear_probe(server_ctx);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             ToolEvent::DeActivate => {
                 Self::clear_probe(server_ctx);
                 server_ctx.reference.write().set_overlay_dirty();
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             _ => false,
@@ -474,7 +474,7 @@ impl Tool for CollisionProbeTool {
                         server_ctx.shared.collision_probe_points.push(start);
                         server_ctx.shared.collision_probe_dragging = true;
                         server_ctx.reference.write().set_overlay_dirty();
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                 } else if let Some(target) = self.update_probe(ui, ctx, map, server_ctx, coord) {
                     if let Some(result) = server_ctx.shared.collision_probe_result.clone()
@@ -488,7 +488,7 @@ impl Tool for CollisionProbeTool {
                     server_ctx.shared.collision_probe_result = None;
                     server_ctx.shared.collision_probe_dragging = true;
                     server_ctx.reference.write().set_overlay_dirty();
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 }
             }
             MapHover(coord) => {
@@ -508,7 +508,7 @@ impl Tool for CollisionProbeTool {
                     Self::finish_active_polyline(server_ctx);
                 }
                 server_ctx.reference.write().set_overlay_dirty();
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
             }
             _ => {}
         }

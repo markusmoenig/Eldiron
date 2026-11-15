@@ -72,7 +72,7 @@ impl Action for FilterEditingGeo {
             TheId::named("Update Client Properties"),
             TheValue::Empty,
         ));
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
 
     fn params(&self) -> TheNodeUI {

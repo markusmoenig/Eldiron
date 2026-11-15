@@ -368,7 +368,7 @@ fn refresh_geometry_topology_edit(
         reference.write().set_dirty();
     }
     reference.write().set_overlay_dirty();
-    ctx.ui.redraw_all = true;
+    ctx.ui.invalidate_paint();
     ctx.ui.send(TheEvent::Custom(
         TheId::named("Update Geometry Overlay 3D"),
         TheValue::Empty,
@@ -2912,7 +2912,7 @@ fn select_geometry_contours(map: &mut Map, view_ray: Option<Vec3<f32>>) -> bool 
 
 fn refresh_geometry_selection(ctx: &mut TheContext, reference: &CreatorReference) {
     reference.write().set_overlay_dirty();
-    ctx.ui.redraw_all = true;
+    ctx.ui.invalidate_paint();
     ctx.ui.send(TheEvent::Custom(
         TheId::named("Map Selection Changed"),
         TheValue::Empty,

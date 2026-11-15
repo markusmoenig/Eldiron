@@ -169,7 +169,7 @@ impl TextGameState {
                     view.scroll_to_bottom();
                 }
                 view.set_needs_redraw(true);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
             }
         }
     }

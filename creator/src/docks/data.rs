@@ -1149,7 +1149,7 @@ impl DataDock {
                 crate::procedural_material::pixel_style::density(&project.config) as i32,
             ));
             widget.set_needs_redraw(true);
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
     }
 

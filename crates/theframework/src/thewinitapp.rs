@@ -386,8 +386,8 @@ impl TheWinitApp {
                 .resize(&ctx.window, size, frame_width, frame_height, scale_factor);
             #[cfg(feature = "ui")]
             {
-                ctx.ctx.ui.redraw_all = true;
-                ctx.ctx.ui.relayout = true;
+                ctx.ctx.ui.invalidate_paint();
+                ctx.ctx.ui.invalidate_layout();
             }
 
             ctx.ctx.width = width as usize;

@@ -45,8 +45,8 @@ impl UiSession {
         self.context.scale_factor = density;
         self.context.framebuffer_width = physical.0 as usize;
         self.context.framebuffer_height = physical.1 as usize;
-        self.context.ui.relayout = true;
-        self.context.ui.redraw_all = true;
+        self.context.ui.invalidate_layout();
+        self.context.ui.invalidate_paint();
     }
     pub fn input(&mut self, event: &InputEvent) -> InputResponse {
         self.ui.prepare_paint_layout(&mut self.context);
@@ -287,7 +287,7 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
         self.resize(host);
         self.application
             .initialize(&mut self.session, &mut self.images.frame(images))?;
-        self.session.context.ui.relayout = true;
+        self.session.context.ui.invalidate_layout();
         self.platform_state(host);
         Ok(())
     }
@@ -295,7 +295,7 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
         self.resize(host);
         self.application
             .gpu_recreated(&mut self.session, &mut self.images.frame(images))?;
-        self.session.context.ui.relayout = true;
+        self.session.context.ui.invalidate_layout();
         self.platform_state(host);
         Ok(())
     }
@@ -396,16 +396,11 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
     fn update(&mut self, host: &mut HostContext, elapsed: web_time::Duration) -> FrameRequest {
         crate::platform_services::service_files(&mut self.session.context.ui);
         let mut request = self.application.update(&mut self.session, elapsed);
-        request.redraw |= self.session.ui.needs_paint(&self.session.context);
-        // Compatibility UI timers/file requesters still need polling. Generic
-        // hosts may sleep indefinitely when their application requests no wake.
-        request.wake_after = Some(
-            request
-                .wake_after
-                .unwrap_or(web_time::Duration::from_millis(50))
-                .min(web_time::Duration::from_millis(50)),
-        );
         self.platform_state(host);
+        request.redraw |= self.session.ui.needs_paint(&self.session.context);
+        if let Some(due) = self.session.ui.next_wake_after(&self.session.context) {
+            request.wake_after = Some(request.wake_after.map_or(due, |app| app.min(due)));
+        }
         request
     }
     fn frame(&mut self, host: &mut HostContext, images: &mut ImageRegistry) -> Result<PaintList> {
@@ -416,6 +411,7 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
         resources
             .finish_frame(&list)
             .map_err(|e| RenderError(e.to_string()))?;
+        self.session.context.ui.scene_completed();
         self.platform_state(host);
         Ok(list)
     }

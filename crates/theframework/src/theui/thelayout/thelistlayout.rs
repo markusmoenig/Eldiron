@@ -198,7 +198,7 @@ impl TheLayout for TheListLayout {
     }
 
     fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
-        if self.dim != dim || ctx.ui.relayout {
+        if self.dim != dim || ctx.ui.needs_layout() {
             self.dim = dim;
 
             let x = 1;
@@ -379,7 +379,7 @@ impl TheListLayoutTrait for TheListLayout {
     fn add_item(&mut self, mut item: TheListItem, ctx: &mut TheContext) {
         item.set_associated_layout(self.id().clone());
         self.widgets.push(Box::new(item));
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
     }
 
     fn new_item_selected(&mut self, item: TheId) {

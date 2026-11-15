@@ -1277,7 +1277,7 @@ impl IsoPaintTool {
     }
 
     fn request_paint_redraw(ctx: &mut TheContext) {
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
 
     fn reset_stroke(&mut self) {
@@ -1502,7 +1502,7 @@ impl Tool for IsoPaintTool {
                     fl!("status_iso_paint_active"),
                 ));
                 server_ctx.reference.write().set_overlay_dirty();
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             DeActivate => {
@@ -1514,7 +1514,7 @@ impl Tool for IsoPaintTool {
                 server_ctx.shared.iso_paint_hover_screen = None;
                 server_ctx.shared.iso_paint_selection_rect = None;
                 server_ctx.reference.write().set_overlay_dirty();
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 if !server_ctx.shared.pc.is_prefab()
                     && server_ctx.docks.read().dock == "Paint"
                     && let Some(prev) = self.previous_dock.take()

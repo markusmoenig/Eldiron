@@ -186,7 +186,7 @@ pub fn sync_node_list(ui: &mut TheUI, ctx: &mut TheContext, pc: ProjectContext) 
         item.set_text(fl!("node_list_empty"));
         list.add_item(item, ctx);
     }
-    ctx.ui.redraw_all = true;
+    ctx.ui.invalidate_paint();
 }
 
 const BRANCH_LIST: &str = "Node Branches List";
@@ -251,5 +251,5 @@ pub fn sync_branch_list(ui: &mut TheUI, ctx: &mut TheContext, items: &[(String, 
         item.set_text_color([163, 169, 166, 255]);
         list.add_item(item, ctx);
     }
-    ctx.ui.redraw_all = true;
+    ctx.ui.invalidate_paint();
 }

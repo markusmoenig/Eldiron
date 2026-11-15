@@ -245,7 +245,7 @@ impl TheLayout for TheTextLayout {
     }
 
     fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
-        if self.dim != dim || ctx.ui.relayout || self.layout_dirty {
+        if self.dim != dim || ctx.ui.needs_layout() || self.layout_dirty {
             self.dim = dim;
 
             let x = self.margin.x;

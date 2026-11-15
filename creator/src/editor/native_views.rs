@@ -383,7 +383,7 @@ impl Editor {
             .id()
             .clone();
         ctx.ui.set_focus(&id);
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         id
     }
     pub(crate) fn begin_native_prefab_for_test(

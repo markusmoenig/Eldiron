@@ -552,8 +552,8 @@ impl DockManager {
             if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                 layout.set_mode(TheSharedVLayoutMode::Top);
             }
-            ctx.ui.relayout = true;
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_layout();
+            ctx.ui.invalidate_paint();
             if let Some(stack) = ui.get_stack_layout("Editor Stack") {
                 stack.set_index(editor_index);
                 self.state = DockManagerState::Editor;
@@ -619,8 +619,8 @@ impl DockManager {
             stack.set_index(editor_index);
         }
         self.state = DockManagerState::Editor;
-        ctx.ui.relayout = true;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_layout();
+        ctx.ui.invalidate_paint();
 
         let mut supports_undo = false;
         if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
@@ -661,8 +661,8 @@ impl DockManager {
                     stack.set_index(0);
                 }
                 self.restore_normal_split(ui);
-                ctx.ui.relayout = true;
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_layout();
+                ctx.ui.invalidate_paint();
                 self.state = DockManagerState::Minimized;
 
                 // Editor-only docks have no corresponding lower canvas. Put
@@ -741,7 +741,7 @@ impl DockManager {
                 TheId::named("Update Geometry Overlay 3D"),
                 TheValue::Empty,
             ));
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
     }
 

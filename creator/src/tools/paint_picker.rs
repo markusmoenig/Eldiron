@@ -65,7 +65,7 @@ pub fn toolbar(
     if let Some(paint) = layer(project, server) {
         paint.apply_source_settings();
     }
-    ctx.ui.redraw_all = true;
+    ctx.ui.invalidate_paint();
 }
 
 fn publish(
@@ -425,7 +425,7 @@ fn legacy_event(
                     TheId::named("Soft Update Minimap"),
                     TheValue::Empty,
                 ));
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
             }
             return true;
         }
@@ -504,5 +504,5 @@ fn legacy_event(
 }
 
 pub fn deactivate(_ui: &mut TheUI, ctx: &mut TheContext) {
-    ctx.ui.redraw_all = true;
+    ctx.ui.invalidate_paint();
 }

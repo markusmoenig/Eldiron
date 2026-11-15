@@ -116,8 +116,8 @@ impl Sidebar {
         if changed {
             ctx.ui.clear_focus();
             ctx.ui.keyboard_focus = None;
-            ctx.ui.relayout = true;
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_layout();
+            ctx.ui.invalidate_paint();
         }
         changed
     }
@@ -1165,7 +1165,7 @@ impl Sidebar {
                 }
             }
             TheEvent::Resize => {
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Minimap"),
                     TheValue::Empty,
@@ -1192,7 +1192,7 @@ impl Sidebar {
             TheEvent::Custom(id, value) => {
                 if id.name == "MZ Item Appearance Updated" {
                     // Appearance thumbnails are rendered lazily by the active workspace.
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     return true;
                 }
                 let editing_item_icon =
@@ -3987,7 +3987,7 @@ impl Sidebar {
                             rgba_view.set_buffer(buffer.clone());
                         }
                         rgba_view.set_grid(None);
-                        ctx.ui.relayout = true;
+                        ctx.ui.invalidate_layout();
                     }
                     rgba_layout.scroll_to(Vec2::new(0, 0));
                 }
@@ -4092,7 +4092,7 @@ impl Sidebar {
             // }
         }
 
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
     }
 
     /// Apply the avatars
@@ -4315,7 +4315,7 @@ impl Sidebar {
                             rgba_view.set_buffer(buffer.clone());
                         }
                         rgba_view.set_grid(None);
-                        ctx.ui.relayout = true;
+                        ctx.ui.invalidate_layout();
                     }
                     rgba_layout.scroll_to(Vec2::new(0, 0));
                 }
@@ -4645,8 +4645,8 @@ impl Sidebar {
             };
             if shared.get_mode() != mode {
                 shared.set_mode(mode);
-                ctx.ui.relayout = true;
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_layout();
+                ctx.ui.invalidate_paint();
             }
         }
     }
@@ -4760,7 +4760,7 @@ impl Sidebar {
 
         if let Some(layout) = ui.get_text_layout("Collection Settings") {
             nodeui.apply_to_text_layout(layout);
-            ctx.ui.relayout = true;
+            ctx.ui.invalidate_layout();
         }
     }
 

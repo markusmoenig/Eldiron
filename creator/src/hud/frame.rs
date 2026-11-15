@@ -383,7 +383,7 @@ impl HudEffects {
         for event in self.events {
             ctx.ui.send(event);
         }
-        ctx.ui.redraw_all |= self.redraw;
+        ctx.ui.invalidate_paint_if(self.redraw);
     }
 }
 impl Hud {

@@ -374,7 +374,7 @@ impl Action for EditFaceTexture {
         if changed {
             crate::utils::editor_scene_full_rebuild(project, server_ctx);
             server_ctx.reference.write().set_overlay_dirty();
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
 
         true

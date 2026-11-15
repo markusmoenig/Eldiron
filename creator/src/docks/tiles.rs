@@ -1100,7 +1100,7 @@ impl Dock for TilesDock {
                     if let Some(render_view) = ui.get_render_view(&id.name) {
                         render_view.set_needs_redraw(true);
                     }
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     redraw = true;
                 }
             }
@@ -1386,8 +1386,8 @@ impl TilesDock {
             }
             tab_layout.set_index(self.active_tab.min(specs.len().saturating_sub(1)));
         }
-        ctx.ui.relayout = true;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_layout();
+        ctx.ui.invalidate_paint();
     }
 
     fn sync_collection_menu(&mut self, ui: &mut TheUI, project: &Project) {
@@ -1796,7 +1796,7 @@ impl TilesDock {
                 render_view.set_needs_redraw(true);
             }
         }
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
 
     fn layout_tab(&mut self, project: &Project, tab: usize, size: Vec2<i32>) -> TileBoardLayout {

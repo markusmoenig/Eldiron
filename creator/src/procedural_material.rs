@@ -1475,8 +1475,8 @@ impl ProceduralMaterialEditor {
         self.bundle = None;
         self.asset = None;
         self.frame = None;
-        ctx.ui.relayout = true;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_layout();
+        ctx.ui.invalidate_paint();
     }
     pub fn leave(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         if ui
@@ -1704,7 +1704,7 @@ impl ProceduralMaterialEditor {
             TheEvent::Custom(id, _) if id.name == "Ruleset Materials Restored" => {
                 self.palette_key = None;
                 self.preview_dirty = true;
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             TheEvent::Custom(id, _)
@@ -2015,7 +2015,7 @@ impl ProceduralMaterialEditor {
             }
             self.composition_navigation=Some((composing,back));
             self.back_label=None;
-            ctx.ui.relayout=true;ctx.ui.redraw_all=true;
+            ctx.ui.invalidate_layout();ctx.ui.invalidate_paint();
         }
     }
     fn sync_back_button(&mut self, ui: &mut TheUI) {
@@ -2174,7 +2174,7 @@ impl ProceduralMaterialEditor {
                     TheId::named("Soft Update Minimap"),
                     TheValue::Empty,
                 ));
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 self.preview_dirty = true;
                 changed = true;
             }
@@ -2208,7 +2208,7 @@ impl ProceduralMaterialEditor {
                             TheId::named("Soft Update Minimap"),
                             TheValue::Empty,
                         ));
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                         changed = true;
                     }
                 }

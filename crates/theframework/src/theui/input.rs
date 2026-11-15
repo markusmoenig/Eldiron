@@ -178,7 +178,7 @@ impl TheUI {
                             ctx.ui.clear_focus();
                             ctx.ui.clear_hover();
                             ctx.ui.clear_overlay();
-                            ctx.ui.redraw_all = true;
+                            ctx.ui.invalidate_paint();
                         }
                     }
                     self.is_dirty |= response.input.redraw;

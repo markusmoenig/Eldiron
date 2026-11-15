@@ -257,7 +257,7 @@ impl Tool for VertexTool {
                         TheId::named("Tool Changed"),
                         TheValue::Empty,
                     ));
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 }
             }
             MapClicked(coord) => {

@@ -160,7 +160,7 @@ impl TheLayout for TheCodeLayout {
     }
 
     fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
-        if self.dim != dim || ctx.ui.relayout {
+        if self.dim != dim || ctx.ui.needs_layout() {
             self.dim = dim;
 
             let mut width: i32 = dim.width;

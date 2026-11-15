@@ -777,7 +777,7 @@ impl BlocksDock {
         {
             tab_layout.set_index(self.active_tab.index());
         }
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
 
     fn update_overlay(ctx: &mut TheContext) {
@@ -1666,7 +1666,7 @@ impl Dock for BlocksDock {
         }
         self.request_visible_meshes(ui, server);
         if changed {
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
         changed
     }

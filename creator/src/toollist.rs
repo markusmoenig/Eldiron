@@ -388,7 +388,7 @@ impl ToolList {
             ));
             ctx.ui
                 .send(TheEvent::SetStatusText(TheId::empty(), status_text));
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
     }
 
@@ -451,14 +451,14 @@ impl ToolList {
         match result {
             EditorDisplayResult::Ignored => false,
             EditorDisplayResult::Handled => {
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             EditorDisplayResult::DisplayChanged(display) => {
                 if !self.update_editor_display_owner(owner, &expected, &display, &server_ctx.actions) {
                     self.editor_display_session = None;
                 }
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             EditorDisplayResult::GridSubdivisionChanged(subdivision) => {
@@ -470,7 +470,7 @@ impl ToolList {
                     rusterix.set_dirty();
                     rusterix.set_overlay_dirty();
                 }
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             EditorDisplayResult::Commit => {
@@ -491,7 +491,7 @@ impl ToolList {
                         {
                             ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), info));
                         }
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                 }
                 true
@@ -507,7 +507,7 @@ impl ToolList {
                     TheId::empty(),
                     "Editor display changes cancelled.".to_string(),
                 ));
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
         }
@@ -564,7 +564,7 @@ impl ToolList {
                     TheId::named("Update Minimap"),
                     TheValue::Empty,
                 ));
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 return true;
             }
         }
@@ -611,7 +611,7 @@ impl ToolList {
             TheId::empty(),
             fl!("status_viewcube_camera_aligned"),
         ));
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         true
     }
 
@@ -772,7 +772,7 @@ impl ToolList {
         #[cfg(target_os="macos")]
         { self.macos_primary_orbit_drag = None; }
         server.camera.reset_mouse_tracking();
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
     fn current_tool_map_event(
         &mut self,
@@ -2165,7 +2165,7 @@ impl ToolList {
     /// Build the UI
     pub fn set_active_editor(&mut self, list: &mut dyn TheVLayoutTrait, ctx: &mut TheContext) {
         list.clear();
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
 
         if self.editor_mode {
             // Show editor tools
@@ -2336,7 +2336,7 @@ impl ToolList {
                 TheId::named("Update Action List"),
                 TheValue::Empty,
             ));
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             return true;
         }
 
@@ -2462,7 +2462,7 @@ impl ToolList {
             if let Some(pc) = undo_atom.pc() {
                 if pc.is_region() {
                     if undo_atom.is_iso_paint_only() {
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     } else {
                         let rect_paint_dirty_chunks = if server_ctx.shared.curr_map_tool_type
                             == MapToolType::Rect
@@ -2623,7 +2623,7 @@ impl ToolList {
                     let mut rusterix = server_ctx.reference.write();
                     rusterix.editor_preview_fill_strength = strength.clamp(0.0, 1.0);
                     rusterix.set_dirty();
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 }
                 return true;
             }
@@ -2933,7 +2933,7 @@ impl ToolList {
                     };
                     if let Some(action) = action {
                         server_ctx.camera.move_action = Some(action);
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                         return true;
                     }
                 }
@@ -3002,7 +3002,7 @@ impl ToolList {
                         rusterix.set_dirty();
                         rusterix.set_overlay_dirty();
                     }
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     ctx.ui.send(TheEvent::SetStatusText(
                         TheId::empty(),
                         match op {
@@ -3122,7 +3122,7 @@ impl ToolList {
                             TheId::empty(),
                             fl!("status_box_select_armed"),
                         ));
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                         return true;
                     }
                     if let Some(uuid) = self.shortcut_tool_uuid(action) {
@@ -3151,7 +3151,7 @@ impl ToolList {
                                     rusterix.set_overlay_dirty();
                                 }
                                 self.update_geometry_overlay_3d(project, server_ctx);
-                                ctx.ui.redraw_all = true;
+                                ctx.ui.invalidate_paint();
                                 return true;
                             } else if plain_grid_shortcut && (*c == ',' || *c == '.') {
                                 return false;
@@ -3165,7 +3165,7 @@ impl ToolList {
                                     rusterix.set_overlay_dirty();
                                 }
                                 self.update_geometry_overlay_3d(project, server_ctx);
-                                ctx.ui.redraw_all = true;
+                                ctx.ui.invalidate_paint();
                                 return true;
                             } else if plain_grid_shortcut
                                 && Self::is_grid_subdivision_key(*c)
@@ -3420,7 +3420,7 @@ impl ToolList {
                                 TheId::empty(),
                                 fl!("status_box_select_cancelled"),
                             ));
-                            ctx.ui.redraw_all = true;
+                            ctx.ui.invalidate_paint();
                             return true;
                         }
                         if server_ctx.shared.editor_view_mode == EditorViewMode::FirstP
@@ -3443,7 +3443,7 @@ impl ToolList {
                                     fl!("status_firstp_fly_nav_off")
                                 },
                             ));
-                            ctx.ui.redraw_all = true;
+                            ctx.ui.invalidate_paint();
                             return true;
                         }
 
@@ -3492,7 +3492,7 @@ impl ToolList {
                                         TheId::empty(),
                                         fl!("status_firstp_fly_nav_off"),
                                     ));
-                                    ctx.ui.redraw_all = true;
+                                    ctx.ui.invalidate_paint();
                                     return true;
                                 }
                                 if server_ctx.shared.paste_clipboard.is_some() {
@@ -3537,7 +3537,7 @@ impl ToolList {
                     && matches!(c.to_ascii_lowercase(), 'w' | 'a' | 's' | 'd')
                 {
                     server_ctx.camera.move_action = None;
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     return true;
                 }
             }
@@ -3764,7 +3764,7 @@ impl ToolList {
                     }
 
                     server_ctx.reference.write().set_dirty();
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     return true;
                 }
             }
@@ -3788,7 +3788,7 @@ impl ToolList {
                                 .set_fly_pointer(coord, view_size);
                         }
                         server_ctx.reference.write().set_dirty();
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                         return true;
                     }
 
@@ -3824,7 +3824,7 @@ impl ToolList {
                                 self.update_geometry_overlay_3d(project, server_ctx);
                             }
                             server_ctx.reference.write().set_dirty();
-                            ctx.ui.redraw_all = true;
+                            ctx.ui.invalidate_paint();
                         }
                         // Do not leak a pending navigation drag into the active
                         // modelling tool while waiting for the drag threshold.
@@ -3864,7 +3864,7 @@ impl ToolList {
                                 self.update_geometry_overlay_3d(project, server_ctx);
                             }
                             server_ctx.reference.write().set_dirty();
-                            ctx.ui.redraw_all = true;
+                            ctx.ui.invalidate_paint();
                             return true;
                         }
 
@@ -3885,7 +3885,7 @@ impl ToolList {
                                     .set_camera_d3(Box::new(camera));
                                 self.update_geometry_overlay_3d(project, server_ctx);
                                 server_ctx.reference.write().set_dirty();
-                                ctx.ui.redraw_all = true;
+                                ctx.ui.invalidate_paint();
                                 return true;
                             } else if let Some(region) =
                                 project.get_region_mut(&server_ctx.shared.curr_region)
@@ -3898,7 +3898,7 @@ impl ToolList {
                                         Vec2::new(dim.x, dim.y),
                                     );
                                 server_ctx.reference.write().set_dirty();
-                                ctx.ui.redraw_all = true;
+                                ctx.ui.invalidate_paint();
                                 return true;
                             }
                         }
@@ -3968,7 +3968,7 @@ impl ToolList {
                                 fl!("status_firstp_fly_nav_off"),
                             ));
                             server_ctx.reference.write().set_dirty();
-                            ctx.ui.redraw_all = true;
+                            ctx.ui.invalidate_paint();
                         }
                         return true;
                     }
@@ -4087,7 +4087,7 @@ impl ToolList {
                             server_ctx.camera
                                 .set_fly_pointer(coord, view_size);
                             server_ctx.reference.write().set_dirty();
-                            ctx.ui.redraw_all = true;
+                            ctx.ui.invalidate_paint();
                         }
                         return true;
                     }
@@ -4567,7 +4567,7 @@ impl ToolList {
             if let Some(layout) = ui.get_hlayout(layout_name) {
                 layout.clear();
                 layout.set_reverse_index(None);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
             }
 
             self.get_current_tool()
@@ -4682,7 +4682,7 @@ impl ToolList {
             }
         }*/
 
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
 
         redraw
     }

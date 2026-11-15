@@ -171,7 +171,7 @@ impl CreatorTheme {
         register_themed_bitmap_icons(ctx, icon_color);
         register_compact_navigation_icons_with_color(ctx, icon_color);
         profile.lap("theme_icons");
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Creator Theme Changed"),
             TheValue::Empty,
@@ -4525,7 +4525,7 @@ impl Editor {
                 widget.limiter_mut().set_max_width(0);
             }
 
-            ctx.ui.relayout = true;
+            ctx.ui.invalidate_layout();
         }
     }
 
@@ -5264,8 +5264,8 @@ impl Editor {
             ctx,
             TheValue::Text(entry.description.clone()),
         );
-        ctx.ui.relayout = true;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_layout();
+        ctx.ui.invalidate_paint();
     }
 
     fn open_project_as_session(
@@ -8936,8 +8936,8 @@ impl TheTrait for Editor {
                 );
             }
             self.example_loader_rx = None;
-            ctx.ui.relayout = true;
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_layout();
+            ctx.ui.invalidate_paint();
             redraw_update = true;
         }
 
@@ -8965,7 +8965,7 @@ impl TheTrait for Editor {
             // The tray button sizes itself from its label. Re-layout after
             // replacing the longer loading text so a failed load restores the
             // compact action button instead of retaining the loading width.
-            ctx.ui.relayout = true;
+            ctx.ui.invalidate_layout();
             ui.set_enabled(Self::EXAMPLE_OPEN_ID, ctx);
 
             if let Some(project) = project {
@@ -9659,7 +9659,7 @@ impl TheTrait for Editor {
                                     && (self.server_ctx.shared.editor_fly_nav_active
                                         || self.server_ctx.camera.move_action.is_some())
                                 {
-                                    ctx.ui.redraw_all = true;
+                                    ctx.ui.invalidate_paint();
                                 }
 
                                 // Rebuild dynamic overlays only when their
@@ -9774,7 +9774,7 @@ impl TheTrait for Editor {
                                     self.server_ctx.shared.background_progress = bake_progress;
                                 }
                                 if bake_rendering {
-                                    ctx.ui.redraw_all = true;
+                                    ctx.ui.invalidate_paint();
                                 }
                             }
                         } else
@@ -10277,8 +10277,8 @@ impl TheTrait for Editor {
                             &self.documents.project,
                             &mut self.server_ctx,
                         );
-                        ctx.ui.relayout = true;
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_layout();
+                        ctx.ui.invalidate_paint();
                         redraw = true;
                     } else if id.name == "Mark Rusterix Dirty" {
                         self.server_ctx.reference.write().set_dirty();
@@ -10356,7 +10356,7 @@ impl TheTrait for Editor {
                                             character_id,
                                         ));
                                         ui.select_first_list_item("Region Content List", ctx);
-                                        ctx.ui.relayout = true;
+                                        ctx.ui.invalidate_layout();
                                     }
                                     insert_content_into_maps(&mut self.documents.project);
                                     self.server_ctx.reference.write().set_dirty();
@@ -10380,7 +10380,7 @@ impl TheTrait for Editor {
                                             item_id,
                                         ));
                                         ui.select_first_list_item("Region Content List", ctx);
-                                        ctx.ui.relayout = true;
+                                        ctx.ui.invalidate_layout();
                                     }
                                     insert_content_into_maps(&mut self.documents.project);
                                     self.server_ctx.reference.write().set_dirty();
@@ -10806,8 +10806,8 @@ impl TheTrait for Editor {
                             "Dock Edit Maximize".to_string(),
                             TheWidgetState::None,
                         );
-                        ctx.ui.relayout = true;
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_layout();
+                        ctx.ui.invalidate_paint();
                         redraw = true;
                     } else if id.name == "Dock Restore" && state == TheWidgetState::Clicked {
                         self.server_ctx.docks.write().minimize(
@@ -10818,8 +10818,8 @@ impl TheTrait for Editor {
                         );
                         ctx.ui
                             .set_widget_state("Dock Restore".to_string(), TheWidgetState::None);
-                        ctx.ui.relayout = true;
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_layout();
+                        ctx.ui.invalidate_paint();
                         redraw = true;
                     } else if id.name == "GameInput" {
                         #[cfg(feature = "native-render")]
@@ -10933,7 +10933,7 @@ impl TheTrait for Editor {
                                 );
                                 // The button was initially measured for its action label.
                                 // Re-layout so the loading label is not clipped.
-                                ctx.ui.relayout = true;
+                                ctx.ui.invalidate_layout();
                                 ui.set_disabled(Self::EXAMPLE_OPEN_ID, ctx);
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
@@ -11520,8 +11520,8 @@ impl TheTrait for Editor {
                                 layout.set_split_position(screen_y);
                             }
                             self.server_ctx.docks.write().remember_normal_split(ui);
-                            ctx.ui.relayout = true;
-                            ctx.ui.redraw_all = true;
+                            ctx.ui.invalidate_layout();
+                            ctx.ui.invalidate_paint();
                             redraw = true;
                         }
                     } else if id.name == "Server Time Slider" {
@@ -11755,7 +11755,7 @@ impl TheTrait for Editor {
         if self.server_ctx.reference.write()
             .client_mouse_motion(Vec2::new(delta_x, delta_y))
         {
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             return true;
         }
         if self.server_ctx.shared.game_input_mode
@@ -11794,7 +11794,7 @@ impl TheTrait for Editor {
         if handled {
             self.last_authoring_input_at = Some(web_time::Instant::now());
             self.server_ctx.reference.write().set_dirty();
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
         handled
     }

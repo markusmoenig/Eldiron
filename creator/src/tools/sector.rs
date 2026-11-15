@@ -125,7 +125,7 @@ impl Tool for SectorTool {
 
                 if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
                     layout.set_mode(TheSharedHLayoutMode::Right);
-                    ctx.ui.relayout = true;
+                    ctx.ui.invalidate_layout();
                 }
 
                 server_ctx.shared.curr_map_tool_type = MapToolType::Sector;
@@ -325,7 +325,7 @@ impl Tool for SectorTool {
                         TheId::named("Tool Changed"),
                         TheValue::Empty,
                     ));
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 }
             }
             MapClicked(coord) => {

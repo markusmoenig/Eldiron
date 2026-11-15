@@ -184,7 +184,7 @@ impl TheCodeEditor {
                 self.bundle.insert_grid(codegrid.clone());
                 ctx.ui
                     .send(TheEvent::CodeBundleChanged(self.bundle.clone(), true));
-                ctx.ui.relayout = true;
+                ctx.ui.invalidate_layout();
             }
             TheEvent::CodeEditorSelectionChanged(_id, selection) => {
                 self.grid_selection = *selection;
@@ -318,7 +318,7 @@ impl TheCodeEditor {
                                             self.bundle.clone(),
                                             true,
                                         ));
-                                        ctx.ui.relayout = true;
+                                        ctx.ui.invalidate_layout();
                                     }
                                 }
                             }
@@ -334,7 +334,7 @@ impl TheCodeEditor {
                         if let Some(layout) = ui.get_code_layout("Code Editor") {
                             if let Some(code_view) = layout.code_view_mut().as_code_view() {
                                 code_view.set_zoom(v);
-                                ctx.ui.relayout = true;
+                                ctx.ui.invalidate_layout();
                             }
                         }
                     }
@@ -639,11 +639,11 @@ impl TheCodeEditor {
                 layout.clear();
                 atom.to_layout(layout);
                 layout.relayout(ctx);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
             }
         } else if let Some(layout) = ui.get_hlayout("Code Top Toolbar") {
             layout.clear();
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
     }
 
@@ -909,7 +909,7 @@ impl TheCodeEditor {
         width: i32,
         height: Option<i32>,
     ) -> TheCanvas {
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
         self.bundle = bundle;
 
         let mut canvas: TheCanvas = TheCanvas::new();

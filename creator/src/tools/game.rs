@@ -74,8 +74,8 @@ impl Tool for GameTool {
                         ctx,
                     );
                 }
-                ctx.ui.redraw_all = true;
-                ctx.ui.relayout = true;
+                ctx.ui.invalidate_paint();
+                ctx.ui.invalidate_layout();
 
                 true
             }
@@ -106,8 +106,8 @@ impl Tool for GameTool {
                 if let Some(stack) = ui.get_stack_layout("Game Output Stack") {
                     stack.set_index(0);
                 }
-                ctx.ui.redraw_all = true;
-                ctx.ui.relayout = true;
+                ctx.ui.invalidate_paint();
+                ctx.ui.invalidate_layout();
 
                 server_ctx.shared.game_mode = false;
                 true

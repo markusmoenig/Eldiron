@@ -24,7 +24,7 @@ impl Editor {
                             camera.mouse_dragged_viewcube_macos_primary(&at);
                             #[cfg(not(target_os = "macos"))]
                             camera.mouse_dragged_orbit(&at);
-                            ctx.ui.redraw_all = true;
+                            ctx.ui.invalidate_scene();
                         }
                         return true;
                     }
@@ -51,7 +51,7 @@ impl Editor {
                 );
                 match pick {
                     CubePick::Unavailable => {
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_scene();
                         return true;
                     }
                     CubePick::Face(face) => {
@@ -189,7 +189,7 @@ impl Editor {
                             Vec2::new(next.size.0 as i32, next.size.1 as i32),
                         );
                     }
-                    session.context.ui.redraw_all = true;
+                    session.context.ui.invalidate_scene();
                 }
                 self.native_viewport.world.relative_navigation = Some(owner);
             }

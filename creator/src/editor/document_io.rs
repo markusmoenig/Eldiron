@@ -112,7 +112,7 @@ impl Editor {
             self.update_server_state_icons(ui);
         }
         ui.clear_dialog();
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         self.document_info()
             .ok_or_else(|| "No active document after loading".into())
     }
@@ -178,7 +178,7 @@ impl Editor {
                 self.sync_active_session_from_editor();
                 self.rebuild_project_tabs(ui);
             }
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             Ok(SaveResult {
                 document,
                 saved: true,
@@ -196,7 +196,7 @@ impl Editor {
                 session.detached_dock_dirty = false;
             }
             self.rebuild_project_tabs(ui);
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             Ok(SaveResult {
                 document,
                 saved: true,

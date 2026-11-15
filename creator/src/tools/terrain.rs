@@ -111,7 +111,7 @@ impl TerrainTool {
                 TheValue::Empty,
             ));
         }
-        ui_ctx.ui.redraw_all = true;
+        ui_ctx.ui.invalidate_paint();
     }
 
     fn panel_click(&mut self, at: Vec2<i32>) {

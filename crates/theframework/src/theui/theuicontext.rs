@@ -62,8 +62,7 @@ pub struct TheUIContext {
 
     pub state_events_sender: Option<Sender<TheEvent>>,
 
-    pub redraw_all: bool,
-    pub relayout: bool,
+    invalidation: super::invalidation::UiInvalidationState,
 
     pub undo_stack: TheUndoStack,
 
@@ -84,6 +83,59 @@ impl Default for TheUIContext {
 }
 
 impl TheUIContext {
+    pub fn invalidate(&mut self, change: super::invalidation::UiInvalidation) {
+        self.invalidation.invalidate(change);
+    }
+
+    pub fn invalidate_layout(&mut self) {
+        self.invalidate(super::invalidation::UiInvalidation::Layout);
+    }
+
+    pub fn invalidate_paint(&mut self) {
+        self.invalidate(super::invalidation::UiInvalidation::Paint);
+    }
+
+    pub fn invalidate_paint_if(&mut self, changed: bool) {
+        if changed {
+            self.invalidate_paint();
+        }
+    }
+
+    pub fn invalidate_resources(&mut self) {
+        self.invalidate(super::invalidation::UiInvalidation::Resources);
+    }
+
+    pub fn invalidate_scene(&mut self) {
+        self.invalidate(super::invalidation::UiInvalidation::Scene);
+    }
+
+    pub fn needs_layout(&self) -> bool {
+        self.invalidation.needs_layout()
+    }
+
+    pub fn needs_full_paint(&self) -> bool {
+        self.invalidation.needs_full_paint()
+    }
+
+    pub fn needs_frame(&self) -> bool {
+        self.invalidation.needs_frame()
+    }
+
+    /// A completed layout leaves its paint request pending.
+    pub fn layout_completed(&mut self) {
+        self.invalidation.layout_completed();
+    }
+
+    /// Only successfully prepared UI commands consume paint/resource changes.
+    pub fn paint_completed(&mut self) {
+        self.invalidation.paint_completed();
+    }
+
+    /// Scene changes belong to the assembled application frame, not UI paint.
+    pub fn scene_completed(&mut self) {
+        self.invalidation.scene_completed();
+    }
+
     pub fn new() -> Self {
         let mut font: Option<Font> = None;
         let mut icons: FxHashMap<String, TheRGBABuffer> = FxHashMap::default();
@@ -165,8 +217,7 @@ impl TheUIContext {
             disabled_ids: FxHashSet::default(),
             state_events_sender: None,
 
-            redraw_all: false,
-            relayout: false,
+            invalidation: Default::default(),
 
             undo_stack: TheUndoStack::default(),
 
@@ -215,7 +266,7 @@ impl TheUIContext {
         {
             self.icon_revision = self.icon_revision.checked_add(1).expect("icon revision exhausted");
         }
-        self.redraw_all = true;
+        self.invalidate_resources();
     }
 
     /// Source identity belongs to this UI context and survives repeated paints.
@@ -284,7 +335,7 @@ impl TheUIContext {
     /// Clears
     pub fn clear_overlay(&mut self) {
         self.overlay = None;
-        self.redraw_all = true;
+        self.invalidate_paint();
     }
 
     /// Sets the drop to the given value.

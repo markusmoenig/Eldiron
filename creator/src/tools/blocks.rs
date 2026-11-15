@@ -1458,14 +1458,14 @@ impl Tool for BlockTool {
             self.recipe_revision = Some(revision);
             self.overlay.sync(project, server);
             self.overlay.refresh_fields(ui);
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
         if handled
             || matches!(event,TheEvent::Custom(id,_) if id.name=="Props Selection Changed" || id.name==crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT)
         {
             self.overlay.sync(project, server);
             self.overlay.refresh_fields(ui);
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
         handled
     }

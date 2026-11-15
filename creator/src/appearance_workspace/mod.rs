@@ -140,8 +140,8 @@ impl AppearanceWorkspace {
         if let Some(s) = ui.get_stack_layout(STACK) {
             s.set_index(usize::from(show));
         }
-        ctx.ui.relayout = true;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_layout();
+        ctx.ui.invalidate_paint();
     }
     pub fn reset(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         #[cfg(feature = "native-render")]
@@ -559,7 +559,7 @@ impl AppearanceWorkspace {
                 owner.name(p).unwrap_or("Definition")
             )),
         );
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
     }
     pub fn update(
         &mut self,

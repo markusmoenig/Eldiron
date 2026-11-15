@@ -906,7 +906,7 @@ impl PrefabsEditorDock {
             {
                 tree.new_item_selected(TheId::named_with_id(PART_OBJECT_ITEM, *object_id));
             }
-            ctx.ui.relayout = true;
+            ctx.ui.invalidate_layout();
         }
         self.sync_part_inspector(ui, ctx, project, asset_id);
     }
@@ -2198,7 +2198,7 @@ impl PrefabsEditorDock {
                 ui.set_disabled(id, ctx);
             }
         }
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
     }
 
     fn sync_mode(&self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
@@ -2514,7 +2514,7 @@ impl Dock for PrefabsEditorDock {
                 TheValue::Empty,
             ));
         }
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         true
     }
     fn handle_event(
@@ -2796,7 +2796,7 @@ impl Dock for PrefabsEditorDock {
                     self.sync_effect_editor(ui, ctx, project, asset_id);
                     server_ctx.shared.selected_prefab_effect_id = self.selected_effect_id;
                 }
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             TheEvent::NewListItemSelected(id, layout_id)
@@ -2811,7 +2811,7 @@ impl Dock for PrefabsEditorDock {
                 }
                 server_ctx.shared.selected_prefab_effect_id = Some(id.uuid);
                 self.sync_effect_editor(ui, ctx, project, asset_id);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             TheEvent::IndexChanged(id, index) if id.name == EFFECT_INSPECTOR_PAGES => {
@@ -2819,8 +2819,8 @@ impl Dock for PrefabsEditorDock {
                 if let Some(stack) = ui.get_stack_layout(EFFECT_INSPECTOR_STACK) {
                     stack.set_index(self.effect_inspector_page);
                 }
-                ctx.ui.relayout = true;
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_layout();
+                ctx.ui.invalidate_paint();
                 true
             }
             TheEvent::IndexChanged(id, index) if id.name == EFFECT_PRESET_STRIP => {
@@ -2867,7 +2867,7 @@ impl Dock for PrefabsEditorDock {
                             TheId::empty(),
                             format!("Applied {preset} to the selected particles"),
                         ));
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                     Err(message) => ctx
                         .ui
@@ -2893,7 +2893,7 @@ impl Dock for PrefabsEditorDock {
                     asset.placement.snap_to_surfaces = *index != 3;
                     Self::push_project_undo(before, project, ctx, &server_ctx.history);
                     Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 }
                 true
             }
@@ -2912,7 +2912,7 @@ impl Dock for PrefabsEditorDock {
                             TheId::empty(),
                             format!("Added {preset} particles"),
                         ));
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                     Err(message) => ctx
                         .ui
@@ -2933,7 +2933,7 @@ impl Dock for PrefabsEditorDock {
                             TheId::empty(),
                             "Added Prefab light".to_string(),
                         ));
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                     Err(message) => ctx
                         .ui
@@ -2957,7 +2957,7 @@ impl Dock for PrefabsEditorDock {
                             TheId::named("Update Geometry Overlay 3D"),
                             TheValue::Empty,
                         ));
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                     Err(message) => ctx
                         .ui
@@ -3007,7 +3007,7 @@ impl Dock for PrefabsEditorDock {
                 Self::push_project_undo(before, project, ctx, &server_ctx.history);
                 Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 self.sync_effect_editor(ui, ctx, project, asset_id);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             TheEvent::StateChanged(id, state) if id.name == EFFECT_ENABLED => {
@@ -3042,7 +3042,7 @@ impl Dock for PrefabsEditorDock {
                         TheId::named("Update Geometry Overlay 3D"),
                         TheValue::Empty,
                     ));
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 }
                 true
             }
@@ -3064,7 +3064,7 @@ impl Dock for PrefabsEditorDock {
                             TheId::named("Update Geometry Overlay 3D"),
                             TheValue::Empty,
                         ));
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                     Ok(false) => {}
                     Err(message) => {
@@ -3120,7 +3120,7 @@ impl Dock for PrefabsEditorDock {
                         .scene_handler
                         .reset_geometry_particle_emitters();
                     self.sync_effect_editor(ui, ctx, project, asset_id);
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 }
                 true
             }
@@ -3160,7 +3160,7 @@ impl Dock for PrefabsEditorDock {
                     Self::push_project_undo(before, project, ctx, &server_ctx.history);
                     Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     self.sync_effect_editor(ui, ctx, project, asset_id);
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 }
                 true
             }
@@ -3186,7 +3186,7 @@ impl Dock for PrefabsEditorDock {
                         TheId::empty(),
                         "Emission now covers the attached part's top surface".to_string(),
                     ));
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 }
                 true
             }
@@ -3247,7 +3247,7 @@ impl Dock for PrefabsEditorDock {
                             .reset_geometry_particle_emitters();
                     }
                     self.sync_effect_editor(ui, ctx, project, asset_id);
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 }
                 true
             }
@@ -3441,7 +3441,7 @@ impl Dock for PrefabsEditorDock {
                     Self::push_project_undo(before, project, ctx, &server_ctx.history);
                     Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     self.sync_effect_editor(ui, ctx, project, asset_id);
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 } else {
                     self.sync_effect_editor(ui, ctx, project, asset_id);
                     ctx.ui.send(TheEvent::SetStatusText(
@@ -3463,7 +3463,7 @@ impl Dock for PrefabsEditorDock {
                 self.sync_part_inspector(ui, ctx, project, asset_id);
                 server_ctx.tools.write()
                     .update_geometry_overlay_3d(project, server_ctx);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             TheEvent::NewListItemSelected(id, layout_id)
@@ -3483,7 +3483,7 @@ impl Dock for PrefabsEditorDock {
                 self.sync_part_inspector(ui, ctx, project, asset_id);
                 server_ctx.tools.write()
                     .update_geometry_overlay_3d(project, server_ctx);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             TheEvent::NewListItemSelected(id, layout_id)
@@ -3519,7 +3519,7 @@ impl Dock for PrefabsEditorDock {
                         }
                         server_ctx.tools.write()
                             .update_geometry_overlay_3d(project, server_ctx);
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                     Err(message) => ctx
                         .ui
@@ -3900,7 +3900,7 @@ impl Dock for PrefabsEditorDock {
                             TheId::empty(),
                             fl!("status_prefab_surface_created", count = face_count),
                         ));
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                     Err(message) => ctx
                         .ui
@@ -3939,7 +3939,7 @@ impl Dock for PrefabsEditorDock {
                             TheId::empty(),
                             fl!("status_prefab_surface_removed"),
                         ));
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                     Err(message) => ctx
                         .ui
@@ -4135,7 +4135,7 @@ impl Dock for PrefabsEditorDock {
                 }
                 server_ctx.tools.write()
                     .update_geometry_overlay_3d(project, server_ctx);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) if id.name == PART_REMOVE => {
@@ -4198,7 +4198,7 @@ impl Dock for PrefabsEditorDock {
                     }
                 }
                 self.sync_part_inspector(ui, ctx, project, asset_id);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 true
             }
             TheEvent::Custom(id, _) if id.name == crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT => {

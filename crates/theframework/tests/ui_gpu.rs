@@ -58,7 +58,7 @@ fn real_ui_tree_has_no_canvas_framebuffer() {
     assert_eq!(gpu.transfers().readback_bytes, 0);
     ctx.width = 320;
     ctx.height = 120;
-    ctx.ui.relayout = true;
+    ctx.ui.invalidate_layout();
     ui.paint_commands(&mut ctx, &mut images).unwrap();
     assert!(ui.canvas.buffer.pixels().is_empty());
     let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();

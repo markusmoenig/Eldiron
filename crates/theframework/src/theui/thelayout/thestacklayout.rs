@@ -153,7 +153,7 @@ impl TheLayout for TheStackLayout {
     }
 
     fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
-        if self.dim != dim || ctx.ui.relayout {
+        if self.dim != dim || ctx.ui.needs_layout() {
             self.dim = dim;
             self.is_dirty = true;
             // if !self.canvas.is_empty() && self.index < self.canvas.len() {

@@ -227,7 +227,7 @@ impl Browser {
             }
         }
         self.preview(ui, ctx, project);
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
     }
     fn filter(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
         let visible: Vec<_> = self
@@ -281,7 +281,7 @@ impl Browser {
             }
             self.preview(ui, ctx, project);
         }
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
     }
     fn preview(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
         self.error = None;
@@ -342,7 +342,7 @@ impl Browser {
         if let Some(w) = ui.get_widget("MZ Recipe Error") {
             w.set_value(TheValue::Text(self.error.clone().unwrap_or_default()));
         }
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
     fn canvas(&self) -> TheCanvas {
         let mut search = TheTextLineEdit::new(TheId::named("MZ Recipe Search"));
@@ -571,7 +571,7 @@ impl GeometryEditor {
                     match self.install_browser_recipe(doc, &browser.name, project, ui, ctx, creator_history) {
                         Ok(_) => {
                             ui.clear_dialog();
-                            ctx.ui.relayout = true;
+                            ctx.ui.invalidate_layout();
                             return true;
                         }
                         Err(error) => {

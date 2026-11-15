@@ -104,7 +104,7 @@ impl ProjectUndoAtom {
                 TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
                 TheValue::Empty,
             ));
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
     }
 
@@ -254,7 +254,7 @@ impl ProjectUndoAtom {
     ) {
         if let Some(region) = project.get_region_mut(&region_id) {
             region.iso_paint = restored_paint.clone();
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
     }
 
@@ -267,7 +267,7 @@ impl ProjectUndoAtom {
         project
             .block_prop_paint
             .insert(asset_id, restored_paint.clone());
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
 
     fn apply_prefab_asset_state(
@@ -289,7 +289,7 @@ impl ProjectUndoAtom {
             TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
             TheValue::Empty,
         ));
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
 
     fn apply_prefab_graph_state(
@@ -305,7 +305,7 @@ impl ProjectUndoAtom {
                 TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
                 TheValue::Empty,
             ));
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
     }
 
@@ -466,7 +466,7 @@ impl ProjectUndoAtom {
                 } else {
                     project.procedural_appearances.shift_remove(id);
                 }
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
             }
             ProceduralMaterialEdit(id, old, _) => {
                 if project.tiles.contains_key(id)
@@ -1195,7 +1195,7 @@ impl ProjectUndoAtom {
                 } else {
                     project.procedural_appearances.shift_remove(id);
                 }
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
             }
             ProceduralMaterialEdit(id, _, new) => {
                 if project.tiles.contains_key(id)

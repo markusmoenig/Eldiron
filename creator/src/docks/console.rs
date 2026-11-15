@@ -209,7 +209,7 @@ impl ConsoleDock {
         if let Some(forward) = ui.get_widget(CONSOLE_FORWARD) {
             forward.set_disabled(self.history_index + 1 >= self.history.len());
         }
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
 
     fn reset_history(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {

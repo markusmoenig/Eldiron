@@ -411,7 +411,7 @@ impl PrefabNodePane {
             view.set_dim(dim, ctx);
             *widget = Box::new(view);
             self.resources = None;
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
         true
     }

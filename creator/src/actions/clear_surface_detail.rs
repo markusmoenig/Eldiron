@@ -138,7 +138,7 @@ impl Action for ClearSurfaceDetail {
             TheId::named("Update Geometry Overlay 3D"),
             TheValue::Empty,
         ));
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         Some(ProjectUndoAtom::MapEdit(
             server_ctx.shared.pc,
             Box::new(prev),

@@ -79,7 +79,7 @@ impl Capture {
         // Drain normal UI events and asynchronous scene builds before capturing.
         for _ in 0..24 {
             self.editor.update_tracker = crate::misc::UpdateTracker::new();
-            self.ctx.ui.redraw_all = true;
+            self.ctx.ui.invalidate_paint();
             self.ui.update(&mut self.ctx);
             self.editor.update_ui(&mut self.ui, &mut self.ctx);
             self.ui.draw(&mut frame, &mut self.ctx);

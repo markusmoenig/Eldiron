@@ -670,7 +670,7 @@ fn snap_cube(
         TheId::empty(),
         fl!("status_viewcube_camera_aligned"),
     ));
-    ctx.ui.redraw_all = true;
+    ctx.ui.invalidate_scene();
 }
 fn isometric_input(
     world: &NativeWorld,
@@ -1385,7 +1385,7 @@ impl Editor {
                         && view.id().uuid == id.uuid {
                         view.clear_paint_list(&list);
                     }
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     return Ok(None);
                 }
             }
@@ -1613,7 +1613,7 @@ impl Editor {
                 frame.binding.cube_target(world.epoch),
                 &self.server_ctx.camera.orbit_camera,
             ) {
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 return;
             }
         }
@@ -1629,7 +1629,7 @@ impl Editor {
         if accepted {
             world.presented = Some(frame);
         } else {
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
     }
     pub(crate) fn finish_native_viewport_frame(
@@ -1703,7 +1703,7 @@ impl Editor {
                 frame.binding == binding && world.frame_is_fresh(frame, map, &camera)
             }) {
                 world.retry_click = Some(retry);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 return None;
             }
             retry.started = true;
@@ -1733,7 +1733,7 @@ impl Editor {
         if self.server_ctx.shared.native_game_input {
             if matches!(event, TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Escape))) {
                 self.cancel_native_world_gesture(ui,ctx);
-                ctx.ui.redraw_all=true;
+                ctx.ui.invalidate_paint();
                 return true;
             }
             if matches!(event, TheEvent::KeyDown(_) | TheEvent::KeyUp(_) | TheEvent::KeyCodeDown(_) | TheEvent::KeyCodeUp(_)) {
@@ -1840,7 +1840,7 @@ impl Editor {
             && self.native_viewport.world.world_capture.is_some()
         {
             self.cancel_native_world_gesture(ui, ctx);
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             return true;
         }
         if binding.context.is_prefab()
@@ -1876,7 +1876,7 @@ impl Editor {
                     started: false,
                 });
             }
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             return true;
         }
         if matches!(input, MapEvent::MapClicked(_)) {
@@ -1918,7 +1918,7 @@ impl Editor {
                 false
             };
             let redraw = redraw || dock_redraw;
-            ctx.ui.redraw_all |= redraw;
+            ctx.ui.invalidate_paint_if(redraw);
             return true;
         }
         let mut accepted_query = None;
@@ -1940,22 +1940,23 @@ impl Editor {
         );
         match route {
             ToolOverlayRoute::Unavailable => {
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 return true;
             }
             ToolOverlayRoute::Consumed { redraw, command } => {
-                ctx.ui.redraw_all |= redraw;
+                ctx.ui.invalidate_paint_if(redraw);
                 if let Some(command) = command
                     && let Some(effects) =
                         command.apply(tool, target, map, &mut self.server_ctx, ui, ctx)
                 {
-                    ctx.ui.redraw_all |=
-                        effects.redraw || effects.scene_dirty || effects.overlay_dirty;
+                    ctx.ui.invalidate_paint_if(
+                        effects.redraw || effects.scene_dirty || effects.overlay_dirty,
+                    );
                     world.events.extend(effects.events);
                 }
                 return true;
             }
-            ToolOverlayRoute::Outside { redraw } => ctx.ui.redraw_all |= redraw,
+            ToolOverlayRoute::Outside { redraw } => ctx.ui.invalidate_paint_if(redraw),
         }
         drop(tools);
         let pointer = match input {
@@ -1994,7 +1995,7 @@ impl Editor {
                     accepted_query = Some(input.clone());
                     tool.set_view_input(Some(input));
                 } else {
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     return true;
                 }
             }
@@ -2012,7 +2013,7 @@ impl Editor {
                     .as_ref()
                     .and_then(|frame| isometric_input(world, frame, at))
                 else {
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     return true;
                 };
                 accepted_query = Some(query.clone());
@@ -2042,7 +2043,7 @@ impl Editor {
             .as_ref()
             .is_some_and(|frame| world.frame_is_fresh(frame, map, &current_camera));
         if !fresh || matches!(input, MapEvent::MapDragged(_) | MapEvent::MapUp(_)) {
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             return true;
         }
         if binding.mode != EditorViewMode::D2 {
@@ -2066,7 +2067,7 @@ impl Editor {
                         .query(frame, at, &self.server_ctx, None, capture_surface)
                 });
                 let Some((pick, input)) = query else {
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     return true;
                 };
                 apply_pick(pick, map, &mut self.server_ctx);
@@ -2090,7 +2091,7 @@ impl Editor {
                     .as_ref()
                     .and_then(|frame| isometric_input(world, frame, at))
                 else {
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     return true;
                 };
                 accepted_query = Some(query.clone());

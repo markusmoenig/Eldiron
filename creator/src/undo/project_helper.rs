@@ -1051,7 +1051,7 @@ pub fn apply_palette(
     if let Some(widget) = ui.get_widget("Palette Item") {
         widget.set_needs_redraw(true);
     }
-    ctx.ui.relayout = true;
+    ctx.ui.invalidate_layout();
 
     if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
         palette_picker.set_palette(project.palette.clone());
@@ -1742,7 +1742,7 @@ pub fn set_project_context(
         server_ctx.tools.write().set_active_editor(list, ctx);
     }
 
-    ctx.ui.relayout = true;
+    ctx.ui.invalidate_layout();
 }
 
 #[cfg(test)]

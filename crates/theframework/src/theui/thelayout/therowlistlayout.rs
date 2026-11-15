@@ -185,7 +185,7 @@ impl TheLayout for TheRowListLayout {
     }
 
     fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
-        if self.dim != dim || ctx.ui.relayout {
+        if self.dim != dim || ctx.ui.needs_layout() {
             self.dim = dim;
 
             let mut x = 2;
@@ -362,7 +362,7 @@ impl TheRowListLayoutTrait for TheRowListLayout {
     fn add_item(&mut self, mut item: TheRowListItem, ctx: &mut TheContext) {
         item.set_associated_layout(self.id().clone());
         self.widgets.push(Box::new(item));
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
     }
 
     fn new_item_selected(&mut self, item: TheId) {

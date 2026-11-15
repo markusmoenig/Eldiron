@@ -3406,11 +3406,11 @@ impl IsoPaintDock {
         let (primary, detail) = self.split_inspector_nodeui();
         if let Some(layout) = ui.get_text_layout(&self.ui_name(ISO_PAINT_INSPECTOR_PRIMARY)) {
             primary.apply_to_text_layout(layout);
-            ctx.ui.relayout = true;
+            ctx.ui.invalidate_layout();
         }
         if let Some(layout) = ui.get_text_layout(&self.ui_name(ISO_PAINT_INSPECTOR_DETAIL)) {
             detail.apply_to_text_layout(layout);
-            ctx.ui.relayout = true;
+            ctx.ui.invalidate_layout();
         }
     }
 
@@ -3985,7 +3985,7 @@ impl Dock for IsoPaintDock {
                         TheWidgetState::None
                     },
                 );
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 return true;
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
@@ -4028,7 +4028,7 @@ impl Dock for IsoPaintDock {
                         ),
                     };
                     server_ctx.history.write().add_undo(undo_atom, ctx);
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     ctx.ui.send(TheEvent::SetStatusText(
                         TheId::empty(),
                         fl!("status_iso_paint_clear_all_done"),
@@ -4067,7 +4067,7 @@ impl Dock for IsoPaintDock {
                             ),
                         };
                         server_ctx.history.write().add_undo(undo_atom, ctx);
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
                             fl!("status_iso_paint_fill_selection_done"),
@@ -4107,7 +4107,7 @@ impl Dock for IsoPaintDock {
                             ),
                         };
                         server_ctx.history.write().add_undo(undo_atom, ctx);
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
                             fl!("status_iso_paint_clear_selection_done"),
@@ -4129,7 +4129,7 @@ impl Dock for IsoPaintDock {
                 self.brush_shape = Self::brush_shape_from_index(*index);
                 self.brush_shapes[self.selected_brush] = self.brush_shape;
                 self.sync_project_settings(project, server_ctx);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 return true;
             }
             TheEvent::Custom(id, TheValue::Int(index))
@@ -4157,7 +4157,7 @@ impl Dock for IsoPaintDock {
                 }
                 self.sync_inspector(ui, ctx, project);
                 self.sync_project_settings(project, server_ctx);
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 return true;
             }
             TheEvent::Custom(id, TheValue::Int(index))
@@ -4297,7 +4297,7 @@ impl Dock for IsoPaintDock {
                         self.sync_project_settings(project, server_ctx);
                         if refresh_inspector {
                             self.sync_inspector(ui, ctx, project);
-                            ctx.ui.redraw_all = true;
+                            ctx.ui.invalidate_paint();
                         }
                     }
                     if !matches!(event, TheEvent::ValueChanged(_, _)) {

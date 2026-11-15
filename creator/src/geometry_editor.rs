@@ -183,8 +183,8 @@ pub(crate) fn sync_composition_header(ui: &mut TheUI, ctx: &mut TheContext, comp
         changed = true;
     }
     if changed {
-        ctx.ui.relayout = true;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_layout();
+        ctx.ui.invalidate_paint();
     }
 }
 
@@ -386,8 +386,8 @@ impl GeometryEditor {
             b.set_index(index.min(1) as i32);
         }
         sync_workspace(ui, ctx);
-        ctx.ui.relayout = true;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_layout();
+        ctx.ui.invalidate_paint();
     }
     fn status(ctx: &mut TheContext, text: impl Into<String>) {
         ctx.ui

@@ -144,7 +144,7 @@ impl ToolList {
             || !self.native_display_source_current( &server.actions)
         {
             self.editor_display_session = None;
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             return Consumed;
         }
         // Names route the established event family; UUID guards the actual
@@ -174,7 +174,7 @@ impl ToolList {
             session.handle_presented_event(event, binding.target(), focused, command_zoom);
         let result = match outcome {
             DisplayInput::Unavailable => {
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 return Consumed;
             }
             DisplayInput::Outcome(result) => result,
@@ -201,13 +201,13 @@ impl ToolList {
             }
             EditorDisplayResult::Commit => {
                 self.editor_display_session = None;
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
                 if let EditorDisplayOwner::Action(id) = binding.owner {
                     return CommitAction(id);
                 }
             }
         }
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         Consumed
     }
 }

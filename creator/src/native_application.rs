@@ -504,7 +504,7 @@ mod tests {
         assert!(
             !app.session.ui.needs_paint(&app.session.context),
             "the assembled native root must acknowledge a successful static paint; dirty widgets={dirty_widgets:?}, relayout={}, redraw_all={}",
-            app.session.context.ui.relayout, app.session.context.ui.redraw_all
+            app.session.context.ui.needs_layout(), app.session.context.ui.needs_full_paint()
         );
         assert_eq!(
             serde_json::to_value(&app.application.editor.project_for_native_test()).unwrap(),

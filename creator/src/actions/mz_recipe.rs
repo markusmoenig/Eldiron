@@ -178,7 +178,7 @@ impl Action for ApplyMZRecipe {
             TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
             TheValue::Empty,
         ));
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         let _ = ui;
     }
     fn params(&self) -> TheNodeUI {

@@ -364,7 +364,7 @@ fn capture_geometry_terrain_toml() {
     shared.limiter_mut().set_max_width(580);
     shared.set_mode(TheSharedVLayoutMode::Top);
     ui.get_sharedvlayout("Sidebar Actions Shared").unwrap().set_mode(TheSharedVLayoutMode::Bottom);
-    ctx.ui.relayout = true;
+    ctx.ui.invalidate_layout();
     let mut center = TheCanvas::new();
     center.set_widget(TheRenderView::new(TheId::named("Terrain Documentation View")));
     ui.canvas.set_center(center);

@@ -1,5 +1,6 @@
 #[cfg(feature = "text")]
 mod input;
+pub mod invalidation;
 #[cfg(feature = "text")]
 pub mod paint;
 #[cfg(feature = "text")]
@@ -96,6 +97,7 @@ pub mod prelude {
     pub use crate::theui::thergbbuffer::TheRGBBuffer;
     pub use crate::theui::thesizelimiter::TheSizeLimiter;
     pub use crate::theui::theuicontext::*;
+    pub use crate::theui::invalidation::UiInvalidation;
     pub use crate::theui::{ThePopover, TheUI, rasterize_svg_path_icon};
 
     pub use crate::theui::thevalue::{TheValue, TheValueAssignment, TheValueComparison};
@@ -430,7 +432,7 @@ impl TheUI {
     pub fn set_theme(&mut self, theme: Box<dyn TheTheme>, ctx: &mut TheContext) {
         self.style.set_theme(theme);
         self.is_dirty = true;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
 
     pub fn init(&mut self, ctx: &mut TheContext) {
@@ -521,7 +523,7 @@ impl TheUI {
             visible: false,
         });
         if was_visible {
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             self.is_dirty = true;
         }
     }
@@ -530,7 +532,7 @@ impl TheUI {
         if self.hover_help.take().is_some_and(|help| help.visible) {
             // Hover help is painted passively into the persistent canvas buffer.
             // Redraw the underlying UI to erase it.
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             self.is_dirty = true;
         }
     }
@@ -557,7 +559,7 @@ impl TheUI {
             let gap = self.style.theme().metric(PopoverGap).round() as i32;
             popover.layout(gap, ctx);
         }
-        ctx.ui.relayout = false;
+        ctx.ui.layout_completed();
     }
 
     /// Returns true if the current focus widget supports text input.
@@ -689,9 +691,9 @@ impl TheUI {
         };
         if self.canvas.resize(ctx.width as i32, ctx.height as i32, ctx) {
             ctx.ui.send(TheEvent::Resize);
-            ctx.ui.relayout = false;
+            ctx.ui.layout_completed();
         }
-        if ctx.ui.relayout {
+        if ctx.ui.needs_layout() {
             self.relayout(ctx);
         }
         self.canvas.draw(&mut self.style, ctx);
@@ -715,7 +717,7 @@ impl TheUI {
         if let Some(menu) = &mut self.context_menu {
             menu.draw_target(self.canvas.buffer.draw_target(), &mut self.style, ctx);
         }
-        ctx.ui.redraw_all = false;
+        ctx.ui.paint_completed();
 
         // Fractional DPI can round the logical window to one physical pixel more
         // or less than the OS surface. Crop/pad the edge, never stretch the text.
@@ -957,7 +959,7 @@ impl TheUI {
                             } else if let Some(tree) = layout.as_tree_layout() {
                                 tree.new_item_selected(id.clone());
                                 self.is_dirty = true;
-                                ctx.ui.redraw_all = true;
+                                ctx.ui.invalidate_paint();
                             }
                         }
                     }
@@ -965,9 +967,9 @@ impl TheUI {
                         if let Some(layout) = self.canvas.get_layout(None, Some(&layout_id.uuid)) {
                             if let Some(tree) = layout.as_tree_layout() {
                                 tree.tree_node_state_changed(id.clone(), open);
-                                ctx.ui.relayout = true;
+                                ctx.ui.invalidate_layout();
                                 tree.set_dim(tree.dim().clone(), ctx);
-                                ctx.ui.relayout = false;
+                                ctx.ui.layout_completed();
                             }
                         }
                     }
@@ -991,8 +993,8 @@ impl TheUI {
                                 if stack.index() != index {
                                     stack.set_index(index);
                                     self.is_dirty = true;
-                                    ctx.ui.redraw_all = true;
-                                    ctx.ui.relayout = true;
+                                    ctx.ui.invalidate_paint();
+                                    ctx.ui.invalidate_layout();
                                 }
                             }
                         } else if let Some(layout) = self.canvas.get_layout(Some(&id.name), None) {
@@ -1000,8 +1002,8 @@ impl TheUI {
                                 if stack.index() != index {
                                     stack.set_index(index);
                                     self.is_dirty = true;
-                                    ctx.ui.redraw_all = true;
-                                    ctx.ui.relayout = true;
+                                    ctx.ui.invalidate_paint();
+                                    ctx.ui.invalidate_layout();
                                 }
                             }
                         }
@@ -1033,7 +1035,7 @@ impl TheUI {
                                 ctx.ui.clear_focus();
                                 ctx.ui.clear_hover();
                                 ctx.ui.clear_overlay();
-                                ctx.ui.redraw_all = true;
+                                ctx.ui.invalidate_paint();
                                 self.is_dirty = true;
                             }
                         }
@@ -1191,14 +1193,44 @@ impl TheUI {
         }
     }
 
+    /// The UI only needs time-based updates for actual pending work. Runtime
+    /// clocks and background producers supply their own application deadlines.
+    pub fn next_wake_after(&self, ctx: &TheContext) -> Option<Duration> {
+        let deadline = self
+            .hover_help
+            .as_ref()
+            .filter(|help| !help.visible)
+            .map(|help| self.hover_help_delay.saturating_sub(help.started_at.elapsed()));
+        // Legacy desktop file dialogs have a receiver rather than a host wake
+        // callback. Poll only for the lifetime of an actual queued/open dialog.
+        #[cfg(all(
+            feature = "desktop-dialogs",
+            any(target_os = "macos", target_os = "windows", target_os = "linux")
+        ))]
+        let deadline =
+            if ctx.ui.file_requester_receiver.is_some() || !ctx.ui.file_requests.is_empty() {
+                let poll = Duration::from_millis(50);
+                Some(deadline.map_or(poll, |due| due.min(poll)))
+            } else {
+                deadline
+            };
+        let _ = ctx;
+        deadline
+    }
+
     pub fn update(&mut self, ctx: &mut TheContext) -> bool {
         // Check if the result of an FileRequester is available, and if yes, send the result
         if let Some(rx) = &ctx.ui.file_requester_receiver {
-            let rc = rx.1.try_recv();
-            if let Ok(paths) = rc {
-                ctx.ui
-                    .send(TheEvent::FileRequesterResult(rx.0.clone(), paths));
-                ctx.ui.file_requester_receiver = None;
+            match rx.1.try_recv() {
+                Ok(paths) => {
+                    ctx.ui.send(TheEvent::FileRequesterResult(rx.0.clone(), paths));
+                    ctx.ui.file_requester_receiver = None;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    ctx.ui.send(TheEvent::FileRequesterResult(rx.0.clone(), Vec::new()));
+                    ctx.ui.file_requester_receiver = None;
+                }
+                Err(mpsc::TryRecvError::Empty) => (),
             }
         }
 
@@ -1626,7 +1658,7 @@ impl TheUI {
             ctx.ui.clear_focus();
             ctx.ui.clear_hover();
             ctx.ui.clear_overlay();
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             self.is_dirty = true;
             return true;
         }
@@ -2157,7 +2189,7 @@ impl TheUI {
         if let Some(widget) = self.get_widget_abs(Some(&name.to_string()), None) {
             widget.set_value(value);
             widget.set_needs_redraw(true);
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             true
         } else {
             false
@@ -2214,7 +2246,7 @@ impl TheUI {
         ctx.ui.clear_overlay();
 
         self.dialog = Some(canvas);
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         self.is_dirty = true;
     }
 
@@ -2233,7 +2265,7 @@ impl TheUI {
         ctx.ui.clear_hover();
         ctx.ui.clear_overlay();
         self.popover = Some(popover);
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         self.is_dirty = true;
     }
 
@@ -2243,7 +2275,7 @@ impl TheUI {
             ctx.ui.clear_focus();
             ctx.ui.clear_hover();
             ctx.ui.clear_overlay();
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
             self.is_dirty = true;
         }
     }

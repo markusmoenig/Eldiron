@@ -80,7 +80,7 @@ impl Action for RenderOrthographicBake {
             reference.set_dirty();
         }
         server_ctx.shared.background_progress = progress;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         ctx.ui.send(TheEvent::SetStatusText(
             TheId::empty(),
             fl!("status_bake_requested"),
@@ -157,7 +157,7 @@ impl Action for ToggleOrthographicBakeVisibility {
             Some(false) => fl!("status_bake_hidden"),
             None => fl!("status_bake_missing"),
         };
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
         None
     }
@@ -233,7 +233,7 @@ impl Action for ClearOrthographicBake {
         map.orthographic_bake = None;
         map.changed = map.changed.wrapping_add(1);
         server_ctx.shared.background_progress = None;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         ctx.ui.send(TheEvent::SetStatusText(
             TheId::empty(),
             fl!("status_bake_cleared"),

@@ -211,7 +211,7 @@ impl Files {
                     .ui
                     .send(TheEvent::SetStatusText(TheId::empty(), error));
             }
-            app.session.context.ui.redraw_all = true;
+            app.session.context.ui.invalidate_paint();
         }
     }
 }

@@ -653,7 +653,7 @@ impl Tool for LinedefTool {
             Activate => {
                 if let Some(layout) = ui.get_sharedhlayout("Shared Panel Layout") {
                     layout.set_mode(TheSharedHLayoutMode::Right);
-                    ctx.ui.relayout = true;
+                    ctx.ui.invalidate_layout();
                 }
 
                 server_ctx.shared.curr_map_tool_type = MapToolType::Linedef;
@@ -863,7 +863,7 @@ impl Tool for LinedefTool {
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
                         ));
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                         return None;
                     }
                 }
@@ -1029,7 +1029,7 @@ impl Tool for LinedefTool {
                         rusterix.set_dirty();
                         rusterix.set_overlay_dirty();
                     }
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     self.click_selected = true;
                     return None;
                 }
@@ -1420,7 +1420,7 @@ impl Tool for LinedefTool {
                         TheId::named("Tool Changed"),
                         TheValue::Empty,
                     ));
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                 }
             }
             MapClicked(coord) => {

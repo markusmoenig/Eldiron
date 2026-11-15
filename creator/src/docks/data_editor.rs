@@ -360,7 +360,7 @@ impl DataEditorDock {
                     source: source.clone(),
                 });
                 self.preview_frame = Some((source, frame));
-                ctx.ui.redraw_all = true;
+                ctx.ui.invalidate_paint();
             }
             view.set_paint_source(Some(self.preview_frame.as_ref().unwrap().1.clone()));
             return;

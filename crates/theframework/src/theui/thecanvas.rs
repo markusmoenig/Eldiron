@@ -167,7 +167,7 @@ impl TheCanvas {
 
     /// Set the dimension of the canvas
     pub fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
-        if dim != self.dim || ctx.ui.relayout || self.layout_dirty {
+        if dim != self.dim || ctx.ui.needs_layout() || self.layout_dirty {
             self.layout_dirty = false;
             self.dim = dim;
             if ctx.ui.command_paint {
@@ -621,7 +621,7 @@ impl TheCanvas {
             self.set_dim(self.dim, ctx);
         }
         if self.buffer.set_render_scale(ctx.ui_render_scale) {
-            ctx.ui.redraw_all = true;
+            ctx.ui.invalidate_paint();
         }
         if let Some(left) = &mut self.left {
             left.draw(style, ctx);
@@ -664,18 +664,18 @@ impl TheCanvas {
                 .layout
                 .as_mut()
                 .is_some_and(|layout| layout.needs_redraw());
-            let redraw_composite = ctx.ui.redraw_all
+            let redraw_composite = ctx.ui.needs_full_paint()
                 || (self.widget.is_some()
                     && self.layout.is_some()
                     && (widget_needs_redraw || layout_needs_redraw));
 
             if let Some(widget) = &mut self.widget {
-                if ctx.ui.redraw_all || widget_needs_redraw || redraw_composite {
+                if ctx.ui.needs_full_paint() || widget_needs_redraw || redraw_composite {
                     // println!(
                     //     "drawing widget id: {}, widget.needs_redraw: {:?}, ui.redraw_all {}, force_widget_redraw {}",
                     //     widget.id().name,
                     //     widget_needs_redraw,
-                    //     ctx.ui.redraw_all,
+                    //     ctx.ui.needs_full_paint(),
                     //     redraw_composite
                     // );
                     widget.draw(&mut self.buffer, style, ctx);
@@ -684,7 +684,7 @@ impl TheCanvas {
 
             if let Some(layout) = &mut self.layout {
                 // println!("drawing layout {}, {:?}", layout.id().name, layout.dim());
-                if ctx.ui.redraw_all || layout_needs_redraw || redraw_composite {
+                if ctx.ui.needs_full_paint() || layout_needs_redraw || redraw_composite {
                     //|| layout.widgets().is_empty() {
                     layout.draw(&mut self.buffer, style, ctx);
                 }

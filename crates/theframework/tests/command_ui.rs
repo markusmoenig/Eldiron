@@ -123,13 +123,13 @@ fn replacing_a_named_icon_retires_its_painted_identity_without_reuploading_idle_
         "a same-size named replacement cannot reuse the old themed texture"
     );
     assert_eq!(images.uploads, 2);
-    ctx.ui.redraw_all = false;
+    ctx.ui.paint_completed();
     ctx.ui.add_icon(
         "theme-icon".into(),
         TheRGBABuffer::from(vec![30, 30, 30, 255], 1, 1),
     );
     assert!(
-        !ctx.ui.redraw_all,
+        !ctx.ui.needs_full_paint(),
         "identical source publication keeps idle UI idle"
     );
     let repeated = paint_widget(&mut button, &mut ctx, &mut images);

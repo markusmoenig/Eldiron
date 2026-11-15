@@ -365,7 +365,7 @@ impl NodesDock {
         if self.branches_dirty {
             self.sync_branches(ui, ctx);
         }
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
     fn store(&mut self, project: &mut Project, checkpoint: bool, reference: &CreatorReference) {
         let Some(owner) = self.owner.clone() else {
@@ -1270,7 +1270,7 @@ impl Dock for NodesDock {
         sync_node_list(ui, ctx, server.shared.pc);
         if let Some(layout) = ui.get_hlayout("Node Graph Actions") {
             Self::populate_toolbar(layout, server.shared.pc == ProjectContext::GameRules);
-            ctx.ui.relayout = true;
+            ctx.ui.invalidate_layout();
         }
         self.tiles.refresh(project);
         let owner = Self::owner(server.shared.pc);

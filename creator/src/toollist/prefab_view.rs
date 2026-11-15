@@ -79,7 +79,7 @@ impl ToolList {
             TheId::named("Update Action List"),
             TheValue::Empty,
         ));
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
         true
     }
 }

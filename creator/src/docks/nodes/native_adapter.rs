@@ -229,14 +229,14 @@ impl NodesDock {
         if self.native_toolbar_scope != scope {
             if let Some(layout) = ui.get_hlayout("Node Graph Actions") {
                 Self::populate_toolbar(layout, false);
-                ctx.ui.relayout = true;
+                ctx.ui.invalidate_layout();
             }
             self.native_toolbar_scope = scope;
         }
         if self.branches_dirty {
             self.sync_branches(ui, ctx);
         }
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
     pub(super) fn activate_native(
         &mut self,

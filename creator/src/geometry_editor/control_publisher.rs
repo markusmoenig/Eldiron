@@ -305,7 +305,7 @@ impl Publisher {
             if let Some(form) = ui.get_text_layout(FORM) {
                 form.clear();
             }
-            ctx.ui.relayout = true;
+            ctx.ui.invalidate_layout();
             return;
         };
         let binding = kind(c);
@@ -442,7 +442,7 @@ impl Publisher {
                 }
             }
         }
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
     }
     fn parameter_list(&self, ui: &mut TheUI, ctx: &mut TheContext) {
         if let Some(list) = ui.get_list_layout("MZ Parameter Choices") {
@@ -476,7 +476,7 @@ impl Publisher {
                 }
             }
         }
-        ctx.ui.relayout = true;
+        ctx.ui.invalidate_layout();
     }
     fn open_parameter_picker(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         let Some(anchor) = ui
@@ -656,7 +656,7 @@ impl Publisher {
         if let Some(w) = ui.get_widget(SAVE) {
             w.set_disabled(self.error.is_some());
         }
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_paint();
     }
     fn canvas(&self) -> TheCanvas {
         let mut canvas = TheCanvas::new();
@@ -913,7 +913,7 @@ impl GeometryEditor {
                 match result {
                     Ok(()) => {
                         ui.clear_dialog();
-                        ctx.ui.relayout = true;
+                        ctx.ui.invalidate_layout();
                         return true;
                     }
                     Err(error) => {

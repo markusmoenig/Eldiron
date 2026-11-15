@@ -45,8 +45,8 @@ pub fn sync_workspace(ui: &mut TheUI, ctx: &mut TheContext) -> bool {
         }
     }
     if changed {
-        ctx.ui.relayout = true;
-        ctx.ui.redraw_all = true;
+        ctx.ui.invalidate_layout();
+        ctx.ui.invalidate_paint();
     }
     changed
 }
@@ -313,7 +313,7 @@ pub(super) fn sync_controls(editor: &GeometryEditor, ui: &mut TheUI, ctx: &mut T
     if let Some(s) = ui.get_stack_layout(CONTEXT) {
         if s.index() != index {
             s.set_index(index);
-            ctx.ui.relayout = true;
+            ctx.ui.invalidate_layout();
         }
     }
     set_choice(ui, "MZ Geometry Tool", editor.scene.tool);

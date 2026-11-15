@@ -203,7 +203,7 @@ impl Dock for TilemapDock {
                         tilemap.zoom += *delta * 0.05;
                         tilemap.zoom = tilemap.zoom.clamp(0.5, 5.0);
                         self.set_tilemap(tilemap, ui, ctx);
-                        ctx.ui.relayout = true;
+                        ctx.ui.invalidate_layout();
                     }
                 }
             }

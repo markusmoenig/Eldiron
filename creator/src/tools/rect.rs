@@ -312,13 +312,13 @@ impl Tool for RectTool {
                     map.changed = map.changed.wrapping_add(1);
                     map.curr_rectangle = None;
                     server_ctx.reference.write().set_dirty();
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     return None;
                 }
                 if map.camera == rusterix::MapCamera::TwoDIso && (c == ',' || c == '.') {
                     Self::rotate_brush(map, if c == ',' { -90. } else { 90. });
                     server_ctx.reference.write().set_dirty();
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     return None;
                 }
             }
@@ -334,7 +334,7 @@ impl Tool for RectTool {
                     self.hud_control_active = true;
                     Self::rotate_brush(map, delta);
                     server_ctx.reference.write().set_dirty();
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     return None;
                 }
 
@@ -348,7 +348,7 @@ impl Tool for RectTool {
                             coord.map(|v| v as f32),
                         );
                         server_ctx.reference.write().set_dirty();
-                        ctx.ui.redraw_all = true;
+                        ctx.ui.invalidate_paint();
                     }
                     return None;
                 }
@@ -374,7 +374,7 @@ impl Tool for RectTool {
                         }
                         .into(),
                     ));
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     server_ctx.reference.write().set_dirty();
                     return None;
                 }
@@ -408,7 +408,7 @@ impl Tool for RectTool {
                             "Click a painted tile to compose its materials.".into(),
                         ));
                     }
-                    ctx.ui.redraw_all = true;
+                    ctx.ui.invalidate_paint();
                     return None;
                 }
 
