@@ -302,8 +302,6 @@ impl SceneViews {
         #[cfg(target_arch = "wasm32")]
         let gpu_capture: Option<scenevm::PaintSurfaceBuffer> = None;
         let buffer = if let Some(buffer) = gpu_capture {
-            self.context
-                .record_capture(view.size.0 as u64 * view.size.1 as u64 * 32);
             buffer
         } else {
             vm.paint_surface_buffer(view.size.0, view.size.1)

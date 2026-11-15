@@ -96,6 +96,39 @@ fn surface_query_outputs_pin_targets_after_resize_and_scene_retirement() {
     drop(first);
     let expected = depth(&context, &small);
     assert!(expected.iter().any(|value| value.is_finite()));
+    let readback_before = context.transfers().readback_bytes;
+    // Authoring capture charges padded staging before allocation. Refusal leaves
+    // no retained storage or transfer, and retiring another job admits retry.
+    let padded = (size.0 * 16).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+        * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    let staging_bytes = u64::from(padded) * u64::from(size.1) * 2;
+    let occupied = context
+        .reserve_capture(context.capture_queue_usage().byte_limit - staging_bytes + 1)
+        .unwrap();
+    assert!(scene.paint_surface_buffer_gpu(size.0, size.1).is_none());
+    assert_eq!(context.transfers().readback_bytes, readback_before);
+    assert!(!scene.has_surface_readback_storage());
+    drop(occupied);
+    for request in 1..=2 {
+        let captured = scene.paint_surface_buffer_gpu(size.0, size.1).unwrap();
+        assert!(captured.pixels.iter().any(|pixel| pixel.valid));
+        for (pixel, expected) in captured.pixels.iter().zip(&expected) {
+            if pixel.valid {
+                assert!((pixel.depth - expected).abs() < 0.00001);
+                assert_eq!(pixel.geo_id, GeoId::Sector(1));
+            } else {
+                assert!(expected.is_infinite());
+            }
+        }
+        assert_eq!(context.capture_queue_usage().bytes, 0);
+        assert_eq!(context.capture_queue_usage().requests, 0);
+        assert!(!scene.has_surface_readback_storage());
+        assert_eq!(
+            context.transfers().readback_bytes,
+            readback_before + request * u64::from(size.0 * size.1) * 32
+        );
+    }
+    assert!(scene.paint_surface_buffer_gpu(u32::MAX, size.1).is_none());
     let larger = scene
         .render_surface_gpu(&context, (23, 11), SurfaceSelection::Static, 3)
         .unwrap();

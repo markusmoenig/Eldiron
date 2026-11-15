@@ -71,10 +71,8 @@ impl SceneVM {
         self.active_vm_mut()
             .surface_output(context, size, selection, revision)
     }
+    /// Surface staging is request-owned; the scene retains no readback storage.
     pub fn has_surface_readback_storage(&self) -> bool {
-        self.active_vm()
-            .gpu
-            .as_ref()
-            .is_some_and(|gpu| gpu.paint_surface_readback.is_some())
+        false
     }
 }

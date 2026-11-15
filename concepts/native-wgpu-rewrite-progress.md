@@ -15605,3 +15605,35 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Next: explicit paint-coordinate capture staging remains scene-retained and
   outside the shared capture queue. Give that storage request ownership and
   reserve padded bytes before allocation/submission; keep explicit CPU fallback.
+
+## Request-owned explicit paint-coordinate capture (2026-11-15)
+
+- Extracted the synchronous authoring capture into vm/surface_gpu/capture.rs.
+  Canonical requests reserve checked, row-padded staging bytes from the shared
+  device capture queue before allocation. A local staging owner destroys storage
+  on every success/error path; submitted work retains the reservation through
+  GPU completion. Scenes no longer retain any paint-query readback buffer.
+  Explicit noninjected reference requests also use local exclusive storage.
+- Captures record logical readback bytes at actual submission in SceneVM, so
+  budget refusal performs no readback and the presentation caller no longer
+  double-counts. CPU authoring fallback and browser policy are unchanged. Normal
+  frames and GPU-only surface queries still create no capture storage/readback.
+  The existing exact paint-group lookup now borrows its catalogue during decode.
+- Canonical four-application native release compile PASS23.68s:
+  /private/tmp/eldiron-paint-capture-owner-release-native.log. Focused release Metal
+  contract PASS0.08s, including exhausted padded-byte budget/retry, two captures,
+  exact depth/geometry identity, zero retained staging and overflow rejection:
+  /private/tmp/eldiron-paint-capture-owner-release-contract.log. Initial assertion
+  incorrectly expected zero total readback after the preceding explicit depth
+  request; corrected to compare that baseline (initial failure retained in
+  /private/tmp/eldiron-paint-capture-owner-release-contract-initial-failed.log).
+  Actual wasm release compilation in flight; broad acceptance remains deferred.
+- Next: isometric sprite/material/terrain-paint immutable GPU source storage still
+  allocates outside device working-buffer accounting. Move it to leases retained
+  by the actual immutable source owner, including after per-producer eviction;
+  preserve source formats and exact shader behavior. Synchronous cold source
+  packing remains a separate live-path budgeting item, not solved by pooling.
+
+- Actual wasm Creator browser-host release compilation PASS22.84s:
+  /private/tmp/eldiron-paint-capture-owner-release-wasm.log. All handles terminal;
+  proceed with isometric immutable source leases. No broad suite or benchmark.

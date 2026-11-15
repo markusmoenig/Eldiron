@@ -2,6 +2,7 @@
 use super::*;
 use crate::surface_output::{SurfaceOutput, SurfaceSelection};
 use renderkit::{GpuContext, RenderError, Result};
+mod capture;
 mod targets;
 
 impl VM {

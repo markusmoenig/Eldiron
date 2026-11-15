@@ -102,9 +102,6 @@ impl VM {
         gpu.paint_surface_targets = leases;
         gpu.paint_surface_normal_view = None;
         gpu.paint_surface_normal_tex = None;
-        // Only the explicit CPU query allocates staging storage.
-        gpu.paint_surface_readback = None;
-        gpu.paint_surface_readback_size = 0;
         gpu.paint_surface_tex_size = (width, height);
         Ok(())
     }
