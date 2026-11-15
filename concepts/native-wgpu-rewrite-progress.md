@@ -18753,3 +18753,31 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   original vertex bits/order and all paint/secondary fields. No persistent source
   key or shader change. Verify existing terrain/paint integrations and measure
   native again before retaining. Then new-cache browser/launcher acceptance.
+
+- Cell source reuse now implemented in producer/terrain_sources.rs only for one
+  preparation. Exact integer cell -> prepared material/secondary/paint template;
+  each original triangle's vertex bits and original sequence are preserved.
+  Missing selections are memoized only within this call. No persistent key,
+  pixel arithmetic, GPU binding layout, format, or source revision policy changed.
+- Current source11587terminalPASS: lib5/5, original11/11 integrations, assembled
+  Creator1/1 in24.03s (all original source/DPI/authoring/receipt assertions).
+  /private/tmp/eldiron-release-terrain-cell-sources-{lib,integrations,creator}.log.
+  Two fresh native120-per-mode measurements now follow, log:
+  /private/tmp/eldiron-release-terrain-cell-sources-native.log. Retain only if
+  actual results support the improvement; browser and all fresh launcher builds
+  follow once this implementation decision is settled. HEADed6dd80f is verified
+  bounded ground residency; cell reuse remains uncommitted.
+
+- Cell reuse87159terminalPASS2fresh120-per-mode runs. Pan CPUpaint P50
+  29.73/29.62ms vs pre-cell31.94ms, total34.23/34.11ms; hoverP99
+  31.38/31.51ms. Keep preparation-local optimization. Actual cache reservation
+  unchanged55,359,080B and retired after camera movement; normal readback delta0.
+  Idle CPUpaint remains3.48/3.47ms; total idle median10.4ms includes4.53ms
+  completion-poll wait versus previous3.03ms, so no uniform improvement claim.
+  Matched CPU pan~26.6-27ms and zoom tails still outperform native. GPU-completion
+  waits are CPU fence timings, not GPU timestamps/physical input latency.
+  Durable release-terrain-cell-sources-contracts.json and two raw120sampleJSONs.
+- Source implementation decision settled: retain bounded ground plus local
+  source templates, continue actual current browser validation and refresh all
+  canonical release launchers. Physical platform/IME/monitor and final
+  performance gates remain open. Full goal is not complete.

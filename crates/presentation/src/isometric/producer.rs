@@ -26,6 +26,7 @@ use scenevm::{
 use std::{collections::HashMap, sync::Arc};
 mod frame_sources;
 mod ground_cache;
+mod terrain_sources;
 pub(crate) use frame_sources::IsometricFrameSources;
 pub use ground_cache::GroundCacheUsage;
 
@@ -205,24 +206,16 @@ impl IsometricSceneRenderer {
             let mut triangles = Vec::new();
             model.triangles(visible, |t| triangles.push(t));
             let mut surfaces = Vec::new();
+            let mut sources = terrain_sources::CellSources::default();
             for t in triangles {
                 let center = (t[0] + t[1] + t[2]) / 3.;
                 let cell = [center.x.floor() as i32, center.z.floor() as i32];
-                let Some(selected) = policy.cell((cell[0], cell[1])) else {
-                    continue;
-                };
-                surfaces.push(self.prepare_surface(
-                    input,
-                    selected,
-                    plan.material_frame,
-                    cell,
+                if let Some(surface) = sources.prepare(
+                    self, input, &policy, plan.material_frame, cell,
                     t.map(|v| v.into_array()),
-                    SurfaceKind::Terrain,
-                    true,
-                    [0.; 4],
-                    false,
-                    true,
-                )?);
+                )? {
+                    surfaces.push(surface);
+                }
             }
             ground.push(Command::Surface(surfaces));
         } else {
@@ -559,6 +552,7 @@ enum Command {
     Surface(Vec<PreparedSurface>),
     Sprite(PreparedSprite),
 }
+#[derive(Clone)]
 struct PreparedSurface {
     vertices: [[f32; 3]; 3],
     source: Arc<GpuMaterialSource>,

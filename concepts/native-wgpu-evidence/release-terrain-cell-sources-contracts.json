@@ -1,0 +1,119 @@
+{
+  "scope": "Release preparation-local terrain source reuse, no new persistent cache or pixel arithmetic",
+  "contracts": {
+    "isometric_lib": 5,
+    "original_integrations": 11,
+    "assembled_creator": 1,
+    "assembled_seconds": 24.03
+  },
+  "runs": [
+    {
+      "repeat": 1,
+      "frame_ms": {
+        "hover": {
+          "mean": 14.219525708333338,
+          "p50": 9.474667,
+          "p95": 30.249624999999998,
+          "p99": 31.378916999999998
+        },
+        "idle": {
+          "mean": 10.457981599999998,
+          "p50": 10.405,
+          "p95": 11.213625,
+          "p99": 29.654417
+        },
+        "pan": {
+          "mean": 34.17351455000001,
+          "p50": 34.227792,
+          "p95": 36.560167,
+          "p99": 37.400041
+        },
+        "zoom": {
+          "mean": 25.511845850000004,
+          "p50": 24.257417,
+          "p95": 53.646583,
+          "p99": 55.347125
+        }
+      },
+      "paint_p50_ms": {
+        "hover": 3.740875,
+        "idle": 3.481291,
+        "pan": 29.726917,
+        "zoom": 12.510917
+      },
+      "peak_process_rss_bytes": 3253960704,
+      "normal_color_readback_delta": 0,
+      "cache_before": {
+        "byte_limit": 67108864,
+        "peak_reserved_bytes": 55359080,
+        "rejected_requests": 0,
+        "requests": 1,
+        "reservations": 1,
+        "reserved_bytes": 55359080
+      },
+      "cache_after": {
+        "byte_limit": 67108864,
+        "peak_reserved_bytes": 55359080,
+        "rejected_requests": 0,
+        "requests": 2,
+        "reservations": 1,
+        "reserved_bytes": 22237800
+      }
+    },
+    {
+      "repeat": 2,
+      "frame_ms": {
+        "hover": {
+          "mean": 14.347471883333338,
+          "p50": 9.434292000000001,
+          "p95": 29.859375,
+          "p99": 31.506791
+        },
+        "idle": {
+          "mean": 10.516267349999994,
+          "p50": 10.388833,
+          "p95": 10.873375,
+          "p99": 29.601125
+        },
+        "pan": {
+          "mean": 34.25149898333334,
+          "p50": 34.108292,
+          "p95": 36.559542,
+          "p99": 38.603166
+        },
+        "zoom": {
+          "mean": 25.744240274999992,
+          "p50": 24.285042,
+          "p95": 53.663542,
+          "p99": 56.219541
+        }
+      },
+      "paint_p50_ms": {
+        "hover": 3.714959,
+        "idle": 3.470208,
+        "pan": 29.618667000000002,
+        "zoom": 12.694749999999999
+      },
+      "peak_process_rss_bytes": 3285221376,
+      "normal_color_readback_delta": 0,
+      "cache_before": {
+        "byte_limit": 67108864,
+        "peak_reserved_bytes": 55359080,
+        "rejected_requests": 0,
+        "requests": 1,
+        "reservations": 1,
+        "reserved_bytes": 55359080
+      },
+      "cache_after": {
+        "byte_limit": 67108864,
+        "peak_reserved_bytes": 55359080,
+        "rejected_requests": 0,
+        "requests": 2,
+        "reservations": 1,
+        "reserved_bytes": 22237800
+      }
+    }
+  ],
+  "assessment": "Panning CPU paint median about29.6-29.7ms versus31.9ms before cell reuse; total pan about34.1-34.2ms. Hover p99 about31.4-31.5ms. Idle median10.4ms includes4.53ms GPU-completion polling versus prior3.03ms; CPU paint remains about3.48ms. Do not claim uniform speedup or physical latency. Pan and zoom tails remain open.",
+  "limits": "Actual new-cache browser/mobile and fresh launcher acceptance pending; source bit/order/paint/blend assertions unchanged."
+}
