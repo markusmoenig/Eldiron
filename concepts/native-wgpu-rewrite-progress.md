@@ -18452,3 +18452,50 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   pan/zoom. This sample has verbose isometric tracing+external guard, not final
   timing; still slower than CPU28.00/41.19 pan/zoom in previous matched pilot.
   Need uninstrumented longer matched runs; no all-app speedup claim.
+
+- Owned sample51790terminalPASS, owned8835/13.07s/peak3228418048B. CPU sample
+  /private/tmp/eldiron-isometric-coalesced-sampled-native.sample.txt is excluded
+  from timing acceptance. Remaining surface append includes substantial metadata
+  packing and queue.write_buffer copying (51 samples in one payload write),
+  alongside command encoding/bind-group state; pass creation is no longer the
+  dominant single stack.
+- Next source optimization now stores typed176B CPU Params instead of a zeroed
+  256B-aligned CPU arena; aligned slots are allocated only for individual fallback.
+  Batch metadata uploads only dispatched records, remaps triangle indices to
+  compact record slots, preserves all mask offsets and every wave/dispatch order.
+  Byte storage copies complete POD records, avoiding per-word pack iteration.
+  ALL triangles, including offscreen, still undergo original source/domain/
+  geometry/normal/mask/size validation before any GPU write. No source pixels,
+  projection/f32 math, ordering or device limits changed.
+- Added a valid leading offscreen triangle to the frozen exactness fixture, so
+  compact index0 cannot accidentally read original triangle0. Current sole
+  release GPU handle35837 /private/tmp/eldiron-release-compact-surface-exactness.log.
+  Next original isometric integrations then current Creator/runtime pilot; no
+  additional timing/upload reduction claim before actual results. Current source
+  metadata change is uncommitted; HEADc9cdb4e7 is last verified checkpoint.
+
+- Compacted35837terminalPASS4/4 frozen/ordering/input tests; serialized65155
+  then terminalPASS original11/11 isometric integrations and full Creator1/1
+  (23.97s; release rebuild1m08s). Original masks/materials/clamp/blends/height/
+  protection/revision/source/invalid-input assertions retained. Logs
+  /private/tmp/eldiron-release-compact-{surface-exactness,isometric-integrations,creator-assembled}.log.
+- Current compact pilot3182terminalPASS11.93s/owned9345,peak3286269952B, normal
+  color-readback delta0. Warm source upload419637988B/120frames versus676304116B
+  previous coalesced pilot (~38%lower). New p50 idle8.91/hover9.42/pan37.62/
+  zoom48.68ms. Previous pilot had verbose surface tracing; do not attribute
+  small timing differences solely to compaction or claim final performance.
+- Strengthened frozen GPU contract with a third batch run removing the valid
+  invisible prefix: requires identical ALLRGBA AND identical actual uploaded-byte
+  delta with/without the offscreen triangle, across every frozen source setting.
+  Current sole release GPU handle90240:
+  /private/tmp/eldiron-release-compact-active-upload-contract.log. Then checkpoint
+  metadata change and proceed remaining Creator/player and browser/Apple release
+  acceptance before final longer matched timings.
+
+- Recovered compact upload contract90240: log confirms terminalPASS1/1 in0.21s;
+  no live process remains. Frozen individual/batched ALLRGBA and identical actual
+  uploads with/without valid invisible prefix pass. Durable evidence:
+  release-compact-surface-contracts.json and release-unending-compact-native.{json,png}.
+  Overall estimate remains roughly85%, not a measured acceptance fraction.
+  Next current ordinary Creator and common-player release acceptance, then latest
+  browser/Apple and uninstrumented longer matched performance. Goal remains open.

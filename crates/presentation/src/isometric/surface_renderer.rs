@@ -257,14 +257,14 @@ impl IsometricSurfaceRenderer {
             .ok_or_else(|| RenderError("isometric surface masks exceed device limits".into()))?;
         #[cfg(not(target_arch = "wasm32"))]
         if std::env::var_os("ELDIRON_PROFILE_ISOMETRIC").is_some() {
-            eprintln!("Isometric surface work: triangles={} terrain={} arena_bytes={size} mask_words={mask_count}; registry={:?}",
-                triangles.len(), triangles.iter().filter(|t| t.kind == SurfaceKind::Terrain).count(), self.context.instance.generate_report());
+            eprintln!("Isometric surface work: triangles={} terrain={} record_bytes={} legacy_arena_bytes={size} mask_words={mask_count}; registry={:?}",
+                triangles.len(), triangles.iter().filter(|t| t.kind == SurfaceKind::Terrain).count(), triangles.len() * std::mem::size_of::<Params>(), self.context.instance.generate_report());
         }
         let mut masks = Vec::<u32>::with_capacity(mask_count.max(1) as usize);
-        let mut bytes = vec![0u8; size as usize];
+        let mut records = Vec::<Params>::with_capacity(triangles.len());
         let mut regions = Vec::with_capacity(triangles.len());
         let (width, height) = canvas.size();
-        for (i, t) in triangles.iter().enumerate() {
+        for t in triangles {
             if t.paint
                 .is_some_and(|p| p.device_generation() != self.context.generation())
                 || t.source.device_generation() != self.context.generation()
@@ -356,17 +356,23 @@ impl IsometricSurfaceRenderer {
                 ],
                 cell,
             };
-            let start = i * self.stride as usize;
-            bytes[start..start + std::mem::size_of::<Params>()]
-                .copy_from_slice(bytemuck::bytes_of(&params));
+            records.push(params);
         }
         if masks.is_empty() {
             masks.push(0);
         }
         let waves = super::surface_waves::floor_waves(triangles, &regions)
             .unwrap_or_else(|| super::surface_order::waves(&regions, canvas.size()));
-        if allow_batch && batch::append(self, canvas, triangles, &bytes, &masks, &regions, &waves)? {
+        if allow_batch && batch::append(self, canvas, triangles, &records, &masks, &regions, &waves)? {
             return Ok(());
+        }
+        // Only the individual fallback needs dynamically aligned uniform slots.
+        // Normal batched work keeps tightly packed typed records on the CPU.
+        let mut bytes = vec![0u8; size as usize];
+        for (i, params) in records.iter().enumerate() {
+            let start = i * self.stride as usize;
+            bytes[start..start + std::mem::size_of::<Params>()]
+                .copy_from_slice(bytemuck::bytes_of(params));
         }
         let mask_bytes = bytemuck::cast_slice(&masks);
         if size > self.capacity {

@@ -73,7 +73,7 @@ fn batched_surface_parameters_match_individual_gpu_draws_at_fractional_large_wor
     }
     for kind in [SurfaceKind::Terrain, SurfaceKind::Floor] {
         for repeat in [true, false] {
-            let draws = vertices
+            let mut draws = vertices
                 .iter()
                 .map(|v| SurfaceTriangle {
                     vertices: if kind == SurfaceKind::Floor {
@@ -91,6 +91,26 @@ fn batched_surface_parameters_match_individual_gpu_draws_at_fractional_large_wor
                     contacts: SpriteContacts::default(),
                 })
                 .collect::<Vec<_>>();
+            // A leading invisible record must not shift any compact GPU record
+            // lookup. Keep it valid so the individual reference validates it too.
+            draws.insert(
+                0,
+                SurfaceTriangle {
+                    vertices: [
+                        [10000., 0., 10000.],
+                        [10001., 0., 10000.],
+                        [10001., 0., 10001.],
+                    ],
+                    source: &secondary,
+                    secondary: None,
+                    paint: None,
+                    kind,
+                    repeat,
+                    uv_bounds: [9999., 9999., 10002., 10002.],
+                    clip_cell: None,
+                    contacts: SpriteContacts::default(),
+                },
+            );
             let mut raster = IsometricSurfaceRenderer::new(gpu.clone()).unwrap();
             let mut blitter = IsometricBlitter::new(gpu.clone()).unwrap();
             let mut output = IsometricRenderer::new(gpu.clone()).unwrap();
@@ -109,12 +129,20 @@ fn batched_surface_parameters_match_individual_gpu_draws_at_fractional_large_wor
                 };
                 let light = lighting.gpu_parameters(projection, (160, 120), &[], false, 0);
                 let mut images = Vec::new();
-                for batched in [false, true] {
+                let mut uploads = Vec::new();
+                for (batched, without_offscreen) in [(false, false), (true, false), (true, true)] {
                     let canvas = IsometricCanvas::new(&gpu, 160, 120).unwrap();
                     blitter.render(&canvas, [17, 34, 29, 255], &[]).unwrap();
+                    let before = gpu.transfers().uploaded_bytes;
                     raster
-                        .append_impl(&canvas, projection, &draws, batched)
+                        .append_impl(
+                            &canvas,
+                            projection,
+                            &draws[usize::from(without_offscreen)..],
+                            batched,
+                        )
                         .unwrap();
+                    uploads.push(gpu.transfers().uploaded_bytes - before);
                     let image = output
                         .render(
                             &canvas,
@@ -155,6 +183,14 @@ fn batched_surface_parameters_match_individual_gpu_draws_at_fractional_large_wor
                 assert_eq!(
                     changed, 0,
                     "kind={kind:?} repeat={repeat} unit={unit} changed_channels={changed} max_delta={max}"
+                );
+                assert!(
+                    images[1] == images[2],
+                    "removing an offscreen input must preserve all RGBA"
+                );
+                assert_eq!(
+                    uploads[1], uploads[2],
+                    "offscreen records must consume no GPU upload bytes"
                 );
             }
         }

@@ -40,7 +40,7 @@ pub(super) fn append(
     renderer: &mut IsometricSurfaceRenderer,
     canvas: &IsometricCanvas,
     triangles: &[SurfaceTriangle<'_>],
-    params: &[u8],
+    params: &[Params],
     masks: &[u32],
     regions: &[[i32; 4]],
     waves: &[Vec<usize>],
@@ -54,8 +54,7 @@ pub(super) fn append(
     )
     .min(renderer.context.device.limits().max_buffer_size);
     let active = waves.iter().map(Vec::len).sum::<usize>();
-    let words = triangles
-        .len()
+    let words = active
         .checked_mul(WORDS)
         .and_then(|n| n.checked_add(masks.len()))
         .and_then(|n| n.checked_add(active));
@@ -65,17 +64,16 @@ pub(super) fn append(
     if active == 0 {
         return Ok(true);
     }
-    let mut storage = Vec::<u32>::with_capacity(words.unwrap());
-    for index in 0..triangles.len() {
-        let start = index * renderer.stride as usize;
-        storage.extend(
-            params[start..start + WORDS * 4]
-                .chunks_exact(4)
-                .map(|b| u32::from_ne_bytes(b.try_into().unwrap())),
-        );
+    let mut storage = Vec::<u8>::with_capacity(words.unwrap() * 4);
+    let mut record_index = vec![0u32; triangles.len()];
+    // Upload only dispatched records, in wave order. Offscreen inputs were
+    // still fully validated by append_impl; they consume no GPU parameter space.
+    for &index in waves.iter().flatten() {
+        record_index[index] = (storage.len() / (WORDS * 4)) as u32;
+        storage.extend_from_slice(bytemuck::bytes_of(&params[index]));
     }
-    let mask_base = storage.len() as u32;
-    storage.extend_from_slice(masks);
+    let mask_base = (storage.len() / 4) as u32;
+    storage.extend_from_slice(bytemuck::cast_slice(masks));
     let max_groups = renderer
         .context
         .device
@@ -108,8 +106,10 @@ pub(super) fn append(
         let start = dispatches.len();
         for (key, indices) in groups {
             for indices in indices.chunks(max_groups as usize) {
-                let first = storage.len() as u32;
-                storage.extend(indices.iter().map(|i| *i as u32));
+                let first = (storage.len() / 4) as u32;
+                for &index in indices {
+                    storage.extend_from_slice(&record_index[index].to_ne_bytes());
+                }
                 dispatches.push(Dispatch {
                     triangle: indices[0],
                     first,
@@ -131,7 +131,7 @@ pub(super) fn append(
             0u32,
         ]));
     }
-    let metadata = bytemuck::cast_slice(&storage);
+    let metadata = storage.as_slice();
     if uniform_bytes > renderer.capacity {
         renderer.params = IsometricSurfaceRenderer::buffer(&renderer.context, uniform_bytes, true)?;
         renderer.capacity = uniform_bytes;

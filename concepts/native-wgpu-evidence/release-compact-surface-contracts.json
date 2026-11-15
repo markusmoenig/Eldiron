@@ -1,0 +1,41 @@
+{
+  "scope": "Release compact active isometric surface metadata contracts and guarded 30-sample native diagnostic",
+  "contracts": [
+    {
+      "name": "Frozen individual/batched pixels, ordering and input validation",
+      "passed": 4,
+      "log": "/private/tmp/eldiron-release-compact-surface-exactness.log"
+    },
+    {
+      "name": "Original isometric integrations",
+      "passed": 11,
+      "log": "/private/tmp/eldiron-release-compact-isometric-integrations.log"
+    },
+    {
+      "name": "Full assembled Creator",
+      "passed": 1,
+      "seconds": 23.97,
+      "log": "/private/tmp/eldiron-release-compact-creator-assembled.log"
+    },
+    {
+      "name": "Frozen all-RGBA and actual upload-byte equality with/without invisible prefix",
+      "passed": 1,
+      "seconds": 0.21,
+      "log": "/private/tmp/eldiron-release-compact-active-upload-contract.log"
+    }
+  ],
+  "diagnostic": {
+    "normal_color_readback_delta": 0,
+    "warm_source_uploaded_bytes": 419637988,
+    "warm_frames": 120,
+    "previous_coalesced_uploaded_bytes": 676304116,
+    "p50_ms": {
+      "idle": 8.913,
+      "hover": 9.417,
+      "pan": 37.618,
+      "zoom": 48.682
+    },
+    "peak_process_rss_bytes": 3286269952
+  },
+  "limits": "Guarded 30 samples per mode, not final p99 or physical latency. Previous diagnostic had verbose tracing, so timing deltas are not attributed solely to compaction. Pan/zoom remain slower than the CPU reference."
+}
