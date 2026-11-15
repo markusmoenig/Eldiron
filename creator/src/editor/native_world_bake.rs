@@ -537,7 +537,7 @@ impl Editor {
         region.editing_position_iso_3d = Some(center);
         self.server_ctx.camera.iso_camera.scale = 5. * span;
         region.map.changed = region.map.changed.wrapping_add(1);
-        assert!(supported(asset));
+        assert!(asset.tile_size > 0);
         assert!(
             u64::from(asset.tile_size).pow(2) * 24 * asset.tiles.len() as u64 > 64 * 1024 * 1024
         );

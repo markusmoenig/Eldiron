@@ -30,6 +30,8 @@ pub(super) struct Browser {
     query: String,
     category: usize,
     error: Option<String>,
+    #[cfg(feature = "native-render")]
+    pub(super) native_preview: Option<std::sync::Arc<super::native_dialog_preview::Request>>,
 }
 
 pub(super) fn bundled() -> Vec<Entry> {
@@ -177,6 +179,8 @@ impl Browser {
             query: String::new(),
             category: 0,
             error: None,
+            #[cfg(feature = "native-render")]
+            native_preview: None,
         }
     }
     fn visible(&self, entry: &Entry) -> bool {
@@ -298,26 +302,36 @@ impl Browser {
                 }
             }
         }
-        let image = self
+        let value = self
             .draft
             .as_ref()
             .map(|doc| {
                 let doc = shared::appearance_assets::resolve_dependencies(project, doc)?;
                 let evaluation = doc.evaluate().map_err(|e| e.to_string())?;
-                Ok::<_, String>(presentation::thumbnail(
-                    &Value::Mesh(evaluation.mesh),
-                    &project.palette,
-                    &TheDarkTheme::new(),
-                ))
+                Ok::<_, String>(Value::Mesh(evaluation.mesh))
             })
             .transpose();
-        let image = match image {
-            Ok(image) => image,
+        let value = match value {
+            Ok(value) => value,
             Err(error) => {
                 self.error = Some(error);
                 None
             }
         };
+        #[cfg(feature = "native-render")]
+        if ctx.ui.command_paint {
+            self.native_preview =
+                Some(std::sync::Arc::new(super::native_dialog_preview::Request {
+                    value,
+                    palette: project.palette.clone(),
+                    max_side: 256,
+                }));
+            super::native_dialog_preview::pending(ui, VIEW);
+            self.update_error(ui, ctx);
+            return;
+        }
+        let image = value
+            .map(|value| presentation::thumbnail(&value, &project.palette, &TheDarkTheme::new()));
         if let Some(view) = ui.get_render_view(VIEW) {
             let dim = *view.dim();
             let width = dim.width.max(1);
@@ -334,6 +348,9 @@ impl Browser {
                 );
             }
         }
+        self.update_error(ui, ctx);
+    }
+    fn update_error(&self, ui: &mut TheUI, ctx: &mut TheContext) {
         if let Some(w) = ui.get_widget(CREATE) {
             w.set_disabled(
                 self.draft.is_none() || self.error.is_some() || self.name.trim().is_empty(),

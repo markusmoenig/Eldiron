@@ -42,6 +42,8 @@ pub(super) struct Publisher {
     parameter_query: String,
     picker_reference: bool,
     error: Option<String>,
+    #[cfg(feature = "native-render")]
+    pub(super) native_preview: Option<std::sync::Arc<super::native_dialog_preview::Request>>,
 }
 
 fn kind(c: &Control) -> usize {
@@ -257,6 +259,8 @@ impl Publisher {
             parameter_query: String::new(),
             picker_reference: false,
             error: None,
+            #[cfg(feature = "native-render")]
+            native_preview: None,
         })
     }
     fn candidate(&self) -> Result<Document, String> {
@@ -632,6 +636,20 @@ impl Publisher {
             .and_then(|doc| shared::appearance_assets::resolve_dependencies(project, &doc))
             .and_then(|doc| doc.evaluate().map_err(|e| e.to_string()));
         self.error = evaluation.as_ref().err().cloned();
+        #[cfg(feature = "native-render")]
+        if ctx.ui.command_paint {
+            self.native_preview =
+                Some(std::sync::Arc::new(super::native_dialog_preview::Request {
+                    value: evaluation
+                        .ok()
+                        .map(|evaluation| Value::Mesh(evaluation.mesh)),
+                    palette: project.palette.clone(),
+                    max_side: 200,
+                }));
+            super::native_dialog_preview::pending(ui, VIEW);
+            self.update_error(ui, ctx);
+            return;
+        }
         if let Some(view) = ui.get_render_view(VIEW) {
             let dim = *view.dim();
             let (w, h) = (dim.width.max(1), dim.height.max(1));
@@ -648,6 +666,9 @@ impl Publisher {
                 buffer.copy_into((w - side) / 2, (h - side) / 2, &image.scaled(side, side));
             }
         }
+        self.update_error(ui, ctx);
+    }
+    fn update_error(&self, ui: &mut TheUI, ctx: &mut TheContext) {
         if let Some(w) = ui.get_widget("MZ Control Error") {
             w.set_value(TheValue::Text(self.error.clone().unwrap_or_else(|| {
                 "Changes are applied only when you save.".into()

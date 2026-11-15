@@ -16249,3 +16249,54 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Existing native_thumbnails GPU renderer already implements that card policy.
   Keep source ownership with GeometryEditor/native_host, retire registry handles
   when dialogs close, and rebuild from CPU requests on device replacement.
+
+## Modal geometry display adapter conversion, in progress (2026-11-15)
+
+- Control publisher and recipe browser now freeze evaluated values/palette into
+  native requests before calling CPU thumbnail()/render_buffer_mut(). Geometry
+  host owns shared-context card production, fitted output registry retirement,
+  unchanged-request reuse, close-time cleanup and device-domain reconstruction.
+  Reference mode retains existing CPU display behavior. No serialized data change.
+- Initial Creator native release check passed27.40s:
+  /private/tmp/eldiron-dialog-previews-release-native-initial.log. Initial focused
+  test compilation found an overlooked unqualified supported(asset) call in the
+  old native_world_bake test after its guard removal; replaced with positive
+  original tile_size assertion. Float density annotation corrected separately.
+- Focused release modal controllers PASS (no authored catalogue changes or CPU
+  view display storage); original64px GPU card matches reference bytes exactly.
+  Initial fitting contract FAILED delta133: SpriteImage floors source coordinates,
+  whereas CPU scaled() rounds then flattens the pixel index. This is an ordinary
+  implementation mismatch, not a permission/external blocker. No acceptance
+  relaxed. Log /private/tmp/eldiron-dialog-previews-release-contracts.log.
+- Replaced sprite fitting with retained GPU compute fitting that preserves source
+  coordinate rounding, row carry and out-of-range transparency before composing
+  the full logical modal viewport. Output carries a target-pool lease; immutable
+  fitting uniforms use the context cache. Original64px card survives resize;
+  fitted output changes only for a new value or logical size. No display readback.
+  Focused release Metal contracts currently running, handle57656/log
+  /private/tmp/eldiron-dialog-previews-release-contracts-fitted.log. Do not edit
+  Rust until this handle is terminal. Tests cover83px,200px cap and40px shrink,
+  density1/1.5, registry lifetime and device recovery. Broad tests deferred.
+- Next real adapter identified: recipe_browser::filter still creates CPU bitmap
+  list icons even in command_paint. Add backend-neutral native icon handles to
+  TheListItem, retain recipe evaluated sources/icons in the geometry host, publish
+  only to matching visible item identities, and retire on filter/close/recovery.
+  Preserve existing40px first-stage scaling and list-widget Linear fitting.
+- Fitting resolution: focused Metal release contracts PASS2/2,0.34s
+  (build1m06s), /private/tmp/eldiron-dialog-previews-release-contracts-fitted.log.
+  Exact fitted RGBA bytes across83px/200px cap/40px shrink; full GPU composition
+  differs by at most1 byte at density1/1.5. Same original card survives resize;
+  warmed source reuses allocations/handle; replaced images remain alive through
+  held consumer Arcs, then retire; new device rebuilds from original CPU request.
+  Handle57656 terminal. Final cleanup also detaches an extant view's source when
+  its request disappears. Canonical native compile check now running handle8710,
+  /private/tmp/eldiron-dialog-previews-release-native-final.log. Browser next.
+- Final canonical four-application native release compile PASS12.53s:
+  /private/tmp/eldiron-dialog-previews-release-native-final.log. Actual Creator
+  browser-host wasm release compile PASS11.59s:
+  /private/tmp/eldiron-dialog-previews-release-wasm.log. Explicit reference-only
+  Creator release compile PASS34.74s:
+  /private/tmp/eldiron-dialog-previews-release-reference.log. All handles terminal.
+  Current modal conversion is ready for local checkpoint; recipe list icon
+  conversion follows. Broad acceptance/performance remains deferred and M0–M9
+  is not complete. No approval or input blocker.

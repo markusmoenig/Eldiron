@@ -11,7 +11,7 @@ use std::{
 use theframework::paint::Rect;
 use theframework::{paint::*, render_wgpu::PaintRenderer};
 use wgpu::util::DeviceExt;
-const SIDE: u32 = 64;
+pub(super) const SIDE: u32 = 64;
 const MAX_IMAGES: usize = 8192; // 128 MiB of immutable visible RGBA outputs.
 struct Vertex {
     position: [f32; 3],
@@ -173,14 +173,14 @@ fn plan(
 // A small tiled GPU raster pass retains the reference's raw f32 depth and
 // triangle order. Normalized hardware depth loses low bits on coplanar faces.
 // CPU work bins triangle bounds, not pixels; each GPU lane owns one output pixel.
-struct Renderer {
+pub(super) struct Renderer {
     context: Arc<GpuContext>,
     paint: PaintRenderer,
     pipeline: wgpu::ComputePipeline,
     layout: wgpu::BindGroupLayout,
 }
 impl Renderer {
-    fn new(context: Arc<GpuContext>) -> Result<Self, String> {
+    pub(super) fn new(context: Arc<GpuContext>) -> Result<Self, String> {
         let mut entries = Vec::new();
         for binding in 0..=2 {
             entries.push(wgpu::BindGroupLayoutEntry {
@@ -279,6 +279,16 @@ fn main(@builtin(global_invocation_id) id:vec3<u32>) {
             pipeline,
             layout,
         })
+    }
+    pub(super) fn render_value(
+        &mut self,
+        value: &Value,
+        palette: &ThePalette,
+        theme: &dyn TheTheme,
+        text: &mut theframework::text::TextSystem,
+        images: &ImageRegistry,
+    ) -> Result<Arc<GpuImage>, String> {
+        self.render(&plan(value, palette, theme, text), images)
     }
     fn render(&mut self, plan: &Plan, images: &ImageRegistry) -> Result<Arc<GpuImage>, String> {
         if self.context.is_lost() {

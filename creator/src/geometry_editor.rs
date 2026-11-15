@@ -28,6 +28,8 @@ mod native_host;
 #[cfg(feature = "native-render")]
 mod native_thumbnails;
 #[cfg(feature = "native-render")]
+mod native_dialog_preview;
+#[cfg(feature = "native-render")]
 mod baked_preview;
 #[cfg(feature = "native-render")]
 pub(crate) use native_host::PreviewToken;

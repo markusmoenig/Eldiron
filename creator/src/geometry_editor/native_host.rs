@@ -73,6 +73,8 @@ pub(super) struct Host {
     pub error: Option<String>,
     pub thumbnails: super::native_thumbnails::Cache,
     pub thumbnail_palette: ThePalette,
+    recipe_preview: super::native_dialog_preview::Preview,
+    controls_preview: super::native_dialog_preview::Preview,
     owner: u64,
     serial: u64,
     registry: Option<u64>,
@@ -93,6 +95,8 @@ impl Default for Host {
             error: None,
             thumbnails: Default::default(),
             thumbnail_palette: Default::default(),
+            recipe_preview: Default::default(),
+            controls_preview: Default::default(),
             owner: theframework::paint::new_receipt_owner(),
             serial: 0,
             registry: None,
@@ -163,6 +167,24 @@ impl GeometryEditor {
         ctx: &mut TheContext,
         images: &mut ImageRegistry,
     ) -> Result<Option<PreviewToken>, String> {
+        self.native.recipe_preview.prepare(
+            self.recipe_browser
+                .as_ref()
+                .and_then(|browser| browser.native_preview.as_ref()),
+            "MZ Recipe Preview",
+            ui,
+            ctx,
+            images,
+        )?;
+        self.native.controls_preview.prepare(
+            self.control_publisher
+                .as_ref()
+                .and_then(|publisher| publisher.native_preview.as_ref()),
+            "MZ Control Preview",
+            ui,
+            ctx,
+            images,
+        )?;
         let visible = self.native.enabled
             && self.active
             && ui
