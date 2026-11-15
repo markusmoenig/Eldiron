@@ -1,0 +1,26 @@
+{
+  "profile": "release",
+  "platform": "macOS Metal / Apple M1 Max",
+  "checks": [
+    {
+      "command": "cargo test --release --locked --offline -p rusterix --lib overview_source_observes_exact_nested_colors -- --nocapture",
+      "result": "PASS 1/1",
+      "log": "/private/tmp/eldiron-overview-strict-properties-fixed.log",
+      "notes": "Initial test compile used Box<Map> instead of Map for profiles; corrected without weakening assertions."
+    },
+    {
+      "command": "cargo test --release --locked --offline -p eldiron-presentation --test isometric_sources -- --ignored --test-threads=1 --nocapture",
+      "result": "PASS 5/5 actual Metal",
+      "log": "/private/tmp/eldiron-isometric-live-sprite-publications.log",
+      "coverage": [
+        "zero-budget caller-owned GPU and alpha reuse across 100 instances each for avatar, stamp and tile",
+        "no additional upload/build while live; bounded strong cache remains empty",
+        "weak CPU guards leave one strong asset owner; unique Arc mutation detaches pixels/surface",
+        "old alpha remains immutable; alpha-only receipt reused after GPU resource expires",
+        "stamp owner replacement, explicit clear, namespace/revision changes, eviction and actual old/new GPU colors",
+        "zero implicit color readback"
+      ]
+    }
+  ],
+  "scope": "Targeted ownership/source contracts only; final broad/platform/performance acceptance still open"
+}

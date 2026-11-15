@@ -1,0 +1,78 @@
+{
+  "kind": "matched-release-density-diagnostic",
+  "acceptance": "diagnostic only; fractional-DPI parity unresolved",
+  "reference_guard": {
+    "exit": 0,
+    "problem": null,
+    "wall_seconds": 9.707406375,
+    "child_max_rss_reported": 2364063744
+  },
+  "native_guard": {
+    "exit": 0,
+    "problem": null,
+    "wall_seconds": 12.97133525,
+    "child_max_rss_reported": 3425484800
+  },
+  "1.0": {
+    "density": 1.0,
+    "crop": [
+      51,
+      87,
+      1220,
+      726
+    ],
+    "mean_abs_rgb": [
+      0.17579328264999178,
+      0.2422238018931955,
+      0.21451262465009618
+    ],
+    "channel_extrema": [
+      [
+        0,
+        225
+      ],
+      [
+        0,
+        185
+      ],
+      [
+        0,
+        141
+      ]
+    ],
+    "changed_pixels": 27775,
+    "pixels": 746991,
+    "percent_more_than_one_channel_value": 3.3784878264932243
+  },
+  "1.5": {
+    "density": 1.5,
+    "crop": [
+      76,
+      130,
+      1830,
+      1089
+    ],
+    "mean_abs_rgb": [
+      13.396382230159457,
+      13.18384731815139,
+      11.027560421999826
+    ],
+    "channel_extrema": [
+      [
+        0,
+        255
+      ],
+      [
+        0,
+        242
+      ],
+      [
+        0,
+        252
+      ]
+    ],
+    "changed_pixels": 1510488,
+    "pixels": 1682086,
+    "percent_more_than_one_channel_value": 82.58234121204266
+  }
+}

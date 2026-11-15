@@ -70,12 +70,30 @@ fn same_map(map: &Map, other: &Map, overview: bool) -> bool {
             .iter()
             .zip(&other.sectors)
             .all(|(a, b)| sector_source(a) == sector_source(b))
-        && geometry_objects == &other.geometry_objects
+        && geometry_objects.len() == other.geometry_objects.len()
+        && geometry_objects
+            .iter()
+            .zip(&other.geometry_objects)
+            .all(|(a, b)| same_geometry(a, b))
         && face_emissions == &other.face_emissions
         && face_particle_emissions == &other.face_particle_emissions
-        && block_prop_instances == &other.block_prop_instances
+        && block_prop_instances.len() == other.block_prop_instances.len()
+        && block_prop_instances
+            .iter()
+            .zip(&other.block_prop_instances)
+            .all(|(a, b)| {
+                a == b
+                    && a.parameter_overrides
+                        .same_serialized_source(&b.parameter_overrides)
+                    && a.runtime_state.same_serialized_source(&b.runtime_state)
+                    && a.overrides.same_serialized_source(&b.overrides)
+            })
         && block_prop_surface_placements == &other.block_prop_surface_placements
-        && lights == &other.lights
+        && lights.len() == other.lights.len()
+        && lights
+            .iter()
+            .zip(&other.lights)
+            .all(|(a, b)| a == b && a.properties.same_serialized_source(&b.properties))
         && properties.same_serialized_source(&other.properties)
         && orthographic_bake == &other.orthographic_bake
         && surfaces.len() == other.surfaces.len()
@@ -93,6 +111,39 @@ fn same_map(map: &Map, other: &Map, overview: bool) -> bool {
                 .is_some_and(|other| same_map(profile, other, false))
         })
         && (overview || same_profile_state(map, other))
+}
+
+// Editing equality intentionally tolerates tiny color changes and ignores color
+// names. A retained source must observe both, including colors inside face tiles
+// and property containers, without changing the public editing API.
+fn same_geometry(a: &GeometryObject, b: &GeometryObject) -> bool {
+    a == b
+        && a.properties.same_serialized_source(&b.properties)
+        && a.faces.iter().zip(&b.faces).all(|(a, b)| {
+            same_optional_source(a.tile.as_ref(), b.tile.as_ref())
+                && a.tiles.iter().all(|(cell, source)| {
+                    b.tiles
+                        .get(cell)
+                        .is_some_and(|other| same_pixel_source(source, other))
+                })
+        })
+}
+
+fn same_optional_source(a: Option<&PixelSource>, b: Option<&PixelSource>) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => same_pixel_source(a, b),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+fn same_pixel_source(a: &PixelSource, b: &PixelSource) -> bool {
+    match (a, b) {
+        (PixelSource::Color(a), PixelSource::Color(b)) => {
+            a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a && a.name == b.name
+        }
+        _ => a == b,
+    }
 }
 
 // Existing Linedef/Sector equality is intentionally geometric (undirected
@@ -178,3 +229,6 @@ fn same_occupants<T: Serialize>(a: &[T], b: &[T]) -> bool {
             || serde_json::to_vec(a).expect("serializable profile occupants")
                 == serde_json::to_vec(b).expect("serializable profile occupants"))
 }
+
+#[cfg(test)]
+mod tests;

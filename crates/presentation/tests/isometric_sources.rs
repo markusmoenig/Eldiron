@@ -262,3 +262,142 @@ fn source_alpha_receipts_reuse_assets_and_survive_revision_edits_and_eviction() 
     );
     assert!(zero.is_empty());
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn evicted_avatar_publications_reuse_live_gpu_and_alpha_without_pinning_cpu_assets() {
+    use rusterix::isometric::surface::SurfaceFrame;
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut cache = IsometricSources::new(gpu.clone(), 0, 0);
+    let v = version();
+    let mut avatar = AvatarSprite {
+        pixels: Arc::new([20, 90, 150, 255].repeat(128 * 128)),
+        surface: Some(Arc::new(SurfaceFrame {
+            data: vec![0; 128 * 128 * 8],
+            ..Default::default()
+        })),
+    };
+    let (first, alpha) = cache
+        .prepare_with_alpha(&sprite(None, Some(&avatar), None), v)
+        .unwrap()
+        .unwrap();
+    let uploaded = gpu.transfers().uploaded_bytes;
+    for _ in 0..100 {
+        let (again, same_alpha) = cache
+            .prepare_with_alpha(&sprite(None, Some(&avatar), None), v)
+            .unwrap()
+            .unwrap();
+        assert!(Arc::ptr_eq(&first, &again));
+        assert!(Arc::ptr_eq(&alpha, &same_alpha));
+    }
+    assert_eq!(cache.builds(), 1);
+    assert_eq!(cache.resident_bytes(), 0);
+    assert!(cache.is_empty());
+    assert_eq!(gpu.transfers().uploaded_bytes, uploaded);
+    assert_eq!(Arc::strong_count(&avatar.pixels), 1);
+    assert_eq!(Arc::strong_count(avatar.surface.as_ref().unwrap()), 1);
+
+    // A weak CPU guard must dissociate a unique Arc on mutation, even while
+    // old GPU/alpha leases remain alive and no strong CPU cache entry exists.
+    let pixels = Arc::downgrade(&avatar.pixels);
+    Arc::make_mut(&mut avatar.pixels)[3] = 17;
+    assert!(pixels.upgrade().is_none());
+    let (edited, edited_alpha) = cache
+        .prepare_with_alpha(&sprite(None, Some(&avatar), None), v)
+        .unwrap()
+        .unwrap();
+    assert!(!Arc::ptr_eq(&first, &edited));
+    assert_eq!(alpha[0], 255);
+    assert_eq!(edited_alpha[0], 17);
+    let surface = Arc::downgrade(avatar.surface.as_ref().unwrap());
+    Arc::make_mut(avatar.surface.as_mut().unwrap()).data[0] = 1;
+    assert!(surface.upgrade().is_none());
+    let (resurfaced, _) = cache
+        .prepare_with_alpha(&sprite(None, Some(&avatar), None), v)
+        .unwrap()
+        .unwrap();
+    assert!(!Arc::ptr_eq(&edited, &resurfaced));
+    assert_eq!(cache.builds(), 3);
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+}
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn evicted_stamp_and_tile_publications_keep_alpha_receipts_and_clear_explicitly() {
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut cache = IsometricSources::new(gpu.clone(), 0, 0);
+    let v = version();
+    let mut stamp = TerrainStamp {
+        id: Uuid::new_v4(),
+        order: 0,
+        position: [0.; 2],
+        raster_key: 1,
+        sprite: Arc::new(StampSprite {
+            texture: Texture::new(vec![10, 20, 30, 0, 40, 50, 60, 230], 2, 1),
+            surface: None,
+            anchor: [1., 1.],
+        }),
+    };
+    let (first, alpha) = cache
+        .prepare_with_alpha(&sprite(None, None, Some(&stamp)), v)
+        .unwrap()
+        .unwrap();
+    let uploaded = gpu.transfers().uploaded_bytes;
+    for _ in 0..100 {
+        let (again, same_alpha) = cache
+            .prepare_with_alpha(&sprite(None, None, Some(&stamp)), v)
+            .unwrap()
+            .unwrap();
+        assert!(Arc::ptr_eq(&first, &again) && Arc::ptr_eq(&alpha, &same_alpha));
+    }
+    assert_eq!(Arc::strong_count(&stamp.sprite), 1);
+    assert_eq!(gpu.transfers().uploaded_bytes, uploaded);
+    let expired = Arc::downgrade(&first);
+    drop(first);
+    assert!(expired.upgrade().is_none());
+    let (rebuilt, same_alpha) = cache
+        .prepare_with_alpha(&sprite(None, None, Some(&stamp)), v)
+        .unwrap()
+        .unwrap();
+    assert!(
+        Arc::ptr_eq(&alpha, &same_alpha),
+        "alpha-only receipt survives a GPU rebuild"
+    );
+    assert_eq!(cache.builds(), 2);
+    let owner = Arc::downgrade(&stamp.sprite);
+    let mut replacement = Arc::try_unwrap(stamp.sprite).ok().unwrap();
+    replacement.texture.data[3] = 190;
+    stamp.sprite = Arc::new(replacement);
+    assert!(owner.upgrade().is_none());
+    let (edited, new_alpha) = cache
+        .prepare_with_alpha(&sprite(None, None, Some(&stamp)), v)
+        .unwrap()
+        .unwrap();
+    assert!(!Arc::ptr_eq(&rebuilt, &edited));
+    assert_eq!(&*alpha, &[0, 230]);
+    assert_eq!(&*new_alpha, &[190, 230]);
+    cache.clear();
+    let (after_clear, after_clear_alpha) = cache
+        .prepare_with_alpha(&sprite(None, None, Some(&stamp)), v)
+        .unwrap()
+        .unwrap();
+    assert!(!Arc::ptr_eq(&after_clear, &edited));
+    assert!(!Arc::ptr_eq(&after_clear_alpha, &new_alpha));
+    let tile = Tile::from_texture(Texture::new([50, 70, 90, 255].repeat(4), 2, 2));
+    let (tile_gpu, tile_alpha) = cache
+        .prepare_with_alpha(&sprite(Some(&tile), None, None), v)
+        .unwrap()
+        .unwrap();
+    let uploaded = gpu.transfers().uploaded_bytes;
+    for _ in 0..100 {
+        let (again, same_alpha) = cache
+            .prepare_with_alpha(&sprite(Some(&tile), None, None), v)
+            .unwrap()
+            .unwrap();
+        assert!(Arc::ptr_eq(&tile_gpu, &again) && Arc::ptr_eq(&tile_alpha, &same_alpha));
+    }
+    assert_eq!(gpu.transfers().uploaded_bytes, uploaded);
+    assert_eq!(cache.resident_bytes(), 0);
+    assert!(cache.is_empty());
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+}

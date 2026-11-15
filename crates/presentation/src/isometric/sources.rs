@@ -8,6 +8,9 @@ use scenevm::isometric::GpuSpriteSource;
 use std::sync::Arc;
 use theframework_core::Uuid;
 
+mod publications;
+use publications::Publications;
+
 /// The application supplies its session/document incarnation and advances the
 /// content revision after tile/source edits. Device replacement creates a new
 /// residency owner; it does not change CPU sources or serialized project data.
@@ -36,6 +39,7 @@ struct Entry {
 pub struct IsometricSources {
     context: Arc<GpuContext>,
     entries: FxHashMap<SourceKey, Entry>,
+    publications: Publications,
     bytes: u64,
     byte_budget: u64,
     entry_limit: usize,
@@ -47,6 +51,7 @@ impl IsometricSources {
         Self {
             context,
             entries: FxHashMap::default(),
+            publications: Publications::default(),
             bytes: 0,
             byte_budget,
             entry_limit,
@@ -68,11 +73,12 @@ impl IsometricSources {
     }
     pub fn clear(&mut self) {
         self.entries.clear();
+        self.publications.clear();
         self.bytes = 0;
     }
     /// Source-space alpha for explicit frame picking. It is generated once per
-    /// resident source, at most one byte per texel (bounded by the GPU budget).
-    /// Old receipts retain their alpha lease after cache edits/eviction.
+    /// live source, at most one byte per texel. Cache ownership is bounded by the
+    /// GPU budget; receipts retain their alpha lease after edits/eviction.
     pub fn prepare_with_alpha(
         &mut self,
         sprite: &Sprite<'_>,
@@ -84,7 +90,12 @@ impl IsometricSources {
         let Some((key, _, _)) = source_identity(sprite, version) else {
             return Ok(None);
         };
-        if let Some(alpha) = self.entries.get(&key).and_then(|entry| entry.alpha.clone()) {
+        if let Some(alpha) = self
+            .entries
+            .get(&key)
+            .and_then(|entry| entry.alpha.clone())
+            .or_else(|| self.publications.alpha(&key, sprite))
+        {
             return Ok(Some((source, alpha)));
         }
         let Some(image) = sprite.image() else {
@@ -94,6 +105,7 @@ impl IsometricSources {
         if let Some(entry) = self.entries.get_mut(&key) {
             entry.alpha = Some(alpha.clone());
         }
+        self.publications.publish_alpha(&key, &alpha);
         Ok(Some((source, alpha)))
     }
     /// Sources are shared by instances and camera positions. Returned GPU leases
@@ -116,6 +128,9 @@ impl IsometricSources {
             entry.used = self.clock;
             return Ok(Some(entry.source.clone()));
         }
+        if let Some(source) = self.publications.source(&key, sprite) {
+            return Ok(Some(source));
+        }
         let Some(image) = sprite.image() else {
             return Ok(None);
         };
@@ -131,13 +146,15 @@ impl IsometricSources {
             image.surface.map(|s| s.data.as_slice()),
         )?;
         self.builds += 1;
+        let alpha = self.publications.alpha(&key, sprite);
+        self.publications.publish(key, sprite, &source);
         self.bytes += source.resident_bytes();
         self.entries.insert(
             key,
             Entry {
                 source: source.clone(),
                 used: self.clock,
-                alpha: None,
+                alpha,
                 _avatar: avatar,
                 _stamp: stamp,
             },

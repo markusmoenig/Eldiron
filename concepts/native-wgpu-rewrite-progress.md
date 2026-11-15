@@ -18120,3 +18120,46 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   fresh native density1 diagnostic then matched density1 reference will isolate
   logical rendering versus fractional composition before implementation changes.
   /private/tmp/eldiron-isometric-density-one-{native,reference}*. No pending input.
+
+
+## Exact source guards and live sprite ownership (2026-11-15)
+
+- Overall status estimate remains approximately85%, not an acceptance count. M0–M9
+  paths are connected, but implementation/parity/residency/performance and final
+  platform verification are still open. No completion claim or pending user input.
+- Fixed borrowed overview source identity for geometry properties, face tile and
+  per-cell colors, lights and all three block-prop property containers. General
+  editing equality remains unchanged; retained source identity now notices tiny
+  sub-epsilon channel edits and saved color names. New focused release test covers
+  both edit kinds in all seven locations, profile recursion and navigation reuse.
+  Initial test compile incorrectly boxed a Map profile; corrected type.79546
+  terminalPASS1/1 in37.66s; /private/tmp/eldiron-overview-strict-properties-fixed.log.
+- IsometricSources now weakly publishes caller-owned GPU and alpha leases beyond
+  its bounded strong cache. Oversized/zero-budget sources reuse live publications
+  across instances/frames rather than uploading and rebuilding alpha repeatedly.
+  Pointer-key avatar/stamp publications hold only Weak CPU guards; this prevents
+  allocation-address reuse, makes Arc::make_mut detach unique edited allocations,
+  and does not pin CPU pixel bytes. Tile identity retains full supplied namespace/
+  content/tile revisions. Alpha-only receipts survive GPU expiry; explicit clear
+  resets both lookup layers while existing external leases remain valid. Dead
+  publication metadata prunes on new publication. Original strong cache budget
+  and ordinary source lease assertions unchanged.
+- Actual Metal release11301terminalPASS5/5 (build46.42s; runtime0.08s), including
+  original3contracts and two new tests:100zero-budget reuses each of avatar,stamp,
+  tile, no extra upload/build, CPU strong count1, pixel/surface edit detachment,
+  alpha-only GPU rebuild, stamp replacement/clear and zero implicit readback.
+  /private/tmp/eldiron-isometric-live-sprite-publications.log. Durable
+  release-sprite-source-ownership.json. No broad tests started.
+- Matched density1 native62908 and reference20889 diagnostics both terminalPASS;
+  reference9.71s,peak2364063744B. Correct world crop(51,87,1169,639) meanabsRGB
+  0.176/0.242/0.215,3.38%pixels with maxchannel delta>1, versus fractional150%
+  mean13.40/13.18/11.03 and82.58%pixels>1. Strong evidence fractional composition
+  is a distinct issue, not accepted exact source equality. Durable
+  release-isometric-density-sampling-diagnostic.json. Remaining unit-scale
+  differences still need classification/frozen source evidence.
+- Correction to prior hypothesis wording: current RasterScale.pixel_rect rounds
+  BOTH ENDPOINTS, then subtracts origin for extent; it does NOT independently
+  round width/height. Any GPU left-edge parity fix must use actual endpoint
+  rounding. CPU compositing itself uses integer left-edge source lookup. Next
+  explicit GPU logical source layer + matched pixel scaling contract, retaining
+  device-density HUD/text, then current Creator integration/performance.
