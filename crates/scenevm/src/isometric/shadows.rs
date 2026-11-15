@@ -158,6 +158,7 @@ pub(super) mod gpu {
         pub sun_view: wgpu::TextureView,
         point: wgpu::Texture,
         pub point_view: wgpu::TextureView,
+        sun_ready: bool,
         layers: u32,
         revision: Option<u64>,
         count: u32,
@@ -238,9 +239,11 @@ pub(super) mod gpu {
                 multiview_mask: None,
                 cache: None,
             });
-            let (sun, sun_view, sun_lease) = depth(device, context.as_deref(), SUN_SIZE, 1)?;
+            // Bindable placeholders suffice until a lit mesh actually casts
+            // shadows. Unlit overviews need neither full-size depth target.
+            let (sun, sun_view, sun_lease) = depth(device, context.as_deref(), 1, 1)?;
             let (point, point_view, point_lease) =
-                depth(device, context.as_deref(), POINT_SIZE, 1)?;
+                depth(device, context.as_deref(), 1, 1)?;
             let storage = || {
                 Buffer::new(
                     device,
@@ -258,7 +261,7 @@ pub(super) mod gpu {
                 uniforms: Buffer::new(
                     device,
                     context.as_deref(),
-                    256 * (1 + MAX_POINT_LIGHTS * 6),
+                    256,
                     wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 )?,
                 sun,
@@ -268,7 +271,8 @@ pub(super) mod gpu {
                 _sun_lease: sun_lease,
                 point_lease,
                 context,
-                layers: 1,
+                sun_ready: false,
+                layers: 0,
                 revision: None,
                 count: 0,
             })
@@ -282,6 +286,9 @@ pub(super) mod gpu {
             lights: &[PointLight],
             geometry: Option<&ShadowGeometry>,
         ) -> SceneVMResult<()> {
+            if u.shadow[3] < 0. {
+                return Ok(());
+            }
             let geometry = geometry.filter(|g| !g.vertices.is_empty());
             let light_count = lights.len().min(MAX_POINT_LIGHTS);
             let mut views = vec![View::default(); 1 + lights.len() * 6];
@@ -384,6 +391,11 @@ pub(super) mod gpu {
             )?;
             if geometry.is_none() || u.shadow[0] <= 0. {
                 return Ok(());
+            }
+            if !self.sun_ready {
+                (self.sun, self.sun_view, self._sun_lease) =
+                    depth(device, self.context.as_deref(), SUN_SIZE, 1)?;
+                self.sun_ready = true;
             }
             let layers = (light_count * 6).max(1) as u32;
             if layers != self.layers {

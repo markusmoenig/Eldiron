@@ -27,6 +27,8 @@ use std::{collections::HashMap, sync::Arc};
 mod frame_sources;
 mod ground_cache;
 mod terrain_sources;
+#[cfg(test)]
+mod unlit_tests;
 pub(crate) use frame_sources::IsometricFrameSources;
 pub use ground_cache::GroundCacheUsage;
 
@@ -94,9 +96,7 @@ impl IsometricSceneRenderer {
         size: (u32, u32),
         input: &IsometricSceneInput<'_>,
     ) -> Result<IsometricPreparedFrame> {
-        let mut frame = self.prepare(size, input)?;
-        frame.lighting.uniforms.shadow[3] = -1.;
-        Ok(frame)
+        self.prepare_impl(size, input, true)
     }
     pub fn new(context: Arc<GpuContext>) -> Result<Self> {
         Ok(Self {
@@ -151,6 +151,14 @@ impl IsometricSceneRenderer {
         size: (u32, u32),
         input: &IsometricSceneInput<'_>,
     ) -> Result<IsometricPreparedFrame> {
+        self.prepare_impl(size, input, false)
+    }
+    fn prepare_impl(
+        &mut self,
+        size: (u32, u32),
+        input: &IsometricSceneInput<'_>,
+        unlit: bool,
+    ) -> Result<IsometricPreparedFrame> {
         let p = input.projection;
         let limits = self.context.device.limits();
         let pixels = u64::from(size.0) * u64::from(size.1);
@@ -197,7 +205,11 @@ impl IsometricSceneRenderer {
             &mut self.sprites,
             self.elevation.as_ref().unwrap().3.clone(),
         )?;
-        let geometry = self.scene.shadow_geometry(input.map, input.assets, &plan);
+        let geometry = if unlit {
+            None
+        } else {
+            self.scene.shadow_geometry(input.map, input.assets, &plan)
+        };
         let terrain = plan.terrain.is_some();
         let mut ground = Vec::new();
         if let Some(model) = &plan.terrain {
@@ -252,13 +264,29 @@ impl IsometricSceneRenderer {
             };
             upright.push((i, command));
         }
-        let lighting = input.lighting.gpu_parameters(
-            p,
-            size,
-            &plan.casters,
-            geometry.is_some(),
-            input.particles.len(),
-        );
+        let lighting = if unlit {
+            // The unlit shader returns source RGBA before reading any lights,
+            // shadow geometry or columns. Particles still use the projection.
+            GpuLightingParameters {
+                uniforms: scenevm::isometric::Uniforms {
+                    projection: [p.origin.x, p.origin.y, p.unit, size.0 as f32],
+                    counts: [size.0, size.1, 0, 0],
+                    shadow: [0., 0., input.particles.len() as f32, -1.],
+                    ..Default::default()
+                },
+                lights: Vec::new(),
+                casters: Vec::new(),
+                columns: Vec::new(),
+            }
+        } else {
+            input.lighting.gpu_parameters(
+                p,
+                size,
+                &plan.casters,
+                geometry.is_some(),
+                input.particles.len(),
+            )
+        };
         Ok(IsometricPreparedFrame {
             targets,
             size,

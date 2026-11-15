@@ -1,0 +1,108 @@
+{
+  "source_base_commit": "466cb3da",
+  "source_delta": "private unlit preparation and lazy shadow resources",
+  "profile": "release",
+  "foundations_passed": 619,
+  "creator_ordinary": {
+    "passed": 642,
+    "ignored": 123,
+    "seconds": 79.57
+  },
+  "common_player": {
+    "passed": 13,
+    "seconds": 31.41
+  },
+  "assembled_creator": {
+    "passed": 1,
+    "seconds": 24.16
+  },
+  "runs": [
+    {
+      "repeat": 1,
+      "first_complete_view_ms": 7076.706083,
+      "total_ms": {
+        "hover": {
+          "mean": 14.040254549999993,
+          "p50": 9.398416999999998,
+          "p95": 30.371458,
+          "p99": 31.407541999999996
+        },
+        "idle": {
+          "mean": 9.653761866666667,
+          "p50": 8.904499999999999,
+          "p95": 10.819042,
+          "p99": 28.047958
+        },
+        "pan": {
+          "mean": 34.45410315833333,
+          "p50": 34.505874999999996,
+          "p95": 36.643415999999995,
+          "p99": 41.081582999999995
+        },
+        "zoom": {
+          "mean": 25.796106599999998,
+          "p50": 24.608291,
+          "p95": 53.846292,
+          "p99": 55.202
+        }
+      },
+      "peak_process_rss_bytes": 3327442944,
+      "retained_before": {
+        "byte_limit": 67108864,
+        "peak_reserved_bytes": 55359080,
+        "rejected_requests": 0,
+        "requests": 1,
+        "reservations": 1,
+        "reserved_bytes": 55359080
+      },
+      "target_pool_before": "TargetPoolUsage { live_bytes: 433566432, live_allocations: 26, peak_live_bytes: 433566432, cached_bytes: 433566432, cached_textures: 26, byte_limit: 536870912, texture_limit: 64, allocations: 26, hits: 481, evictions: 0, uncached_allocations: 0 }",
+      "working_before": "WorkingBufferPoolUsage { live_bytes: 339645052, live_allocations: 231, peak_live_bytes: 339645052, cached_bytes: 35458468, cached_buffers: 64, byte_limit: 134217728, buffer_limit: 64, allocations: 601, hits: 2, evictions: 537, uncached_allocations: 0 }"
+    },
+    {
+      "repeat": 2,
+      "first_complete_view_ms": 7133.4649580000005,
+      "total_ms": {
+        "hover": {
+          "mean": 14.359570175000004,
+          "p50": 9.417916,
+          "p95": 29.909542000000002,
+          "p99": 30.88225
+        },
+        "idle": {
+          "mean": 10.022954224999996,
+          "p50": 8.900125,
+          "p95": 10.874125,
+          "p99": 28.830250000000003
+        },
+        "pan": {
+          "mean": 34.29664790833333,
+          "p50": 34.385540999999996,
+          "p95": 36.503333,
+          "p99": 40.007834
+        },
+        "zoom": {
+          "mean": 25.799610475000005,
+          "p50": 24.239959,
+          "p95": 55.775875,
+          "p99": 57.233458
+        }
+      },
+      "peak_process_rss_bytes": 3314204672,
+      "retained_before": {
+        "byte_limit": 67108864,
+        "peak_reserved_bytes": 55359080,
+        "rejected_requests": 0,
+        "requests": 1,
+        "reservations": 1,
+        "reserved_bytes": 55359080
+      },
+      "target_pool_before": "TargetPoolUsage { live_bytes: 433566432, live_allocations: 26, peak_live_bytes: 433566432, cached_bytes: 433566432, cached_textures: 26, byte_limit: 536870912, texture_limit: 64, allocations: 26, hits: 481, evictions: 0, uncached_allocations: 0 }",
+      "working_before": "WorkingBufferPoolUsage { live_bytes: 339645052, live_allocations: 231, peak_live_bytes: 339645052, cached_bytes: 35458468, cached_buffers: 64, byte_limit: 134217728, buffer_limit: 64, allocations: 601, hits: 2, evictions: 537, uncached_allocations: 0 }"
+    }
+  ],
+  "limitations": [
+    "No all-app speedup or whole-process memory reduction claimed",
+    "Cold startup and camera-motion tails still open",
+    "Physical input/present/driver memory not measured"
+  ]
+}

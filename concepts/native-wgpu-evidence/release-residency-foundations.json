@@ -1,0 +1,371 @@
+{
+  "profile": "release",
+  "source_base_commit": "466cb3da",
+  "source_delta": [
+    "producer unlit metadata",
+    "lazy shadow targets",
+    "unlit frozen contract"
+  ],
+  "passed": 619,
+  "failed": 0,
+  "ignored": 0,
+  "binaries": [
+    {
+      "binary": "unittests src/lib.rs",
+      "status": "ok.",
+      "passed": 120,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/content_sources.rs",
+      "status": "ok.",
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/editor_views.rs",
+      "status": "ok.",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/game_screen.rs",
+      "status": "ok.",
+      "passed": 53,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/isometric_materials.rs",
+      "status": "ok.",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/isometric_occlusion.rs",
+      "status": "ok.",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/isometric_paint.rs",
+      "status": "ok.",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/isometric_receipts.rs",
+      "status": "ok.",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/isometric_sources.rs",
+      "status": "ok.",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/isometric_sprites.rs",
+      "status": "ok.",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/isometric_surfaces.rs",
+      "status": "ok.",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/messages_paint.rs",
+      "status": "ok.",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/overview_ownership.rs",
+      "status": "ok.",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/profile_paint.rs",
+      "status": "ok.",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/scene_views.rs",
+      "status": "ok.",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/screen_paint.rs",
+      "status": "ok.",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "unittests src/lib.rs",
+      "status": "ok.",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/gpu_contract.rs",
+      "status": "ok.",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/image_ownership.rs",
+      "status": "ok.",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/immutable_buffers.rs",
+      "status": "ok.",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/immutable_ranges.rs",
+      "status": "ok.",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/ordered_compute.rs",
+      "status": "ok.",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/status_readback.rs",
+      "status": "ok.",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/target_pool.rs",
+      "status": "ok.",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/working_buffers.rs",
+      "status": "ok.",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "unittests src/lib.rs",
+      "status": "ok.",
+      "passed": 64,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/empty_output.rs",
+      "status": "ok.",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/geometry_outputs.rs",
+      "status": "ok.",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/gpu_outputs.rs",
+      "status": "ok.",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/isometric_outputs.rs",
+      "status": "ok.",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/pooled_outputs.rs",
+      "status": "ok.",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/surface_outputs.rs",
+      "status": "ok.",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "unittests src/lib.rs",
+      "status": "ok.",
+      "passed": 166,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/command_ui.rs",
+      "status": "ok.",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/core_values_compat.rs",
+      "status": "ok.",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/dialog_overlays.rs",
+      "status": "ok.",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/dpi_rendering.rs",
+      "status": "ok.",
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/gpu_application.rs",
+      "status": "ok.",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/native_editor.rs",
+      "status": "ok.",
+      "passed": 19,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/native_graph_text.rs",
+      "status": "ok.",
+      "passed": 20,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/native_graph_view.rs",
+      "status": "ok.",
+      "passed": 15,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/paint_gpu.rs",
+      "status": "ok.",
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/paint_target_reuse.rs",
+      "status": "ok.",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/pixel_images.rs",
+      "status": "ok.",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/pixel_lines.rs",
+      "status": "ok.",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/pixel_triangles.rs",
+      "status": "ok.",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/sampled_lines.rs",
+      "status": "ok.",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/theme_rendering.rs",
+      "status": "ok.",
+      "passed": 14,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/tree_redraw.rs",
+      "status": "ok.",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/ui_gpu.rs",
+      "status": "ok.",
+      "passed": 17,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "binary": "tests/ui_image_cache.rs",
+      "status": "ok.",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0
+    }
+  ]
+}

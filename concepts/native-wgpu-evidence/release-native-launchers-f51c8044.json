@@ -1,0 +1,28 @@
+{
+  "source_commit": "f51c8044",
+  "profile": "release",
+  "deployment_target": "26.1",
+  "files": [
+    {
+      "name": "eldiron-creator",
+      "sha256": "f87a612cf63dea1dcf507dc74499e0282a3272d84b62a10aba867c17d01c2ff2",
+      "bytes": 104223312
+    },
+    {
+      "name": "eldiron-client-wgpu",
+      "sha256": "352334ded612aa6581b7f558a504670f3405a9fb7dc8e6adc08ae3b80653b770",
+      "bytes": 69064864
+    },
+    {
+      "name": "eldiron-client",
+      "sha256": "6b369a1070951a0ed0c7e9f6250bd0d4224bb7ebf372f8e8ea6f67b7dafc1e50",
+      "bytes": 69061104
+    },
+    {
+      "name": "eldiron-client-terminal",
+      "sha256": "8acc9bd0b69507d15458f5a181ddd10d429541d18e8c38b9087591ed490fdb4b",
+      "bytes": 48920432,
+      "isolated_cpu_build": true
+    }
+  ]
+}

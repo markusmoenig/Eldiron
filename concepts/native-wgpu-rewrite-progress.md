@@ -1,6 +1,6 @@
 # Native WGPU rewrite progress
 
-Started: 2026-11-11 (Asia/Bangkok). Objective unfinished; full M0–M9 scope remains. Live goal record checked 2026-11-15: `usageLimited`, not `complete`. Current user-authorized implementation continues; the available goal tools cannot resume/reset that status or guarantee automatic continuation.
+Started: 2026-11-11 (Asia/Bangkok). Objective unfinished; full M0–M9 scope remains. Live goal record checked 2026-11-16: `usageLimited`, not `complete`. Current user-authorized implementation continues; the available goal tools cannot resume/reset that status or guarantee automatic continuation.
 
 ## Baseline and isolation
 
@@ -27,14 +27,18 @@ platform validation. Earlier per-milestone inventories below are historical;
 later implementation/evidence entries supersede their old remaining-caller lists.
 No percentage is mechanically measured; the chat's roughly85% is an estimate.
 
-- Consolidated release foundations pass615 checks: Renderkit17, Framework299,
-  SceneVM77 and presentation222, before the latest private isometric metadata
-  optimization. Its targeted exact-pixel/upload/order/integration checks pass.
-  Current Creator nonignored642, common player13 and assembled Creator1 pass.
-  Twenty-nine isolated dependency configurations pass. The CPU suite has835
-  passes and the same six documented shipped-data baseline failures. Ignored
-  specialized Creator contracts are inventoried separately; this is not a fully
-  green final functional/platform matrix.
+- Current consolidated release foundations pass619 checks, zero failures and
+  zero ignored fixtures, including bounded terrain residency, unlit previews,
+  pooled ownership and exact/soft shadows. Durable
+  native-wgpu-evidence/release-residency-foundations.json.
+  Current ordinary Creator642 and common-player13 pass after these last changes.
+  Assembled Creator1 passes in24.16s with five-DPI source parity
+  maxRGBA1. Actual browser four-case source/recovery/150% resize acceptance passes
+  on f51c8044, before the latest unlit shadow refinement; its refresh follows.
+  Twenty-nine isolated dependency configurations passed before the refinement.
+  CPU suite has835 passes and the same six shipped-data baseline failures.
+  Specialized ignored Creator contracts remain separately inventoried; this is
+  not a fully green final functional/platform matrix.
 - Canonical Creator/player/browser/Apple share explicit presentation owners.
   Creator foreign handles/layers and Swift close approvals are per owner; actual
   optimized detached multi-host and retained-window lifetime checks pass.
@@ -51,7 +55,12 @@ No percentage is mechanically measured; the chat's roughly85% is an estimate.
   overview guards, logical isometric pixel grids, source-guide RGB/alpha and
   minimap pooled-image aliases now pass targeted release and assembled Creator
   checks. Continue consolidated acceptance/performance; final gates remain open.
-  See the latest chronological entries for exact binaries, evidence and blockers.
+  Bounded device-shared terrain residency and per-frame cell sources are now
+  implemented and measured; panning/zoom tails and startup/memory remain open.
+  Unlit preview metadata/shadow residency refinement passes focused and
+  consolidated release checks. Fresh f51c8044 launchers for Creator, both common
+  graphical entry points and isolated CPU terminal are available in
+  target/native-wgpu-release-f51c8044. See latest entries for exact evidence.
 
 ## Historical milestone inventory
 
@@ -18812,3 +18821,55 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   player and classic player entry point, serialized log
   /private/tmp/eldiron-release-residency-native-launchers.log. CPU terminal
   remains an independent build after this handle is terminal.
+
+- Native launcher30853 terminalPASS Creator+WGPU+classic common player optimized
+  link; isolated CPU terminal51889 terminalPASS. Versioned executable copies
+  protected under target/native-wgpu-release-f51c8044 with SHA256 manifest,
+  durable release-native-launchers-f51c8044.json. New shadow work below is not
+  included in these copies and requires a later final refresh.
+- Found unlit overview preparation still built mesh shadows, packed light/caster
+  buffers, and each unused isometric renderer allocated2048x2048 sun plus512x512
+  point depth textures. Implemented private unlit preparation skipping unused
+  metadata while preserving terrain/sprite/contact/particle production. Bindable
+  1x1 shadow placeholders now grow on first actual lit mesh draw; dynamic uniform
+  storage also grows on demand. New frozen previous-policy RGBA and particle
+  test covers unlit -> lit -> unlit transitions and release of pooled leases.
+  Current actual Metal release log /private/tmp/eldiron-release-unlit-residency.log;
+  no pass or memory/performance claim before terminal result.
+
+- Focused actual Metal50884 terminalPASS1/1(0.10s): unlit preview matches
+  frozen previous full-prepare-plus-unlit-policy RGBA exactly, retains visible
+  particles, permits later lit shadow allocation and later return to unlit,
+  releases all target/working leases. Fresh unused renderer depth residency8B
+  instead of eager17MiB; rendered128x96unlit fixture remains below1MiB pooled
+  target live payload. This is bounded resource evidence, not whole-app RSS.
+  Original iso/lib6, eleven integrations, real lit shadow contracts and assembled
+  Creator are now serialized under /private/tmp/eldiron-release-unlit-*.log.
+
+- Focused35713 terminalPASS: isometric6/6, original terrain/paint/receipts/
+  surface integrations11/11, shader+basiclighting2/2, assembled Creator1/1
+  in24.16s (five-DPI source parity maxRGBA1). The initial scenevm filter only
+  selected isometric::tests, so exact/soft mesh shadow modules are covered by
+  the consolidated suite below rather than overstated as already rerun.
+- Residency implementation is settled for consolidated acceptance. Current
+  serialized release run refreshes all four GPU foundations (including exact/
+  soft shadow fixtures), ordinary Creator library, all thirteen common-player
+  GPU contracts, then two fresh120samples/mode native measurements. Logs
+  /private/tmp/eldiron-release-residency-final-{foundations,creator-ordinary,player,native-measurement}.log.
+  No further Rust edits/compilers/tests until its terminal state. Browser/Apple/
+  isolated UIKit acceptance and final launchers follow; physical gates stay open.
+
+- Physical Mac availability rechecked: IOConsoleLocked=Yes and
+  CGSSessionScreenIsLocked=Yes. Do not infer real AppKit presentation, monitor
+  transitions or physical IME/input from detached Metal/headless/simulator tests.
+  Continue available final release checks without waiting for user input.
+
+- Consolidated36319 terminalPASS: GPU foundations619/619, zero ignored/failures;
+  ordinary Creator642/642 with123 inventoried ignored in79.57s, common player
+  thirteen/thirteen in31.41s, two fresh120samples/mode native runs. Initial
+  complete7.08/7.13s; native P50idle8.90/8.90, hover9.40/9.42, pan34.51/34.39,
+  zoom24.61/24.24ms. PeakRSS3.327/3.314GB, so the logical shadow-target saving
+  is NOT asserted as whole-process RSS reduction. No general speedup claim.
+  Durable release-residency-foundations.json, release-unlit-residency-acceptance.json
+  and both full native120sampleJSONs. Pan/zoom, startup/memory and physical
+  gates remain open. Current source is settled for Apple/UIKit/browser refresh.
