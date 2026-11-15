@@ -20,6 +20,7 @@ mod raster_paint;
 mod surface_gpu;
 mod paint_pages;
 mod organic;
+pub use organic::{PaintBillboardInstanceBuilder, PaintBillboardSourceBuilder, PaintBillboardSources, PreparedPaintBillboards};
 
 use crate::{
     Camera3D, CameraKind, Chunk, Light, LightType, Poly2D, Poly3D, Texture,
@@ -559,8 +560,8 @@ struct DynamicAvatarData {
 
 #[derive(Clone, Debug, Default)]
 struct OrganicBillboardData {
-    sprites: Vec<OrganicBillboardSprite>,
-    paged_sprites: Vec<PagedBillboardSprite>,
+    sprites: Arc<Vec<OrganicBillboardSprite>>,
+    paged_sprites: Arc<Vec<PagedBillboardSprite>>,
     instances: Vec<OrganicBillboardInstance>,
 }
 
@@ -6494,8 +6495,8 @@ impl VM {
                     })
                     .collect();
                 self.replace_organic_billboards(OrganicBillboardData {
-                    sprites: sanitized_sprites,
-                    paged_sprites: Vec::new(),
+                    sprites: Arc::new(sanitized_sprites),
+                    paged_sprites: Arc::default(),
                     instances: sanitized_instances,
                 }, false);
             }
@@ -6518,7 +6519,7 @@ impl VM {
                         || !instance.height.is_finite() || instance.height <= 0.
                         || !instance.center.iter().all(|value| value.is_finite())) { return; }
                 self.replace_organic_billboards(OrganicBillboardData {
-                    sprites: Vec::new(), paged_sprites: sprites, instances,
+                    sprites: Arc::default(), paged_sprites: Arc::new(sprites), instances,
                 }, true);
             }
             Atom::SetPaintBillboards { sprites, instances } => {
@@ -6546,8 +6547,8 @@ impl VM {
                     })
                     .collect();
                 self.replace_organic_billboards(OrganicBillboardData {
-                    sprites: sanitized_sprites,
-                    paged_sprites: Vec::new(),
+                    sprites: Arc::new(sanitized_sprites),
+                    paged_sprites: Arc::default(),
                     instances: sanitized_instances,
                 }, true);
             }

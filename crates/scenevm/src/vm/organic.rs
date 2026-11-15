@@ -3,8 +3,13 @@ use super::*;
 use crate::paint_pages::PaintEntryStorage;
 mod instances;
 mod packing;
+mod prepared;
 mod upload;
 pub(super) use packing::SourcePacking;
+pub use prepared::{
+    PaintBillboardInstanceBuilder, PaintBillboardSourceBuilder, PaintBillboardSources,
+    PreparedPaintBillboards,
+};
 pub(super) use upload::Pending;
 
 /// The shader's unchanged contiguous layout, retained as independent CPU spans.
@@ -60,13 +65,13 @@ impl VM {
         };
         let same = old.sprites.len() == data.sprites.len()
             && old.paged_sprites.len() == data.paged_sprites.len()
-            && old.sprites.iter().zip(&data.sprites).all(|(a, b)| {
+            && old.sprites.iter().zip(data.sprites.iter()).all(|(a, b)| {
                 a.width == b.width && a.height == b.height && Arc::ptr_eq(&a.rgba, &b.rgba)
             })
             && old
                 .paged_sprites
                 .iter()
-                .zip(&data.paged_sprites)
+                .zip(data.paged_sprites.iter())
                 .all(|(a, b)| {
                     a.width == b.width
                         && a.height == b.height
@@ -107,7 +112,7 @@ impl VM {
             .organic_billboards
             .sprites
             .iter()
-            .chain(&self.paint_billboards.sprites)
+            .chain(self.paint_billboards.sprites.iter())
             .map(|sprite| sprite.rgba.len() as u64)
             .sum::<u64>();
         pixels = pixels.saturating_add(

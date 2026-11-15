@@ -72,7 +72,7 @@ struct Pending {
     triangle: usize,
     surfaces: HashSet<[u32; 4]>,
     index_usable: bool,
-    instances: Vec<OrganicBillboardInstance>,
+    instances: scenevm::vm::PaintBillboardInstanceBuilder,
     key: StampUploadKey,
     matches_uploaded: bool,
 }
@@ -134,6 +134,7 @@ impl StampPlacementOwner {
         if self.index.as_ref().is_some_and(|index| !index.matches(vm)) {
             self.index = None;
         }
+        let instances = set.sources.prepare_instances();
         self.pending = Some(Pending {
             scope: Scope {
                 source: set.id(),
@@ -168,7 +169,7 @@ impl StampPlacementOwner {
             triangle: 0,
             surfaces: HashSet::new(),
             index_usable: self.index.as_ref().is_some_and(|index| index.matches(vm)),
-            instances: Vec::new(),
+            instances,
         });
         false
     }
@@ -220,7 +221,7 @@ impl StampPlacementOwner {
             pending.stamp = 0;
             pending.triangle = 0;
             pending.surfaces.clear();
-            pending.instances.clear();
+            pending.instances = pending.set.sources.prepare_instances();
             pending.key.instances.clear();
             pending.index_usable = false;
             pending.matches_uploaded = self
@@ -297,20 +298,12 @@ impl StampPlacementOwner {
                         raster.anchor,
                     );
                     instance.sprite_index = pending.set.slots[index].unwrap();
-                    if !instance.center.iter().all(|value| value.is_finite())
-                        || !instance.width.is_finite()
-                        || !instance.height.is_finite()
-                        || instance.width <= 0.
-                        || instance.height <= 0.
-                    {
-                        return Err("Invalid live stamp placement".into());
-                    }
                     let key = instance_key(&instance);
                     pending.matches_uploaded &= self.uploaded.as_ref().is_some_and(|old| {
                         old.instances.get(pending.instances.len()) == Some(&key)
                     });
                     pending.key.instances.push(key);
-                    pending.instances.push(instance);
+                    pending.instances.push(instance)?;
                 }
             }
             pending.next();
@@ -346,22 +339,7 @@ impl StampPlacementOwner {
                 .as_ref()
                 .is_some_and(|old| old.instances.len() == pending.instances.len());
         if !unchanged {
-            if pending.instances.is_empty() {
-                vm.execute(scenevm::Atom::ClearPaintBillboards);
-            } else if self
-                .uploaded
-                .as_ref()
-                .is_some_and(|old| old.source == pending.key.source && !old.instances.is_empty())
-            {
-                vm.execute(scenevm::Atom::SetPaintBillboardInstances {
-                    instances: pending.instances,
-                });
-            } else {
-                vm.execute(scenevm::Atom::SetPaintBillboards {
-                    sprites: pending.set.sprites(),
-                    instances: pending.instances,
-                });
-            }
+            vm.install_prepared_paint_billboards(pending.instances.finish());
             self.uploaded = Some(pending.key);
         }
         self.ready = Some(pending.scope);

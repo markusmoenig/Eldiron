@@ -2,6 +2,7 @@
 use super::super::stamp_raster::{NativeSprite, StampWork, native_sprite_work};
 use super::catalog::{same_visual, visual_hash};
 use super::*;
+use scenevm::vm::{PaintBillboardSourceBuilder, PaintBillboardSources};
 use std::sync::Arc;
 mod capture;
 pub use capture::StampRequestCapture;
@@ -74,7 +75,7 @@ impl StampSpriteRequest {
             pending: None,
             buckets: HashMap::new(),
             slots: Vec::new(),
-            sprites: Vec::new(),
+            source_builder: PaintBillboardSourceBuilder::default(),
             by_pixels: HashMap::new(),
             current_pixels: HashMap::new(),
         }
@@ -106,7 +107,7 @@ pub struct StampSpriteSet {
     entries: Vec<Arc<Entry>>,
     buckets: HashMap<u64, Vec<usize>>,
     slots: Vec<Option<u32>>,
-    sprites: Vec<Arc<OrganicBillboardSprite>>,
+    sources: PaintBillboardSources,
     pixels: HashMap<u64, Vec<Arc<OrganicBillboardSprite>>>,
 }
 impl StampSpriteSet {
@@ -126,14 +127,7 @@ impl StampSpriteSet {
     }
 
     pub fn sprites(&self) -> Vec<OrganicBillboardSprite> {
-        self.sprites
-            .iter()
-            .map(|sprite| OrganicBillboardSprite {
-                width: sprite.width,
-                height: sprite.height,
-                rgba: sprite.rgba.clone(),
-            })
-            .collect()
+        self.sources.sprites().to_vec()
     }
 
     /// Resolve the current view's surface/world placement after preparation.
@@ -199,7 +193,7 @@ pub struct StampSpritePreparation {
     pending: Option<StampWork<Option<NativeSprite>>>,
     buckets: HashMap<u64, Vec<usize>>,
     slots: Vec<Option<u32>>,
-    sprites: Vec<Arc<OrganicBillboardSprite>>,
+    source_builder: PaintBillboardSourceBuilder,
     by_pixels: HashMap<usize, u32>,
     current_pixels: HashMap<u64, Vec<Arc<OrganicBillboardSprite>>>,
 }
@@ -264,10 +258,8 @@ impl StampSpritePreparation {
                 let slot = if let Some(slot) = self.by_pixels.get(&identity) {
                     *slot
                 } else {
-                    let slot = u32::try_from(self.sprites.len())
-                        .map_err(|_| "Too many live stamp sources")?;
+                    let slot = self.source_builder.push((*raster.sprite).clone())?;
                     self.by_pixels.insert(identity, slot);
-                    self.sprites.push(raster.sprite.clone());
                     self.current_pixels
                         .entry(raster.hash)
                         .or_default()
@@ -298,7 +290,7 @@ impl StampSpritePreparation {
             entries: self.entries,
             buckets: self.buckets,
             slots: self.slots,
-            sprites: self.sprites,
+            sources: self.source_builder.finish(),
             pixels: self.current_pixels,
         })
     }

@@ -59,7 +59,7 @@ impl Snapshot {
             }
             Ok(())
         };
-        for sprite in &vm.organic_billboards.sprites {
+        for sprite in vm.organic_billboards.sprites.iter() {
             push(
                 sprite.width,
                 sprite.height,
@@ -93,7 +93,7 @@ impl Snapshot {
                 )?;
             }
         }
-        for sprite in &vm.paint_billboards.sprites {
+        for sprite in vm.paint_billboards.sprites.iter() {
             push(
                 sprite.width,
                 sprite.height,
@@ -101,7 +101,7 @@ impl Snapshot {
                 Pixels::Rgba(sprite.rgba.clone()),
             )?;
         }
-        for sprite in &vm.paint_billboards.paged_sprites {
+        for sprite in vm.paint_billboards.paged_sprites.iter() {
             push(
                 sprite.width,
                 sprite.height,

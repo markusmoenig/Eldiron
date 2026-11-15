@@ -15949,7 +15949,7 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   terminal; proceed with changed-recipe capture and view-owned placement work.
 
 
-## Cooperative stamp request ownership (2026-11-15, in progress)
+## Cooperative stamp request ownership (2026-11-15)
 
 - Changed Creator/player stamp sources now freeze original list handles and visit
   recipes through StampRequestCapture instead of scanning/hash-deduplicating the
@@ -15991,7 +15991,7 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   completes the capture checkpoint only; proceed directly to view-owned placement.
 
 
-## View-owned stamp placement (2026-11-15, implementation in progress)
+## View-owned stamp placement (2026-11-15)
 
 - Added vm/paint_surface_index.rs: immutable transformed triangle coordinates,
   preserved original chunk/group/poly/triangle first-match policy and UV tolerance.
@@ -16044,3 +16044,47 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   instance vector is moved into the VM without a second synchronous whole scan.
   M0-M9/full acceptance remain unfinished; no measured speedup or total-memory
   cap is claimed. This is a local implementation checkpoint, not a stopping gate.
+
+
+## Immutable checked billboard publication (2026-11-15)
+
+- Added vm/organic/prepared.rs: source and instance builders validate one item at
+  a time, then seal private immutable packets. Source books wrap completed Vec
+  allocations in Arc<Vec> without copying/reindexing. VM installation moves the
+  complete instance Vec and original shared source book without a whole-list
+  validation/filter pass. Pose-only packets keep the same checked source identity.
+- Canonical StampSpritePreparation builds that checked source book during its
+  existing recipe steps. StampPlacementOwner checks each placement through the
+  instance builder, then installs the completed packet directly. Explicit old
+  Atom/reference helpers retain their existing sanitization semantics. Original
+  pixel Arc backing, shader words, original input order and current wire are kept.
+- Private OrganicBillboardData source catalogues are now immutable Arc<Vec>s;
+  their packing/inspection readers preserve original traversal. No schema change,
+  whole pixel copy, new legacy paint requirement or broad test expansion.
+- Focused CPU release packet contract PASS0.00s (build6.43s):
+  /private/tmp/eldiron-stamp-publication-release-packet.log. Invalid dimensions,
+  index/finite checks, exact reference shader words, pose-only source-word reuse,
+  original pixel storage and final source-catalogue retirement are covered.
+- Canonical four-application native release check PASS27.74s:
+  /private/tmp/eldiron-stamp-publication-release-native.log. Actual Creator browser-
+  host wasm release check PASS26.59s:
+  /private/tmp/eldiron-stamp-publication-release-wasm.log.
+- Focused shared stamp ownership/current-wire/reference release contracts
+  PASS7/7 in0.01s (build1m04s):
+  /private/tmp/eldiron-stamp-publication-release-shared.log. Existing common-view
+  placement Metal release contract against immutable publication PASS0.11s
+  (build57.85s): /private/tmp/eldiron-stamp-publication-release-view.log. All
+  handles terminal; source/placement/publication checkpoint ready. Broad suites
+  remain deferred; immediately proceed to merged Prefab source ownership.
+- Next remaining ownership audit: native_world_paint::capture synchronously
+  calls block_props::merge_prefab_paint_source_for_map every normal 3D request.
+  That rebuilds rendered owner IDs and inserts every linked baked page into a
+  detached target catalogue, even unchanged. Preserve its exact source-local
+  surface IDs, visible/current-version filtering, FxHashSet asset order and
+  last-insert-wins policy while retaining/cooperatively preparing merged sources.
+  Free-standing Prefab stamp expansion is also deferred by the reference helper;
+  do not invent unsupported behavior during this port.
+- Bounds remain cooperative: individual recipe hashing/cloning, descriptor-key
+  capture, allocation and eventual source-metadata destruction can be indivisible.
+  Whole M0-M9 acceptance/performance/platform matrix and aggregate memory policy
+  remain unfinished. Continue implementation; no overall completion claim.
