@@ -1,0 +1,49 @@
+{
+  "date": "2026-11-15",
+  "profile": "release",
+  "project": "UnendingNight.eldiron",
+  "scope": "One isolated fresh-process decoder pair; archive decompression precedes decode timer; process RSS includes it. Not full-app latency, rendering or final performance acceptance.",
+  "reference": {
+    "decode_ms": 2629.3442919999998,
+    "decoder": "reference",
+    "json_bytes": 514497694,
+    "material_sources": 125,
+    "project": "Unending Night",
+    "regions": 1,
+    "tile_color_bytes": 69259168,
+    "tile_frames": 4098,
+    "tiles": 158,
+    "max_rss_bytes": 6222643200,
+    "log": "/private/tmp/eldiron-project-json-unending-reference-measured.log"
+  },
+  "streamed": {
+    "decode_ms": 2687.096375,
+    "decoder": "streamed",
+    "json_bytes": 514497694,
+    "material_sources": 125,
+    "project": "Unending Night",
+    "regions": 1,
+    "tile_color_bytes": 69259168,
+    "tile_frames": 4098,
+    "tiles": 158,
+    "max_rss_bytes": 788250624,
+    "log": "/private/tmp/eldiron-project-json-unending-streamed-root-measured.log"
+  },
+  "peak_rss_reduction_fraction": 0.8733254344391785,
+  "contracts": {
+    "json_decoder": {
+      "passed": 4,
+      "ignored_profile": 1,
+      "log": "/private/tmp/eldiron-streamed-project-json-root-contracts.log"
+    },
+    "archive": {
+      "passed": 8,
+      "log": "/private/tmp/eldiron-streamed-project-archive-contracts.log"
+    },
+    "legacy_tiles": {
+      "passed": 3,
+      "log": "/private/tmp/eldiron-streamed-project-legacy-contracts.log"
+    }
+  },
+  "compatibility": "Original Project remote derive/defaults/hooks; lexical map order; typed structs stream; known unordered dirty_attributes sets compared as sets; original decoder fallback for nonempty legacy groups and rejected streaming inputs; general Project Deserialize unchanged."
+}

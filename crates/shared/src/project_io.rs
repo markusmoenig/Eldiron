@@ -147,7 +147,7 @@ pub fn decode_project(bytes: &[u8]) -> Result<Project, String> {
         }
     };
     let mut project = match project_file_format(bytes) {
-        ProjectFileFormat::LegacyJson => serde_json::from_slice(bytes)
+        ProjectFileFormat::LegacyJson => crate::project::decode_json(bytes)
             .map_err(|err| format!("invalid legacy Eldiron project JSON: {err}")),
         ProjectFileFormat::ArchiveV1 => decode_project_archive(bytes),
     }?;
@@ -249,7 +249,7 @@ fn decode_project_archive(bytes: &[u8]) -> Result<Project, String> {
     }
 
     let project_json = read_archive_entry(&mut archive, PROJECT_JSON_PATH, MAX_PROJECT_JSON_BYTES)?;
-    let mut project: Project = serde_json::from_slice(&project_json)
+    let mut project: Project = crate::project::decode_json(&project_json)
         .map_err(|err| format!("invalid project.json in Eldiron archive: {err}"))?;
     let mut binaries = ProjectBinaryReader::new(&mut archive);
     hydrate_bake_entries(&mut project, &mut binaries)?;

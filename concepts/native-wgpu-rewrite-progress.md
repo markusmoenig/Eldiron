@@ -17767,3 +17767,86 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   owners, and release after last range drop.
   /private/tmp/eldiron-packed-range-renderkit-contracts.log. Durable evidence:
   release-packed-ui-ranges.json. No full-scene performance acceptance from this.
+
+
+## Project JSON staging residency follow-up (2026-11-15)
+
+- Local checkpoint7cff90a1 stores verified packed immutable UI inputs, ordered
+  surface dependencies and benchmark diagnostics. Unrelated untracked networking
+  concept preserved. No push.
+- UnendingNight archive has514497694B project.json (29MiB compressed archive).
+  Existing Project::Deserialize always constructs a complete JSON Value tree
+  before typed decoding, even with no legacy tile groups. This is a concrete
+  staging-memory candidate; do not claim it explains all driver/scene residency.
+- New project/json_decode module used only at file/archive I/O boundary borrows
+  raw object field ranges; arrays decode to typed storage. General Project
+  Deserialize/from_value compatibility remains unchanged. Keeps lexical object
+  key ordering and last duplicate-key behavior (not a naive direct IndexMap
+  decode). Uses serde_json's map-key decoder for numeric/enum/UUID keys. Defaults
+  and hooks are the original remote Project derive. Nonempty tile_groups uses
+  original migration; empty/invalid groups retain characterized semantics.
+- Existing serde_json1.0.149 gains raw_value feature; no dependency versions.
+  Initial focused release build87316 stopped on missing Error trait import;
+  corrected95417PASS2/2 (32.31s build/0.07s runtime). Exact serialized content,
+  IndexMap order, nested enums/sequences/numeric keys/duplicate object fields,
+  empty/invalid legacy groups covered. Logs:
+  /private/tmp/eldiron-streamed-project-json-contracts{,-fixed}.log.
+- Added shipped current-source serialization/order checks, legacy group file-path
+  equivalence/rejection assertions, opt-in isolated decoder profiler. Shared
+  release serialization regression35746 currently active;
+  /private/tmp/eldiron-streamed-project-serialization-contracts.log. Next verify
+  terminal status, then isolated fresh-process reference/streamed memory+load
+  measurements and current Creator release build/guard. No acceptance claim yet.
+
+- Shared serialization35746terminal:173PASS,1FAIL(new shipped byte-string
+  comparison),1ignored(profile),109.62s. The failure is diagnosed, not ignored:
+  all nine differences are permutations in Entity/Item.dirty_attributes, whose
+  Rust type is FxHashSet<String>. Streaming arrays lack the Value array's eager
+  size_hint; set growth/rehashing changes only iteration order. The new shipped
+  assertion compares complete serialized source with those exact known set
+  fields normalized, and explicitly checks ordered asset IndexMap keys. Generic
+  nested numeric-key/enum/IndexMap byte-order assertion remains unchanged.
+- Final focused decoder44135PASS3/3+1ignored. Added original JSON127container
+  depth limit before borrowed readers (including unknown fields);11985PASS4/4
+  +1ignored. No full tree needed for depth accounting. No broad suite rerun yet.
+- Isolated native release fresh-process UnendingNight comparison: reference
+  original Value decoder77609PASS,2629.34ms decode,6222643200B maxRSS; first
+  streamed53019PASS,7621.51ms,785235968B maxRSS. Same514497694B input,
+  project/1region/158tiles/4098frames/69259168tile-color-bytes/125materials match.
+  Logs /private/tmp/eldiron-project-json-unending-{reference,streamed}-measured.log.
+  This proves large staging-memory reduction, but initial decoder is SLOWER.
+- Earlier default-sandbox /usr/bin/time run37079 test itself passed but time -l
+  could not read sysctl kern.clockrate; it has NO accepted memory result. The
+  measured runs above used permitted read-only sysctl access and exit0.
+- Removed numeric-element reparse and redundant raw buffering of typed structs;
+  maps retain lexical raw-field sorting. Struct build33808PASS4/4+1ignored,
+  0.73s tests. Struct profile18330PASS:4412.62ms/788267008B maxRSS; still slower
+  than original despite improved throughput. Prior unoptimized logs retained.
+- Current refinement observes legacy tile_groups during the actual root field
+  decode, removing standalone full-document syntax/probe scans. Original remote
+  Project derive/defaults/hooks retained. Nonempty groups and any rejected fast
+  typed input drop partial state and retry original migration/decoder, preserving
+  unused legacy group assets, duplicate struct-field semantics and error paths.
+  Root compile28920active; /private/tmp/eldiron-streamed-project-json-root-contracts.log.
+  Next current isolated memory/time, project archive/legacy focused gates, current
+  Creator release build and owned guarded large-scene run. No full application
+  performance or memory acceptance yet.
+
+- Root decoder28920terminalPASS4/4+1ignored,0.69s. Current isolated profile18073
+  terminalPASS,2687.10ms decode,788250624B maximumRSS and778159136B peakfootprint.
+  Reference2629.34ms/6222643200B; one paired process comparison,~87.3%less peakRSS
+  with similar decode wall time (2.2%difference, no speedup claim). Matching source
+  metadata includes all4098tile frames/69259168tile color bytes. Archiveinflate
+  outside decode timer, included processpeak. No full-app claim or M0 completion.
+  /private/tmp/eldiron-project-json-unending-streamed-root-measured.log.
+- Current project archive contracts8/8PASS0.25s and legacygroup contracts3/3PASS
+  0.06s, using exact current prebuilt release shared binary. Legacy file-path
+  flattening matches general from_value result, missing members rejected, original
+  animation/material channels/save-reopen preserved. Logs:
+  /private/tmp/eldiron-streamed-project-{archive,legacy}-contracts.log.
+- Durable release-project-json-residency.json records final targeted checks and
+  fresh-process measurement. Current Creator release rebuild now active;
+  /private/tmp/eldiron-streamed-project-creator-build.log. Next unique guarded
+  native large scene from THIS binary, assembled root check, then matched timing
+  if ready. Strict geometry/light/source-color identity and generic sprite live
+  ownership remain independent implementation work after this result.

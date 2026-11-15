@@ -327,7 +327,9 @@ mod tests {
     #[test]
     fn legacy_groups_become_regular_tiles_and_survive_save_reload() {
         let (value, group, left, right) = grouped_project();
+        let streamed = crate::project::decode_json(&serde_json::to_vec(&value).unwrap()).unwrap();
         let project: Project = serde_json::from_value(value).unwrap();
+        assert_eq!(serde_json::to_string(&streamed).unwrap(), serde_json::to_string(&project).unwrap());
         assert!(project.tiles.contains_key(&left) && project.tiles.contains_key(&right));
         let tile = &project.tiles[&group];
         assert_eq!(tile.alias, "Old layout");
@@ -366,6 +368,8 @@ mod tests {
     fn invalid_legacy_member_is_rejected_instead_of_dropping_artwork() {
         let (mut value, group, _, _) = grouped_project();
         value["world_module"] = json!({"TileGroupMember": {"group_id": group, "member_index": 99}});
+        let streamed_error = crate::project::decode_json(&serde_json::to_vec(&value).unwrap()).unwrap_err();
+        assert!(streamed_error.to_string().contains("Missing member 99"));
         let error = serde_json::from_value::<Project>(value).unwrap_err();
         assert!(error.to_string().contains("Missing member 99"));
     }

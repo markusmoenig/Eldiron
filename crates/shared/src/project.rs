@@ -3,6 +3,9 @@ use indexmap::IndexMap;
 pub use rusterix::map::*;
 use theframework_core::prelude::*;
 
+mod json_decode;
+pub(crate) use json_decode::decode as decode_json;
+
 /// The default target fps for the game.
 fn default_target_fps() -> u32 {
     30
