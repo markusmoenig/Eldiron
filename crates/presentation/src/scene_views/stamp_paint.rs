@@ -7,6 +7,9 @@ impl SceneViews {
     pub fn scene_source_uploaded_bytes(&self) -> usize {
         self.source_upload_budget.uploaded_bytes()
     }
+    pub fn scene_source_packed_cpu_bytes(&self) -> usize {
+        self.source_upload_budget.packed_cpu_bytes()
+    }
     /// Live owners call after source/placement preparation, before rendering.
     /// Private buffer writes share a budget across every live view in this frame.
     pub fn prepare_scene_source_uploads(&mut self, id: ViewId) -> Result<bool> {

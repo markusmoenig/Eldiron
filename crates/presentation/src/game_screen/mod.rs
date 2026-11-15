@@ -89,6 +89,7 @@ pub struct GameScreenController {
     configured_views: FxHashMap<ViewId, ContentRevision>,
     view_images: FxHashMap<Uuid, ViewImage>,
     completed_view_scopes: FxHashMap<ViewId, (Uuid, Uuid)>,
+    source_prepare_turn: usize,
     pending_scene_uploads: bool,
     stamp_sources: stamp_sources::Sources,
     source_wake: Option<theframework::platform::ApplicationWake>,
@@ -224,6 +225,7 @@ impl GameScreenController {
             configured_views: FxHashMap::default(),
             view_images: FxHashMap::default(),
             completed_view_scopes: FxHashMap::default(),
+            source_prepare_turn: 0,
             pending_scene_uploads: false,
             stamp_sources: Default::default(),
             source_wake: None,
@@ -551,6 +553,8 @@ impl GameScreenController {
             animation_frame: self.animation_frame,
             render_state: &world.render_state,
         };
+        let mut graphical_views = Vec::new();
+        let mut world_order = Vec::new();
         for (key, widget) in &mut self.elements.game_widgets {
             if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide) {
                 if let Some(id) = self.view_ids.get(key) {
@@ -571,7 +575,7 @@ impl GameScreenController {
                 if size.0 > 0 && size.1 > 0 {
                     let lines = widget.prepare_text_view(size, map)?;
                     self.text_games.prepare(*key, widget, lines)?;
-                    self.world.push_text_view(*key, widget, map);
+                    world_order.push((*key, None));
                 }
                 continue;
             }
@@ -614,21 +618,37 @@ impl GameScreenController {
             } else {
                 views.set_stamp_paint(id, None).map_err(|e| e.to_string())?;
             }
+            graphical_views.push((*key, id));
+            world_order.push((*key, Some(id)));
+        }
+        // Preparation gets a rotating first consumer under the shared budget.
+        // Rendering and receipt publication retain their existing widget order.
+        let count = graphical_views.len();
+        for offset in 0..count {
+            let (_, id) = graphical_views[(self.source_prepare_turn % count + offset) % count];
             views.prepare_scene_source_uploads(id).map_err(|e| e.to_string())?;
+        }
+        self.source_prepare_turn = self.source_prepare_turn.wrapping_add(1);
+        for (key, id) in world_order {
+            let widget = &self.elements.game_widgets[&key];
+            let Some(id) = id else {
+                self.world.push_text_view(key, widget, map);
+                continue;
+            };
             if let Some(output) = views
                 .render(id, self.animation_frame as u64, images)
                 .map_err(|e| e.to_string())?
             {
                 self.world
-                    .push_view(*key, widget, output, map, views.isometric_targets(output))?;
+                    .push_view(key, widget, output, map, views.isometric_targets(output))?;
                 self.completed_view_scopes.insert(id, (world.session_id, map.id));
-                self.view_images.insert(*key, output);
+                self.view_images.insert(key, output);
             } else if self.completed_view_scopes.get(&id) == Some(&(world.session_id, map.id))
                 && let Some(output) = views.output(id)
             {
                 // Keep a complete image visible while replacement data uploads.
                 // It receives no fresh world input receipt/camera publication.
-                self.view_images.insert(*key, output);
+                self.view_images.insert(key, output);
             }
         }
         views.advance_surface_paint_uploads().map_err(|e| e.to_string())?;

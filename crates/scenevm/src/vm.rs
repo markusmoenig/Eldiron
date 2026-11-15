@@ -3788,6 +3788,7 @@ pub struct VM {
     tile_gpu_dirty: bool,
     cached_scene_data_hash: u64,
     cached_organic_words: Option<organic::Words>,
+    organic_packing: organic::SourcePacking,
     organic_sources_dirty: bool,
     organic_instances_dirty: bool,
     irradiance_grid_dirty: bool,
@@ -5706,6 +5707,7 @@ impl VM {
             tile_gpu_dirty: true,
             cached_scene_data_hash: 0,
             cached_organic_words: None,
+            organic_packing: Default::default(),
             organic_sources_dirty: true,
             organic_instances_dirty: false,
             irradiance_grid_dirty: true,
@@ -12004,7 +12006,7 @@ impl VM {
         let (organic_ms, irradiance_ms, tables_ms, targets_ms, mesh_ms, indices_ms);
         let full_geometry_upload;
         {
-            self.upload_organic_billboard_ssbo(device, queue);
+            self.upload_organic_billboard_ssbo(device, queue)?;
             organic_ms = upload_elapsed();
             self.upload_irradiance_grid_ssbo(device, queue);
             irradiance_ms = upload_elapsed();

@@ -55,7 +55,7 @@ behavior is ready to verify.
 ## Next work
 
 1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,18 retained standard control families, static collection/property-layout contributions and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
-2. Close live source residency, catalogue capture and remaining UV/player source policy. Cooperative shared GPU page uploads and live world/player billboard buffer uploads are connected below; source allocation/CPU packing/metadata/capture scheduling and working-set residency remain open. Player UV pages share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection now has an owned page publication below. Player stamp CPU publication/controller ownership is connected in the latest in-flight checkpoint; standalone feature verification and consolidated runtime acceptance remain. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
+2. Close live source residency, catalogue capture and remaining UV/player source policy. Cooperative shared GPU page uploads and live world/player billboard buffer uploads are connected below; source allocation/large instance metadata/capture scheduling and working-set residency remain open. Live organic pixel packing now has a shared cooperative owner in the latest checkpoint; integrated acceptance remains open. Player UV pages share authored CPU bytes and one per-device GPU binding across views; Creator live UV/selection now has an owned page publication below. Player stamp CPU publication/controller ownership is checkpointed with standalone native/browser release compilation; consolidated runtime acceptance remains. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
 ## Blockers
@@ -14624,3 +14624,59 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   git diff --check passed. No functional/GPU/performance suite run. Networking
   concept remains untouched and excluded from the checkpoint. All unverified
   M0-M9 acceptance gates remain open; no full-goal completion claim.
+
+## Cooperative live organic CPU pixel packing and fair preparation (2026-11-15)
+
+- Previous turn is progress:56c8a619 and99c02ad2. Revalidated the clean tracked
+  worktree before implementation. Unrelated networking concept is unchanged and
+  remains untracked. Full M0-M9 Goal active; no implementation blocker.
+- Replaced the synchronous live source pixel packer with one shared resumable
+  kernel for both live and explicit reference consumers. CPU SourcePacking lives
+  on the VM separately from VMGpu: current immutable RGBA/mask handles, ordered
+  source metadata, completed words and incomplete packing survive GPU-domain
+  reconstruction. Ordinary, chunk, paint and paged-paint sources keep the same
+  ordering, little-endian color words and paged mask-offset flag/layout.
+- Headers advance in groups of<=256; pixels compare/pack in<=64KiB pieces under
+  a512KiB CPU packing-work budget and2ms elapsed checks. Empty-source transitions
+  also consume work units so they cannot create an unbounded final scan. Emitted
+  CPU bytes have a separate counter; traversal steps are not counted as pixels.
+  This CPU budget is separate from the prior GPU-buffer and UV-page budgets.
+  Descriptor capture, allocation, large instance metadata and driver calls are
+  not proven bounded by these checks and remain explicitly open.
+- Snapshot identity compares dimensions/offsets and immutable source handles.
+  Camera/guide changes with unchanged image backing retain active packing.
+  Different handles with equal bytes reuse prior words only after incremental
+  exact comparisons. Published private words now own Arc<Vec<u32>>, avoiding the
+  old full-size pixel-vector concatenation and Arc-slice handoff copy. No public
+  serialized type or shader layout changed. Native live drawing consumes ready
+  words; the explicit synchronous reference path drains this same kernel.
+- Device buffer limits are checked before live packing/allocating. Pending CPU
+  replacements retire stale private GPU upload jobs; hide/suspend/zero-size/
+  teardown cancels unfinished packing while completed CPU words remain reusable.
+  Source/placement versions still cannot publish an incomplete GPU buffer.
+- Graphical screen preparation now freezes all view descriptions first, then
+  rotates which view gets the first source-preparation budget each frame. Layers
+  on each SceneVM also rotate first priority. Rendering and input receipts retain
+  the previous mixed text/graphical widget order; only preparation priority
+  changes. This addresses stable-set starvation policy, not measured fairness or
+  a frame-time guarantee. Existing independent runtime clocks are unchanged.
+- Canonical four-application release compilation PASS31.31s initially and
+  PASS29.58s after rotating preparation. Browser Creator release PASS28.21s.
+  Final native checks PASS28.90s after empty-source accounting and PASS13.93s
+  after mixed text/graphical receipt-order preservation. Current standalone
+  browser player release PASS16.90s. Logs:
+  /private/tmp/eldiron-cooperative-live-cpu-packing-release.log,
+  /private/tmp/eldiron-cooperative-live-cpu-packing-release-final.log,
+  /private/tmp/eldiron-cooperative-live-cpu-packing-release-web.log,
+  /private/tmp/eldiron-cooperative-live-cpu-packing-release-current.log,
+  /private/tmp/eldiron-cooperative-live-cpu-packing-release-order.log,
+  /private/tmp/eldiron-cooperative-live-cpu-packing-release-player-web.log.
+  All compilers terminal (last player observer handle missing, terminal log
+  confirms successful completion); git diff --check passed. No broad functional/
+  GPU/performance suite run per the user's implementation-first steering.
+- Consolidated acceptance must verify packed reference pixels/masks/offsets,
+  mid-pack edits and no-op guides, cancellation/empty sources/device replacement,
+  mixed overlapping text/graphical receipts, many views/layers, actual fairness
+  and release input/frame/memory behavior. Current source capture/metadata and
+  live working-set residency, remaining canonical adapters/ownership and full
+  platform/functional/resource/release-performance acceptance remain open.

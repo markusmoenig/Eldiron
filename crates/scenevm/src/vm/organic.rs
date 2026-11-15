@@ -1,14 +1,16 @@
 //! Retained CPU billboard descriptions and segmented compute metadata uploads.
 use super::*;
+mod packing;
 mod upload;
+pub(super) use packing::SourcePacking;
 pub(super) use upload::Pending;
 
 /// The shader's unchanged contiguous layout, retained as independent CPU spans.
 /// Source metadata/pixels survive placement updates; GPU owners track each span.
 #[derive(Clone)]
 pub(super) struct Words {
-    instances: Arc<[u32]>,
-    sources: Arc<[u32]>,
+    instances: Arc<Vec<u32>>,
+    sources: Arc<Vec<u32>>,
 }
 
 impl Words {
@@ -52,37 +54,13 @@ impl VM {
         self.organic_sources_dirty = true;
         self.organic_instances_dirty = true;
     }
-    fn organic_words(&mut self) -> Words {
-        if let Some(old) = &self.cached_organic_words {
-            if !self.organic_sources_dirty && !self.organic_instances_dirty {
-                return old.clone();
-            }
-            let sources = if self.organic_sources_dirty {
-                let next = self.build_organic_sprite_words();
-                if old.sources.as_ref() == next.as_slice() {
-                    old.sources.clone()
-                } else {
-                    next.into()
-                }
-            } else {
-                old.sources.clone()
-            };
-            let next = self.build_organic_instance_words();
-            let instances = if old.instances.as_ref() == next.as_slice() {
-                old.instances.clone()
-            } else {
-                next.into()
-            };
-            self.cached_organic_words = Some(Words { instances, sources });
-        } else {
-            self.cached_organic_words = Some(Words {
-                instances: self.build_organic_instance_words().into(),
-                sources: self.build_organic_sprite_words().into(),
-            });
-        }
-        self.organic_instances_dirty = false;
-        self.organic_sources_dirty = false;
-        self.cached_organic_words.as_ref().unwrap().clone()
+    fn organic_words(&mut self, limit: u64) -> crate::SceneVMResult<Words> {
+        let mut budget = crate::source_upload::SourceUploadBudget::unlimited_cpu();
+        self.poll_organic_words(&mut budget, limit)?.ok_or_else(|| {
+            crate::SceneVMError::InvalidOperation(
+                "unlimited organic preparation did not finish".into(),
+            )
+        })
     }
     pub fn compute_organic_source_bytes(&self) -> u64 {
         let mut sprites = self.organic_billboards.sprites.len() as u64
@@ -199,56 +177,26 @@ impl VM {
         words
     }
 
-    fn build_organic_sprite_words(&self) -> Vec<u32> {
-        let mut words = Vec::new();
-        let mut pixel_words = Vec::new();
-        for sprite in &self.organic_billboards.sprites {
-            let offset_pixels = pixel_words.len() as u32;
-            words.extend_from_slice(&[offset_pixels, sprite.width, sprite.height, 0]);
-            for px in sprite.rgba.chunks_exact(4) {
-                pixel_words.push(u32::from_le_bytes([px[0], px[1], px[2], px[3]]));
-            }
-        }
-        for chunk in self.chunks_map.values() {
-            for sprite in &chunk.organic_billboard_sprites {
-                let offset_pixels = pixel_words.len() as u32;
-                words.extend_from_slice(&[offset_pixels, sprite.width, sprite.height, 0]);
-                for px in sprite.rgba.chunks_exact(4) {
-                    pixel_words.push(u32::from_le_bytes([px[0], px[1], px[2], px[3]]));
-                }
-            }
-        }
-        for sprite in &self.paint_billboards.sprites {
-            let offset_pixels = pixel_words.len() as u32;
-            words.extend_from_slice(&[offset_pixels, sprite.width, sprite.height, 0]);
-            for px in sprite.rgba.chunks_exact(4) {
-                pixel_words.push(u32::from_le_bytes([px[0], px[1], px[2], px[3]]));
-            }
-        }
-        for sprite in &self.paint_billboards.paged_sprites {
-            let mask_offset = pixel_words.len() as u32;
-            words.extend_from_slice(&[
-                sprite.source_id,
-                sprite.width,
-                sprite.height,
-                mask_offset | 0x8000_0000,
-            ]);
-            pixel_words.extend_from_slice(&sprite.alpha_mask);
-        }
-        words.extend_from_slice(&pixel_words);
-
-        words
-    }
-
     pub(super) fn upload_organic_billboard_ssbo(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-    ) {
+    ) -> crate::SceneVMResult<()> {
         use wgpu::util::DeviceExt;
 
-        let organic_words = self.organic_words();
-        let organic_byte_len = organic_words.len() * 4;
+        let limit = device
+            .limits()
+            .max_buffer_size
+            .min(u64::from(device.limits().max_storage_buffer_binding_size));
+        let organic_words = self.organic_words(limit)?;
+        let organic_byte_len = organic_words.len().checked_mul(4).ok_or_else(|| {
+            crate::SceneVMError::BufferAllocationFailed("organic buffer size overflow".into())
+        })?;
+        if organic_byte_len as u64 > limit {
+            return Err(crate::SceneVMError::BufferAllocationFailed(
+                "organic source exceeds device binding limit".into(),
+            ));
+        }
         let g = self.gpu.as_mut().unwrap();
         if g.organic_billboard_ssbo.is_none() || g.organic_billboard_ssbo_size != organic_byte_len {
             let mut words = Vec::with_capacity(organic_words.len());
@@ -271,6 +219,7 @@ impl VM {
         g.organic_billboard_ssbo_size = organic_byte_len;
         g.organic_billboard_count = organic_words.instances[2];
         g.organic_billboard_words = Some(organic_words);
+        Ok(())
     }
     pub(super) fn upload_compute3d_aux_ssbo(
         &mut self,
@@ -278,7 +227,12 @@ impl VM {
         queue: &wgpu::Queue,
     ) -> crate::SceneVMResult<()> {
         use wgpu::util::DeviceExt;
-        let organic = self.organic_words();
+        let organic = self.organic_words(
+            device
+                .limits()
+                .max_buffer_size
+                .min(u64::from(device.limits().max_storage_buffer_binding_size)),
+        )?;
         let dummy = Raster3DSurfacePaintEntry::zeroed();
         let (surface, surface_changed) = {
             let current = self

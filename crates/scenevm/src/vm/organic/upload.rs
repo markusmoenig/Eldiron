@@ -5,7 +5,7 @@ use crate::source_upload::SourceUploadBudget;
 
 enum Data {
     Header([u32; 5]),
-    Words(Arc<[u32]>),
+    Words(Arc<Vec<u32>>),
     Surface(Arc<[Raster3DSurfacePaintEntry]>),
 }
 impl Data {
@@ -100,16 +100,47 @@ impl VM {
                 RenderMode::Raster3D | RenderMode::Compute3D
             )
         {
+            self.cancel_organic_preparation();
             if let Some(gpu) = &mut self.gpu {
                 gpu.pending_source_upload = None;
             }
             return Ok(true);
         }
+        let compute = self.render_mode == RenderMode::Compute3D;
+        let limit = device
+            .limits()
+            .max_buffer_size
+            .min(u64::from(device.limits().max_storage_buffer_binding_size));
+        let surface_bytes = if compute {
+            20u64.saturating_add(
+                self.paint_entries()
+                    .filter(|entries| !entries.is_empty())
+                    .map_or(size_of::<Raster3DSurfacePaintEntry>() as u64, |entries| {
+                        size_of_val(entries) as u64
+                    }),
+            )
+        } else {
+            0
+        };
+        if self
+            .compute_organic_source_bytes()
+            .saturating_add(surface_bytes)
+            > limit
+        {
+            return Err(crate::SceneVMError::BufferAllocationFailed(
+                "live organic source exceeds device binding limit".into(),
+            ));
+        }
+        let Some(organic) = self.poll_organic_words(budget, limit.saturating_sub(surface_bytes))?
+        else {
+            if let Some(gpu) = &mut self.gpu {
+                gpu.pending_source_upload = None;
+            }
+            return Ok(false);
+        };
         if self.gpu.is_none() {
             self.init_gpu(device)?;
         }
-        let organic = self.organic_words();
-        let compute = self.render_mode == RenderMode::Compute3D;
         let surface = if compute {
             let dummy = Raster3DSurfacePaintEntry::zeroed();
             let current = self
