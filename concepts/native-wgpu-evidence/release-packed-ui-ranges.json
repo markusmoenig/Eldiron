@@ -1,0 +1,43 @@
+{
+  "date": "2026-11-15",
+  "profile": "release",
+  "hardware": "native Metal",
+  "checks": {
+    "renderkit": {
+      "passed": 16,
+      "failed": 0,
+      "ignored": 0,
+      "log": "/private/tmp/eldiron-packed-range-renderkit-contracts.log"
+    },
+    "framework_paint": {
+      "passed": 12,
+      "log": "/private/tmp/eldiron-packed-paint-contracts.log"
+    },
+    "assembled_creator": {
+      "passed": 1,
+      "seconds": 23.47,
+      "log": "/private/tmp/eldiron-packed-paint-assembled-creator.log"
+    }
+  },
+  "large_scene_diagnostic": {
+    "project": "UnendingNight.eldiron",
+    "complete": false,
+    "reason": "owned child exceeded 8-GiB diagnostic RSS ceiling",
+    "live_buffer_count_after_root_main_minimap": 308,
+    "previous_live_buffer_count_approximate": 16600,
+    "owned_child": 99532,
+    "wall_seconds": 10.379178207999999,
+    "max_rss_reported_bytes": 8747581440,
+    "logs": [
+      "/private/tmp/eldiron-isometric-packed-paint-native.log",
+      "/private/tmp/eldiron-isometric-packed-paint-native-guard.log"
+    ]
+  },
+  "limits": {
+    "range_cache_combined_cpu_gpu_bytes": 67108864,
+    "range_cache_entries": 16384,
+    "page_bytes": 65536,
+    "dedicated_cache_is_separate": true
+  },
+  "scope": "Targeted resource/pixel contracts. No full large-scene, broad platform or numerical performance acceptance claim."
+}

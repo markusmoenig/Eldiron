@@ -238,6 +238,11 @@ impl IsometricSurfaceRenderer {
                     <= u64::from(self.context.device.limits().max_storage_buffer_binding_size)
             })
             .ok_or_else(|| RenderError("isometric surface masks exceed device limits".into()))?;
+        #[cfg(not(target_arch = "wasm32"))]
+        if std::env::var_os("ELDIRON_PROFILE_ISOMETRIC").is_some() {
+            eprintln!("Isometric surface work: triangles={} terrain={} arena_bytes={size} mask_words={mask_count}; registry={:?}",
+                triangles.len(), triangles.iter().filter(|t| t.kind == SurfaceKind::Terrain).count(), self.context.instance.generate_report());
+        }
         let mut masks = Vec::<u32>::with_capacity(mask_count.max(1) as usize);
         let mut bytes = vec![0u8; size as usize];
         let mut regions = Vec::with_capacity(triangles.len());
@@ -287,6 +292,7 @@ impl IsometricSurfaceRenderer {
                 (max.x.ceil() as i32).clamp(0, width as i32),
                 (max.y.ceil() as i32).clamp(0, height as i32),
             ];
+            let region = super::surface_region::clip_floor(region, t, projection);
             regions.push(region);
             let mut normal = Vec3::unit_y();
             if t.kind == SurfaceKind::Terrain {
@@ -435,14 +441,11 @@ impl IsometricSurfaceRenderer {
                 });
         }
         let mut encoder = renderkit::OrderedCompute::new(&self.context, "iso-surface-raster");
-        for (i, t) in triangles.iter().enumerate() {
+        let dispatch = |pass: &mut wgpu::ComputePass<'_>, i: usize| {
+            let t = &triangles[i];
             let region = regions[i];
-            if region[0] >= region[2] || region[1] >= region[3] {
-                continue;
-            }
             let other = t.secondary.map_or(t.source, |(source, _)| source);
             let key = (t.source as *const _ as usize, other as *const _ as usize);
-            let mut pass = encoder.begin_pass();
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &bind, &[(i as u64 * self.stride) as u32]);
             pass.set_bind_group(1, &pairs[&key], &[]);
@@ -458,6 +461,16 @@ impl IsometricSurfaceRenderer {
                 ((region[3] - region[1]) as u32).div_ceil(8),
                 1,
             );
+        };
+        let waves = super::surface_waves::floor_waves(triangles, &regions)
+            .unwrap_or_else(|| super::surface_order::waves(&regions, canvas.size()));
+        #[cfg(not(target_arch = "wasm32"))]
+        if std::env::var_os("ELDIRON_PROFILE_ISOMETRIC").is_some() {
+            eprintln!("Isometric surface waves: {} passes, {} active dispatches", waves.len(), waves.iter().map(Vec::len).sum::<usize>());
+        }
+        for wave in waves {
+            let mut pass = encoder.begin_pass();
+            for index in wave { dispatch(&mut pass, index); }
         }
         encoder.finish();
         Ok(())

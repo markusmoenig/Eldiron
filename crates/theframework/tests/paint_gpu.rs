@@ -57,6 +57,7 @@ fn ordered_paint_clips_groups_and_swash_blits() {
     let count = renderer.glyphs.rasterizations;
     let targets = ctx.target_pool_usage();
     let bindings = renderer.binding_cache_usage();
+    let ranges = ctx.immutable_range_cache_usage();
     assert!(count > 0);
     renderer
         .render(
@@ -73,6 +74,10 @@ fn ordered_paint_clips_groups_and_swash_blits() {
     assert_eq!(ctx.target_pool_usage().allocations, targets.allocations);
     assert!(ctx.target_pool_usage().hits > targets.hits);
     assert_eq!(ctx.transfers().uploaded_bytes, uploads);
+    let repeated_ranges = ctx.immutable_range_cache_usage();
+    assert_eq!(repeated_ranges.allocations, ranges.allocations);
+    assert_eq!(repeated_ranges.uploaded_bytes, ranges.uploaded_bytes);
+    assert!(repeated_ranges.hits > ranges.hits);
     assert_eq!(ctx.transfers().readback_bytes, 0);
     let repeated_bindings = renderer.binding_cache_usage();
     assert!(repeated_bindings.hits > bindings.hits);

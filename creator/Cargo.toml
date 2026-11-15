@@ -129,3 +129,6 @@ staticlib = ["native-render", "theframework/platform-apple", "theframework/deskt
 
 [dev-dependencies]
 log = "0.4"
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+objc2 = "0.6.5"

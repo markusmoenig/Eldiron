@@ -53,6 +53,7 @@ pub struct GpuContext {
     source_pool: Arc<crate::source_pool::SourcePool>,
     target_pool: Arc<crate::target_pool::TargetPool>,
     buffer_cache: Arc<crate::buffer_cache::BufferCache>,
+    range_cache: Arc<crate::range_cache::RangeCache>,
     working_buffers: Arc<crate::working_buffers::WorkingBuffers>,
     image_allocations: Arc<crate::allocation_usage::AllocationUsage>,
     #[cfg(target_arch = "wasm32")]
@@ -129,6 +130,7 @@ impl GpuContext {
             source_pool: Arc::new(crate::source_pool::SourcePool::default()),
             target_pool: Arc::new(crate::target_pool::TargetPool::default()),
             buffer_cache: Arc::new(crate::buffer_cache::BufferCache::default()),
+            range_cache: Arc::new(crate::range_cache::RangeCache::default()),
             working_buffers: Arc::new(crate::working_buffers::WorkingBuffers::default()),
             image_allocations: Arc::new(crate::allocation_usage::AllocationUsage::default()),
             #[cfg(target_arch = "wasm32")]
@@ -221,6 +223,19 @@ impl GpuContext {
     /// cache bounds retained GPU plus CPU content bytes, not total driver memory.
     pub fn upload_immutable_buffer(&self, bytes: &[u8], usage: wgpu::BufferUsages) -> Result<Arc<crate::GpuBuffer>> {
         self.buffer_cache.upload(self, bytes, usage)
+    }
+    /// Physical shared allocations plus logical cached range entries. These
+    /// limits are separate from the dedicated immutable-buffer cache.
+    pub fn immutable_range_cache_usage(&self) -> crate::BufferCacheUsage {
+        self.range_cache.usage()
+    }
+    pub fn set_immutable_range_cache_limits(&self, bytes: u64, entries: usize) {
+        self.range_cache.set_limits(bytes, entries);
+    }
+    /// Immutable append-only input ranges. Retain through submission and bind
+    /// the sized range, or its allocation with the explicit dynamic offset.
+    pub fn upload_immutable_range(&self, bytes: &[u8], usage: wgpu::BufferUsages) -> Result<Arc<crate::GpuBufferRange>> {
+        self.range_cache.upload(self, bytes, usage)
     }
     pub fn source_pool_usage(&self) -> crate::SourcePoolUsage {
         self.source_pool.usage()

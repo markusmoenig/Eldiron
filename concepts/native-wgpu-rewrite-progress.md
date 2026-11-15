@@ -17607,3 +17607,163 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   /private/tmp/eldiron-isometric-bounded-creator-build.log. Next exact binarypath
   from this build into external guarded large native case (not stale prior test
   executable), then fresh reference pair or measured further fix.
+
+- Checkpoint dc71d39c stores verified live source publication reuse, ordered
+  compute infrastructure/adoption and their release GPU evidence. Goal staysopen.
+  Current Creator bounded rebuild23844terminalPASS1m53s; same current release
+  binary a7bd8e21d840e9da. Console lock recheck confirmsTrue; physical acceptance
+  remains unavailable. Continue independent work without waiting for unlock.
+- Guarded large native attempt92650 stops only its ownedPID96595 at19.51s on
+  8GiB RSS ceiling (peak8735031296B). No prior command-limit warning/device-loss
+  error observed before this guard, but no complete snapshot/timing JSON either;
+  this is NOT accepted large-scene success. No broad speed/memory claim.
+- Source inspection finds another concrete floor cost: prepare_floor emits each
+  triangle once per visible cell; surface dispatch then spans the full projected
+  triangle and the shader discards pixels belonging to other cells. This causes
+  large redundant scans and queued work on large concave/spatial-page floors.
+- Added separate surface_region helper to intersect flat-floor dispatch with
+  the projected clipped-cell box. It analytically inverts the existing shader's
+  world calculation (minimum unit, first-vertex height) and includes pixel/source
+  snap plus conservative magnitude-dependent float margin. Nonfinite bounds
+  retain original dispatch; terrain is unchanged. No shader/geometry/alpha policy
+  change. Exact original surface/paint/occlusion release GPU contracts83127 now
+  running; /private/tmp/eldiron-isometric-cell-bounds-contracts.log.
+  Next current Creator rebuild, unique guarded large scene logs/paths, then
+  matched reference or diagnose remaining hot work. Large project common loading
+  RSS, generic sprite live/alpha ownership, strict geometry/light/color source
+  identity, packaging/platform/performance acceptance all remain open.
+
+- Tight floor-cell bounds exact GPU contracts83127terminalPASS9/9, release
+  build7.75s; occlusion2(0.19s), paint2(0.17s), surfaces5(0.29s).
+  /private/tmp/eldiron-isometric-cell-bounds-contracts.log. Existing producer
+  reference fixtures include cell-clipped floors, negative world/chunk coordinates,
+  spatial/animated materials, masks/owner protection, alpha, terrain and lighting.
+  Large shipped-scene runtime/memory remains unverified for this bound. Current
+  Creator release rebuild80055 running;
+  /private/tmp/eldiron-isometric-cell-bounds-creator-build.log.
+
+- Floor-cell bounds Creator rebuild80055terminalPASS1m07s. Guarded attempt69358
+  stops ownedPID96833 at24.85s/8GiB RSS (8734818304B peak), before complete image.
+  Bounds preserve exact pixels in9 GPU contracts but alone do not resolve full
+  scene work/memory. Original logs preserved as isometric-cell-bounds-first*.
+- Diagnostic-only sampled attempt32925 similarly stopped at16.70s (ownedPID96935,
+  peak8733769728B), no timing accepted. Four-second CPU sample
+  /private/tmp/eldiron-isometric-cell-bounds-active-sample.txt isolates1128/1913
+  samples in surface render execution,1026 in OrderedCompute encoder finish,
+  dominated by WGPU per-pass usage/resource tracker allocation/drop. This is
+  encoding work, not evidence for a new GPU readback or source duplication.
+- Do not add speculative producer-side polling: local WGPU29 queue_submit already
+  performs nonblocking maintain/retirement. Extra polling is not implemented.
+- Opt-in ELDIRON_PROFILE_ISOMETRIC diagnostic release build41569terminalPASS
+  1m07s. Guard39803 stops ownedPID97147 at8.32s/8GiB, no accepted result. Actual
+  surface batch58480triangles/14970880B uniform arena/no mask words. Registry
+  reports116live buffers/47bindgroups/5textures, not a huge resource-ID space.
+  Further bottleneck is excessive per-triangle passes/command metadata.
+- Added separate surface_waves planner: only equal-height, cell-clipped floors
+  qualify. The shader derives one deterministic world cell per pixel from the
+  same projection/height, so different cells have disjoint storage writes. Waves
+  schedule at most one triangle per cell; pass barriers retain that cell's exact
+  triangle order. Terrain, mixed heights, unclipped floors retain original order.
+  No shader/alpha/material/picking rule changes.
+- CPU ordering/partition contract69837terminalPASS1/1, release8.41s/runtime0.01s;
+  /private/tmp/eldiron-isometric-floor-waves-cpu.log. 1024cells×13triangles execute
+  in13waves, every index exactly once, unique cell per wave, original per-cell
+  index order retained. Exact GPU surface/paint/occlusion checks7128 now running;
+  /private/tmp/eldiron-isometric-floor-waves-gpu.log. Next current Creator build,
+  guarded full scene with trace, then fresh paired release timing only if ready.
+
+- Floor-wave exact GPU checks7128terminalPASS9/9, release7.68s and0.65s combined
+  execution; current Creator build62757terminalPASS1m07s. Guarded trace58622
+  still stops on8GiB at32.76s (ownedPID97535, peak8725200896B), no timingaccepted.
+  Important correction:58480-triangle batch is TERRAIN, not floor cells. The
+  earlier floor-specific bounds/waves preserve/fix floor work but do not solve
+  this large terrain batch. Do not repeat that classification assumption.
+- Trace shows root paint eventually occurs before the guard: subsequent surface
+  batches have~16600live GPU buffers/~2100bindgroups (from shared UI/geometry
+  residency) rather than the first116buffers. Per-pass tracking overhead on the
+  common device therefore grows substantially. The shared source byte counters
+  alone do not capture per-command/per-object CPU/driver overhead.
+- Added surface_order dependency planner for terrain/general surfaces. An8×8
+  screen tile records prior wave; overlapping region footprints must follow all
+  prior dependencies. Disjoint regions can share a pass. Large footprints use a
+  conservative global fence to bound CPU planning, not per-pixel CPU raster work.
+  The shader reads/writes only its own destination pixel, so reordering disjoint
+  footprints preserves exact alpha/depth/owner behavior. Equal-height clipped
+  floors retain the more precise cell-disjoint planner; mixed-height/terrain
+  use conservative screen-region ordering. No shader or source-format changes.
+- CPU dependency/partition contracts22822terminalPASS2/2. Randomized rectangles,
+  empty/large footprints prove every overlapping pair retains original order,
+  every active index occurs once and1024disjoint regions share one pass; floor
+  cell order proof also passes. /private/tmp/eldiron-isometric-surface-order-cpu.log.
+- Exact GPU surface/paint/occlusion8234terminalPASS9/9;
+  /private/tmp/eldiron-isometric-surface-order-gpu.log. Includes terrain depth,
+  translucent source material/paint, protected owners and original CPU matches.
+  Current Creator release rebuild starts with these changes;
+  /private/tmp/eldiron-isometric-surface-order-creator-build.log. Next guarded
+  trace of real scene, then fresh reference pair once ready. Do not implement
+  further speculative shader packing/static-ground caching before measurement.
+
+
+## Packed immutable UI input ownership (2026-11-15)
+
+- Follow-up spatial-order Creator release build passed; real UnendingNight main
+  terrain batch58480triangles reduces to603passes/35593active dispatches, minimap
+  59168triangles to3682passes. This preserves dependency order in targeted GPU
+  fixtures, but is not accepted full-scene performance. The spatial-order build
+  still reached8GiB guard; autorelease pools around the actual Cocoa benchmark
+  initialization/frame callbacks also did not resolve this guard. Last pooled
+  diagnostic20535 stopped/reaped only ownedPID98336 after11.34s,
+  peak8685584384B; no complete image or timing JSON. Logs:
+  /private/tmp/eldiron-isometric-spatial-pooled-native{,-guard}.log.
+- Shared-device trace identifies16384dedicated immutable UI buffers after root
+  paint, versus116scene buffers before it. WGPU resource tracker work therefore
+  grows with GPU object count as well as bytes. No GPU OOM claim from RSS alone.
+- Added separate bounded immutable range API/cache in renderkit. Small inputs
+  pack into append-only64KiB pages, exact content+usage lookup, uniform/storage
+  aligned offsets, sized bindings/slices. Physical GPU pages are charged once;
+  CPU source bytes per entry. Range cache64MiB/16384entries is separate from the
+  original dedicated128MiB cache; both counters are retained. Weak allocator
+  heads do not pin dead pages; published spans are never overwritten, even after
+  eviction while raw command handles survive. Large inputs remain dedicated.
+- Only Framework paint inputs adopt ranges; existing dedicated whole-buffer API
+  and its MaterialZ/preview/bake users retain their semantics. Paint binding keys
+  pin allocation identity plus binding size and use dynamic uniform/storage
+  offsets; each draw retains its own ranges. Producer/display/opacity images
+  remain excluded from the persistent binding cache.
+- Release actual Metal immutable_ranges96126PASS2/2 (build1.24s/runtime0.13s):
+  2048unique inputs require<=16physical buffers, exact-content hits, invalid usage
+  rejection, queued copies after eviction/last owner drop, dynamic selection of
+  distinct ranges through one binding and no published-span reuse. Log:
+  /private/tmp/eldiron-immutable-ranges-contracts.log. Subsequent small alignment
+  refinement takes maximum of uniform/storage alignment for combined usages.
+- Release actual Metal Framework paint6644PASS12/12 (11.36s build/0.56s runtime):
+  original scopes/groups/glyphs/alpha/color/fractional-DPI fixtures unchanged;
+  repeated identical root additionally proves range allocation/upload counters
+  unchanged and cache hits increase. /private/tmp/eldiron-packed-paint-contracts.log.
+- Creator benchmark now reports range live/peak/physical allocations/cache CPU+
+  GPU bytes/entries/hits/uploads separately. Current release rebuild30621 running;
+  /private/tmp/eldiron-packed-paint-creator-build.log. Next exact executable from
+  this build into a fresh guarded large-scene diagnostic, then matched timing if
+  complete. Goal remains open; estimated85% is not measured milestone completion.
+
+- Packed Creator release build30621terminalPASS1m52s, exact executable
+  eldiron_creator-e6724916db7f17f2 from current build log. Guarded large run7698
+  terminal1 stopped/reaped ownedPID99532 at10.38s on8GiB diagnostic RSS ceiling,
+  peak8747581440B; no complete snapshot/timing. Trace now shows308live buffers
+  and262bindgroups after root+main/minimap preparation (previous~16600buffers),
+  confirming physical object reduction but NOT resolving total memory acceptance.
+  /private/tmp/eldiron-isometric-packed-paint-native{,-guard}.log.
+- Current assembled Creator exact release test8352running; next verify isolated
+  range/accounting tests, checkpoint verified source changes, then diagnose
+  common large-project JSON loading transient without changing serialized
+  project/current paint/legacy TileGroup behavior. Full JSON Value staging in
+  Project::Deserialize remains a known memory candidate, not a proven sole cause.
+
+- Assembled Creator8352terminalPASS1/1 in23.47s, original full root assertions;
+  /private/tmp/eldiron-packed-paint-assembled-creator.log. Renderkit25573terminal
+  PASS16/16, including all ignored actual GPU contracts and a third
+  range test proving physical shared-page accounting, odd-byte padding/upload
+  accounting, partial LRU trimming, zero cache budget with retained external
+  owners, and release after last range drop.
+  /private/tmp/eldiron-packed-range-renderkit-contracts.log. Durable evidence:
+  release-packed-ui-ranges.json. No full-scene performance acceptance from this.

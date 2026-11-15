@@ -1,7 +1,8 @@
-//! Device-local immutable binding reuse. Entries pin their exact input owners;
+//! Device-local immutable binding reuse. Entries pin input allocations; dynamic
+//! offsets select sized immutable ranges within those same pinned allocations;
 //! unused and retired atlas bindings leave at the end of the root frame.
 use crate::paint::Sampling;
-use renderkit::{GpuBuffer, GpuImage, wgpu};
+use renderkit::{GpuBufferRange, GpuImage, wgpu};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -24,21 +25,21 @@ pub struct BindingCacheUsage {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct Key {
-    params: usize,
-    field: Option<usize>,
+    params: (usize, u64),
+    field: Option<(usize, u64)>,
     image: usize,
     sampling: Sampling,
 }
 impl Key {
     pub(super) fn new(
-        params: &Arc<GpuBuffer>,
-        field: Option<&Arc<GpuBuffer>>,
+        params: &Arc<GpuBufferRange>,
+        field: Option<&Arc<GpuBufferRange>>,
         image: &Arc<GpuImage>,
         sampling: Sampling,
     ) -> Self {
         Self {
-            params: Arc::as_ptr(params) as usize,
-            field: field.map(|b| Arc::as_ptr(b) as usize),
+            params: (params.allocation_identity(), params.size()),
+            field: field.map(|b| (b.allocation_identity(), b.size())),
             image: Arc::as_ptr(image) as usize,
             sampling,
         }
@@ -46,8 +47,8 @@ impl Key {
 }
 struct Entry {
     bind: wgpu::BindGroup,
-    _params: Arc<GpuBuffer>,
-    _field: Option<Arc<GpuBuffer>>,
+    _params: Arc<GpuBufferRange>,
+    _field: Option<Arc<GpuBufferRange>>,
     image: Arc<GpuImage>,
     bytes: u64,
     frame: u64,
@@ -100,8 +101,8 @@ impl Bindings {
         &self,
         key: Option<Key>,
         bind: &wgpu::BindGroup,
-        params: &Arc<GpuBuffer>,
-        field: Option<&Arc<GpuBuffer>>,
+        params: &Arc<GpuBufferRange>,
+        field: Option<&Arc<GpuBufferRange>>,
         image: &Arc<GpuImage>,
     ) {
         let mut cache = self.0.lock().unwrap();

@@ -24,8 +24,8 @@ struct Params {
 }
 #[derive(Clone)]
 struct Geometry {
-    vertices: Arc<renderkit::GpuBuffer>,
-    indices: Arc<renderkit::GpuBuffer>,
+    vertices: Arc<renderkit::GpuBufferRange>,
+    indices: Arc<renderkit::GpuBufferRange>,
     count: u32,
     colored: bool,
 }
@@ -65,10 +65,11 @@ enum ImageEffect {
 struct Draw {
     geometry: Geometry,
     bind: wgpu::BindGroup,
+    offsets: [u32; 2],
     // Preserve target leases while a parent pass still holds unsubmitted draws.
     _image: Arc<GpuImage>,
-    _params: Arc<renderkit::GpuBuffer>,
-    _field: Option<Arc<renderkit::GpuBuffer>>,
+    _params: Arc<renderkit::GpuBufferRange>,
+    _field: Option<Arc<renderkit::GpuBufferRange>>,
     stencil: u32,
     phase: u8,
     instances: u32,
@@ -158,7 +159,7 @@ impl PaintRenderer {
                         visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
+                            has_dynamic_offset: true,
                             min_binding_size: None,
                         },
                         count: None,
@@ -184,7 +185,7 @@ impl PaintRenderer {
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
-                            has_dynamic_offset: false,
+                            has_dynamic_offset: true,
                             min_binding_size: None,
                         },
                         count: None,
@@ -384,8 +385,8 @@ impl PaintRenderer {
     }
     fn geometry(&self, vertices: &[Vertex], indices: &[u32]) -> Result<Geometry> {
         Ok(Geometry {
-            vertices: self.context.upload_immutable_buffer(bytemuck::cast_slice(vertices), wgpu::BufferUsages::VERTEX)?,
-            indices: self.context.upload_immutable_buffer(bytemuck::cast_slice(indices), wgpu::BufferUsages::INDEX)?,
+            vertices: self.context.upload_immutable_range(bytemuck::cast_slice(vertices), wgpu::BufferUsages::VERTEX)?,
+            indices: self.context.upload_immutable_range(bytemuck::cast_slice(indices), wgpu::BufferUsages::INDEX)?,
             count: indices.len() as u32,
             colored: false,
         })
@@ -634,7 +635,7 @@ impl PaintRenderer {
                 (a / determinant) as f32,
             ];
         }
-        let uniform = self.context.upload_immutable_buffer(bytemuck::bytes_of(&params), wgpu::BufferUsages::UNIFORM)?;
+        let uniform = self.context.upload_immutable_range(bytemuck::bytes_of(&params), wgpu::BufferUsages::UNIFORM)?;
         let texture = image.map_or(&self.white, |(image, _)| image);
         let sampling = image.map(|(_, s)| s).unwrap_or(Sampling::Linear);
         let sampler = &self.samplers[&sampling];
@@ -653,7 +654,7 @@ impl PaintRenderer {
             }]);
         }
         let field_buffer = field_data.as_ref().filter(|v| !v.is_empty()).map(|data| {
-            self.context.upload_immutable_buffer(bytemuck::cast_slice(data), wgpu::BufferUsages::STORAGE)
+            self.context.upload_immutable_range(bytemuck::cast_slice(data), wgpu::BufferUsages::STORAGE)
         }).transpose()?;
         // Reuse asset/glyph/solid bindings without retaining producer or opacity
         // targets past submission. Unused source owners leave with this frame.
@@ -673,7 +674,7 @@ impl PaintRenderer {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: uniform.buffer().as_entire_binding(),
+                        resource: uniform.dynamic_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
@@ -686,9 +687,8 @@ impl PaintRenderer {
                     wgpu::BindGroupEntry {
                         binding: 3,
                         resource: field_buffer
-                            .as_ref().map(|buffer| buffer.buffer())
-                            .unwrap_or(&self.empty_field)
-                            .as_entire_binding(),
+                            .as_ref().map(|buffer| buffer.dynamic_binding())
+                            .unwrap_or_else(|| self.empty_field.as_entire_binding()),
                     },
                 ],
             });
@@ -698,6 +698,7 @@ impl PaintRenderer {
         Ok(Draw {
             geometry,
             bind,
+            offsets: [uniform.offset() as u32, field_buffer.as_ref().map_or(0, |b| b.offset() as u32)],
             _image: texture.clone(),
             _params: uniform,
             _field: field_buffer,
@@ -877,9 +878,9 @@ impl PaintRenderer {
                 multiview_mask: None,
             });
             pass.set_pipeline(&self.display_pipelines[&format]);
-            pass.set_bind_group(0, &draw.bind, &[]);
-            pass.set_vertex_buffer(0, draw.geometry.vertices.buffer().slice(..));
-            pass.set_index_buffer(draw.geometry.indices.buffer().slice(..), wgpu::IndexFormat::Uint32);
+            pass.set_bind_group(0, &draw.bind, &draw.offsets);
+            pass.set_vertex_buffer(0, draw.geometry.vertices.slice());
+            pass.set_index_buffer(draw.geometry.indices.slice(), wgpu::IndexFormat::Uint32);
             pass.draw_indexed(0..draw.geometry.count, 0, 0..draw.instances);
         }
         self.context.queue.submit([encoder.finish()]);
@@ -1634,9 +1635,9 @@ impl PaintRenderer {
                     _ => &pipelines.draw,
                 });
                 pass.set_stencil_reference(draw.stencil);
-                pass.set_bind_group(0, &draw.bind, &[]);
-                pass.set_vertex_buffer(0, draw.geometry.vertices.buffer().slice(..));
-                pass.set_index_buffer(draw.geometry.indices.buffer().slice(..), wgpu::IndexFormat::Uint32);
+                pass.set_bind_group(0, &draw.bind, &draw.offsets);
+                pass.set_vertex_buffer(0, draw.geometry.vertices.slice());
+                pass.set_index_buffer(draw.geometry.indices.slice(), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..draw.geometry.count, 0, 0..draw.instances);
                 self.stats.draw_calls += 1;
             }

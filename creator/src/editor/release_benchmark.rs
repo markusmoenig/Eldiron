@@ -92,6 +92,21 @@ impl Application {
         renderer: &mut PaintRenderer,
         output: &GpuImage,
     ) -> Sample {
+        // A Rust test thread has no Cocoa event loop to drain temporary native
+        // objects. Match the actual macOS host's per-frame autorelease lifetime.
+        #[cfg(target_os = "macos")]
+        { ::objc2::rc::autoreleasepool(|_| self.frame_inner(gpu, host, registry, renderer, output)) }
+        #[cfg(not(target_os = "macos"))]
+        { self.frame_inner(gpu, host, registry, renderer, output) }
+    }
+    fn frame_inner(
+        &mut self,
+        gpu: &GpuContext,
+        host: &mut HostContext,
+        registry: &mut ImageRegistry,
+        renderer: &mut PaintRenderer,
+        output: &GpuImage,
+    ) -> Sample {
         let start = Instant::now();
         let update_ms;
         let paint_ms;
@@ -215,6 +230,7 @@ fn distribution(values: impl Iterator<Item = f64>) -> Json {
 fn resources(gpu: &GpuContext) -> Json {
     let transfers = gpu.transfers();
     let buffers = gpu.immutable_buffer_cache_usage();
+    let ranges = gpu.immutable_range_cache_usage();
     let images = gpu.image_allocation_usage();
     let targets = gpu.target_pool_usage();
     json!({"transfers":{"uploaded_bytes":transfers.uploaded_bytes,
@@ -223,6 +239,11 @@ fn resources(gpu: &GpuContext) -> Json {
         "immutable_buffers":{"live_bytes":buffers.live_bytes,"peak_live_bytes":buffers.peak_live_bytes,
             "cached_gpu_bytes":buffers.gpu_bytes,"cached_cpu_bytes":buffers.cpu_bytes,
             "allocations":buffers.allocations,"uploaded_bytes":buffers.uploaded_bytes},
+        "immutable_ranges":{"live_bytes":ranges.live_bytes,"peak_live_bytes":ranges.peak_live_bytes,
+            "live_allocations":ranges.live_allocations,"cached_gpu_bytes":ranges.gpu_bytes,
+            "cached_cpu_bytes":ranges.cpu_bytes,"entries":ranges.entries,"hits":ranges.hits,
+            "allocations":ranges.allocations,"uploaded_bytes":ranges.uploaded_bytes,
+            "byte_limit":ranges.byte_limit,"entry_limit":ranges.entry_limit},
         "unpooled_images":{"live_bytes":images.live_bytes,"peak_live_bytes":images.peak_live_bytes,
             "allocations":images.allocations},"target_pool":format!("{targets:?}"),
         "source_pool":format!("{:?}",gpu.source_pool_usage()),
@@ -238,6 +259,12 @@ fn binding_usage(renderer: &PaintRenderer) -> Json {
 #[test]
 #[ignore = "matched offscreen release profiling; requires ELDIRON_BENCH_PROJECT_PATH and a native GPU"]
 fn benchmark_creator_release_paths() {
+    #[cfg(target_os = "macos")]
+    ::objc2::rc::autoreleasepool(|_| run_release_benchmark());
+    #[cfg(not(target_os = "macos"))]
+    run_release_benchmark();
+}
+fn run_release_benchmark() {
     if std::env::var_os("ELDIRON_BENCH_GPU_LOG").is_some() {
         static DIAGNOSTICS: GpuDiagnostics = GpuDiagnostics;
         ::log::set_logger(&DIAGNOSTICS).unwrap();

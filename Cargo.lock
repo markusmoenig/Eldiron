@@ -1340,6 +1340,7 @@ dependencies = [
  "js-sys",
  "lazy_static",
  "log",
+ "objc2 0.6.5",
  "open",
  "parking_lot",
  "png 0.18.0",
