@@ -54,7 +54,7 @@ behavior is ready to verify.
 
 ## Next work
 
-1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,16 retained standard control families and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
+1. Finish retained layout/collection contributions and remaining canonical ownership/adapters. Typed invalidation, UI deadlines,18 retained standard control families, static collection/property-layout contributions and Creator application/job wake delivery are connected. Creator now selects pending-work/runtime/editor-animation deadlines instead of unconditional target-FPS polling; actual idle/timing/worker lifecycle behavior awaits the consolidated matrix. Complete implementation integration before those tests.
 2. Close live source residency, catalogue capture and remaining UV/player source policy. Resumable per-recipe kernels are connected below; their integrated latency/parity acceptance remains open. Creator live3D stamp pixels now have a camera-independent CPU owner with native worker delivery; source snapshots omit history and share immutable bytes. Instance-only GPU publication is release-compiled below; its consolidated runtime acceptance remains open. Private bake large-source paging is release-compiled. Continue canonical ownership/adapters; defer isolated bake edge-case runs until the consolidated validation phase. Preserve shipped workflows without inventing unsupported baseline features.
 3. Finish browser/Apple lifecycle integration and the stated supported-target matrix, then run the consolidated section8 functional/platform/resource matrix and matched release CPU/native measurements (p50/p95/p99, input latency, startup and peak memory). Update every M0-M9 gate from actual evidence; unavailable checks stay open.
 
@@ -14242,3 +14242,53 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   platform/release-performance acceptance remains open. Next move to retained
   layout/collection output and remaining live source ownership/residency rather
   than running additional isolated bake cases. Full Goal remains active.
+
+## Retained collection rows and layout contributions (2026-11-15)
+
+- Previous checkpoint b1187732 made resumable per-recipe work concrete. Continued
+  into M3/M5 retained UI rather than additional isolated paint/bake tests.
+- Extended the existing bounded retained-paint owner with typed static layout
+  fragment keys. A fragment owns a unique identity/content revision, exact
+  rectangle and local variant, under the existing font/theme/image/DPI/icon
+  environment. It shares the 512-entry/256-ops-per-entry/16384-op limits with
+  retained controls. Separate fragment counters preserve the meaning of existing
+  control counters. Unvisited entries retire at frame end; invalid image handles,
+  unbalanced commands and presentation receipts cannot be replayed from cache.
+- List and horizontal-row layout chrome now retain their own balanced commands;
+  children, clips/transforms, scrollbars and current input preparation still run.
+  Property/TextLayout labels retain separate bounded contributions (<=1024
+  source bytes each) with exact label geometry and color-role variants. Clear,
+  add, font-size/alignment setters and environment/geometry changes retire the
+  applicable contributions. No dynamic child subtree or receipt is cached.
+- Vertical/horizontal list items now opt into content-revision command retention
+  (18 control families total). Bounds limit title/subtitle source bytes; column
+  items also cap count and precomputed description bytes. Content, palette,
+  state, geometry, icon and explicit redraw mutations invalidate correctly.
+  Repeating an unchanged selected/normal state no longer dirties every row.
+  Fixed missing dirtiness in direct icon/value-column setters.
+- Image content dirtiness is now separate from row paint/state dirtiness. Hover,
+  focus and selection changes can repaint the row without forcing unchanged
+  icon bytes through the image uploader. Setting an icon/value-image still
+  invalidates both content and its image payload; GPU generations are resolved
+  through the existing image resource owner.
+- Initial canonical Creator/classic/WGPU/terminal release compilation PASS31.58s:
+  /private/tmp/eldiron-retained-layout-contributions-release.log. Browser and
+  final native/UI-only feature compilation remain pending. Per user steering,
+  no broad functional/GPU/performance suite ran. Consolidated validation must
+  cover mutation/scroll/focus/selection, clipped label ordering, replacement and
+  removal, fonts/themes/DPI, stale image recovery and actual retention/upload
+  counters; these changes do not establish a speedup or full M3/M5 acceptance.
+- Browser Creator release PASS29.78s; final canonical four-application release
+  PASS29.85s; isolated Framework ui-without-text release PASS2.64s. Logs:
+  /private/tmp/eldiron-retained-layout-contributions-release-web.log,
+  /private/tmp/eldiron-retained-layout-contributions-release-final.log and
+  /private/tmp/eldiron-retained-layout-contributions-release-ui-only.log.
+  All compiler handles terminal; git diff --check passed. Concurrent networking
+  concept remains untracked/untouched. No runtime speedup or full milestone
+  signoff inferred. Full M0-M9 Goal remains active.
+- Next: complete remaining collection preparation/visible-scope work and live
+  UV/player source ownership/residency, then remaining canonical/platform
+  integration. The synchronous explicit reference/convenience stamp APIs remain;
+  this batch proves compilation of Creator live/private paged owners, not porting
+  every player source producer. Consolidated functional/platform/resource and
+  matched release performance acceptance remains required after implementation.

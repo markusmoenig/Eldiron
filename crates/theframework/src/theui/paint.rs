@@ -1,9 +1,10 @@
 //! Backend-neutral UI command painting. Unsupported legacy widgets fail explicitly; there is
 //! no whole-window CPU fallback hidden behind this interface.
+pub(crate) use super::retained_paint::PaintFragment;
+pub use super::retained_paint::RetainedPaintStats;
 use crate::paint::Rect;
 use crate::{paint::*, prelude::*, text::TextSystem};
 use std::sync::Arc;
-pub use super::retained_paint::RetainedPaintStats;
 #[derive(Debug)]
 pub struct UiPaintError(pub String);
 impl std::fmt::Display for UiPaintError {
@@ -103,26 +104,31 @@ impl WidgetPainter<'_> {
             widget.set_needs_redraw(false);
             return Ok(());
         }
-        use super::retained_paint::ControlKey;
+        use super::retained_paint::{ControlKey, Key};
         let key = widget
             .retained_paint_revision()
             .filter(|_| self.ui.retained_paint.borrow().active())
-            .map(|content| ControlKey {
-                content,
-                dim: *widget.dim(),
-                state: widget.state(),
-                interaction: [
-                    widget.id().equals(&self.ui.focus),
-                    widget.id().equals(&self.ui.keyboard_focus),
-                    widget.id().equals(&self.ui.hover),
-                    widget.id().equals(&self.ui.overlay),
-                    self.ui.is_disabled(&widget.id().name),
-                ],
+            .map(|content| {
+                Key::Control(ControlKey {
+                    content,
+                    dim: *widget.dim(),
+                    state: widget.state(),
+                    interaction: [
+                        widget.id().equals(&self.ui.focus),
+                        widget.id().equals(&self.ui.keyboard_focus),
+                        widget.id().equals(&self.ui.hover),
+                        widget.id().equals(&self.ui.overlay),
+                        self.ui.is_disabled(&widget.id().name),
+                    ],
+                })
             });
         if let Some(key) = &key
             && !widget.needs_redraw()
             && self.ui.retained_paint.borrow_mut().reuse(
-                widget.id().uuid, key, self.images, self.list,
+                widget.id().uuid,
+                key,
+                self.images,
+                self.list,
             )
         {
             return Ok(());
@@ -133,10 +139,50 @@ impl WidgetPainter<'_> {
             let commands = PaintList {
                 ops: self.list.ops[start..].to_vec(),
             };
-            self.ui.retained_paint.borrow_mut().store(
-                widget.id().uuid, key, commands,
-            );
+            self.ui
+                .retained_paint
+                .borrow_mut()
+                .store(widget.id().uuid, key, commands);
         }
+        Ok(())
+    }
+
+    /// Retain only the caller's independently balanced, static contribution.
+    /// Layouts still traverse/paint their children and current input state.
+    pub(crate) fn fragment(
+        &mut self,
+        fragment: &PaintFragment,
+        dim: TheDim,
+        variant: u64,
+        emit: impl FnOnce(&mut Self) -> UiPaintResult,
+    ) -> UiPaintResult {
+        use super::retained_paint::Key;
+        let active = self.ui.retained_paint.borrow().active();
+        if !active {
+            return emit(self);
+        }
+        let key = Key::Fragment {
+            content: fragment.revision,
+            dim,
+            variant,
+        };
+        if self
+            .ui
+            .retained_paint
+            .borrow_mut()
+            .reuse(fragment.id, &key, self.images, self.list)
+        {
+            return Ok(());
+        }
+        let start = self.list.ops.len();
+        emit(self)?;
+        self.ui.retained_paint.borrow_mut().store(
+            fragment.id,
+            key,
+            PaintList {
+                ops: self.list.ops[start..].to_vec(),
+            },
+        );
         Ok(())
     }
 
@@ -145,7 +191,9 @@ impl WidgetPainter<'_> {
             if source.pixel_width() == 0 || source.pixel_height() == 0 {
                 return Ok(());
             }
-            let image = self.images.image(&self.ui.icon_resource_key(name), source, false)?;
+            let image = self
+                .images
+                .image(&self.ui.icon_resource_key(name), source, false)?;
             self.list.image(image, rect, Sampling::Linear);
         }
         Ok(())

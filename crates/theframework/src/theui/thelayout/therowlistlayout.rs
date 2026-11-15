@@ -1,6 +1,8 @@
 use crate::prelude::*;
 
 pub struct TheRowListLayout {
+    #[cfg(feature = "text")]
+    chrome: crate::theui::paint::PaintFragment,
     id: TheId,
     limiter: TheSizeLimiter,
 
@@ -29,8 +31,11 @@ impl TheLayout for TheRowListLayout {
     ) -> crate::theui::paint::UiPaintResult {
         use crate::paint::{PaintOp, Rect, Transform};
         let r = crate::theui::paint::bounds(&self.dim);
-        p.fill(r, ListLayoutBackground);
-        p.outline(r, *p.theme.color(ListLayoutBorder), 1.);
+        p.fragment(&self.chrome, self.dim, 0, |p| {
+            p.fill(r, ListLayoutBackground);
+            p.outline(r, *p.theme.color(ListLayoutBorder), 1.);
+            Ok(())
+        })?;
         let offset = self
             .horizontal_scrollbar
             .as_horizontal_scrollbar()
@@ -92,6 +97,8 @@ impl TheLayout for TheRowListLayout {
         Self: Sized,
     {
         Self {
+            #[cfg(feature = "text")]
+            chrome: Default::default(),
             id,
             limiter: TheSizeLimiter::new(),
 

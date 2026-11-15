@@ -1,6 +1,8 @@
 use crate::prelude::*;
 
 pub struct TheListItem {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
     limiter: TheSizeLimiter,
 
@@ -19,12 +21,15 @@ pub struct TheListItem {
     mouse_down_pos: Vec2<i32>,
 
     icon: Option<TheRGBABuffer>,
+    image_dirty: bool,
     status: Option<String>,
 
     layout_id: TheId,
     scroll_offset: i32,
 
     values: Vec<(i32, TheValue)>,
+    #[cfg(feature = "text")]
+    paint_value_bytes: usize,
 
     context_menu: Option<TheContextMenu>,
 
@@ -32,7 +37,25 @@ pub struct TheListItem {
     background_palette: Option<(TheThemePalettes, usize)>,
 }
 
+impl TheListItem {
+    fn invalidate_retained_paint(&mut self) {
+        self.is_dirty = true;
+        #[cfg(feature = "text")]
+        {
+            self.paint_revision = Uuid::new_v4();
+        }
+    }
+}
+
 impl TheWidget for TheListItem {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        (self.text.len().saturating_add(self.sub_text.len()) <= 1024
+            && self.values.len() <= 16
+            && self.paint_value_bytes <= 1024)
+            .then_some(self.paint_revision)
+    }
+
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -69,7 +92,7 @@ impl TheWidget for TheListItem {
                 &format!("list-icon:{}", self.id.uuid),
                 icon,
                 Rect::new(frame.x + 1., frame.y + 1., size, size),
-                self.is_dirty,
+                self.image_dirty,
                 Sampling::Linear,
             )?;
             text_x = r.x + size + 15.;
@@ -125,6 +148,7 @@ impl TheWidget for TheListItem {
             }
         }
         p.list.ops.push(PaintOp::PopClip);
+        self.image_dirty = false;
         self.is_dirty = false;
         Ok(())
     }
@@ -136,6 +160,8 @@ impl TheWidget for TheListItem {
         limiter.set_max_height(17);
 
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
 
@@ -154,12 +180,15 @@ impl TheWidget for TheListItem {
             mouse_down_pos: Vec2::zero(),
 
             icon: None,
+            image_dirty: true,
             status: None,
 
             layout_id: TheId::empty(),
             scroll_offset: 0,
 
             values: Vec::new(),
+            #[cfg(feature = "text")]
+            paint_value_bytes: 0,
 
             context_menu: None,
 
@@ -189,12 +218,12 @@ impl TheWidget for TheListItem {
                     ));
                     ctx.ui.set_focus(self.id());
                     redraw = true;
-                    self.is_dirty = true;
+                    self.invalidate_retained_paint();
                 }
             }
             TheEvent::MouseDown(coord) => {
                 if self.state != TheWidgetState::Selected || !self.id().equals(&ctx.ui.focus) {
-                    self.is_dirty = true;
+                    self.invalidate_retained_paint();
                     self.state = TheWidgetState::Selected;
                     ctx.ui.send_widget_state_changed(self.id(), self.state);
                     ctx.ui.send(TheEvent::NewListItemSelected(
@@ -238,7 +267,7 @@ impl TheWidget for TheListItem {
             }
             TheEvent::Hover(_coord) => {
                 if !self.id().equals(&ctx.ui.hover) {
-                    self.is_dirty = true;
+                    self.invalidate_retained_paint();
                     ctx.ui.set_hover(self.id());
                     redraw = true;
                 }
@@ -263,7 +292,7 @@ impl TheWidget for TheListItem {
     fn set_dim(&mut self, dim: TheDim, _ctx: &mut TheContext) {
         if self.dim != dim {
             self.dim = dim;
-            self.is_dirty = true;
+            self.invalidate_retained_paint();
         }
     }
 
@@ -280,7 +309,11 @@ impl TheWidget for TheListItem {
     }
 
     fn set_needs_redraw(&mut self, redraw: bool) {
-        self.is_dirty = redraw;
+        if redraw {
+            self.invalidate_retained_paint();
+        } else {
+            self.is_dirty = false;
+        }
     }
 
     fn state(&self) -> TheWidgetState {
@@ -288,8 +321,10 @@ impl TheWidget for TheListItem {
     }
 
     fn set_state(&mut self, state: TheWidgetState) {
-        self.state = state;
-        self.is_dirty = true;
+        if self.state != state {
+            self.state = state;
+            self.invalidate_retained_paint();
+        }
     }
 
     fn supports_hover(&mut self) -> bool {
@@ -304,15 +339,16 @@ impl TheWidget for TheListItem {
         match value {
             TheValue::Empty => {
                 self.text = "".to_string();
-                self.is_dirty = true;
+                self.invalidate_retained_paint();
             }
             TheValue::Text(text) => {
                 self.text.clone_from(&text);
-                self.is_dirty = true;
+                self.invalidate_retained_paint();
             }
             TheValue::Image(image) => {
                 self.icon = Some(image);
-                self.is_dirty = true;
+                self.image_dirty = true;
+                self.invalidate_retained_paint();
             }
             _ => {}
         }
@@ -577,52 +613,61 @@ impl TheListItemTrait for TheListItem {
     fn set_background_color(&mut self, color: TheColor) {
         self.background = Some(color);
         self.background_palette = None;
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_background_palette(&mut self, palette: TheThemePalettes, index: usize) {
         self.background = None;
         self.background_palette = Some((palette, index));
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_text(&mut self, text: String) {
         self.text = text;
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_sub_text(&mut self, sub_text: String) {
         self.sub_text = sub_text;
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_text_color(&mut self, color: RGBA) {
         self.text_color = Some(color);
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_sub_text_color(&mut self, color: RGBA) {
         self.sub_text_color = Some(color);
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_text_size(&mut self, size: f32) {
         self.text_size = size;
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_sub_text_size(&mut self, size: f32) {
         self.sub_text_size = size;
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_associated_layout(&mut self, layout_id: TheId) {
         self.layout_id = layout_id;
     }
     fn set_size(&mut self, size: i32) {
         self.limiter_mut().set_max_height(size);
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_icon(&mut self, icon: TheRGBABuffer) {
         self.icon = Some(icon);
+        self.image_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_scroll_offset(&mut self, offset: i32) {
         self.scroll_offset = offset;
     }
     fn add_value_column(&mut self, width: i32, value: TheValue) {
+        #[cfg(feature = "text")]
+        {
+            self.paint_value_bytes = self
+                .paint_value_bytes
+                .saturating_add(value.describe().len());
+        }
         self.values.push((width, value));
+        self.invalidate_retained_paint();
     }
 }
 

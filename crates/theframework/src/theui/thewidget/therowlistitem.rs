@@ -1,6 +1,8 @@
 use crate::prelude::*;
 
 pub struct TheRowListItem {
+    #[cfg(feature = "text")]
+    paint_revision: Uuid,
     id: TheId,
     limiter: TheSizeLimiter,
 
@@ -15,6 +17,7 @@ pub struct TheRowListItem {
     mouse_down_pos: Vec2<i32>,
 
     icon: Option<TheRGBABuffer>,
+    image_dirty: bool,
     status: Option<String>,
 
     layout_id: TheId,
@@ -25,7 +28,22 @@ pub struct TheRowListItem {
     background: Option<TheColor>,
 }
 
+impl TheRowListItem {
+    fn invalidate_retained_paint(&mut self) {
+        self.is_dirty = true;
+        #[cfg(feature = "text")]
+        {
+            self.paint_revision = Uuid::new_v4();
+        }
+    }
+}
+
 impl TheWidget for TheRowListItem {
+    #[cfg(feature = "text")]
+    fn retained_paint_revision(&self) -> Option<Uuid> {
+        (self.text.len().saturating_add(self.sub_text.len()) <= 1024).then_some(self.paint_revision)
+    }
+
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
@@ -57,7 +75,7 @@ impl TheWidget for TheRowListItem {
                 &format!("row-icon:{}", self.id.uuid),
                 icon,
                 image,
-                self.is_dirty,
+                self.image_dirty,
                 Sampling::Linear,
             )?;
         }
@@ -69,6 +87,7 @@ impl TheWidget for TheRowListItem {
             TheHorizontalAlign::Center,
             TheVerticalAlign::Center,
         );
+        self.image_dirty = false;
         self.is_dirty = false;
         Ok(())
     }
@@ -81,6 +100,8 @@ impl TheWidget for TheRowListItem {
         limiter.set_max_height(17);
 
         Self {
+            #[cfg(feature = "text")]
+            paint_revision: Uuid::new_v4(),
             id,
             limiter,
 
@@ -95,6 +116,7 @@ impl TheWidget for TheRowListItem {
             mouse_down_pos: Vec2::zero(),
 
             icon: None,
+            image_dirty: true,
             status: None,
 
             layout_id: TheId::empty(),
@@ -127,12 +149,12 @@ impl TheWidget for TheRowListItem {
                     ));
                     ctx.ui.set_focus(self.id());
                     redraw = true;
-                    self.is_dirty = true;
+                    self.invalidate_retained_paint();
                 }
             }
             TheEvent::MouseDown(coord) => {
                 if self.state != TheWidgetState::Selected || !self.id().equals(&ctx.ui.focus) {
-                    self.is_dirty = true;
+                    self.invalidate_retained_paint();
                     self.state = TheWidgetState::Selected;
                     ctx.ui.send_widget_state_changed(self.id(), self.state);
                     ctx.ui.send(TheEvent::NewListItemSelected(
@@ -176,7 +198,7 @@ impl TheWidget for TheRowListItem {
             }
             TheEvent::Hover(_coord) => {
                 if self.state != TheWidgetState::Selected && !self.id().equals(&ctx.ui.hover) {
-                    self.is_dirty = true;
+                    self.invalidate_retained_paint();
                     ctx.ui.set_hover(self.id());
                     redraw = true;
                 }
@@ -201,7 +223,7 @@ impl TheWidget for TheRowListItem {
     fn set_dim(&mut self, dim: TheDim, _ctx: &mut TheContext) {
         if self.dim != dim {
             self.dim = dim;
-            self.is_dirty = true;
+            self.invalidate_retained_paint();
         }
     }
 
@@ -218,7 +240,11 @@ impl TheWidget for TheRowListItem {
     }
 
     fn set_needs_redraw(&mut self, redraw: bool) {
-        self.is_dirty = redraw;
+        if redraw {
+            self.invalidate_retained_paint();
+        } else {
+            self.is_dirty = false;
+        }
     }
 
     fn state(&self) -> TheWidgetState {
@@ -226,8 +252,10 @@ impl TheWidget for TheRowListItem {
     }
 
     fn set_state(&mut self, state: TheWidgetState) {
-        self.state = state;
-        self.is_dirty = true;
+        if self.state != state {
+            self.state = state;
+            self.invalidate_retained_paint();
+        }
     }
 
     fn supports_hover(&mut self) -> bool {
@@ -242,15 +270,16 @@ impl TheWidget for TheRowListItem {
         match value {
             TheValue::Empty => {
                 self.text = "".to_string();
-                self.is_dirty = true;
+                self.invalidate_retained_paint();
             }
             TheValue::Text(text) => {
                 self.text.clone_from(&text);
-                self.is_dirty = true;
+                self.invalidate_retained_paint();
             }
             TheValue::Image(image) => {
                 self.icon = Some(image);
-                self.is_dirty = true;
+                self.image_dirty = true;
+                self.invalidate_retained_paint();
             }
             _ => {}
         }
@@ -408,25 +437,27 @@ pub trait TheRowListItemTrait {
 impl TheRowListItemTrait for TheRowListItem {
     fn set_background_color(&mut self, color: TheColor) {
         self.background = Some(color);
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_text(&mut self, text: String) {
         self.text = text;
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_sub_text(&mut self, sub_text: String) {
         self.sub_text = sub_text;
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_associated_layout(&mut self, layout_id: TheId) {
         self.layout_id = layout_id;
     }
     fn set_size(&mut self, size: i32) {
         self.limiter_mut().set_max_height(size);
-        self.is_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_icon(&mut self, icon: TheRGBABuffer) {
         self.icon = Some(icon);
+        self.image_dirty = true;
+        self.invalidate_retained_paint();
     }
     fn set_scroll_offset(&mut self, offset: i32) {
         self.scroll_offset = offset;

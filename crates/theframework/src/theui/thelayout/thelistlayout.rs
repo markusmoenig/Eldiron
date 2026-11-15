@@ -4,6 +4,8 @@ const LIST_RIGHT_MARGIN: i32 = 1;
 const LIST_BOTTOM_MARGIN: i32 = 2;
 
 pub struct TheListLayout {
+    #[cfg(feature = "text")]
+    chrome: crate::theui::paint::PaintFragment,
     id: TheId,
     limiter: TheSizeLimiter,
 
@@ -62,8 +64,11 @@ impl TheLayout for TheListLayout {
             .as_vertical_scrollbar()
             .map(|s| s.scroll_offset())
             .unwrap_or(0);
-        p.fill(r, ListLayoutBackground);
-        p.outline(r, *p.theme.color(ListLayoutBorder), 1.);
+        p.fragment(&self.chrome, self.dim, 0, |p| {
+            p.fill(r, ListLayoutBackground);
+            p.outline(r, *p.theme.color(ListLayoutBorder), 1.);
+            Ok(())
+        })?;
         p.list
             .ops
             .push(PaintOp::PushClip(Rect::new(r.x, r.y, width, r.height)));
@@ -95,6 +100,8 @@ impl TheLayout for TheListLayout {
         Self: Sized,
     {
         Self {
+            #[cfg(feature = "text")]
+            chrome: Default::default(),
             id,
             limiter: TheSizeLimiter::new(),
 

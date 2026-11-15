@@ -7,6 +7,8 @@ pub struct TheTextLayout {
     dim: TheDim,
 
     text: Vec<String>,
+    #[cfg(feature = "text")]
+    label_paint: Vec<crate::theui::paint::PaintFragment>,
     text_rect: Vec<(usize, usize, usize, usize)>,
 
     widgets: Vec<Box<dyn TheWidget>>,
@@ -91,19 +93,37 @@ impl TheLayout for TheTextLayout {
                 } else {
                     TextEditTextColor
                 };
-                p.label(
-                    Rect::new(
-                        r.x + tr.0 as f32,
-                        r.y + tr.1 as f32,
-                        tr.2 as f32,
-                        tr.3 as f32,
-                    ),
-                    &self.text[i],
-                    self.text_size,
-                    *p.theme.color(color),
-                    self.text_align.clone(),
-                    TheVerticalAlign::Top,
+                let label_dim = TheDim::new(
+                    self.dim.x + tr.0 as i32,
+                    self.dim.y + tr.1 as i32,
+                    tr.2 as i32,
+                    tr.3 as i32,
                 );
+                let emit = |p: &mut crate::theui::paint::WidgetPainter<'_>| {
+                    p.label(
+                        Rect::new(
+                            r.x + tr.0 as f32,
+                            r.y + tr.1 as f32,
+                            tr.2 as f32,
+                            tr.3 as f32,
+                        ),
+                        &self.text[i],
+                        self.text_size,
+                        *p.theme.color(color),
+                        self.text_align.clone(),
+                        TheVerticalAlign::Top,
+                    );
+                    Ok(())
+                };
+                if let Some(fragment) = self
+                    .label_paint
+                    .get(i)
+                    .filter(|_| self.text[i].len() <= 1024)
+                {
+                    p.fragment(fragment, label_dim, color as u64, emit)?;
+                } else {
+                    emit(p)?;
+                }
             }
             p.widget(widget.as_mut())?;
         }
@@ -130,6 +150,8 @@ impl TheLayout for TheTextLayout {
             dim: TheDim::zero(),
 
             text: vec![],
+            #[cfg(feature = "text")]
+            label_paint: Vec::new(),
             text_rect: vec![],
 
             widgets: vec![],
@@ -555,6 +577,8 @@ impl TheTextLayoutTrait for TheTextLayout {
     }
     fn clear(&mut self) {
         self.text.clear();
+        #[cfg(feature = "text")]
+        self.label_paint.clear();
         self.widgets.clear();
         self.text_rect.clear();
         if let Some(scroll_bar) = self.vertical_scrollbar.as_vertical_scrollbar() {
@@ -567,6 +591,8 @@ impl TheTextLayoutTrait for TheTextLayout {
     }
     fn add_pair(&mut self, text: String, widget: Box<dyn TheWidget>) {
         self.text.push(text);
+        #[cfg(feature = "text")]
+        self.label_paint.push(Default::default());
         self.widgets.push(widget);
         self.layout_dirty = true;
         self.is_dirty = true;
@@ -578,6 +604,10 @@ impl TheTextLayoutTrait for TheTextLayout {
     }
     fn set_text_size(&mut self, text_size: f32) {
         self.text_size = text_size;
+        #[cfg(feature = "text")]
+        for fragment in &mut self.label_paint {
+            fragment.invalidate();
+        }
         self.layout_dirty = true;
         self.is_dirty = true;
     }
@@ -588,6 +618,10 @@ impl TheTextLayoutTrait for TheTextLayout {
     }
     fn set_text_align(&mut self, align: TheHorizontalAlign) {
         self.text_align = align;
+        #[cfg(feature = "text")]
+        for fragment in &mut self.label_paint {
+            fragment.invalidate();
+        }
         self.is_dirty = true;
     }
 }

@@ -1,11 +1,11 @@
-//! Retain explicitly opted-in control commands, independently of scene frames.
+//! Retain explicitly opted-in controls and static layout contributions.
 //! Layout/input preparation still runs; dynamic views and receipt producers do not opt in.
 use super::paint::UiImageResources;
 use crate::{paint::PaintList, prelude::*};
 use std::cell::RefCell;
 
-const MAX_CONTROLS: usize = 512;
-const MAX_OPS_PER_CONTROL: usize = 256;
+const MAX_ENTRIES: usize = 512;
+const MAX_OPS_PER_ENTRY: usize = 256;
 const MAX_OPS: usize = 16_384;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,9 +26,38 @@ pub(super) struct ControlKey {
 }
 
 struct Entry {
-    key: ControlKey,
+    key: Key,
     commands: PaintList,
     used: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum Key {
+    Control(ControlKey),
+    Fragment {
+        content: Uuid,
+        dim: TheDim,
+        variant: u64,
+    },
+}
+
+/// Identity belongs to a layout contribution, independently of its children.
+pub(crate) struct PaintFragment {
+    pub id: Uuid,
+    pub revision: Uuid,
+}
+impl Default for PaintFragment {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            revision: Uuid::new_v4(),
+        }
+    }
+}
+impl PaintFragment {
+    pub fn invalidate(&mut self) {
+        self.revision = Uuid::new_v4();
+    }
 }
 
 /// Per-frame CPU command retention counters. These describe command reuse,
@@ -39,12 +68,17 @@ pub struct RetainedPaintStats {
     pub recorded_controls: usize,
     pub resident_controls: usize,
     pub resident_ops: usize,
+    pub reused_fragments: usize,
+    pub recorded_fragments: usize,
+    pub resident_fragments: usize,
 }
 
 #[derive(Default)]
 pub(super) struct RetainedPaint {
     reused: usize,
     recorded: usize,
+    reused_fragments: usize,
+    recorded_fragments: usize,
     frame: Option<FrameKey>,
     active: bool,
     entries: FxHashMap<Uuid, Entry>,
@@ -64,6 +98,8 @@ impl RetainedPaint {
         }
         state.reused = 0;
         state.recorded = 0;
+        state.reused_fragments = 0;
+        state.recorded_fragments = 0;
         state.frame = frame;
         state.active = frame.is_some();
         for entry in state.entries.values_mut() {
@@ -76,8 +112,19 @@ impl RetainedPaint {
         RetainedPaintStats {
             reused_controls: self.reused,
             recorded_controls: self.recorded,
-            resident_controls: self.entries.len(),
+            resident_controls: self
+                .entries
+                .values()
+                .filter(|entry| matches!(entry.key, Key::Control(_)))
+                .count(),
             resident_ops: self.ops,
+            reused_fragments: self.reused_fragments,
+            recorded_fragments: self.recorded_fragments,
+            resident_fragments: self
+                .entries
+                .values()
+                .filter(|entry| matches!(entry.key, Key::Fragment { .. }))
+                .count(),
         }
     }
 
@@ -88,7 +135,7 @@ impl RetainedPaint {
     pub fn reuse(
         &mut self,
         id: Uuid,
-        key: &ControlKey,
+        key: &Key,
         images: &dyn UiImageResources,
         output: &mut PaintList,
     ) -> bool {
@@ -100,14 +147,17 @@ impl RetainedPaint {
         }
         output.ops.extend_from_slice(&entry.commands.ops);
         entry.used = true;
-        self.reused += 1;
+        match key {
+            Key::Control(_) => self.reused += 1,
+            Key::Fragment { .. } => self.reused_fragments += 1,
+        }
         true
     }
 
-    pub fn store(&mut self, id: Uuid, key: ControlKey, commands: PaintList) {
+    pub fn store(&mut self, id: Uuid, key: Key, commands: PaintList) {
         // Commands are independently balanced. Presentation receipts always require
         // the actual producer to run; never replay them from this static cache.
-        if commands.ops.len() > MAX_OPS_PER_CONTROL
+        if commands.ops.len() > MAX_OPS_PER_ENTRY
             || commands.receipts().next().is_some()
             || commands.validate().is_err()
         {
@@ -116,10 +166,13 @@ impl RetainedPaint {
         if let Some(old) = self.entries.remove(&id) {
             self.ops -= old.commands.ops.len();
         }
-        if self.entries.len() >= MAX_CONTROLS || self.ops + commands.ops.len() > MAX_OPS {
+        if self.entries.len() >= MAX_ENTRIES || self.ops + commands.ops.len() > MAX_OPS {
             return;
         }
-        self.recorded += 1;
+        match key {
+            Key::Control(_) => self.recorded += 1,
+            Key::Fragment { .. } => self.recorded_fragments += 1,
+        }
         self.ops += commands.ops.len();
         self.entries.insert(
             id,
