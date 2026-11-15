@@ -11,6 +11,8 @@ mod target_pool;
 pub use target_pool::{TargetDescriptor, TargetLease, TargetPoolUsage};
 pub use source_pool::{SourceBuffer, SourceBufferPin, SourcePoolUsage, SourceSubmission};
 mod context;
+mod ordered_compute;
+pub use ordered_compute::OrderedCompute;
 pub use capture_queue::{CaptureLease, CaptureQueueUsage};
 mod fault;
 pub use fault::GpuFaultListener;

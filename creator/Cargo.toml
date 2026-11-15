@@ -126,3 +126,6 @@ native-render = ["denrim-materials/shared-gpu", "native-ui", "theframework/rende
 log = ["theframework/log"]
 self-update = ["dep:self_update"]
 staticlib = ["native-render", "theframework/platform-apple", "theframework/desktop-dialogs"]
+
+[dev-dependencies]
+log = "0.4"

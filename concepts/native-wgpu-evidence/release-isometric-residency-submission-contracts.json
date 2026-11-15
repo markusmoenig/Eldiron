@@ -1,0 +1,44 @@
+{
+  "profile": "release",
+  "actual_gpu": "Metal",
+  "ordered_compute": {
+    "passes": 4101,
+    "result": "exact dependent GPU storage result; multiple ordered submissions; zero color readback; one4-byte status receipt",
+    "log": "/private/tmp/eldiron-ordered-compute-contracts.log"
+  },
+  "device_resource_contracts": {
+    "passed": 2,
+    "log": "/private/tmp/eldiron-ordered-compute-contracts.log"
+  },
+  "material_paint_residency": {
+    "passed": 4,
+    "log": "/private/tmp/eldiron-isometric-live-publications-contracts.log"
+  },
+  "presentation": {
+    "passed": 216,
+    "per_target_passed": [
+      115,
+      11,
+      3,
+      53,
+      2,
+      2,
+      2,
+      1,
+      3,
+      2,
+      5,
+      3,
+      1,
+      3,
+      4,
+      6
+    ],
+    "log": "/private/tmp/eldiron-ordered-compute-presentation-contracts.log"
+  },
+  "limits": [
+    "Large shipped UnendingNight runtime must still be rerun with current binary.",
+    "Prior runtime failed because Metal refused4097 outstanding command buffers; no accepted timing from those diagnostics.",
+    "Weak publication lookup does not retain GPU inputs beyond strong cache/caller owners; strong cache limits do not measure all active frame or driver memory."
+  ]
+}

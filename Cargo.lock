@@ -1339,6 +1339,7 @@ dependencies = [
  "indexmap",
  "js-sys",
  "lazy_static",
+ "log",
  "open",
  "parking_lot",
  "png 0.18.0",

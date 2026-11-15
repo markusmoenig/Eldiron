@@ -16,6 +16,19 @@ use theframework::{
     render_wgpu::PaintRenderer,
 };
 
+struct GpuDiagnostics;
+impl ::log::Log for GpuDiagnostics {
+    fn enabled(&self, metadata: &::log::Metadata<'_>) -> bool {
+        metadata.level() <= ::log::Level::Warn && metadata.target().starts_with("wgpu")
+    }
+    fn log(&self, record: &::log::Record<'_>) {
+        if self.enabled(record.metadata()) {
+            eprintln!("{} {}: {}", record.level(), record.target(), record.args());
+        }
+    }
+    fn flush(&self) {}
+}
+
 struct Reference {
     editor: Editor,
     ui: TheUI,
@@ -89,7 +102,10 @@ impl Application {
                 app.update(host, Duration::from_millis(16));
                 update_ms = milliseconds(start.elapsed());
                 let phase = Instant::now();
-                let paint = app.frame(host, registry).unwrap();
+                let paint = app.frame(host, registry).unwrap_or_else(|error| {
+                    panic!("Native preparation failed: {error:?}; device loss: {:?}; resources: {}",
+                        gpu.device_loss_reason(), resources(gpu))
+                });
                 operations = paint.ops.len();
                 paint_ms = milliseconds(phase.elapsed());
                 let phase = Instant::now();
@@ -222,6 +238,11 @@ fn binding_usage(renderer: &PaintRenderer) -> Json {
 #[test]
 #[ignore = "matched offscreen release profiling; requires ELDIRON_BENCH_PROJECT_PATH and a native GPU"]
 fn benchmark_creator_release_paths() {
+    if std::env::var_os("ELDIRON_BENCH_GPU_LOG").is_some() {
+        static DIAGNOSTICS: GpuDiagnostics = GpuDiagnostics;
+        ::log::set_logger(&DIAGNOSTICS).unwrap();
+        ::log::set_max_level(::log::LevelFilter::Warn);
+    }
     assert!(
         !cfg!(debug_assertions),
         "Performance evidence requires --release"

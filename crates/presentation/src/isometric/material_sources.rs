@@ -33,6 +33,8 @@ struct Entry {
 pub struct IsometricMaterialSources {
     context: Arc<GpuContext>,
     entries: FxHashMap<(IsometricSourceVersion, Uuid, usize), Entry>,
+    publications:
+        super::publications::Publications<(IsometricSourceVersion, Uuid, usize), GpuMaterialSource>,
     budget: u64,
     limit: usize,
     bytes: u64,
@@ -44,6 +46,7 @@ impl IsometricMaterialSources {
         Self {
             context,
             entries: FxHashMap::default(),
+            publications: Default::default(),
             budget: byte_budget,
             limit: entry_limit,
             bytes: 0,
@@ -65,6 +68,7 @@ impl IsometricMaterialSources {
     }
     pub fn clear(&mut self) {
         self.entries.clear();
+        self.publications.clear();
         self.bytes = 0;
     }
     pub fn prepare(
@@ -99,6 +103,9 @@ impl IsometricMaterialSources {
         if let Some(entry) = self.entries.get_mut(&key) {
             entry.used = self.clock;
             return Ok(entry.source.clone());
+        }
+        if let Some(source) = self.publications.get(&key) {
+            return Ok(source);
         }
         let mut words = 3 + count;
         for index in 0..count as usize {
@@ -183,6 +190,7 @@ impl IsometricMaterialSources {
             generation: self.context.generation(),
             bytes,
         });
+        self.publications.publish(key, &source);
         self.builds += 1;
         self.bytes += bytes;
         self.entries.insert(

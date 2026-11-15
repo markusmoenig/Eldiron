@@ -498,14 +498,9 @@ impl IsometricBlitter {
                     },
                 ],
             });
-        let mut encoder =
-            self.context
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("iso-source-blits"),
-                });
+        let mut encoder = renderkit::OrderedCompute::new(&self.context, "iso-source-blits");
         if clear {
-            let mut p = encoder.begin_compute_pass(&Default::default());
+            let mut p = encoder.begin_pass();
             p.set_pipeline(&self.clear);
             p.set_bind_group(0, &bind, &[0]);
             p.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
@@ -522,7 +517,7 @@ impl IsometricBlitter {
             if extent.into_iter().any(|v| v <= 0) {
                 continue;
             }
-            let mut p = encoder.begin_compute_pass(&Default::default());
+            let mut p = encoder.begin_pass();
             p.set_pipeline(&self.blit);
             p.set_bind_group(0, &bind, &[((i as u64 + 1) * self.stride) as u32]);
             p.set_bind_group(1, &s.source.bind, &[]);
@@ -532,7 +527,7 @@ impl IsometricBlitter {
                 1,
             );
         }
-        self.context.queue.submit(Some(encoder.finish()));
+        encoder.finish();
         Ok(())
     }
 }

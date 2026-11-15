@@ -434,12 +434,7 @@ impl IsometricSurfaceRenderer {
                         })
                 });
         }
-        let mut encoder =
-            self.context
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("iso-surface-raster"),
-                });
+        let mut encoder = renderkit::OrderedCompute::new(&self.context, "iso-surface-raster");
         for (i, t) in triangles.iter().enumerate() {
             let region = regions[i];
             if region[0] >= region[2] || region[1] >= region[3] {
@@ -447,7 +442,7 @@ impl IsometricSurfaceRenderer {
             }
             let other = t.secondary.map_or(t.source, |(source, _)| source);
             let key = (t.source as *const _ as usize, other as *const _ as usize);
-            let mut pass = encoder.begin_compute_pass(&Default::default());
+            let mut pass = encoder.begin_pass();
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &bind, &[(i as u64 * self.stride) as u32]);
             pass.set_bind_group(1, &pairs[&key], &[]);
@@ -464,7 +459,7 @@ impl IsometricSurfaceRenderer {
                 1,
             );
         }
-        self.context.queue.submit(Some(encoder.finish()));
+        encoder.finish();
         Ok(())
     }
 }

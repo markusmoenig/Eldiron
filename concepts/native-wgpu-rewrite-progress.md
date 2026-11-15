@@ -17480,3 +17480,130 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   captures; summary records process RSS/footprint with explicit driver-memory
   limits. Next larger shipped sprite-isometric project at150%DPI, then strict
   GeometryObject/Light/face-color source audit and remaining platform matrix.
+
+- Checkpoint5f0eb16a stores verified immutable property residency and current
+  matched top-down improvements. Networking concept remains untouched/untracked.
+- Larger UnendingNight sprite-isometric@150% attempt75615 exposed a real severe
+  native residency defect before timing. Owned benchmarkPID95103 verified by
+  exact command/worktree;4s sample57496terminalPASS records all2541 sampled test
+  stacks under IsometricMaterialSources.prepare/Tile source-material conversion.
+  /private/tmp/eldiron-residency-isometric150-startup-sample.txt.
+- Exact authored fixture has1849×64×64 source texels in one spatial material:
+  7573504texels×16B plus headers~121MB, exceeding32MiB persistent material cache.
+  Each terrain triangle rebuilt the same oversized input after immediate cache
+  eviction while previous triangles still held their Arc source leases. This
+  defeats bounded cache retention and causes huge active input duplication.
+- Stopped only verified owned expired benchmarkPID95103 after133.18s;75615
+  terminal143, sample process57496terminal0. /private/tmp/eldiron-residency-
+  isometric150-native.log records RSS7673135104B and reported peak process
+  footprint110852654440B. These are process-reported metrics, not total driver
+  memory. No timing/capture/result JSON accepted from this run; no reference run
+  yet. Preparation exceeded the profiler's in-frame60s guard before it could
+  regain control. Add an external owned-process deadline to the next diagnostic.
+- Material and terrain-paint caches now also index already-published source
+  leases using Weak handles. Retention budgets still govern strong cache owners;
+  an evicted/oversized buffer already owned by a prepared frame is shared instead
+  of rebuilt per triangle. Lookup owns no GPU source; dead keys retire on each
+  new publication and clear drops the index. Metadata follows live publications/
+  last working set, not a claim that all live frame memory fits the cache budget.
+  Existing renderkit working-buffer counters include uncached active leases.
+- Extended original zero-cache-budget GPU contracts to repeat one live material/
+  paint source100times with exact same Arc, unchanged uploads/builds/allocations,
+  and retirement after last source owner drops.37223 release GPU checks running.
+  Next fresh guarded UnendingNight attempt and matched reference, then analogous
+  sprite/alpha source ownership (pointer-based keys require original CPU owner
+  guards; do not copy the versioned Weak lookup blindly), strict geometry/light
+  source audit and outstanding platform acceptance.
+
+- Live material/paint publication GPU contracts37223terminalPASS4/4, release
+  compile53.09s, material0.12s/paint0.18s; log
+  /private/tmp/eldiron-isometric-live-publications-contracts.log. Both prior
+  sampling/reference contracts pass plus100 repeated zero-cache-budget requests
+  share one exact Arc without upload/build/allocation growth. Weak retirement
+  after last owner and rebuild after retirement pass; saved formats unchanged.
+- Current Creator release rebuild81234 running;
+  /private/tmp/eldiron-isometric-live-publications-creator-build.log. Next guarded
+  large UnendingNight run: own exact child PID, cold-start deadline outside Rust
+  frame processing; retain failure diagnostics rather than let another unbounded
+  preparation run consume minutes/duplicate memory. No numeric improvement claim
+  for large isometric input until verified.
+
+- Current Creator release rebuild81234terminalPASS1m06s;
+  /private/tmp/eldiron-isometric-live-publications-creator-build.log.
+- First guarded native large-project attempt53552 stopped at4.13s on deliberately
+  conservative3GiB RSS ceiling (reported child peak4754178048B), before snapshot/
+  timing. Identical CPU-reference guard19526 stopped at3.12s (5368840192B). Thus
+  the3GiB ceiling also rejects the common project-loading path; neither run is
+  accepted timing or proof that the source fix failed. Guard logs saved with
+  -guard-3gib suffix; all exact owned children terminated/reaped.
+- Next identical large native diagnostic uses8GiB ceiling plus an external60s
+  cold-start deadline. Common large-project load peak memory is now also an open
+  acceptance finding; do not hide it by counting only warmed cache bytes.
+
+- Guarded larger native attempt42468terminal101 after6.52s: initialization
+  advanced past the old133s source-preparation loop, then failed with
+  RenderError("isometric blit canvas belongs to a lost or different GPU domain")
+  inside app.frame. Guard reported child peak8711864320B; no snapshot/timing JSON
+  accepted. /private/tmp/eldiron-isometric-live-publications-unending-{native,guard}.log.
+  Device loss versus domain mismatch is not yet established. System memory
+  query after termination reports32GiB installed/85%free; do not infer GPU OOM
+  solely from that generic error or process peak.
+- Added driver-provided loss reason to CPU-only GpuContext fault metadata and
+  benchmark preparation error reporting with current transfer/resource counters.
+  Existing loss notification/order remains; no device behavior or saved format
+  changes. Release diagnostics build37063 now active;
+  /private/tmp/eldiron-isometric-live-publications-loss-diagnostics-build.log.
+  Next preserve first failure logs, rerun guarded native for exact cause, fix the
+  actual large isometric failure, then fresh paired profiling/presentation checks.
+
+- Loss diagnostics release build37063terminalPASS1m51s. Guarded rerun61723
+  terminal101, runtime6.42s, confirms real device loss rather than only a domain
+  identity mismatch: driver reports Unknown: Device is lost. At failure tracked
+  working buffers live166608428B/115allocations, peak166608684B, total source
+  uploads148629156B; no capture/readback or root UI immutable draw buffers yet.
+  Thus oversized material duplication is no longer visible in these tracked
+  inputs, but native isometric rendering still fails before its first complete
+  UI frame. Child peakRSS8627175424B includes large common loading transients.
+- Enabling opt-in test-only WGPU warn/error logging to distinguish Metal command
+  queue exhaustion/driver failure. Adds existing lockfile log0.4 package as a
+  Creator dev-dependency only; no package versions changed. First compile88157
+  stopped on Creator's existing log module shadowing the external log crate;
+  explicit ::log paths correct it. Fixed release build90263 now running; next
+  rerun uses the NEW executable path from that build (dev-dependency changes its
+  hash), not the older c4069 binary. Save previous loss logs before overwriting.
+
+- Fixed GPU-logging release build90263terminalPASS1m01s; new executable
+  eldiron_creator-a7bd8e21d840e9da. Guarded diagnostic32223terminal101 reports
+  exact cause: WARN wgpu_hal::metal::command refuses4097 outstanding unsubmitted
+  command buffers, hard limit4096, treating it as device loss. This is command
+  queue exhaustion, not an established GPU OOM or context-identity defect.
+  /private/tmp/eldiron-isometric-live-publications-unending-native.log and guard
+  log (ownedPID96066,6.44s). Native first UI paint still not reached.
+- Local WGPU29.0.3 primary source confirms several backend command buffers may
+  be recorded per compute pass before an encoder submission. Large floor cells
+  can exceed the limit when one encoder holds thousands of ordered passes.
+- New renderkit::OrderedCompute submits every128compute passes on the same queue,
+  keeping individual storage-visible pass boundaries, order and source leases;
+  no polling/waits/readback. Isometric surface and sprite blitters adopt it.
+  Empty work allocates/submits no encoder; explicit finish submits final batch.
+- Release actual Metal regression23043 now checks4101dependent noncommutative
+  storage updates across batches, exact GPU result, no lost device, four-byte
+  labeled metadata only; original device-fault/wake/capture contracts also run
+  and now check the driver loss reason is available. Next all isometric GPU
+  contracts, fresh Creator build and guarded large scene; then paired timing.
+
+- Ordered GPU helper23043terminalPASS3/3: original2 resource/fault contracts
+  plus4101dependent passes (0.28s), release build1.45s;
+  /private/tmp/eldiron-ordered-compute-contracts.log. Exact noncommutative result
+  proves ordering/storage visibility across submission boundaries; no device
+  loss; four-byte metadata only. Actual loss reason API assertion also passes.
+- Current full presentation94156terminalPASS216/216, all library+15 integration
+  targets including ignored GPU contracts;
+  /private/tmp/eldiron-ordered-compute-presentation-contracts.log. Original
+  isometric materials/occlusion/paint/receipts/sprites/surfaces, independentviews,
+  game screens, sources, captures, contours and lifecycle assertions pass.
+  Durable release-isometric-residency-submission-contracts.json.
+- Current Creator rebuild starts from these verified dependencies;
+  /private/tmp/eldiron-isometric-bounded-creator-build.log. Next exact binarypath
+  from this build into external guarded large native case (not stale prior test
+  executable), then fresh reference pair or measured further fix.

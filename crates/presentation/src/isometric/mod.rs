@@ -4,6 +4,7 @@ pub use sources::{IsometricSourceVersion, IsometricSources};
 
 mod material_sources;
 pub use material_sources::{GpuMaterialSource, IsometricMaterialSources};
+mod publications;
 
 mod surface_renderer;
 pub use surface_renderer::{IsometricSurfaceRenderer, SurfaceKind, SurfaceTriangle};

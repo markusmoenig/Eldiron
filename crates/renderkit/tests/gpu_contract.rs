@@ -87,6 +87,7 @@ fn resources_reject_stale_handles_and_capture_padded_rows() {
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
     assert!(ctx.is_lost());
+    assert!(ctx.device_loss_reason().is_some());
     assert!(
         ready_before_loss
             .try_finish(&ctx)

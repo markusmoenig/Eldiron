@@ -46,6 +46,7 @@ pub struct GpuContext {
     pub queue: wgpu::Queue,
     generation: u64,
     lost: Arc<AtomicBool>,
+    loss_reason: Arc<std::sync::OnceLock<String>>,
     faults: Arc<crate::fault::Notifications>,
     counters: Arc<Counters>,
     capture_queue: Arc<crate::capture_queue::CaptureQueue>,
@@ -105,14 +106,18 @@ impl GpuContext {
             error
         };
         let lost = Arc::new(AtomicBool::new(false));
+        let loss_reason = Arc::new(std::sync::OnceLock::new());
+        let report = loss_reason.clone();
         let flag = lost.clone();
         let notify = faults.clone();
-        device.set_device_lost_callback(move |_, _| {
+        device.set_device_lost_callback(move |reason, message| {
+            let _ = report.set(format!("{reason:?}: {message}"));
             flag.store(true, Ordering::Release);
             notify.signal();
         });
         Ok(Arc::new(Self {
             lost,
+            loss_reason,
             faults,
             instance,
             adapter,
@@ -272,6 +277,10 @@ impl GpuContext {
     }
     pub fn is_lost(&self) -> bool {
         self.lost.load(Ordering::Acquire)
+    }
+    /// The driver's reason for losing this device domain, when reported.
+    pub fn device_loss_reason(&self) -> Option<&str> {
+        self.loss_reason.get().map(String::as_str)
     }
     pub fn generation(&self) -> u64 {
         self.generation

@@ -295,6 +295,16 @@ fn material_residency_handles_missing_pages_and_rejects_malformed_assets_before_
     let source = cache.prepare(&sparse, 1, version).unwrap();
     assert!(cache.is_empty());
     assert_eq!(cache.resident_bytes(), 0);
+    let builds = cache.builds();
+    let uploads = gpu.transfers();
+    let allocations = gpu.working_buffer_pool_usage().allocations;
+    for _ in 0..100 {
+        let repeated = cache.prepare(&sparse, 1, version).unwrap();
+        assert!(Arc::ptr_eq(&source, &repeated));
+    }
+    assert_eq!(cache.builds(), builds);
+    assert_eq!(gpu.transfers(), uploads);
+    assert_eq!(gpu.working_buffer_pool_usage().allocations, allocations);
     let queries = [
         ([-0.5, -0.5], true),
         ([0.5, -0.5], true),
@@ -340,4 +350,10 @@ fn material_residency_handles_missing_pages_and_rejects_malformed_assets_before_
             &fallback.sample_surface_2d(*uv, 0).0
         );
     }
+    let retired = Arc::downgrade(&source);
+    drop(source);
+    assert!(retired.upgrade().is_none(), "publication lookup must not own the source");
+    let builds = cache.builds();
+    let _rebuilt = cache.prepare(&sparse, 1, version).unwrap();
+    assert_eq!(cache.builds(), builds + 1);
 }

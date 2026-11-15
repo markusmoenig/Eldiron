@@ -327,11 +327,18 @@ fn paint_neighborhoods_are_versioned_bounded_and_validate_before_upload() {
     assert_eq!(uploaded, gpu.transfers().uploaded_bytes);
     assert!(first.resident_bytes() > 0); // leases survive eviction
     let mut zero = IsometricPaintSources::new(gpu.clone(), 0, 0);
-    assert!(
-        zero.prepare(&paint, map, [-1, -1], version)
-            .unwrap()
-            .is_some()
-    );
+    let uncached = zero.prepare(&paint, map, [-1, -1], version).unwrap().unwrap();
+    let uploads = gpu.transfers();
+    let builds = zero.builds();
+    for _ in 0..100 {
+        let repeated = zero.prepare(&paint, map, [-1, -1], version).unwrap().unwrap();
+        assert!(Arc::ptr_eq(&uncached, &repeated));
+    }
+    assert_eq!(gpu.transfers(), uploads);
+    assert_eq!(zero.builds(), builds);
+    let retired = Arc::downgrade(&uncached);
+    drop(uncached);
+    assert!(retired.upgrade().is_none());
     assert!(zero.is_empty());
     assert_eq!(zero.resident_bytes(), 0);
     let uploaded = gpu.transfers().uploaded_bytes;

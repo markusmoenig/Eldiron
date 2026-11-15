@@ -32,6 +32,10 @@ struct Entry {
 pub struct IsometricPaintSources {
     context: Arc<GpuContext>,
     entries: FxHashMap<(IsometricSourceVersion, Uuid, u64, [i32; 2]), Entry>,
+    publications: super::publications::Publications<
+        (IsometricSourceVersion, Uuid, u64, [i32; 2]),
+        GpuTerrainPaintSource,
+    >,
     budget: u64,
     limit: usize,
     bytes: u64,
@@ -43,6 +47,7 @@ impl IsometricPaintSources {
         Self {
             context,
             entries: FxHashMap::default(),
+            publications: Default::default(),
             budget: byte_budget,
             limit: entry_limit,
             bytes: 0,
@@ -64,6 +69,7 @@ impl IsometricPaintSources {
     }
     pub fn clear(&mut self) {
         self.entries.clear();
+        self.publications.clear();
         self.bytes = 0;
     }
     /// A clipped world cell and one neighboring chunk on every side cover the
@@ -87,6 +93,9 @@ impl IsometricPaintSources {
         if let Some(entry) = self.entries.get_mut(&key) {
             entry.used = self.clock;
             return Ok(entry.source.clone());
+        }
+        if let Some(source) = self.publications.get(&key) {
+            return Ok(Some(source));
         }
         let mut chunks = Vec::new();
         let chunk_bytes = (CHUNK_SIZE * CHUNK_SIZE * 4) as usize;
@@ -162,6 +171,9 @@ impl IsometricPaintSources {
             }))
         };
         self.bytes += source.as_ref().map_or(0, |s| s.bytes);
+        if let Some(source) = source.as_ref() {
+            self.publications.publish(key, source);
+        }
         self.entries.insert(
             key,
             Entry {
