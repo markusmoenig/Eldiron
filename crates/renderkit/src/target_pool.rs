@@ -47,10 +47,13 @@ impl TargetDescriptor {
     }
     fn estimated_bytes(self) -> Result<u64> {
         let (w, h) = self.format.block_dimensions();
-        // Depth24Plus can use a native 32-bit depth plane plus stencil/padding.
+        // Standalone stencil can also use a packed depth/stencil backing (for
+        // example Vulkan's D32/S8 fallback). Keep admission conservative even
+        // when Metal can allocate a smaller native stencil-only target.
         // This conservative storage estimate excludes driver/object overhead.
         let block = match self.format {
-            wgpu::TextureFormat::Depth24Plus
+            wgpu::TextureFormat::Stencil8
+            | wgpu::TextureFormat::Depth24Plus
             | wgpu::TextureFormat::Depth24PlusStencil8
             | wgpu::TextureFormat::Depth32FloatStencil8 => 8,
             _ => self

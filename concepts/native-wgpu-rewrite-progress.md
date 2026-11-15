@@ -31,11 +31,13 @@ No percentage is mechanically measured; the chat's roughly85% is an estimate.
   zero ignored fixtures, including bounded terrain residency, unlit previews,
   pooled ownership and exact/soft shadows. Durable
   native-wgpu-evidence/release-residency-foundations.json.
-  Current ordinary Creator642 and common-player13 pass after these last changes.
-  Assembled Creator1 passes in24.16s with five-DPI source parity
-  maxRGBA1. Actual browser four-case source/recovery/150% resize acceptance passes
-  on f51c8044, before the latest unlit shadow refinement; its refresh follows.
-  Twenty-nine isolated dependency configurations passed before the refinement.
+  Ordinary Creator642 passes after terrain/unlit residency; current stencil
+  refinement passes Framework299, assembled Creator1(24.36s, five-DPI maxRGBA1)
+  and common-player13. Frozen mixed UI RGBA is byte-exact.
+  Actual browser four-case source/recovery/150% resize, both optimized Apple
+  hosts and both UIKit runtimes pass on3022c8cb before the stencil refinement;
+  current format/platform and launcher refresh follows. All29 isolated
+  dependency configurations pass on3022c8cb; no feature/dependency changes since.
   CPU suite has835 passes and the same six shipped-data baseline failures.
   Specialized ignored Creator contracts remain separately inventoried; this is
   not a fully green final functional/platform matrix.
@@ -18873,3 +18875,70 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Durable release-residency-foundations.json, release-unlit-residency-acceptance.json
   and both full native120sampleJSONs. Pan/zoom, startup/memory and physical
   gates remain open. Current source is settled for Apple/UIKit/browser refresh.
+
+- Final current-source release platform step boundaries: terminal exit0; /private/tmp/eldiron-release-residency-final-boundaries.log. Physical acceptance is not implied.
+
+- Final current-source release platform step creator-apple: terminal exit0; /private/tmp/eldiron-release-residency-final-creator-apple.log. Physical acceptance is not implied.
+
+- Final current-source release platform step player-apple: terminal exit0; /private/tmp/eldiron-release-residency-final-player-apple.log. Physical acceptance is not implied.
+
+- Next observed residency issue: UI renderer uses Depth24PlusStencil8 for
+  clipping although depth_ops=None, depth writes disabled, compareAlways.
+  WGPU29 types guaranteed_format_features gives Stencil8 the same baseline
+  attachment and4xMSAA support,1B/sample vs conservative8B combined accounting.
+  Two matching format declarations could remove unused depth with no geometry/
+  ordering/shader/sample-count change. Preserve actual619-suite mixed clip/
+  opacity/Swash fixture as release-ui-clip-depth-stencil-baseline.png before
+  any change, compare full decoded RGBA plus existing path/clip/fractional tests.
+  No Rust edits until current serialized platform run is terminal.
+
+- Final current-source release platform step creator-uikit: terminal exit0; /private/tmp/eldiron-release-residency-final-creator-uikit.log. Physical acceptance is not implied.
+
+- Final current-source release platform step player-uikit: terminal exit0; /private/tmp/eldiron-release-residency-final-player-uikit.log. Physical acceptance is not implied.
+
+- Final current-source release platform step creator-web: terminal exit0; /private/tmp/eldiron-release-residency-final-creator-web.log. Physical acceptance is not implied.
+
+- Final current-source release platform step player-web: terminal exit0; /private/tmp/eldiron-release-residency-final-player-web.log. Physical acceptance is not implied.
+
+- Final current-source release platform step browser: terminal exit0; /private/tmp/eldiron-release-residency-final-browser.log. Physical acceptance is not implied.
+
+- Entire current3022c8cb platform handle55968 terminalPASS: isolated29feature
+  graphs, optimized Creator/player detached Apple hosts (37Playerexports),
+  both owned UIKit simulators with actual presentation/text/reopen lifecycle,
+  both optimized browser packages and all four actual ChromeWebGPU150% cases.
+  CreatorUnending GPU ground-copy count8->16->24 across boot/recovery/resize;
+  normal viewport color readback/copies andCanvas2D/errors0. Actual Creator
+  UIKit first3/final6, Playerfirst3/final4, readback0; physicalIMEfalse.
+  Window-lifetime-only Creator hosts show0presentations whileMaclocked.
+  Durable release-unlit-residency-platforms.json, all four browser states/images,
+  release-residency-apple-hosts.json/logs and both UIKit JSONs.
+- Proceed with two UI clip format declarations to Stencil8, retaining4xMSAA,
+  same8-bit stencil operations/order and unchanged shaders/geometry. Preserve
+  portable target-cache admission at conservative8B/sample: WGPU Vulkan can
+  back Stencil8 with D24/S8 or D32/S8 when standaloneS8 is unavailable. Metal
+  maps to nativeStencil8. No claim of portable physical1B backing or budget
+  relaxation; measure actual native RSS separately. Compare frozen fullRGBA.
+
+- Stencil-only39335 terminalPASS12/12 existing paint GPU contracts(0.82s),
+  including density/pixel/source-alpha/ordering/text/group coverage. Full frozen
+  mixed clip/opacity/Swash/curve480x300RGBA comparison: all576000bytes exact,
+  maxdelta0, sha256 0a681f701488bac8e84f540ffb75b82da7c206429c0b1b88e8cf6592267fdf87.
+  Portable target admission unchanged8B/sample; no physical backing/whole-RSS
+  reduction claim yet. Durable release-ui-clip-{stencil-only,depth-stencil-baseline}
+  PNGs and release-ui-clip-stencil-only.json. Verify assembled app and resource
+  performance, then refresh platform formats and actual native launchers.
+
+- Stencil assembled5687 terminalPASS: Framework299/299, assembled Creator1/1
+  in24.36s(max sourceRGBA1 across fiveDPI), common player13/13 in31.28s,
+  two fresh120samples/mode native runs. P50idle8.85/8.88, hover9.45/9.41,
+  pan34.45/34.31, zoom23.86/23.41ms. PeakRSS3,275,096,064/3,245,637,632B
+  versus preceding3,327,442,944/3,314,204,672B; report observations only, no
+  general whole-app improvement guarantee. Conservative pool bytes433566432
+  unchanged, as intended for packed backend fallback. Retain smaller Metal
+  clipping format with exact frozenRGBA and no timing regression. Durable
+  release-stencil-only-acceptance.json and both raw120sampleJSONs.
+- Next: current stencil-format actual Apple/UIKit/browser/platform and native
+  launcher refresh. M0 still lacks hardware GPU pass timestamp attribution;
+  existing completion_wait_ms is a CPU fence wait, not a GPU timestamp. Check
+  actual supported adapter features and add optional diagnostic timing only
+  if supported; do not confuse instrumented runs with normal release timings.

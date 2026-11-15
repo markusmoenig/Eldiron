@@ -1,0 +1,34 @@
+{
+  "source_commit": "3022c8cb",
+  "profile": "release",
+  "scope": "Optimized detached Metal owners and UIKit simulator, not physical input/display or driver memory",
+  "hosts": [
+    {
+      "application": "creator",
+      "status": "PASS",
+      "logs": [
+        "release-residency-apple-creator-host.log",
+        "release-residency-apple-creator-windows.log",
+        "release-residency-apple-creator-close-policy.log"
+      ]
+    },
+    {
+      "application": "player",
+      "status": "PASS",
+      "logs": [
+        "release-residency-apple-player-host.log",
+        "release-residency-apple-player-abi.log",
+        "release-residency-apple-player-ios-sdk.log"
+      ]
+    }
+  ],
+  "creator_window_lifetimes": {
+    "passed": true,
+    "physical_presentations_per_window": [
+      0,
+      0
+    ],
+    "physical_present_verified": false
+  },
+  "player_abi_exports_preserved": 37
+}

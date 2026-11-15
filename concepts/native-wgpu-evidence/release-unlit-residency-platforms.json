@@ -1,0 +1,221 @@
+{
+  "source_commit": "3022c8cb",
+  "profile": "release",
+  "steps": [
+    {
+      "step": "boundaries",
+      "exit": 0,
+      "seconds": 4.189544833,
+      "log": "/private/tmp/eldiron-release-residency-final-boundaries.log"
+    },
+    {
+      "step": "creator-apple",
+      "exit": 0,
+      "seconds": 129.090672458,
+      "log": "/private/tmp/eldiron-release-residency-final-creator-apple.log"
+    },
+    {
+      "step": "player-apple",
+      "exit": 0,
+      "seconds": 69.72568562499998,
+      "log": "/private/tmp/eldiron-release-residency-final-player-apple.log"
+    },
+    {
+      "step": "creator-uikit",
+      "exit": 0,
+      "seconds": 164.19964145900002,
+      "log": "/private/tmp/eldiron-release-residency-final-creator-uikit.log"
+    },
+    {
+      "step": "player-uikit",
+      "exit": 0,
+      "seconds": 110.63088354199999,
+      "log": "/private/tmp/eldiron-release-residency-final-player-uikit.log"
+    },
+    {
+      "step": "creator-web",
+      "exit": 0,
+      "seconds": 101.81036337499995,
+      "log": "/private/tmp/eldiron-release-residency-final-creator-web.log"
+    },
+    {
+      "step": "player-web",
+      "exit": 0,
+      "seconds": 45.619450874999984,
+      "log": "/private/tmp/eldiron-release-residency-final-player-web.log"
+    },
+    {
+      "step": "browser",
+      "exit": 0,
+      "seconds": 260.15058054200006,
+      "log": "/private/tmp/eldiron-release-residency-final-browser.log"
+    }
+  ],
+  "browser_cases": [
+    {
+      "case": "creator-3DStarter",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "1",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "4",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "5",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "creator-UnendingNight",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "7",
+          "ground_copies": 8,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "12",
+          "ground_copies": 16,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "16",
+          "ground_copies": 24,
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "player-Hideout2D",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "30",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "50",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "69",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "player-UnendingNight",
+      "phases": [
+        {
+          "phase": "initial",
+          "generation": "1",
+          "presentations": "40",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "recovered",
+          "generation": "2",
+          "presentations": "54",
+          "ground_copies": 0,
+          "canvas": [
+            {
+              "width": 2400,
+              "height": 1500
+            }
+          ]
+        },
+        {
+          "phase": "resized",
+          "generation": "2",
+          "presentations": "83",
+          "ground_copies": 56,
+          "canvas": [
+            {
+              "width": 1856,
+              "height": 1097
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "physical_input_display_verified": false
+}

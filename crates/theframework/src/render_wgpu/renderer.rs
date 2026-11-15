@@ -359,7 +359,7 @@ impl PaintRenderer {
                     }),
                     primitive: wgpu::PrimitiveState::default(),
                     depth_stencil: Some(wgpu::DepthStencilState {
-                        format: wgpu::TextureFormat::Depth24PlusStencil8,
+                        format: wgpu::TextureFormat::Stencil8,
                         depth_write_enabled: Some(false),
                         depth_compare: Some(wgpu::CompareFunction::Always),
                         stencil: wgpu::StencilState {
@@ -1574,7 +1574,7 @@ impl PaintRenderer {
         }
         let pipelines = self.pipelines(format);
         let stencil = self.context.acquire_target(renderkit::TargetDescriptor::attachment(
-            size.0, size.1, wgpu::TextureFormat::Depth24PlusStencil8, pipelines.samples,
+            size.0, size.1, wgpu::TextureFormat::Stencil8, pipelines.samples,
         ))?;
         let msaa = if pipelines.samples > 1 {
             Some(self.context.acquire_target(renderkit::TargetDescriptor::attachment(

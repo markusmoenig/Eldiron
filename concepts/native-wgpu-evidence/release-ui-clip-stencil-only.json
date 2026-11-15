@@ -1,0 +1,18 @@
+{
+  "source_base_commit": "3022c8cb",
+  "profile": "release",
+  "paint_gpu_tests": 12,
+  "dimensions": [
+    480,
+    300
+  ],
+  "rgba_bytes": 576000,
+  "rgba_sha256": "0a681f701488bac8e84f540ffb75b82da7c206429c0b1b88e8cf6592267fdf87",
+  "max_rgba_delta": 0,
+  "cache_admission_bytes_per_sample": 8,
+  "notes": [
+    "Same 4xMSAA, stencil operations, shaders and geometry",
+    "Portable cache admission retains packed-format fallback allowance",
+    "Physical GPU backing size and whole-process memory require separate measurements"
+  ]
+}

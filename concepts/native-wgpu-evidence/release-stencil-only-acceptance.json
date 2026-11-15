@@ -1,0 +1,85 @@
+{
+  "source_base_commit": "3022c8cb",
+  "delta": "stencil-only UI target/pipeline; conservative 8B/sample pool accounting",
+  "profile": "release",
+  "framework_passed": 299,
+  "assembled_creator": {
+    "passed": 1,
+    "seconds": 24.36
+  },
+  "common_player": {
+    "passed": 13,
+    "seconds": 31.28
+  },
+  "runs": [
+    {
+      "repeat": 1,
+      "peak_process_rss_bytes": 3275096064,
+      "first_complete_view_ms": 7115.113334,
+      "total_ms": {
+        "hover": {
+          "mean": 13.680942350000002,
+          "p50": 9.4525,
+          "p95": 29.777,
+          "p99": 30.279792
+        },
+        "idle": {
+          "mean": 9.552967716666663,
+          "p50": 8.850541,
+          "p95": 9.741667000000001,
+          "p99": 28.499042
+        },
+        "pan": {
+          "mean": 34.18944201666668,
+          "p50": 34.4485,
+          "p95": 36.189833,
+          "p99": 37.967917
+        },
+        "zoom": {
+          "mean": 25.052937158333325,
+          "p50": 23.860708000000002,
+          "p95": 52.885166999999996,
+          "p99": 55.041292
+        }
+      },
+      "target_pool_before": "TargetPoolUsage { live_bytes: 433566432, live_allocations: 26, peak_live_bytes: 433566432, cached_bytes: 433566432, cached_textures: 26, byte_limit: 536870912, texture_limit: 64, allocations: 26, hits: 481, evictions: 0, uncached_allocations: 0 }"
+    },
+    {
+      "repeat": 2,
+      "peak_process_rss_bytes": 3245637632,
+      "first_complete_view_ms": 7115.288125,
+      "total_ms": {
+        "hover": {
+          "mean": 13.770303450000004,
+          "p50": 9.412542,
+          "p95": 29.91925,
+          "p99": 30.966416
+        },
+        "idle": {
+          "mean": 9.52400001666667,
+          "p50": 8.876083,
+          "p95": 9.43575,
+          "p99": 27.829290999999998
+        },
+        "pan": {
+          "mean": 34.31931006666667,
+          "p50": 34.309916,
+          "p95": 36.767624999999995,
+          "p99": 37.53575
+        },
+        "zoom": {
+          "mean": 25.03117884166667,
+          "p50": 23.407791,
+          "p95": 53.6015,
+          "p99": 54.542958000000006
+        }
+      },
+      "target_pool_before": "TargetPoolUsage { live_bytes: 433566432, live_allocations: 26, peak_live_bytes: 433566432, cached_bytes: 433566432, cached_textures: 26, byte_limit: 536870912, texture_limit: 64, allocations: 26, hits: 481, evictions: 0, uncached_allocations: 0 }"
+    }
+  ],
+  "limitations": [
+    "No GPU timestamp or physical input-to-present measurements",
+    "Target cache accounting stays conservative for packed stencil fallback",
+    "Not an all-app performance acceptance result"
+  ]
+}
