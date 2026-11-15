@@ -17,6 +17,7 @@ pub(super) struct Owner {
     scope: Option<Scope>,
     request: Option<StampSpriteRequest>,
     ready: Option<Arc<StampSpriteSet>>,
+    ready_matches: bool,
     queued: Option<StampSpritePreparation>,
     #[cfg(not(target_arch = "wasm32"))]
     work: Option<Work>,
@@ -38,36 +39,40 @@ impl Owner {
         &mut self,
         layer: &IsoPaintLayer,
     ) -> Result<Option<Arc<StampSpriteSet>>, String> {
-        let request = StampSpriteRequest::capture(layer);
-        if self.request.as_ref().is_none_or(|old| !old.same(&request)) {
-            self.queued = None;
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                self.work = None;
+        if self
+            .request
+            .as_ref()
+            .is_none_or(|request| !request.same_source(layer))
+        {
+            let request = StampSpriteRequest::capture(layer);
+            let same_visuals = self.request.as_ref().is_some_and(|old| old.same(&request));
+            if !same_visuals {
+                self.queued = None;
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    self.work = None;
+                }
+                self.failure = None;
+                self.ready_matches = self.ready.as_ref().is_some_and(|set| set.matches(&request));
+                if !self.ready_matches {
+                    let mut prep = request.clone().prepare(self.ready.clone());
+                    if request.is_empty() {
+                        prep.advance(0)?;
+                        self.ready = Some(Arc::new(prep.finish()?));
+                        self.ready_matches = true;
+                    } else {
+                        self.queued = Some(prep);
+                    }
+                }
             }
-            self.failure = None;
-            if self.ready.as_ref().is_some_and(|set| set.matches(&request)) {
-                self.request = Some(request);
-                return Ok(self.ready.clone());
-            }
-            let empty = request.is_empty();
-            let mut prep = request.clone().prepare(self.ready.clone());
+            // Keep the latest exact backing even when only placement changed.
+            // Existing work/ready artwork is already proven visually equivalent.
             self.request = Some(request);
-            if empty {
-                prep.advance(0)?;
-                self.ready = Some(Arc::new(prep.finish()?));
-            } else {
-                self.queued = Some(prep);
-            }
         }
         if let Some(error) = &self.failure {
             return Err(error.clone());
         }
-        Ok(self
-            .ready
-            .as_ref()
-            .filter(|set| set.matches(self.request.as_ref().unwrap()))
-            .cloned())
+        Ok(self.ready.as_ref().filter(|_| self.ready_matches).cloned())
     }
 
     /// An active native worker will wake its owner. Queued admission and browser
@@ -94,6 +99,7 @@ impl Owner {
         match result {
             Ok(set) => {
                 self.ready = Some(Arc::new(set));
+                self.ready_matches = true;
                 self.failure = None;
             }
             Err(error) => self.failure = Some(error),

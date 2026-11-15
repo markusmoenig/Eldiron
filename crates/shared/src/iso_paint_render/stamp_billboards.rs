@@ -188,7 +188,8 @@ impl StampBillboards {
 
 pub struct StampBillboardPreparation {
     chunks: indexmap::map::IntoValues<String, IsoPaintChunk>,
-    current: std::vec::IntoIter<IsoPaintStamp>,
+    current: crate::shared_vec::SharedVec<IsoPaintStamp>,
+    current_cursor: usize,
     camera: Camera3D,
     height: u32,
     output: StampBillboards,
@@ -211,7 +212,8 @@ impl StampBillboardPreparation {
         };
         Self {
             chunks: chunks.into_values(),
-            current: Vec::new().into_iter(),
+            current: Default::default(),
+            current_cursor: 0,
             camera,
             height,
             output: StampBillboards {
@@ -252,14 +254,16 @@ impl StampBillboardPreparation {
             return Err(error.clone());
         }
         for _ in 0..items {
-            if let Some(stamp) = self.current.next() {
+            if let Some(stamp) = self.current.get(self.current_cursor).cloned() {
+                self.current_cursor += 1;
                 let world = resolve(&stamp);
                 if let Err(error) = self.insert(stamp, world) {
                     self.failed = Some(error.clone());
                     return Err(error);
                 }
             } else if let Some(chunk) = self.chunks.next() {
-                self.current = chunk.stamps.into_iter();
+                self.current = chunk.stamps;
+                self.current_cursor = 0;
             } else {
                 self.done = true;
                 break;

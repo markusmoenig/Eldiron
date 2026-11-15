@@ -2,6 +2,7 @@ use crate::iso_paint_brush::{self, IsoPaintBrushSample};
 use crate::prelude::*;
 mod source;
 use crate::shared_index_map::SharedIndexMap;
+use crate::shared_vec::SharedVec;
 use theframework_core::prelude::{Uuid, Vec2, Vec3};
 use theframework_core::SharedBytes;
 
@@ -534,7 +535,7 @@ pub struct IsoPaintChunk {
     pub stamp_revision: u64,
     pub strokes: Vec<IsoPaintStroke>,
     #[serde(default)]
-    pub stamps: Vec<IsoPaintStamp>,
+    pub stamps: SharedVec<IsoPaintStamp>,
 }
 
 impl IsoPaintChunk {
@@ -544,7 +545,7 @@ impl IsoPaintChunk {
             revision: 0,
             stamp_revision: 0,
             strokes: Vec::new(),
-            stamps: Vec::new(),
+            stamps: Default::default(),
         }
     }
 }

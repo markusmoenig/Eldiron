@@ -21,6 +21,60 @@ fn source(count: usize) -> IsoPaintLayer {
     layer
 }
 #[test]
+fn shared_live_recipe_catalogue_preserves_current_wire_and_visual_reuse() {
+    let mut layer = source(300);
+    let frozen = layer.presentation_source(false);
+    let original = &layer.chunks.values().next().unwrap().stamps;
+    assert!(
+        frozen
+            .chunks
+            .values()
+            .next()
+            .unwrap()
+            .stamps
+            .same_storage(original)
+    );
+    let wire = serde_json::to_value(&layer).unwrap();
+    let key = layer.chunks.first().unwrap().0;
+    assert_eq!(
+        wire["chunks"][key]["stamps"],
+        serde_json::to_value(&**original).unwrap()
+    );
+    let restored: IsoPaintLayer = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(restored).unwrap(), wire);
+    let request = StampSpriteRequest::capture(&frozen);
+    assert!(request.same_source(&layer));
+    assert!(request.same(&request.clone()));
+    let mut preparation = request.clone().prepare(None);
+    let mut advances = 0;
+    while !preparation.advance(1).unwrap() {
+        advances += 1;
+        assert!(advances < 10000);
+    }
+    let set = preparation.finish().unwrap();
+    assert_eq!(
+        set.sprites().len(),
+        1,
+        "repeated visual recipes share artwork"
+    );
+    layer.chunks.values_mut().next().unwrap().stamps[0].world = Some([2., 0., 0.]);
+    assert!(!request.same_source(&layer));
+    let moved = StampSpriteRequest::capture(&layer.presentation_source(false));
+    assert!(
+        request.same(&moved),
+        "placement changes reuse original artwork"
+    );
+    assert!(set.matches(&moved));
+    assert_eq!(
+        frozen.chunks.values().next().unwrap().stamps[0].world,
+        Some([0.; 3])
+    );
+    layer.chunks.values_mut().next().unwrap().stamps[0].color = [230, 40, 10, 255];
+    let changed = StampSpriteRequest::capture(&layer.presentation_source(false));
+    assert!(!request.same(&changed));
+    assert!(!set.matches(&changed));
+}
+#[test]
 fn identical_original_sprites_share_storage_without_merging_ordered_placements() {
     let layer = source(300);
     let before = serde_json::to_vec(&layer).unwrap();

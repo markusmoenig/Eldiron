@@ -26,7 +26,8 @@ struct PendingRecipe {
 }
 pub struct StampCatalogBuilder {
     chunks: indexmap::map::IntoValues<String, IsoPaintChunk>,
-    current: std::vec::IntoIter<IsoPaintStamp>,
+    current: crate::shared_vec::SharedVec<IsoPaintStamp>,
+    current_cursor: usize,
     output: StampCatalog,
     by_hash: HashMap<u64, Vec<u32>>,
     camera: Camera3D,
@@ -51,7 +52,8 @@ impl StampCatalogBuilder {
         };
         Self {
             chunks: chunks.into_values(),
-            current: Vec::new().into_iter(),
+            current: Default::default(),
+            current_cursor: 0,
             output: StampCatalog {
                 recipes: Vec::new(),
                 sprites: Vec::new(),
@@ -104,7 +106,8 @@ impl StampCatalogBuilder {
                 self.output.recipes.push(recipe);
                 self.by_hash.entry(pending.hash).or_default().push(slot);
                 (pending.stamp, pending.world, slot)
-            } else if let Some(stamp) = self.current.next() {
+            } else if let Some(stamp) = self.current.get(self.current_cursor).cloned() {
+                self.current_cursor += 1;
                 let world = match (stamp.paint_geo, stamp.surface_uv) {
                     (Some(geo), Some(uv)) => vm
                         .paint_surface_world_at(geo, uv)
@@ -134,7 +137,8 @@ impl StampCatalogBuilder {
                     continue;
                 }
             } else if let Some(chunk) = self.chunks.next() {
-                self.current = chunk.stamps.into_iter();
+                self.current = chunk.stamps;
+                self.current_cursor = 0;
                 continue;
             } else {
                 self.done = true;

@@ -1304,7 +1304,7 @@ pub(crate) fn merge_prefab_paint_source_for_map(
                     revision: chunk.revision,
                     stamp_revision: chunk.stamp_revision,
                     strokes: chunk.strokes.clone(),
-                    stamps: Vec::new(),
+                    stamps: Default::default(),
                 };
                 if let Some(existing) = target.chunks.get_mut(key) {
                     existing.revision = existing.revision.max(chunk.revision);
@@ -1542,7 +1542,7 @@ fn take_geometry_object_paint(
                 retained_stamps.push(stamp);
             }
         }
-        chunk.stamps = retained_stamps;
+        chunk.stamps = retained_stamps.into();
 
         if !moved.strokes.is_empty() || !moved.stamps.is_empty() {
             extracted.chunks.insert(key.clone(), moved);

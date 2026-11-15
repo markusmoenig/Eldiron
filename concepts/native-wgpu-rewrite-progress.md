@@ -15379,3 +15379,43 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   handles terminal; diff whitespace check passes. Continue with immutable stamp
   recipe lists, per-recipe cooperative iteration and repeated-request reuse;
   unrelated networking concept remains untracked and untouched.
+
+
+## Shared stamp recipe ownership and repeated request reuse (2026-11-15)
+
+- Current IsoPaintChunk stamp lists now use immutable SharedVec snapshot backing.
+  Authoring detaches on actual recipe/placement edits; serialization delegates to
+  the original Vec sequence. Presentation snapshots share recipes/image handles
+  without retaining editable stroke history. Private catalogue/reference placement
+  builders advance an index into the frozen recipe list instead of cloning a
+  whole shared list when moving to its next chunk.
+- StampSpriteRequest shares its finished distinct-recipe packet across CPU job/
+  publication owners and retains exact immutable source-list identity. Creator
+  recognizes unchanged lists before re-capturing/hashing every recipe; pose-only
+  edits retain pending/ready visually equivalent artwork. Creator and player
+  owners retain the proven ready-request relation, avoiding repeated full recipe
+  comparisons after publication or placement-only source replacement. Changed
+  artwork clears stale work/proofs; errors stay sticky for the current request.
+- Initial native compile exposed an Arc<Vec> zip borrow; corrected it to iterate
+  the retained packet. Canonical four-application release compilation then
+  PASS17.26s: /private/tmp/eldiron-stamp-catalogue-release.log. Focused shared live
+  recipe/current-wire/visual-reuse contract PASS0.00s (release build24.16s):
+  /private/tmp/eldiron-stamp-catalogue-release-contract.log. Existing300-original
+  placement/dedup/cooperative-budget regression also PASS0.00s:
+  /private/tmp/eldiron-stamp-catalogue-release-cooperative.log. Actual wasm Creator
+  browser target release compile PASS16.79s:
+  /private/tmp/eldiron-stamp-catalogue-release-wasm.log. CPU-only runtime release
+  compilation is in flight. First-edit list detach, first changed-recipe capture,
+  prefab merge capture and synchronous placement production are still measured
+  CPU/latency policy work, not a claimed whole-frame hard2ms bound.
+- Next integration: private frame binding installation currently invalidates
+  compute auxiliary metadata after the view's ordinary preparation phase. Add
+  cooperative preparation inside the frozen frame before its first draw so it
+  cannot fall through to the explicit synchronous reference uploader. Also make
+  fully resident private tables recognize their completed residency without an
+  unnecessary dependency receipt. Broad acceptance remains deferred/unverified.
+
+- CPU-only runtime release compilation PASS3.24s:
+  /private/tmp/eldiron-stamp-catalogue-release-cpu.log. All compiler handles
+  terminal; diff whitespace check passes. Continue directly with private-frame
+  auxiliary preparation under the shared host source budget.

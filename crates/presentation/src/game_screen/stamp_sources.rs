@@ -21,6 +21,7 @@ pub(super) struct Sources {
     layer: Option<Arc<IsoPaintLayer>>,
     request: Option<StampSpriteRequest>,
     ready: Option<Arc<StampSpriteSet>>,
+    ready_matches: bool,
     queued: Option<StampSpritePreparation>,
     #[cfg(not(target_arch = "wasm32"))]
     work: Option<Work>,
@@ -84,6 +85,11 @@ impl Sources {
                 .layer
                 .as_ref()
                 .map(|layer| StampSpriteRequest::capture(layer));
+            self.ready_matches = self.request.as_ref().is_some_and(|request| {
+                self.ready
+                    .as_ref()
+                    .is_some_and(|ready| ready.matches(request))
+            });
             if source.is_none() {
                 self.ready = None;
             }
@@ -92,15 +98,12 @@ impl Sources {
         let Some(request) = &self.request else {
             return Ok(None);
         };
-        let ready = self
-            .ready
-            .as_ref()
-            .is_some_and(|ready| ready.matches(request));
-        if !ready && !self.busy() && self.failure.is_none() {
+        if !self.ready_matches && !self.busy() && self.failure.is_none() {
             let mut prep = request.clone().prepare(self.ready.clone());
             if request.is_empty() {
                 prep.advance(0)?;
                 self.ready = Some(Arc::new(prep.finish()?));
+                self.ready_matches = true;
             } else {
                 self.queued = Some(prep);
             }
@@ -111,7 +114,7 @@ impl Sources {
         Ok(self
             .ready
             .as_ref()
-            .filter(|ready| ready.matches(request))
+            .filter(|_| self.ready_matches)
             .map(|pixels| Publication {
                 layer: self.layer.as_ref().unwrap().clone(),
                 pixels: pixels.clone(),
@@ -124,6 +127,7 @@ impl Sources {
         match result {
             Ok(ready) => {
                 self.ready = Some(Arc::new(ready));
+                self.ready_matches = true;
                 self.changed = true;
                 Ok(())
             }

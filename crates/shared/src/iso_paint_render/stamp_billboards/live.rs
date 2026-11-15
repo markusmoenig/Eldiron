@@ -6,13 +6,28 @@ use std::sync::Arc;
 
 #[derive(Clone, Default)]
 pub struct StampSpriteRequest {
-    inputs: Vec<Arc<IsoPaintStamp>>,
+    inputs: Arc<Vec<Arc<IsoPaintStamp>>>,
+    visible: bool,
+    sources: Arc<Vec<crate::shared_vec::SharedVec<IsoPaintStamp>>>,
 }
 impl StampSpriteRequest {
-    /// Freeze only distinct visual recipes, sharing source image backing. UV
-    /// paint, selections, history and camera-dependent placement are not cloned.
+    /// Freeze distinct visual recipes and retain their immutable source lists.
+    /// UV paint, selections, history and source image pixels are not cloned.
     pub fn capture(layer: &IsoPaintLayer) -> Self {
-        let mut request = Self::default();
+        let mut request = Self {
+            visible: layer.visible,
+            sources: Arc::new(if layer.visible {
+                layer
+                    .chunks
+                    .values()
+                    .filter(|chunk| !chunk.stamps.is_empty())
+                    .map(|chunk| chunk.stamps.clone())
+                    .collect()
+            } else {
+                Vec::new()
+            }),
+            ..Default::default()
+        };
         let mut buckets = HashMap::<u64, Vec<usize>>::new();
         if layer.visible {
             for stamp in layer.chunks.values().flat_map(|chunk| &chunk.stamps) {
@@ -29,19 +44,41 @@ impl StampSpriteRequest {
                     continue;
                 }
                 bucket.push(request.inputs.len());
-                request.inputs.push(Arc::new(stamp.clone()));
+                Arc::get_mut(&mut request.inputs)
+                    .unwrap()
+                    .push(Arc::new(stamp.clone()));
             }
         }
         request
     }
 
+    /// Exact unchanged recipe backing can be recognized without cloning/hashing
+    /// every recipe. Placement changes detach the list and still reuse artwork.
+    pub fn same_source(&self, layer: &IsoPaintLayer) -> bool {
+        if self.visible != layer.visible {
+            return false;
+        }
+        if !self.visible {
+            return true;
+        }
+        let mut chunks = layer
+            .chunks
+            .values()
+            .filter(|chunk| !chunk.stamps.is_empty());
+        self.sources.iter().all(|source| {
+            chunks
+                .next()
+                .is_some_and(|chunk| source.same_storage(&chunk.stamps))
+        }) && chunks.next().is_none()
+    }
     pub fn same(&self, other: &Self) -> bool {
-        self.inputs.len() == other.inputs.len()
-            && self
-                .inputs
-                .iter()
-                .zip(&other.inputs)
-                .all(|(a, b)| same_visual(a, b))
+        Arc::ptr_eq(&self.inputs, &other.inputs)
+            || self.inputs.len() == other.inputs.len()
+                && self
+                    .inputs
+                    .iter()
+                    .zip(other.inputs.iter())
+                    .all(|(a, b)| same_visual(a, b))
     }
 
     pub fn is_empty(&self) -> bool {
