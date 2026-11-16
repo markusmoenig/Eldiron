@@ -19438,3 +19438,18 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Physical movement smoothness and performance are not inferred from these
   contracts. Next freeze source and provide fresh optimized runnable copies
   so the user can retest ordinary2D/2Diso and Play/Stop marker visibility.
+
+- d0dd4774 runnable release refresh63739 terminalPASS: Creator + both common
+  graphical launchers build77.92s; separately isolated CPU terminal0.32s;
+  source-guarded SHA256copies0.35s. New owned folder
+  target/native-wgpu-release-d0dd4774, stable latest symlink
+  target/native-wgpu-latest. Previous f23 release and its possibly user-edited
+  fixture copies preserved. Both .command --help checks PASS, launcher syntax
+  PASS, all copied executable hashes verified; no extra app window opened while
+  user tests. Player.command now uses canonical eldiron-client.
+- Separate fresh fixture copies verified against original source hashes, no
+  authored files changed. Durable release-editor-runtime-launchers.json and
+  release-native-launchers-d0dd4774.json. User should quit prior Creator and
+  open latest/Creator.command to physically retest 2D/iso keyboard movement
+  and ordinary2D Play/Stop icon policy. Physical smoothness remains unverified
+  until observed; no FPS, simulation cadence or broad performance claim.
