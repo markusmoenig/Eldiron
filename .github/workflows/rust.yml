@@ -12,7 +12,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        working-directory: ["creator", "clients/client"]
 
     runs-on: ${{ matrix.os }}
 
@@ -47,7 +46,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libgtk-3-dev
+          sudo apt-get install -y libasound2-dev libgtk-3-dev libfontconfig-dev libfreetype-dev pkg-config
           pkg-config --libs --cflags alsa
 
       # ----- Install the toolchain (all OSes) -------------------------
@@ -60,22 +59,36 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────────
       # 4. Build
       # ────────────────────────────────────────────────────────────────────────────
-      - name: Build
+      - name: Build graphical release launchers
         shell: bash
-        working-directory: ${{ matrix.working-directory }}
         run: |
-          cargo build --verbose --bins
+          cargo build --release --locked --verbose \
+            -p eldiron-creator --bin eldiron-creator \
+            -p eldiron-client --bin eldiron-client \
+            -p eldiron-client-wgpu --bin eldiron-client-wgpu
 
-      # ────────────────────────────────────────────────────────────────────────────
-      # 5. Build Web
-      # ────────────────────────────────────────────────────────────────────────────
-      - name: Build Web
+      - name: Build isolated CPU terminal
         shell: bash
-        working-directory: ${{ matrix.working-directory }}
-        if: ${{ matrix.working-directory == 'clients/client' }}
         run: |
+          cargo build --release --locked --verbose \
+            -p eldiron-client-terminal --bin eldiron-client-terminal --no-default-features
+
+  browser:
+    name: WebGPU packages
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        application: [creator, player]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
           rustup target add wasm32-unknown-unknown
-          cargo build --verbose --bins --target wasm32-unknown-unknown
+      - name: Package release host and CPU codec worker
+        run: python3 tools/package_web.py ${{ matrix.application }} target/web-${{ matrix.application }}
 
   validation:
     name: Generated assets and framework tests
@@ -87,7 +100,7 @@ jobs:
       - name: Prepare (Linux)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libgtk-3-dev
+          sudo apt-get install -y libasound2-dev libgtk-3-dev libfontconfig-dev libfreetype-dev pkg-config
 
       - name: Install Rust toolchain
         run: |
@@ -96,7 +109,7 @@ jobs:
 
 
       - name: Test framework rendering safety and snapshots
-        run: cargo test -p theframework --features ui
+        run: cargo test --release --locked -p theframework --features ui
 
       - name: Upload rendering snapshot failures
         if: failure()

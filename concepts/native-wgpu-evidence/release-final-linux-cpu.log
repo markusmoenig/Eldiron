@@ -1,0 +1,261 @@
+    Checking getrandom v0.3.4
+    Checking icu_properties v2.1.2
+    Checking icu_normalizer v2.1.1
+    Checking getrandom v0.2.17
+    Checking errno v0.3.14
+    Checking hashbrown v0.16.1
+    Checking toml_parser v1.0.6+spec-1.1.0
+    Checking exr v1.74.0
+   Compiling signal-hook v0.3.18
+    Checking alsa-sys v0.4.0
+    Checking rand_core v0.9.3
+    Checking signal-hook-registry v1.4.8
+    Checking ring v0.17.14
+    Checking rand_chacha v0.9.0
+    Checking tiff v0.11.3
+    Checking simba v0.9.1
+    Checking qoi v0.4.1
+    Checking percent-encoding v2.3.2
+    Checking indexmap v2.13.0
+    Checking lock_api v0.4.14
+    Checking rand v0.9.2
+    Checking form_urlencoded v1.2.2
+    Checking toml v0.9.11+spec-1.1.0
+    Checking alsa v0.11.0
+    Checking rust-embed v8.9.0
+    Checking uuid v1.19.0
+    Checking idna_adapter v1.2.1
+    Checking parking_lot_core v0.9.12
+    Checking idna v1.1.0
+    Checking mio v1.1.1
+   Compiling rustix v0.38.44
+    Checking theframework-core v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/theframework-core)
+    Checking dirs-sys v0.5.0
+    Checking url v2.5.8
+    Checking pathfinding v4.14.0
+    Checking signal-hook-mio v0.2.5
+    Checking parking_lot v0.12.5
+    Checking rustls-webpki v0.103.9
+    Checking denrim-materials v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/materialz)
+    Checking linux-raw-sys v0.4.15
+    Checking open v5.3.3
+    Checking cpal v0.17.3
+    Checking tempfile v3.24.0
+    Checking dirs v6.0.0
+   Compiling nix v0.29.0
+    Checking zip v6.0.0
+    Checking rustls v0.23.37
+    Checking castaway v0.2.4
+    Checking itertools v0.13.0
+    Checking num_cpus v1.17.0
+    Checking image v0.25.10
+    Checking nibble_vec v0.1.0
+    Checking unicode-width v0.1.14
+    Checking endian-type v0.1.2
+    Checking ryu v1.0.23
+    Checking crossterm v0.28.1
+    Checking radix_trie v0.2.1
+    Checking compact_str v0.8.2
+    Checking eldiron-ruleset v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/ruleset)
+    Checking derive_more v2.1.1
+    Checking strum v0.26.3
+    Checking lru v0.12.5
+    Checking fd-lock v4.0.4
+    Checking cassowary v0.3.0
+    Checking utf8parse v0.2.2
+    Checking home v0.5.12
+    Checking crossterm v0.29.0
+    Checking unicode-truncate v1.1.0
+    Checking ratatui v0.29.0
+    Checking nalgebra v0.33.2
+    Checking rustyline v15.0.0
+    Checking scenevm v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/scenevm)
+    Checking ureq v2.12.1
+    Checking bvh v0.11.0
+    Checking rusterix v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/rusterix)
+warning: use of deprecated method `std::sync::atomic::Atomic::<u32>::fetch_update`: renamed to `try_update` for consistency
+  --> crates/rusterix/src/server/world.rs:25:14
+   |
+25 |             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+   |              ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+25 -             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+25 +             .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+   |
+
+warning: function `prepare_player_start_with_templates` is never used
+   --> crates/rusterix/src/player_start.rs:101:15
+    |
+101 | pub(crate) fn prepare_player_start_with_templates(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `as_code` is never used
+  --> crates/rusterix/src/render_settings.rs:32:8
+   |
+31 | impl FadeMode {
+   | ------------- method in this implementation
+32 |     fn as_code(self) -> u32 {
+   |        ^^^^^^^
+
+warning: method `lighting_code` is never used
+  --> crates/rusterix/src/render_settings.rs:53:8
+   |
+52 | impl RenderStyle {
+   | ---------------- method in this implementation
+53 |     fn lighting_code(self, _lighting_model: LightingModel) -> u32 {
+   |        ^^^^^^^^^^^^^
+
+warning: method `as_code` is never used
+  --> crates/rusterix/src/render_settings.rs:68:8
+   |
+67 | impl PostToneMapper {
+   | ------------------- method in this implementation
+68 |     fn as_code(self) -> u32 {
+   |        ^^^^^^^
+
+warning: fields `start`, `target`, `duration`, and `elapsed` are never read
+   --> crates/rusterix/src/render_settings.rs:366:9
+    |
+365 |     Float {
+    |     ----- fields in this variant
+366 |         start: f32,
+    |         ^^^^^
+367 |         target: f32,
+    |         ^^^^^^
+368 |         duration: f32,
+    |         ^^^^^^^^
+369 |         elapsed: f32,
+    |         ^^^^^^^
+    |
+    = note: `Transition` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `start`, `target`, `duration`, and `elapsed` are never read
+   --> crates/rusterix/src/render_settings.rs:372:9
+    |
+371 |     Vec3 {
+    |     ---- fields in this variant
+372 |         start: [f32; 3],
+    |         ^^^^^
+373 |         target: [f32; 3],
+    |         ^^^^^^
+374 |         duration: f32,
+    |         ^^^^^^^^
+375 |         elapsed: f32,
+    |         ^^^^^^^
+    |
+    = note: `Transition` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `start`, `target`, `duration`, and `elapsed` are never read
+   --> crates/rusterix/src/render_settings.rs:378:9
+    |
+377 |     Bool {
+    |     ---- fields in this variant
+378 |         start: bool,
+    |         ^^^^^
+379 |         target: bool,
+    |         ^^^^^^
+380 |         duration: f32,
+    |         ^^^^^^^^
+381 |         elapsed: f32,
+    |         ^^^^^^^
+    |
+    = note: `Transition` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: method `update_transitions` is never used
+    --> crates/rusterix/src/render_settings.rs:1126:8
+     |
+ 465 | impl RenderSettings {
+     | ------------------- method in this implementation
+...
+1126 |     fn update_transitions(&mut self) {
+     |        ^^^^^^^^^^^^^^^^^^
+
+warning: type alias `Triangles` is never used
+ --> crates/rusterix/src/scenebuilder/preview_geometry.rs:5:6
+  |
+5 | type Triangles = (Vec<[f32; 2]>, Vec<(usize, usize, usize)>);
+  |      ^^^^^^^^^
+
+warning: struct `SectorGeometry` is never constructed
+ --> crates/rusterix/src/scenebuilder/preview_geometry.rs:7:19
+  |
+7 | pub(super) struct SectorGeometry {
+  |                   ^^^^^^^^^^^^^^
+
+warning: struct `LineGeometry` is never constructed
+  --> crates/rusterix/src/scenebuilder/preview_geometry.rs:14:19
+   |
+14 | pub(super) struct LineGeometry {
+   |                   ^^^^^^^^^^^^
+
+warning: struct `PreviewGeometry` is never constructed
+  --> crates/rusterix/src/scenebuilder/preview_geometry.rs:21:19
+   |
+21 | pub(super) struct PreviewGeometry {
+   |                   ^^^^^^^^^^^^^^^
+
+warning: function `geometry_fingerprint` is never used
+  --> crates/rusterix/src/scenebuilder/preview_geometry.rs:32:15
+   |
+32 | pub(crate) fn geometry_fingerprint(map: &Map) -> u64 {
+   |               ^^^^^^^^^^^^^^^^^^^^
+
+warning: method `update` is never used
+  --> crates/rusterix/src/scenebuilder/preview_geometry.rs:60:12
+   |
+59 | impl PreviewGeometry {
+   | -------------------- method in this implementation
+60 |     pub fn update(&mut self, map: &Map) -> bool {
+   |            ^^^^^^
+
+warning: function `intersects_slice` is never used
+   --> crates/rusterix/src/scenebuilder/preview_geometry.rs:140:15
+    |
+140 | pub(super) fn intersects_slice(span: Option<(f32, f32)>, center: f32, thickness: f32) -> bool {
+    |               ^^^^^^^^^^^^^^^^
+
+warning: function `viewport` is never used
+   --> crates/rusterix/src/scenebuilder/preview_geometry.rs:147:15
+    |
+147 | pub(super) fn viewport(map: &Map, screen: Vec2<f32>, margin_pixels: f32) -> Option<BBox> {
+    |               ^^^^^^^^
+
+warning: method `cached_signature` is never used
+  --> crates/rusterix/src/server/avatar_assets.rs:40:19
+   |
+36 | impl AvatarAssets {
+   | ----------------- method in this implementation
+...
+40 |     pub(crate) fn cached_signature(&self, avatar: &Avatar, calculate: impl FnOnce() -> u64) -> u64 {
+   |                   ^^^^^^^^^^^^^^^^
+
+warning: method `fingerprint` is never used
+  --> crates/rusterix/src/procedural_avatar.rs:96:19
+   |
+95 | impl ResolvedSprite<'_> {
+   | ----------------------- method in this implementation
+96 |     pub(crate) fn fingerprint(&self) -> u64 {
+   |                   ^^^^^^^^^^^
+
+warning: `rusterix` (lib) generated 19 warnings (run `cargo fix --lib -p rusterix` to apply 1 suggestion)
+    Checking eldiron-shared v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/shared)
+warning: associated function `build_surface_paint_atlas` is never used
+   --> crates/shared/src/surface_paint.rs:135:19
+    |
+ 62 | impl Builder {
+    | ------------ associated function in this implementation
+...
+135 |     pub(crate) fn build_surface_paint_atlas(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `eldiron-shared` (lib) generated 1 warning
+    Checking eldiron-runtime v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/runtime)
+    Checking eldiron-client-terminal v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/clients/client-terminal)
+    Finished `release` profile [optimized] target(s) in 17.04s

@@ -1,0 +1,27 @@
+{
+  "source_commit": "85e4a366",
+  "profile": "Release",
+  "bundle_build": "passed",
+  "fixture": "temporary 3DStarter copy",
+  "normal_document_open": "passed",
+  "game_and_authored_hud_visible": true,
+  "zoom_resize_redraw": "passed",
+  "pointer_and_keyboard": "unverified",
+  "automation_limitation": "CUA coordinate clicks returned windowNotFoundAtPosition even after raising/bringing forward/resizing the window. Held-arrow attempts did not establish game input.",
+  "scope": "Actual normal macOS Xcode app window loading/rendering/resize only; not physical input or display latency acceptance.",
+  "fixtures": [
+    {
+      "fixture": "3DStarter",
+      "source": "test_projects/3DStarter.eldiron",
+      "temporary_copy": "/private/tmp/eldiron-final-player-ui-3DStarter.eldiron",
+      "source_sha256": "3b620c412d038b1c8fc9233856a5bf6f4c2cea02595333c651e965daa0085059"
+    },
+    {
+      "fixture": "Hideout2D",
+      "source": "test_projects/Hideout2D.eldiron",
+      "temporary_copy": "/private/tmp/eldiron-final-player-ui-Hideout2D.eldiron",
+      "source_sha256": "3a637978ab229c0bbe8c42eb939035ef4d63f097ee256fe2b88f09f45b80f78f"
+    }
+  ],
+  "owned_app_quit": true
+}

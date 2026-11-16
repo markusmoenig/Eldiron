@@ -8,8 +8,8 @@ framebuffer readback.
 ## Native
 
 ```bash
-cargo run -p eldiron-client-wgpu -- path/to/game.eldiron
-cargo run -p eldiron-client -- path/to/game.eldiron
+cargo run --release --locked -p eldiron-client-wgpu -- path/to/game.eldiron
+cargo run --release --locked -p eldiron-client -- path/to/game.eldiron
 ```
 
 Both default to `./game.eldiron`. Use `--help` for options, `--debug` for authored
@@ -20,8 +20,8 @@ preparing an offscreen frame alone does not count as a presentation.
 The former launchers remain explicit comparison adapters during migration:
 
 ```bash
-cargo run -p eldiron-client-wgpu --features legacy-reference --bin eldiron-client-wgpu-reference -- path/to/game.eldiron
-cargo run -p eldiron-client --features legacy-reference --bin eldiron-client-reference -- path/to/game.eldiron
+cargo run --release --locked -p eldiron-client-wgpu --features legacy-reference --bin eldiron-client-wgpu-reference -- path/to/game.eldiron
+cargo run --release --locked -p eldiron-client --features legacy-reference --bin eldiron-client-reference -- path/to/game.eldiron
 ```
 
 ## Browser WebGPU
@@ -32,15 +32,18 @@ Serve the generated files over HTTPS or localhost with `game.eldiron` alongside
 as desktop. `?project=SomeGame.eldiron` selects another URL; `?debug=1` enables
 its authored debug behaviors.
 
-The existing workspace helper builds the page and matching WASM bindings:
+From the workspace root, package the release host, matching pinned WASM
+bindings, and the CPU codec worker used by project asset jobs:
 
 ```bash
-cargo run -p run-wasm -- --package eldiron-client-wgpu --bin eldiron-client-wgpu --release --build-only --offline --locked
+python3 tools/package_web.py player target/web-player
+python3 -m http.server 8000 --bind 127.0.0.1 --directory target/web-player
 ```
 
-Output is under the Cargo target directory at
-`wasm-examples/eldiron-client-wgpu/`. Copy the project there before serving it.
-Use `--package eldiron-client --bin eldiron-client` for the canonical name.
+Copy the project into `target/web-player/` before serving it. The package includes
+the worker bootstrap and its generated JS/WASM; a bare `cargo run-wasm` build of
+the player alone does not package those resources. Add `--offline` to the
+packaging command when all locked dependencies are cached.
 The browser must provide WebGPU; startup errors appear on the page. Its canvas
 uses the shared GPU compositor/scene outputs with no Canvas2D image presentation.
 Browser text input uses a host-owned invisible textarea for composition and
@@ -61,7 +64,7 @@ The static library keeps the name `libscenevm_unified_app.a` and compatibility
 exports `unified_app_runner_*` used by `Xcode/Client`:
 
 ```bash
-MACOSX_DEPLOYMENT_TARGET=26.1 cargo build --release -p eldiron-client-wgpu --lib --no-default-features --features native-player --target aarch64-apple-darwin
+MACOSX_DEPLOYMENT_TARGET=26.1 cargo build --release --locked -p eldiron-client-wgpu --lib --no-default-features --features native-apple --target aarch64-apple-darwin
 ```
 
 Disabling defaults excludes Winit. This configuration now connects the retained

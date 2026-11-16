@@ -1,0 +1,433 @@
+   Compiling yeslogic-fontconfig-sys v6.0.0
+    Checking futures-sink v0.3.31
+    Checking xkeysym v0.2.1
+    Checking wgpu v29.0.3
+   Compiling smithay-client-toolkit v0.19.2
+    Checking deranged v0.5.5
+    Checking wayland-cursor v0.31.12
+    Checking tiny-skia-path v0.11.4
+    Checking exr v1.74.0
+    Checking owned_ttf_parser v0.25.1
+    Checking futures-channel v0.3.31
+    Checking wayland-csd-frame v0.3.0
+    Checking image-webp v0.2.4
+   Compiling icu_segmenter_data v2.1.1
+    Checking gif v0.14.1
+   Compiling freetype-sys v0.20.1
+   Compiling onig_sys v69.9.1
+    Checking moxcms v0.8.1
+   Compiling pathfinder_simd v0.5.5
+    Checking rust-embed-utils v8.9.0
+    Checking tiff v0.11.3
+    Checking calloop-wayland-source v0.3.0
+    Checking icu_locale_data v2.1.2
+    Checking wayland-protocols-wlr v0.3.10
+    Checking png v0.18.0
+    Checking gethostname v1.1.0
+    Checking font-types v0.12.7
+    Checking qoi v0.4.1
+    Checking safe_arch v0.7.4
+    Checking euclid v0.22.14
+   Compiling ahash v0.8.12
+   Compiling x11-dl v2.21.0
+    Checking futures-io v0.3.31
+    Checking as-raw-xcb-connection v1.0.1
+    Checking pin-utils v0.1.0
+    Checking x11rb-protocol v0.13.2
+    Checking ab_glyph_rasterizer v0.1.10
+    Checking byteorder v1.5.0
+    Checking num-conv v0.1.0
+    Checking base64 v0.22.1
+    Checking futures-task v0.3.31
+    Checking option-ext v0.2.0
+    Checking time-core v0.1.6
+    Checking renderkit v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/renderkit)
+    Checking futures-util v0.3.31
+    Checking ab_glyph v0.2.32
+    Checking dirs-sys v0.5.0
+    Checking time v0.3.44
+    Checking lyon_geom v1.0.20
+   Compiling alsa-sys v0.4.0
+    Checking wide v0.7.33
+    Checking read-fonts v0.40.1
+    Checking icu_locale v2.1.1
+    Checking rust-embed v8.9.0
+    Checking tiny-skia v0.11.4
+    Checking image v0.25.10
+    Checking hashbrown v0.17.1
+    Checking quick-xml v0.38.4
+    Checking core_maths v0.1.1
+    Checking tracing-core v0.1.36
+    Checking linked-hash-map v0.5.6
+    Checking pollster v0.4.0
+    Checking parlance v0.1.1
+    Checking linebender_resource_handle v0.1.1
+    Checking matrixmultiply v0.3.10
+    Checking futures-executor v0.3.31
+   Compiling font-kit v0.14.3
+    Checking yaml-rust v0.4.5
+   Compiling rfd v0.17.1
+    Checking sctk-adwaita v0.10.1
+    Checking fontique v0.9.0
+    Checking tracing v0.1.44
+    Checking plist v1.8.0
+    Checking simba v0.9.1
+    Checking harfrust v0.6.2
+    Checking icu_segmenter v2.1.2
+   Compiling winit v0.30.12
+    Checking pathfinder_geometry v0.5.1
+    Checking lyon_path v1.0.19
+    Checking dirs v6.0.0
+    Checking xkbcommon-dl v0.4.2
+    Checking toml_parser v1.0.6+spec-1.1.0
+    Checking skrifa v0.42.1
+    Checking wayland-protocols-plasma v0.3.10
+    Checking parley_data v0.9.0
+    Checking num-iter v0.1.45
+    Checking bincode v1.3.3
+    Checking toml_datetime v0.7.5+spec-1.1.0
+    Checking serde_spanned v1.0.4
+    Checking float-ord v0.3.2
+    Checking ttf-parser v0.21.1
+    Checking dpi v0.1.2
+    Checking float_next_after v1.0.0
+    Checking lazy_static v1.5.0
+    Checking tinyvec_macros v0.1.1
+    Checking toml_writer v1.0.6+spec-1.1.0
+    Checking yazi v0.2.2
+    Checking fnv v1.0.7
+    Checking smol_str v0.2.2
+    Checking zeno v0.3.3
+    Checking unicode-id v0.3.6
+    Checking toml v0.9.11+spec-1.1.0
+    Checking markdown v1.0.0
+    Checking fontdue v0.9.3
+    Checking tinyvec v1.10.0
+    Checking parley v0.9.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/vendor/parley)
+    Checking nalgebra v0.33.2
+   Compiling cpal v0.17.3
+    Checking lyon_tessellation v1.0.23
+    Checking num v0.4.3
+    Checking alsa v0.11.0
+    Checking futures v0.3.31
+    Checking skrifa v0.43.2
+    Checking ogg v0.8.0
+    Checking itertools v0.14.0
+    Checking maths-rs v0.2.7
+    Checking crossbeam-channel v0.5.15
+    Checking crossbeam-queue v0.3.12
+    Checking integer-sqrt v0.1.5
+    Checking instant v0.1.13
+    Checking unicode-segmentation v1.12.0
+    Checking web-time v1.1.0
+    Checking flags v0.1.5
+    Checking dasp_sample v0.11.0
+    Checking crossbeam v0.8.4
+    Checking scenevm v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/scenevm)
+    Checking pathfinding v4.14.0
+    Checking lewton v0.10.2
+warning: unused import: `std::ffi::c_void`
+   --> crates/scenevm/src/lib.rs:148:5
+    |
+148 | use std::ffi::c_void;
+    |     ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+    Checking earcutr v0.5.0
+    Checking eldiron-ruleset v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/ruleset)
+    Checking denrim-materials v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/materialz)
+    Checking regex v1.12.2
+    Checking unic-langid-impl v0.9.6
+    Checking fast-srgb8 v1.0.0
+    Checking hound v3.5.1
+    Checking noiselib v0.2.4
+    Checking unic-langid v0.9.6
+    Checking zip v6.0.0
+    Checking line_drawing v1.0.1
+    Checking num_cpus v1.17.0
+    Checking rect_packer v0.2.1
+    Checking type-map v0.5.1
+    Checking getrandom v0.2.17
+    Checking swash v0.2.10
+    Checking intl-memoizer v0.5.3
+    Checking ring v0.17.14
+    Checking fluent-langneg v0.13.1
+    Checking intl_pluralrules v7.0.2
+    Checking idna_adapter v1.2.1
+    Checking fluent-syntax v0.12.0
+    Checking self_cell v1.2.2
+   Compiling rustls v0.23.37
+    Checking fluent-bundle v0.16.0
+    Checking idna v1.1.0
+    Checking x11rb v0.13.2
+    Checking webpki-roots v1.0.6
+    Checking form_urlencoded v1.2.2
+    Checking rustls-webpki v0.103.9
+    Checking serde_spanned v0.6.9
+    Checking toml_datetime v0.6.11
+    Checking is-docker v0.2.0
+    Checking subtle v2.6.1
+    Checking toml_write v0.1.2
+    Checking is-wsl v0.4.0
+warning: `scenevm` (lib) generated 1 warning (run `cargo fix --lib -p scenevm` to apply 1 suggestion)
+    Checking url v2.5.8
+    Checking webpki-roots v0.26.11
+    Checking fluent v0.17.0
+    Checking toml_edit v0.22.27
+    Checking arc-swap v1.8.0
+    Checking fastrand v2.3.0
+    Checking sys-locale v0.3.2
+    Checking pathdiff v0.2.3
+    Checking open v5.3.3
+    Checking i18n-embed v0.16.0
+    Checking tempfile v3.24.0
+    Checking eldiron_scepter v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/scepter)
+    Checking arboard v3.6.1
+    Checking toml v0.8.23
+    Checking bvh v0.11.0
+    Checking ureq v2.12.1
+    Checking onig v6.5.1
+    Checking syntect v5.3.0
+    Checking theframework v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/theframework)
+    Checking rusterix v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/rusterix)
+warning: use of deprecated method `std::sync::atomic::Atomic::<u32>::fetch_update`: renamed to `try_update` for consistency
+  --> crates/rusterix/src/server/world.rs:25:14
+   |
+25 |             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+   |              ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+25 -             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+25 +             .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+   |
+
+warning: `rusterix` (lib) generated 1 warning (run `cargo fix --lib -p rusterix` to apply 1 suggestion)
+    Checking eldiron-shared v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/shared)
+    Checking eldiron-runtime v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/runtime)
+    Checking eldiron-presentation v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/presentation)
+    Checking eldiron-creator v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/creator)
+    Checking eldiron-client-wgpu v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/clients/client-wgpu)
+    Checking eldiron-client v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/clients/client)
+warning: fields `bytes` and `source` are never read
+  --> creator/src/documents/transfers.rs:12:9
+   |
+10 | pub(crate) struct PreparedSave {
+   |                   ------------ fields in this struct
+11 |     pub info: SaveInfo,
+12 |     pub bytes: Vec<u8>,
+   |         ^^^^^
+13 |     pub source: Vec<u8>,
+   |         ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `next` is never read
+  --> creator/src/documents/transfers.rs:16:5
+   |
+15 | pub(crate) struct Transfers {
+   |                   --------- field in this struct
+16 |     next: u64,
+   |     ^^^^
+
+warning: methods `busy`, `stage`, `bytes`, and `take` are never used
+  --> creator/src/documents/transfers.rs:28:12
+   |
+27 | impl Transfers {
+   | -------------- methods in this implementation
+28 |     pub fn busy(&self) -> bool {
+   |            ^^^^
+...
+31 |     pub fn stage(
+   |            ^^^^^
+...
+56 |     pub fn bytes(&self, ticket: u64) -> Option<&[u8]> {
+   |            ^^^^^
+...
+62 |     pub fn take(&mut self, ticket: u64) -> Option<PreparedSave> {
+   |            ^^^^
+
+warning: struct `DocumentInfo` is never constructed
+ --> creator/src/editor/document_io.rs:6:19
+  |
+6 | pub(crate) struct DocumentInfo {
+  |                   ^^^^^^^^^^^^
+
+warning: struct `SaveResult` is never constructed
+  --> creator/src/editor/document_io.rs:13:19
+   |
+13 | pub(crate) struct SaveResult {
+   |                   ^^^^^^^^^^
+
+warning: function `source_bytes` is never used
+  --> creator/src/editor/document_io.rs:22:4
+   |
+22 | fn source_bytes(project: &Project) -> Result<Vec<u8>, String> {
+   |    ^^^^^^^^^^^^
+
+warning: multiple methods are never used
+   --> creator/src/editor/document_io.rs:35:19
+    |
+ 27 | impl Editor {
+    | ----------- methods in this implementation
+...
+ 35 |     pub(crate) fn enable_host_document_io(&mut self) {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^
+...
+ 38 |     pub(crate) fn take_host_document_requests(&mut self) -> Vec<(&'static str, Uuid)> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+ 61 |     pub(crate) fn document_info(&self) -> Option<DocumentInfo> {
+    |                   ^^^^^^^^^^^^^
+...
+ 69 |     fn require_document(&self, document: Uuid) -> Result<(), String> {
+    |        ^^^^^^^^^^^^^^^^
+...
+ 76 |     pub(crate) fn load_document_bytes(
+    |                   ^^^^^^^^^^^^^^^^^^^
+...
+119 |     pub(crate) fn prepare_document_save(
+    |                   ^^^^^^^^^^^^^^^^^^^^^
+...
+134 |     pub(crate) fn document_save_bytes(&self, ticket: u64) -> Option<&[u8]> {
+    |                   ^^^^^^^^^^^^^^^^^^^
+...
+137 |     pub(crate) fn complete_document_save(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `native_creator_theme` is never used
+   --> creator/src/editor/native_views.rs:175:19
+    |
+104 | impl Editor {
+    | ----------- method in this implementation
+...
+175 |     pub(crate) fn native_creator_theme(&self) -> super::CreatorTheme {
+    |                   ^^^^^^^^^^^^^^^^^^^^
+
+warning: field `baked` is never read
+   --> creator/src/editor/native_world.rs:419:5
+    |
+409 | pub(super) struct NativeWorldFrame {
+    |                   ---------------- field in this struct
+...
+419 |     baked: bool,
+    |     ^^^^^
+
+warning: field `source_draws` is never read
+  --> creator/src/editor/native_world_pixels.rs:49:5
+   |
+43 | struct Cached {
+   |        ------ field in this struct
+...
+49 |     source_draws: usize,
+   |     ^^^^^^^^^^^^
+
+warning: method `visible_tiles` is never used
+  --> creator/src/editor/native_world_bake.rs:88:19
+   |
+13 | impl Gpu {
+   | -------- method in this implementation
+...
+88 |     pub(super) fn visible_tiles(&self) -> usize {
+   |                   ^^^^^^^^^^^^^
+
+warning: method `ready` is never used
+   --> creator/src/editor/native_world_bake_paint.rs:490:19
+    |
+489 | impl Preparation {
+    | ---------------- method in this implementation
+490 |     pub(super) fn ready(&self) -> bool {
+    |                   ^^^^^
+
+warning: multiple methods are never used
+  --> creator/src/native_documents.rs:7:19
+   |
+ 6 | impl NativeCreatorApplication {
+   | ----------------------------- methods in this implementation
+ 7 |     pub(crate) fn host_creator_theme(&self) -> u32 {
+   |                   ^^^^^^^^^^^^^^^^^^
+...
+29 |     pub(crate) fn host_enable_document_io(&mut self) {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^
+...
+32 |     pub(crate) fn host_document_requests(&mut self) -> Vec<(&'static str, Uuid)> {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^
+...
+36 |     pub(crate) fn host_document_info(&self) -> Option<DocumentInfo> {
+   |                   ^^^^^^^^^^^^^^^^^^
+...
+39 |     pub(crate) fn host_load_document(
+   |                   ^^^^^^^^^^^^^^^^^^
+...
+59 |     pub(crate) fn host_prepare_document_save(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+67 |     pub(crate) fn host_document_save_bytes(&self, ticket: u64) -> Option<&[u8]> {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+...
+70 |     pub(crate) fn host_complete_document_save(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `stats` and `clear` are never used
+   --> creator/src/editor_overlay/procedural_gpu.rs:119:19
+    |
+ 42 | impl GpuIcons {
+    | ------------- methods in this implementation
+...
+119 |     pub(crate) fn stats(&self) -> IconStats {
+    |                   ^^^^^
+...
+275 |     pub(crate) fn clear(&mut self, registry: &mut ImageRegistry) {
+    |                   ^^^^^
+
+warning: method `finish_frame` is never used
+   --> creator/src/editor_overlay/procedural_gpu.rs:302:19
+    |
+301 | impl IconFrameImages<'_> {
+    | ------------------------ method in this implementation
+302 |     pub(crate) fn finish_frame(
+    |                   ^^^^^^^^^^^^
+
+warning: method `commands` is never used
+  --> creator/src/editor_display/native.rs:70:19
+   |
+69 | impl DisplayFrame {
+   | ----------------- method in this implementation
+70 |     pub(crate) fn commands(&self) -> &EditorOverlay {
+   |                   ^^^^^^^^
+
+warning: method `commands` is never used
+   --> creator/src/hud/frame.rs:146:19
+    |
+145 | impl HudFrame {
+    | ------------- method in this implementation
+146 |     pub(crate) fn commands(&self) -> &EditorOverlay {
+    |                   ^^^^^^^^
+
+warning: methods `commands` and `draw_reference` are never used
+   --> creator/src/tools/overlay_frame.rs:349:19
+    |
+146 | impl ToolOverlayFrame {
+    | --------------------- methods in this implementation
+...
+349 |     pub(crate) fn commands(&self) -> impl Iterator<Item = &EditorOverlay> {
+    |                   ^^^^^^^^
+...
+359 |     pub(crate) fn draw_reference(&self, buffer: &mut TheRGBABuffer, ctx: &TheContext) {
+    |                   ^^^^^^^^^^^^^^
+
+warning: methods `commands` and `receipt` are never used
+  --> creator/src/viewcube/native.rs:62:19
+   |
+61 | impl CubeFrame {
+   | -------------- methods in this implementation
+62 |     pub(crate) fn commands(&self) -> &EditorOverlay {
+   |                   ^^^^^^^^
+...
+66 |     pub(crate) fn receipt(&self) -> theframework::paint::FrameReceipt {
+   |                   ^^^^^^^
+
+warning: `eldiron-creator` (lib) generated 19 warnings
+    Finished `release` profile [optimized] target(s) in 43.36s

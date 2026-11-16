@@ -1,0 +1,38 @@
+{
+  "source_commit": "85e4a366",
+  "profile": "release",
+  "target": "x86_64-pc-windows-gnu",
+  "result": "link blocked by cross-toolchain, release compilation passed separately",
+  "steps": [
+    {
+      "step": "graphical",
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--offline",
+        "--target",
+        "x86_64-pc-windows-gnu",
+        "-p",
+        "eldiron-creator",
+        "--bin",
+        "eldiron-creator",
+        "-p",
+        "eldiron-client-wgpu",
+        "--bin",
+        "eldiron-client-wgpu",
+        "-p",
+        "eldiron-client",
+        "--bin",
+        "eldiron-client"
+      ],
+      "exit": 101,
+      "seconds": 166.37081187500002,
+      "log": "/private/tmp/eldiron-final-windows-link-graphical.log"
+    }
+  ],
+  "diagnostic": "Standalone Zig linker does not resolve GNU import-library and GCC runtime archives under Rust Windows GNU default library flags. Actual native MinGW/MSVC Windows linking remains unverified.",
+  "not_a_product_source_failure": true,
+  "physical_runtime_verified": false
+}

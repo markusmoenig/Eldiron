@@ -27,20 +27,27 @@ platform validation. Earlier per-milestone inventories below are historical;
 later implementation/evidence entries supersede their old remaining-caller lists.
 No percentage is mechanically measured; the chat's roughly85% is an estimate.
 
-- Current consolidated release foundations pass619 checks, zero failures and
-  zero ignored fixtures, including bounded terrain residency, unlit previews,
-  pooled ownership and exact/soft shadows. Durable
-  native-wgpu-evidence/release-residency-foundations.json.
-  Ordinary Creator642 passes after terrain/unlit residency; current stencil
-  refinement passes Framework299, assembled Creator1(24.36s, five-DPI maxRGBA1)
-  and common-player13. Frozen mixed UI RGBA is byte-exact.
-  Actual browser four-case source/recovery/150% resize, both optimized Apple
-  hosts and both UIKit runtimes pass on3022c8cb before the stencil refinement;
-  current53af6e17 format/platform and all four versioned release launchers pass. All29 isolated
-  dependency configurations pass on3022c8cb; no feature/dependency changes since.
-  CPU suite has835 passes and the same six shipped-data baseline failures.
-  Specialized ignored Creator contracts remain separately inventoried; this is
-  not a fully green final functional/platform matrix.
+- Release foundations pass619 checks, zero failures/ignored fixtures after
+  terrain/unlit residency. Subsequent stencil/fingerprint changes pass relevant
+  immutable ownership4, Framework299, paint12/frozen576000RGBAbytes exact and
+  assembled Creator1(five-DPI maxRGBA1). Ordinary Creator642 passes at the earlier
+  residency checkpoint. Current common-player13 passes after fingerprint change.
+  These are versioned results, not a claim of freshly rerunning every suite.
+- Source2e42cffd final platform run passes15steps: all four actual macOS/iOSsim
+  Xcode Release bundles, both Apple hosts/UIKit runtimes, both optimized web
+  packages and four actual Chrome WebGPU150%source/recovery/resize cases, all
+  native launchers and isolated CPU terminal.29isolated dependency configurations
+  pass. IntelmacOS and WindowsGNU optimized cross-compilation checks pass.
+  CPU suite has835passes and the same six shipped-data baseline failures; ignored
+  maintenance/export/demo tests remain separately inventoried.
+- Current85e4a366 fixes Apple printable key interpretation and Creator Select All
+  routing. Optimized shared player/text/37ABI/iOS SDK checks pass, actual rebuilt
+  Creator Xcode Release bundle passes, physical typing/selection/undo/redo are
+  observed via CUA. Mac now unlocked: versioned native Creator acknowledges3
+  real surface presentations; corrected actual AppKit harness acknowledges2
+  per window and independent eager close. Actual normal app new/save/reopen
+  with Unicode and Play/Pause/Resume/Stop have real UI evidence. Full physical
+  system IME, monitor changes and the complete workflow/platform matrix stay open.
 - Canonical Creator/player/browser/Apple share explicit presentation owners.
   Creator foreign handles/layers and Swift close approvals are per owner; actual
   optimized detached multi-host and retained-window lifetime checks pass.
@@ -49,8 +56,9 @@ No percentage is mechanically measured; the chat's roughly85% is an estimate.
   optimized player/Creator UIKit presentation and Creator Release Xcode bundle
   pass; SDK builds alone had been insufficient to reveal the issue.
 - M0 performance baselines and M5/M6/M7/M8/M9 full functional/platform/resource
-  gates remain open. Physical macOS input/presentation, monitor/clipboard/IME,
-  Windows/Linux and physical mobile checks are not replaced by offscreen tests.
+  gates remain open. Real macOS presentation and selected document/text/Play
+  workflows now pass; remaining monitor/system-IME, Windows/Linux runtime and
+  physical mobile checks are not replaced by cross-compilation/offscreen tests.
 - Maintain release-only builds. Preserve current projects/paint serialization and
   concurrent work. Continue available work without waiting for routine approval.
 - Current implementation work: live sprite/alpha ownership, strict nested
@@ -19209,3 +19217,79 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Owned app quit. Durable release-apple-printable-input.json and player helper
   host/ABI/Swift/iOS logs. Physical system IME/monitor and full acceptance stay
   open; policy checks alone do not establish a complete IME workflow.
+
+- Linux target and locked dependencies installed through permitted access.
+  Default graphical cross-check first stopped for absent Linux fontconfig
+  sysroot; independent CPU/terminal check stopped for ALSA metadata. Built
+  an isolated sysroot from14official Debian amd64 development/runtime packages,
+  each SHA256 verified against the official Packages index. Host lacked
+  pkg-config too; optimized official pkgconf2.5.1 now lives only in private/tmp.
+  Current serialized51587 checks original default graphical packages, then
+  isolated CPU/runtime/terminal using real target metadata and explicit cross
+  compiler. No host Mac library paths substituted, no package feature change.
+  Logs /private/tmp/eldiron-final-linux-{graphical,cpu}-sysroot.log.
+  Physical Linux runtime remains unverified irrespective of compiler result.
+
+- Linux default graphical optimized cross-check PASS43.42s for Creator and both
+  common launchers; separate CPU/runtime/terminal feature graph PASS17.08s.
+  Missing target bzip2 metadata was resolved with its two official packages,
+  bringing isolated target sysroot to16verified packages. No target features
+  disabled, no Mac libraries substituted. Durable
+  release-final-linux-cross-checks.json and graphical/cpu logs.
+- Current85e4a366 cross-compilation now passes arm64macOS, IntelmacOS, WindowsGNU,
+  LinuxGNU, browserWASM and selected iOSsimulator paths at their versioned
+  checkpoints; only Swift Apple input changed after2e42cffd, verified separately.
+  Cross-checks do not establish Windows/Linux linking/runtime or physical
+  mobile/monitor/system-IME acceptance.
+- Current serialized9986 attempts real WindowsGNU Release linking for Creator
+  and both common graphical launchers, then separately isolated CPU terminal.
+  Explicit target CC/CXX/AR/linker use isolated verified Zig, no Rust edits or
+  overlapping compiler/test/profile handles until terminal. Logs
+  /private/tmp/eldiron-final-windows-link-{graphical,terminal}.log.
+
+- Actual Windows executable linking found a cross-toolchain limitation after
+  successful Rust code generation: standalone Zig cannot resolve GNU import
+  libraries/GCC runtimes under Rust's default MinGW library flags. Supplied
+  genuine Zig DLL import tool first; linker still stops on Windows import/CRT
+  archives. Do not disable dependencies or fake archives to manufacture a pass.
+  Existing default-feature Windows release cargo check remains PASS; actual
+  native Windows MinGW/MSVC link/runtime acceptance stays open. Durable
+  release-final-windows-link-attempt.{json,log}; no Windows executable claim.
+- Device inventory finds one paired physical iPad with unavailable tunnel, plus
+  simulator entries; no physical device connected for runtime acceptance.
+  No install, pairing/security/signing changes or user-simulator operations.
+- Current serialized iOS device build prepares actual unsigned Release Creator
+  and Player bundles with matching aarch64-apple-ios static archives, deployment
+ 26.1 and signing disabled. Owned outputs
+  /private/tmp/eldiron-release-device-85e4a366; driver
+  /private/tmp/eldiron-final-device-builds.log. Do not edit Rust or overlap
+  compiler/test/profile until current handle terminal. Device build is not
+  physical runtime acceptance.
+
+- Actual iOS DEVICE Release build14388 terminalPASS4steps: Creator Rust154.47s,
+  Xcode9.28s; Player Rust76.95s, Xcode6.87s. Matching arm64 iPhoneOS26.1+
+  executables verified by Mach-O build-version metadata and SHA256; no simulator
+  slice substitution. Both unsigned, no install or physical runtime claim.
+  Durable release-final-ios-device-bundles.json; full private logs in
+  /private/tmp/eldiron-release-device-85e4a366.
+- CI/release packaging inventory found stale browser packaging through bare
+  cargo-run-wasm, omitting current CPU codec worker/bootstrap and pinned binding
+  helper. Local workflows now package BOTH Creator and player via verified
+  tools/package_web.py, keep player artifact names for existing consumers, and
+  use release/locked native builds including separate CPU terminal invocation.
+  Linux build prerequisites explicitly include fontconfig/freetype/pkg-config.
+  README normal/reference commands now use release and explain complete browser
+  packages. YAML parses and git diff --check PASS. Remote jobs not triggered;
+  future native Windows/Linux CI success remains unverified, not inferred.
+
+- Current optimized macOS Player Xcode bundle rebuild PASS. Actual normal app
+  opened a temporary3DStarter copy through NSOpenPanel; real game/3D viewport
+  and authored avatar/HUD visible, normal window zoom redrew correctly.
+  CUA coordinate input repeatedly returned windowNotFoundAtPosition despite
+  Raise/BringAllToFront/zoom; held-arrow attempts did not establish game input.
+  Do not claim pointer/keyboard or physical input-latency acceptance from this
+  session. Owned app quit; shipped fixture SHA256s unchanged. Durable
+  release-final-macos-player-window.json. Fixture unassigned geometry faces
+  explain its checker material; no speculative material bug inferred.
+- Parsed both changed CI workflows and bash syntax checked22relevant run
+  steps after substituting expression placeholders; no remote workflow run.

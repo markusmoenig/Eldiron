@@ -25,15 +25,15 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libgtk-3-dev pkg-config
+          sudo apt-get install -y libasound2-dev libgtk-3-dev libfontconfig-dev libfreetype-dev pkg-config
 
       - name: Build (release)
         working-directory: ${{ matrix.config.working-directory }}
         run: |
           if [ -n "${{ matrix.config.features }}" ]; then
-            cargo build --verbose --release --features "${{ matrix.config.features }}"
+            cargo build --verbose --release --locked --bin "${{ matrix.config.bin-name }}" --features "${{ matrix.config.features }}"
           else
-            cargo build --verbose --release
+            cargo build --verbose --release --locked --bin "${{ matrix.config.bin-name }}"
           fi
 
       # --- Package artefacts -------------------------------------------------
@@ -87,9 +87,9 @@ jobs:
         working-directory: ${{ matrix.config.working-directory }}
         run: |
           if [ -n "${{ matrix.config.features }}" ]; then
-            cargo build --verbose --release --features "${{ matrix.config.features }}"
+            cargo build --verbose --release --locked --bin "${{ matrix.config.bin-name }}" --features "${{ matrix.config.features }}"
           else
-            cargo build --verbose --release
+            cargo build --verbose --release --locked --bin "${{ matrix.config.bin-name }}"
           fi
 
       # --- Package artefacts -------------------------------------------------
@@ -110,7 +110,8 @@ jobs:
     strategy:
       matrix:
         config:
-          - { working-directory: "clients/client", bin-name: "eldiron-client" }
+          - { application: "creator", bin-name: "eldiron-creator" }
+          - { application: "player", bin-name: "eldiron-client" }
 
     steps:
       - uses: actions/checkout@v4
@@ -121,16 +122,13 @@ jobs:
           rustup target add wasm32-unknown-unknown
 
       - name: Build (release)
-        working-directory: ${{ matrix.config.working-directory }}
-        run: cargo run-wasm --release --package ${{ matrix.config.bin-name }} --bin ${{ matrix.config.bin-name }} --build-only
+        run: python3 tools/package_web.py ${{ matrix.config.application }} target/web-${{ matrix.config.bin-name }}
 
       # --- Package artefacts -------------------------------------------------
       - name: Preparation
         run: |
           mkdir -p output
-          ARTIFACT_DIR="$(find target -type d -path "*/wasm-examples/${{ matrix.config.bin-name }}" | head -n 1)"
-          test -n "$ARTIFACT_DIR"
-          cp -r "$ARTIFACT_DIR" .
+          cp -r target/web-${{ matrix.config.bin-name }} ${{ matrix.config.bin-name }}
       - name: Package artefacts (tar.gz)
         run: |
           tar -czvf ${{ matrix.config.bin-name }}-wasm32-unknown-unknown.tar.gz ${{ matrix.config.bin-name }}

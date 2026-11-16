@@ -1,0 +1,165 @@
+{
+  "source_commit": "85e4a366",
+  "profile": "release",
+  "target": "x86_64-unknown-linux-gnu",
+  "steps": [
+    {
+      "step": "graphical",
+      "command": [
+        "cargo",
+        "check",
+        "--release",
+        "--locked",
+        "--offline",
+        "--target",
+        "x86_64-unknown-linux-gnu",
+        "-p",
+        "eldiron-creator",
+        "-p",
+        "eldiron-client-wgpu",
+        "-p",
+        "eldiron-client"
+      ],
+      "exit": 0,
+      "seconds": 43.424769458,
+      "log": "/private/tmp/eldiron-final-linux-graphical-sysroot.log"
+    },
+    {
+      "step": "cpu",
+      "command": [
+        "cargo",
+        "check",
+        "--release",
+        "--locked",
+        "--offline",
+        "--target",
+        "x86_64-unknown-linux-gnu",
+        "-p",
+        "eldiron-runtime",
+        "-p",
+        "eldiron-client-terminal",
+        "--no-default-features"
+      ],
+      "exit": 0,
+      "seconds": 17.07668375,
+      "log": "/private/tmp/eldiron-final-linux-cpu-sysroot.log"
+    }
+  ],
+  "scope": "Cross-compilation checks of original default graphical packages and separate CPU/runtime/terminal feature graph. No physical Linux runtime or link claim.",
+  "sysroot": {
+    "source_index": "https://deb.debian.org/debian/dists/stable/main/binary-amd64/Packages.xz",
+    "packages_index_sha256": "7778d3e3f303b7ddb8ce0fe7c8d57473a076c6bf2e8f241f75421d2396352498",
+    "sysroot": "/private/tmp/eldiron-cross-toolchains/linux-sysroot",
+    "packages": [
+      {
+        "package": "libasound2-dev",
+        "version": "1.2.14-1+deb13u1",
+        "url": "https://deb.debian.org/debian/pool/main/a/alsa-lib/libasound2-dev_1.2.14-1+deb13u1_amd64.deb",
+        "sha256": "dfa8e8a133ef8704093d03464d86a3e86d26232baf1e3827aa030cb68c437e1c"
+      },
+      {
+        "package": "libasound2t64",
+        "version": "1.2.14-1+deb13u1",
+        "url": "https://deb.debian.org/debian/pool/main/a/alsa-lib/libasound2t64_1.2.14-1+deb13u1_amd64.deb",
+        "sha256": "5495496142d57e5ad6d581ac5456ec3c87f872c109a2bfb815d154b673eebc67"
+      },
+      {
+        "package": "libbrotli-dev",
+        "version": "1.1.0-2+b7",
+        "url": "https://deb.debian.org/debian/pool/main/b/brotli/libbrotli-dev_1.1.0-2+b7_amd64.deb",
+        "sha256": "7149124783ccc38764f8b869ea2e4bde319c3d0872b248b7ab472b47d41c5176"
+      },
+      {
+        "package": "libbrotli1",
+        "version": "1.1.0-2+b7",
+        "url": "https://deb.debian.org/debian/pool/main/b/brotli/libbrotli1_1.1.0-2+b7_amd64.deb",
+        "sha256": "0fb79f88db210afbd69282ab9649e525f393ec6950ca34da1a6b359250b8d7db"
+      },
+      {
+        "package": "libexpat1",
+        "version": "2.8.3-1~deb13u1",
+        "url": "https://deb.debian.org/debian/pool/main/e/expat/libexpat1_2.8.3-1~deb13u1_amd64.deb",
+        "sha256": "38abe0e710a07688e9c149d74536e67cfee0364bdb64dd6d644c32a1cfad389f"
+      },
+      {
+        "package": "libexpat1-dev",
+        "version": "2.8.3-1~deb13u1",
+        "url": "https://deb.debian.org/debian/pool/main/e/expat/libexpat1-dev_2.8.3-1~deb13u1_amd64.deb",
+        "sha256": "13f69f5290374c8403d2114b91cc8d0e6bb7b74e9e2512b7e04557546c922749"
+      },
+      {
+        "package": "libfontconfig-dev",
+        "version": "2.15.0-2.3",
+        "url": "https://deb.debian.org/debian/pool/main/f/fontconfig/libfontconfig-dev_2.15.0-2.3_amd64.deb",
+        "sha256": "e7c533d87da316da3b127d136c0d1f0238a936c4b0797cb5ab67ebac3cf7151e"
+      },
+      {
+        "package": "libfontconfig1",
+        "version": "2.15.0-2.3",
+        "url": "https://deb.debian.org/debian/pool/main/f/fontconfig/libfontconfig1_2.15.0-2.3_amd64.deb",
+        "sha256": "7ae91ec59857cc8e375eb2bdd371a4a69daea38f7787d06d474a847867d852b1"
+      },
+      {
+        "package": "libfreetype-dev",
+        "version": "2.13.3+dfsg-1+deb13u1",
+        "url": "https://deb.debian.org/debian/pool/main/f/freetype/libfreetype-dev_2.13.3+dfsg-1+deb13u1_amd64.deb",
+        "sha256": "f58107859d9fa44206e64cf35bdbd4febdec66a33e456ce2e5e3712f01b6c895"
+      },
+      {
+        "package": "libfreetype6",
+        "version": "2.13.3+dfsg-1+deb13u1",
+        "url": "https://deb.debian.org/debian/pool/main/f/freetype/libfreetype6_2.13.3+dfsg-1+deb13u1_amd64.deb",
+        "sha256": "e4947f3291528f03d574f2b01d5c5fc45c58c47480f32888a5cdf0f231ab584e"
+      },
+      {
+        "package": "libpng-dev",
+        "version": "1.6.48-1+deb13u5",
+        "url": "https://deb.debian.org/debian/pool/main/libp/libpng1.6/libpng-dev_1.6.48-1+deb13u5_amd64.deb",
+        "sha256": "9027d5ace59ce266124c87054302805f49f9cb1ec4a6c8264a64596c7916fbff"
+      },
+      {
+        "package": "libpng16-16t64",
+        "version": "1.6.48-1+deb13u5",
+        "url": "https://deb.debian.org/debian/pool/main/libp/libpng1.6/libpng16-16t64_1.6.48-1+deb13u5_amd64.deb",
+        "sha256": "2465b4e9fa85cff54dc10a6da3e64074d8d9292c86e4a8f989b809d6b158e97e"
+      },
+      {
+        "package": "zlib1g",
+        "version": "1:1.3.dfsg+really1.3.1-1+b1",
+        "url": "https://deb.debian.org/debian/pool/main/z/zlib/zlib1g_1.3.dfsg+really1.3.1-1+b1_amd64.deb",
+        "sha256": "015be740d6236ad114582dea500c1d907f29e16d6db00566ca32fb68d71ac90d"
+      },
+      {
+        "package": "zlib1g-dev",
+        "version": "1:1.3.dfsg+really1.3.1-1+b1",
+        "url": "https://deb.debian.org/debian/pool/main/z/zlib/zlib1g-dev_1.3.dfsg+really1.3.1-1+b1_amd64.deb",
+        "sha256": "76ed5c858e1aef38b7be93acce5910e457e77bd6271471b9d05fb42e78826224"
+      },
+      {
+        "package": "libbz2-1.0",
+        "version": "1.0.8-6",
+        "url": "https://deb.debian.org/debian/pool/main/b/bzip2/libbz2-1.0_1.0.8-6_amd64.deb",
+        "sha256": "cba4cda04244b5e481bb15524bc3c983a7d1b6f330013b9b381706a2fcb65310"
+      },
+      {
+        "package": "libbz2-dev",
+        "version": "1.0.8-6",
+        "url": "https://deb.debian.org/debian/pool/main/b/bzip2/libbz2-dev_1.0.8-6_amd64.deb",
+        "sha256": "b395471bf69087a18a6baa04d68a9d50497b20f8a2602d9729c7069f820bbe6b"
+      }
+    ],
+    "additional_packages_index_sha256": "7778d3e3f303b7ddb8ce0fe7c8d57473a076c6bf2e8f241f75421d2396352498"
+  },
+  "pkgconf": {
+    "source": "https://distfiles.dereferenced.org/pkgconf/pkgconf-2.5.1.tar.xz",
+    "sha256": "cd05c9589b9f86ecf044c10a2269822bc9eb001eced2582cfffd658b0a50c243",
+    "prefix": "/private/tmp/eldiron-cross-toolchains/pkgconf-host",
+    "cflags": "-O2"
+  },
+  "cross_compiler": {
+    "archive": "/private/tmp/eldiron-cross-toolchains/zig-aarch64-macos-0.17.1.tar.xz",
+    "sha256": "75f1bc7a1e9852f17ec9a0c1895f767c4ec56d46bc8a834920eece1d0359dd8d",
+    "zig": "/private/tmp/eldiron-cross-toolchains/zig-aarch64-macos-0.17.1/zig",
+    "source": "https://ziglang.org/download/index.json"
+  }
+}

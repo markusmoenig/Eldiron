@@ -1,0 +1,131 @@
+{
+  "source_commit": "85e4a366",
+  "profile": "Release",
+  "signed": false,
+  "installed_on_device": false,
+  "runtime_verified": false,
+  "steps": [
+    {
+      "step": "creator-rust",
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--offline",
+        "--target",
+        "aarch64-apple-ios",
+        "-p",
+        "eldiron-creator",
+        "--no-default-features",
+        "--features",
+        "staticlib",
+        "--lib"
+      ],
+      "exit": 0,
+      "seconds": 154.4703455,
+      "log": "/private/tmp/eldiron-release-device-85e4a366/creator-rust.log"
+    },
+    {
+      "step": "creator-bundle",
+      "command": [
+        "xcodebuild",
+        "-project",
+        "Xcode/Eldiron/Eldiron.xcodeproj",
+        "-scheme",
+        "Eldiron iOS",
+        "-configuration",
+        "Release",
+        "-sdk",
+        "iphoneos",
+        "-destination",
+        "generic/platform=iOS",
+        "-derivedDataPath",
+        "/private/tmp/eldiron-release-device-85e4a366/creator-bundle",
+        "CODE_SIGNING_ALLOWED=NO",
+        "ONLY_ACTIVE_ARCH=YES",
+        "ARCHS=arm64",
+        "IPHONEOS_DEPLOYMENT_TARGET=26.1",
+        "ELDIRON_RUST_LIB_DIR=/Users/markusmoenig/Eldiron/target/aarch64-apple-ios/release",
+        "LIBRARY_SEARCH_PATHS=/Users/markusmoenig/Eldiron/target/aarch64-apple-ios/release",
+        "-disableAutomaticPackageResolution",
+        "-skipPackageUpdates",
+        "build"
+      ],
+      "exit": 0,
+      "seconds": 9.28488841699999,
+      "log": "/private/tmp/eldiron-release-device-85e4a366/creator-bundle.log"
+    },
+    {
+      "step": "player-rust",
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--offline",
+        "--target",
+        "aarch64-apple-ios",
+        "-p",
+        "eldiron-client-wgpu",
+        "--no-default-features",
+        "--features",
+        "native-apple",
+        "--lib"
+      ],
+      "exit": 0,
+      "seconds": 76.948347708,
+      "log": "/private/tmp/eldiron-release-device-85e4a366/player-rust.log"
+    },
+    {
+      "step": "player-bundle",
+      "command": [
+        "xcodebuild",
+        "-project",
+        "Xcode/Client/Client.xcodeproj",
+        "-scheme",
+        "SceneVM",
+        "-configuration",
+        "Release",
+        "-sdk",
+        "iphoneos",
+        "-destination",
+        "generic/platform=iOS",
+        "-derivedDataPath",
+        "/private/tmp/eldiron-release-device-85e4a366/player-bundle",
+        "CODE_SIGNING_ALLOWED=NO",
+        "ONLY_ACTIVE_ARCH=YES",
+        "ARCHS=arm64",
+        "IPHONEOS_DEPLOYMENT_TARGET=26.1",
+        "ELDIRON_RUST_LIB_DIR=/Users/markusmoenig/Eldiron/target/aarch64-apple-ios/release",
+        "LIBRARY_SEARCH_PATHS=/Users/markusmoenig/Eldiron/target/aarch64-apple-ios/release",
+        "-disableAutomaticPackageResolution",
+        "-skipPackageUpdates",
+        "build"
+      ],
+      "exit": 0,
+      "seconds": 6.87432020899999,
+      "log": "/private/tmp/eldiron-release-device-85e4a366/player-bundle.log"
+    }
+  ],
+  "applications": [
+    {
+      "application": "creator",
+      "bundle": "/private/tmp/eldiron-release-device-85e4a366/creator-bundle/Build/Products/Release-iphoneos/Eldiron.app",
+      "identifier": "com.moenig.eldiron",
+      "minimum_os": "26.1",
+      "executable_sha256": "49c4308ac01a42120cd1b7a21777401697e8a6cf7d77594db8b3442fb3f826a4",
+      "file": "/private/tmp/eldiron-release-device-85e4a366/creator-bundle/Build/Products/Release-iphoneos/Eldiron.app/Eldiron: Mach-O 64-bit executable arm64",
+      "build_version": "/private/tmp/eldiron-release-device-85e4a366/creator-bundle/Build/Products/Release-iphoneos/Eldiron.app/Eldiron:\nLoad command 11\n      cmd LC_BUILD_VERSION\n  cmdsize 32\n platform IOS\n    minos 26.1\n      sdk 27.2\n   ntools 1\n     tool LD\n  version 27106.1"
+    },
+    {
+      "application": "player",
+      "bundle": "/private/tmp/eldiron-release-device-85e4a366/player-bundle/Build/Products/Release-iphoneos/SceneVM.app",
+      "identifier": "com.moenig.SceneVM",
+      "minimum_os": "26.1",
+      "executable_sha256": "447bd9df4b38592901a7fafed317cd1ea0653e8956692563a4d0e792ad208fb3",
+      "file": "/private/tmp/eldiron-release-device-85e4a366/player-bundle/Build/Products/Release-iphoneos/SceneVM.app/SceneVM: Mach-O 64-bit executable arm64",
+      "build_version": "/private/tmp/eldiron-release-device-85e4a366/player-bundle/Build/Products/Release-iphoneos/SceneVM.app/SceneVM:\nLoad command 11\n      cmd LC_BUILD_VERSION\n  cmdsize 32\n platform IOS\n    minos 26.1\n      sdk 27.2\n   ntools 1\n     tool LD\n  version 27106.1"
+    }
+  ]
+}

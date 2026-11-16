@@ -93,3 +93,9 @@ boundaries before edits. Source text is queried on demand and selection-only
 updates reuse it. Physical game controls and logical keyboard shortcuts remain
 separate from IME text insertion. SDK compilation alone does not verify an
 actual input method or mobile runtime interaction.
+
+On macOS, a physical key consumed by a focused Rust editor still passes through
+the native text context when it represents printable text. This preserves the
+system keyboard layout and dead-key interpretation; handled shortcuts and
+navigation do not execute twice. Creator's Select All menu uses the first
+responder, so document panels keep their standard editing behavior too.

@@ -30,7 +30,7 @@ Licensed under the MIT License.
 The normal desktop launcher uses the shared native GPU host:
 
 ```bash
-cargo run -p eldiron-creator -- [PROJECT.eldiron ...]
+cargo run --release --locked -p eldiron-creator -- [PROJECT.eldiron ...]
 ```
 
 `eldiron-creator-native` remains an alias for the same host. Both use ordered GPU
@@ -40,10 +40,19 @@ and fails on a timeout; it does not certify physical input or performance.
 The CPU presenter is an explicit reference executable:
 
 ```bash
-cargo run -p eldiron-creator --no-default-features --features reference-cpu --bin eldiron-creator-reference -- [PROJECT.eldiron ...]
+cargo run --release --locked -p eldiron-creator --no-default-features --features reference-cpu --bin eldiron-creator-reference -- [PROJECT.eldiron ...]
 ```
 
-Reference screenshots use the same `reference-cpu` feature. Browser and Apple
-hosts keep their `browser-host` and `staticlib` build commands. Platform/workflow
+Reference screenshots use the same `reference-cpu` feature. Package the browser
+host and its required CPU codec worker from the workspace root:
+
+```bash
+python3 tools/package_web.py creator target/web-creator
+```
+
+Serve that directory over localhost or HTTPS, with a project archive alongside
+`index.html`; `?project=Example.eldiron` selects it. The helper builds release
+WASM with pinned bindings. Apple hosts use the `staticlib` feature and the
+[Xcode host instructions](../Xcode/Eldiron/README.md). Platform/workflow
 acceptance and remaining rewrite work are tracked in
 [the progress record](../concepts/native-wgpu-rewrite-progress.md).
