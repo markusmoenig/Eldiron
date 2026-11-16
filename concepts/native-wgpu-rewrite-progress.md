@@ -19366,3 +19366,36 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Native pan is still33.7ms versus26.2ms CPUreference; physical OS/runtime/input
   gates and overall goal remain incomplete. Hardware-access question pending;
   independent work continues without waiting for routine approval.
+
+## Mac-only user testing handoff (2026-11-16)
+
+- User confirms only this Mac is available; physical iPad and Windows/Linux
+  runtime checks remain unavailable. Do not keep asking for that hardware or
+  infer those checks passed from cross-compilation/unsigned device bundles.
+- User asks to test personally. Preparing source-frozen f23de3a1 Release native
+  Creator/common graphical launchers and separately compiled GPU-free terminal.
+  Driver /private/tmp/eldiron-release-user-test-f23.py; receipt
+  /private/tmp/eldiron-release-user-test-f23-results.json. No Rust edit or other
+  compiler/test/profile overlaps during this refresh. User testing is an
+  additional acceptance source, not overall completion or an implicit pause.
+
+- Current f23de3a1 native Creator and BOTH common graphical launchers link
+  Release/locked/offline PASS80.26s; separately isolated CPU terminal PASS50.95s.
+  Source-guarded executable copies and SHA256manifest in
+  target/native-wgpu-release-f23de3a1. No branch switch needed; isolated worktree
+  remains codex/native-wgpu-rewrite, main checkout untouched.
+- Current actual desktop window smoke85270 terminalPASS: Creator3presentations
+  in3.36s; Player3presentations in11.72s including decoding/session startup
+  (the host ten-second presentation deadline starts after that startup).
+  Logs verify three real presentations each, not only offscreen frame work.
+- Prepared double-click Creator.command / Player.command, syntax checked, plus
+  separately copied three fixtures and short normal-use testing checklist.
+  Original fixture SHA256s unchanged. Player launcher defaults to copied3DStarter;
+  Creator opens without an authored project so user chooses their own/copy.
+  Durable release-mac-user-testing.json, both smoke logs and current launcher
+  manifest release-native-launchers-f23de3a1.json.
+- User testing can now proceed against fixed current Release executables without
+  checking out/switching the main working tree. This handoff is not a completed
+  M0–M9 acceptance claim. Known native-pan regression, physical input/IME/display
+  and complete workflow/performance gates remain open. Hardware-only unavailable
+  gates are explicitly retained; do not ask again for unavailable hardware.
