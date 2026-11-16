@@ -19505,3 +19505,27 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   compiler/type/feature verification and a fresh zero-warning log remain
   unverified until the user's next build. Eight unrelated concept documents
   remain untracked and untouched.
+
+## Single-click duplicate 2D-isometric mesh placement (2026-11-16)
+
+- User reports two adjacent mesh placements per click in UnendingNight. Native
+  fresh-click routing writes hover_cursor using local_to_map_grid (nearest
+  vertex/subdivision), while RectTool hover/drag uses local_to_map_cell
+  (floor/containing cell). RectTool click consumed the shared cursor without
+  refreshing it, so the press could paint a neighbouring cell before even tiny
+  pointer jitter painted the actual hovered cell. The stroke's per-cell
+  deduplication could not suppress these two different coordinates.
+- RectTool now calls the same apply_hover helper on an accepted 2D map press
+  before beginning its stroke. HUD/rotation/compose/eyedropper handling remains
+  before that branch. 3D placement and native shared geometry snapping unchanged.
+- Added ignored GPU-publication regression for rigid isometric tile sources,
+  terrain enabled, positive/negative cells, subdivisions1/2/4, no preceding
+  hover, same-position drag and one-pixel jitter: one sector at the containing
+  cell and one undo transaction. Also checks deliberate adjacent-cell drags
+  can still place the next tile.
+- No build/check/Rust test run, respecting user's no-build instruction.
+  Non-mutating Rust syntax parse and git diff --check PASS. Six standalone
+  projection calculations confirm the old rounded-vs-containing cell mismatch
+  and same-cell one-pixel jitter; these are not native integration proof.
+  New regression execution and user's runtime retest remain pending. Shipped
+  UnendingNight archive inspected only for metadata; not decoded or modified.

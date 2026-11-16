@@ -430,6 +430,10 @@ impl Tool for RectTool {
                 }
 
                 if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
+                    // Native clicks refresh the shared cursor using vertex-grid
+                    // snapping. Paint must use the same containing cell as
+                    // hover/drag, including clicks with no preceding hover.
+                    self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
                     let source = get_source(ui, server_ctx);
                     let use_terrain_paint = Self::uses_terrain_paint(
                         map,
@@ -855,6 +859,72 @@ mod tests {
             map.sectors[0].properties.get_float_default("iso_yaw", 0.),
             0.
         );
+    }
+
+    #[test]
+    #[ignore = "requires native GPU for editor paint publication"]
+    fn iso_mesh_click_and_pointer_jitter_place_only_the_clicked_cell() {
+        for subdivisions in [1., 2., 4.] {
+            for point in [Vec2::new(0.9, 0.9), Vec2::new(-2.1, 3.9)] {
+                let mut map = Map::default();
+                map.camera = MapCamera::TwoDIso;
+                map.grid_size = 40.;
+                map.subdivisions = subdivisions;
+                map.offset = Vec2::new(13., -7.);
+                map.properties.set("terrain_enabled", Value::Bool(true));
+                let size = Vec2::new(800., 600.);
+                let click = rusterix::isometric::Projection::editor(&map, size)
+                    .screen(point, 0.).map(|v| v.round() as i32);
+                let jitter = click + Vec2::new(1, 0);
+                let mut ctx = TheContext::new(800, 600, 1.);
+                let mut ui = TheUI::new();
+                let mut view = TheRenderView::new(TheId::named("PolyView"));
+                view.set_dim(TheDim::sized(800, 600), &mut ctx);
+                ui.canvas.set_widget(view);
+                let mut server = CreatorContext::default();
+                server.shared.pc = ProjectContext::Region(Uuid::new_v4());
+                server.shared.editor_view_mode = EditorViewMode::D2;
+                server.shared.curr_map_tool_type = MapToolType::Rect;
+                let mut tile = rusterix::Tile::from_texture(Texture::from_color([255; 4]));
+                tile.isometric = Some(rusterix::isometric::SpriteLayout {
+                    ground: false, ..Default::default()
+                });
+                let tile_id = tile.id;
+                server.reference.write().assets.tiles.insert(tile_id, tile);
+                server.shared.curr_tile_source = Some(TileSource::SingleTile(tile_id));
+                let pixel = click.map(|v| v as f32);
+                let cell = server.shared.local_to_map_cell(size, pixel, &map, 1.);
+                assert_eq!(server.shared.local_to_map_cell(size, jitter.map(|v| v as f32), &map, 1.), cell);
+                // Model the fresh native click, which can overwrite an earlier
+                // brush hover with a rounded vertex-grid coordinate.
+                let rounded = server.shared.local_to_map_grid(size, pixel, &map, subdivisions);
+                assert_ne!(rounded.map(|v| v.floor()), cell);
+                server.shared.hover_cursor = Some(rounded);
+                let mut tool = RectTool::new();
+                assert!(tool.map_event(MapClicked(click), &mut ui, &mut ctx, &mut map, &mut server).is_none());
+                assert_eq!(server.shared.hover_cursor, Some(cell));
+                for at in [click, jitter] {
+                    assert!(tool.map_event(MapDragged(at), &mut ui, &mut ctx, &mut map, &mut server).is_none());
+                }
+                let undo = tool.map_event(MapUp(jitter), &mut ui, &mut ctx, &mut map, &mut server);
+                let Some(ProjectUndoAtom::MapEdit(_, before, after)) = undo else {
+                    panic!("one brush gesture must produce one undo transaction");
+                };
+                assert!(before.sectors.is_empty());
+                assert_eq!(after.sectors.len(), 1);
+                assert_eq!(map.sectors.len(), 1, "pointer jitter must not add an adjacent mesh tile");
+                assert_eq!(map.sectors[0].bounding_box(&map).min, cell);
+                assert_eq!(map.sectors[0].properties.get_default_source(), Some(&PixelSource::TileId(tile_id)));
+                assert!(!tool.stroke_active);
+                // An intentional drag into the adjacent cell still paints it.
+                let next = rusterix::isometric::Projection::editor(&map, size)
+                    .screen(point + Vec2::new(1., 0.), 0.).map(|v| v.round() as i32);
+                tool.map_event(MapClicked(click), &mut ui, &mut ctx, &mut map, &mut server);
+                tool.map_event(MapDragged(next), &mut ui, &mut ctx, &mut map, &mut server);
+                assert!(tool.map_event(MapUp(next), &mut ui, &mut ctx, &mut map, &mut server).is_some());
+                assert_eq!(map.sectors.len(), 2, "deliberate cross-cell painting remains available");
+            }
+        }
     }
 
     #[test]
