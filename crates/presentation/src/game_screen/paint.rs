@@ -91,7 +91,7 @@ impl GameScreenController {
         p.fill(bounds, model.background);
         for key in ordered(&model.game_widgets) {
             let widget = &model.game_widgets[&key];
-            if hidden(&widget.name) || widget.rect.width <= 0. || widget.rect.height <= 0. {
+            if hidden(&widget.name) || widget.rect.width.round() <= 0. || widget.rect.height.round() <= 0. {
                 continue;
             }
             if widget.backend_name == "text" && world.map.is_some() {
@@ -106,6 +106,10 @@ impl GameScreenController {
                     tint: [1.; 4],
                 });
                 self.speech.paint_view(key, p.list);
+            } else if self.pending_view_images.contains(&key) {
+                // First-frame source staging has no previous image to retain.
+                // Leave the screen background visible and paint the remaining UI;
+                // this view gets no world-input receipt until rendering completes.
             } else if world.map.is_some() {
                 return Err(format!("Game view '{}' has not been prepared", widget.name));
             }

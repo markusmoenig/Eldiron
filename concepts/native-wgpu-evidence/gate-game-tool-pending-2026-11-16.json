@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-16",
+  "baseline": "2009d2416a1c8d627b6a8414df5bca66438550d2",
+  "reported_log": [
+    "StartScene: Startup with 0 errors.",
+    "StartScene: Spawned `Player`",
+    "Game view 'Game' has not been prepared"
+  ],
+  "status": "Source fix implemented; unbuilt and untested per user instruction",
+  "cause": "prepare_game_views permits SceneViews::render to return None during first-frame asynchronous work; paint formerly treated the resulting absent image as a fatal missing-preparation error.",
+  "fix": [
+    "Track admitted but incomplete graphical images per widget.",
+    "Paint background and remaining authored UI while the first image is pending; keep genuine missing-preparation errors.",
+    "Retain scoped complete images during replacements and do not publish fresh world-input receipts for pending views.",
+    "Include pending images in the existing host continuation query; clear markers across frame/runtime/device/view lifetimes.",
+    "Align subpixel/zero view painting with rounded GPU target sizes."
+  ],
+  "source_hashes_current_dirty_tree": {
+    "crates/presentation/src/game_screen/mod.rs": "155dc75640f286d58fc7142d485d93f68027b6ce1ab3aa3e994a3ee34cc148f0",
+    "crates/presentation/src/game_screen/paint.rs": "bb3111c5a402d5558ef0ad7584fb28aebda51b586a2af4b492519906fdf379af"
+  },
+  "owned_patch": "/private/tmp/eldiron-gate-play-fix/owned.patch",
+  "owned_patch_sha256": "19b53c39c7ba84bcc4e87c49a4e6d18fdb07a3a21cfcc7ebd9ade4c6a426f152",
+  "concurrent_work": "These shared files also contain unrelated player/party changes. Checkpoint only owned.patch, leaving the other hunks uncommitted.",
+  "verification": [
+    "rustfmt parse-only with skip_children=true",
+    "git diff --check",
+    "Reviewed pending marker creation/clearing, prior image scope and no-new-receipt branch"
+  ],
+  "builds_run": false,
+  "tests_run": false,
+  "manual_followup": "After the user Release build: Play Gate, switch to Game, wait for the image without exit, then check controls.",
+  "flash_status": "User accepts remaining flash for now; further flash work deferred, not marked fixed.",
+  "owned_source_sha256": {
+    "crates/presentation/src/game_screen/mod.rs": "8ad9fc90ad1b545db60c8b2e7beaa44769f9738639c76e02bf3c1abfe3a96d07",
+    "crates/presentation/src/game_screen/paint.rs": "2b74fb240f40805329e5144bb6ee3a214cc062523e8d1132aaeaf96af526b8f8"
+  }
+}

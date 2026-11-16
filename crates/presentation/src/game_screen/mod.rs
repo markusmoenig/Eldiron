@@ -28,7 +28,7 @@ use eldiron_runtime::{RegionEvents, RuntimeView};
 pub use fonts::{GameFontVersion, GameFonts};
 pub use input::{ScreenTextResponse, ScreenTextTarget};
 use renderkit::ImageRegistry;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rusterix::{
     Currencies, D2Builder, Map, Rect, Scene,
     client::{
@@ -88,6 +88,7 @@ pub struct GameScreenController {
     view_ids: FxHashMap<Uuid, ViewId>,
     configured_views: FxHashMap<ViewId, ContentRevision>,
     view_images: FxHashMap<Uuid, ViewImage>,
+    pending_view_images: FxHashSet<Uuid>,
     completed_view_scopes: FxHashMap<ViewId, (Uuid, Uuid)>,
     source_prepare_turn: usize,
     pending_scene_uploads: bool,
@@ -224,6 +225,7 @@ impl GameScreenController {
             view_ids: FxHashMap::default(),
             configured_views: FxHashMap::default(),
             view_images: FxHashMap::default(),
+            pending_view_images: FxHashSet::default(),
             completed_view_scopes: FxHashMap::default(),
             source_prepare_turn: 0,
             pending_scene_uploads: false,
@@ -281,6 +283,7 @@ impl GameScreenController {
         self.geometry = None;
         self.configured_views.clear();
         self.view_images.clear();
+        self.pending_view_images.clear();
         self.completed_view_scopes.clear();
         true
     }
@@ -526,6 +529,7 @@ impl GameScreenController {
         self.stamp_sources.active = false;
         self.stamp_sources.changed = false;
         self.view_images.clear();
+        self.pending_view_images.clear();
         self.text_games.retain(&self.elements);
         self.begin_world_frame(world)?;
         for (key, id) in &self.view_ids {
@@ -646,12 +650,17 @@ impl GameScreenController {
                     .push_view(key, widget, output, map, views.isometric_targets(output))?;
                 self.completed_view_scopes.insert(id, (world.session_id, map.id));
                 self.view_images.insert(key, output);
-            } else if self.completed_view_scopes.get(&id) == Some(&(world.session_id, map.id))
-                && let Some(output) = views.output(id)
-            {
-                // Keep a complete image visible while replacement data uploads.
-                // It receives no fresh world input receipt/camera publication.
-                self.view_images.insert(key, output);
+            } else {
+                if widget.rect.width.round() > 0. && widget.rect.height.round() > 0. {
+                    self.pending_view_images.insert(key);
+                }
+                if self.completed_view_scopes.get(&id) == Some(&(world.session_id, map.id))
+                    && let Some(output) = views.output(id)
+                {
+                    // Keep a complete image visible while replacement data uploads.
+                    // It receives no fresh world input receipt/camera publication.
+                    self.view_images.insert(key, output);
+                }
             }
         }
         views.advance_surface_paint_uploads().map_err(|e| e.to_string())?;
@@ -663,7 +672,7 @@ impl GameScreenController {
         Ok(())
     }
     pub fn has_pending_scene_uploads(&self) -> bool {
-        self.pending_scene_uploads || self.stamp_sources.pending()
+        self.pending_scene_uploads || self.stamp_sources.pending() || !self.pending_view_images.is_empty()
     }
     pub fn set_scene_source_wake(&mut self, wake: Option<theframework::platform::ApplicationWake>) {
         self.source_wake = wake;
@@ -686,6 +695,7 @@ impl GameScreenController {
         }
         self.configured_views.clear();
         self.view_images.clear();
+        self.pending_view_images.clear();
         self.completed_view_scopes.clear();
         Ok(())
     }
@@ -697,6 +707,7 @@ impl GameScreenController {
         self.pending_scene_uploads = false;
         self.configured_views.clear();
         self.view_images.clear();
+        self.pending_view_images.clear();
         self.completed_view_scopes.clear();
         self.view_ids.drain().map(|(_, id)| id).collect()
     }

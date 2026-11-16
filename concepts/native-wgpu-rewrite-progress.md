@@ -19941,3 +19941,33 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   unresolved and was not rechecked against these changed fixture hashes.
 - Evidence: native-wgpu-evidence/gate-ruleset-characters-2026-11-16.json. Original
   archive backups/change receipt are in /private/tmp/eldiron-gate-ruleset-fix/.
+
+### Game-tool first-frame crash after Gate startup
+
+- User accepts the remaining Paint replacement flash temporarily and defers it.
+  Gate now reports startup0errors and spawns Player, but switching to Game exits
+  with "Game view 'Game' has not been prepared". No builds/tests authorized;
+  continue source work only under the user's standing no-build instruction.
+- Source trace: NativePlay::paint calls prepare_game_views then screen.paint.
+  The shared controller legitimately gets None from SceneViews::render while its
+  first GPU sources/private frame are pending. It has no previous view image on
+  first entry, yet paint treated every missing graphical image as a fatal wiring
+  error. That error propagated through Creator frame preparation to the host.
+- Added per-widget pending-image ownership populated only by an admitted render
+  returning None. Painting such a view leaves the screen background visible and
+  continues the authored controls/chrome instead of returning the fatal error.
+  Existing complete images remain scoped to the same session/map; pending views
+  still receive no fresh world-input receipts. Genuine missing preparation keeps
+  its error. Rounded-zero view rectangles skip image painting consistently with
+  suspended GPU targets instead of entering an endless preparation wait.
+- Pending-image markers clear on every preparation, runtime/player rebind, view
+  release and device detach. They participate in has_pending_scene_uploads so
+  existing Creator/player scheduling continues without another input event.
+- Source parsing and diff checks only; no build, GPU test or runtime retest run.
+  Expected manual verification after the user's Release build: Play Gate, switch
+  to Game, allow first-frame preparation, confirm the view appears without exit
+  and input activates only after the completed view is presented. Paint flash
+  remains deferred, not fixed. Evidence: native-wgpu-evidence/gate-game-tool-pending-2026-11-16.json.
+- The two modified shared-controller files already contain concurrent player/
+  party changes. Checkpoint only this task's extracted patch; preserve those
+  unrelated hunks and the remaining runtime/network/movement work.
