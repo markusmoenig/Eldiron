@@ -1,0 +1,70 @@
+   Compiling rusterix v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/rusterix)
+warning: use of deprecated method `std::sync::atomic::Atomic::<u32>::fetch_update`: renamed to `try_update` for consistency
+  --> crates/rusterix/src/server/world.rs:25:14
+   |
+25 |             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+   |              ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+25 -             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+25 +             .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+   |
+
+warning: function `prepare_player_start_with_templates` is never used
+   --> crates/rusterix/src/player_start.rs:101:15
+    |
+101 | pub(crate) fn prepare_player_start_with_templates(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `as_code` is never used
+  --> crates/rusterix/src/render_settings.rs:32:8
+   |
+31 | impl FadeMode {
+   | ------------- method in this implementation
+32 |     fn as_code(self) -> u32 {
+   |        ^^^^^^^
+
+warning: method `as_code` is never used
+  --> crates/rusterix/src/render_settings.rs:68:8
+   |
+67 | impl PostToneMapper {
+   | ------------------- method in this implementation
+68 |     fn as_code(self) -> u32 {
+   |        ^^^^^^^
+
+warning: fields `endpoints`, `bounds`, and `span` are never read
+  --> crates/rusterix/src/scenebuilder/preview_geometry.rs:15:9
+   |
+14 | pub(super) struct LineGeometry {
+   |                   ------------ fields in this struct
+15 |     pub endpoints: Option<(Vec2<f32>, Vec2<f32>)>,
+   |         ^^^^^^^^^
+16 |     pub bounds: BBox,
+   |         ^^^^^^
+17 |     pub span: Option<(f32, f32)>,
+   |         ^^^^
+
+warning: method `cached_signature` is never used
+  --> crates/rusterix/src/server/avatar_assets.rs:40:19
+   |
+36 | impl AvatarAssets {
+   | ----------------- method in this implementation
+...
+40 |     pub(crate) fn cached_signature(&self, avatar: &Avatar, calculate: impl FnOnce() -> u64) -> u64 {
+   |                   ^^^^^^^^^^^^^^^^
+
+warning: `rusterix` (lib test) generated 6 warnings (run `cargo fix --lib -p rusterix --tests` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 32.29s
+     Running unittests src/lib.rs (/Users/markusmoenig/Eldiron/target/release/deps/rusterix-685b801acebec9d3)
+
+running 3 tests
+test chunkbuilder::terrain_surface::tests::local_corner_samples_preserve_exact_facets_and_source_independence ... ok
+test chunkbuilder::terrain_surface::tests::shared_smooth_hill_walks_both_ways_and_iso_picking_roundtrips ... ok
+test chunkbuilder::terrain_surface::tests::terrain_heights_and_triangles_are_camera_independent_and_match_shared_sampler ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 564 filtered out; finished in 0.07s
+

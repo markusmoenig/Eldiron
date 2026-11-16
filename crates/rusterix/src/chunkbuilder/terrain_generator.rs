@@ -88,16 +88,24 @@ impl TerrainSampler {
     /// Piecewise-linear height of the rendered facets, shared by 3D actors and
     /// ground picking. The raw sampler is evaluated only at grid corners.
     pub(crate) fn height_on_grid(&self, p: Vec2<f32>, subdivisions: u32) -> f32 {
+        Self::height_on_grid_with(p, subdivisions, |corner| self.sample(corner))
+    }
+
+    pub(super) fn height_on_grid_with(
+        p: Vec2<f32>,
+        subdivisions: u32,
+        mut sample: impl FnMut(Vec2<f32>) -> f32,
+    ) -> f32 {
         let n = subdivisions.max(1) as f32;
         let cell = (p * n).map(f32::floor) / n;
         let uv = (p - cell) * n;
-        let h00 = self.sample(cell);
-        let h10 = self.sample(cell + Vec2::new(1. / n, 0.));
-        let h01 = self.sample(cell + Vec2::new(0., 1. / n));
+        let h00 = sample(cell);
+        let h10 = sample(cell + Vec2::new(1. / n, 0.));
+        let h01 = sample(cell + Vec2::new(0., 1. / n));
         if uv.x + uv.y <= 1. {
             h00 * (1. - uv.x - uv.y) + h10 * uv.x + h01 * uv.y
         } else {
-            let h11 = self.sample(cell + 1. / n);
+            let h11 = sample(cell + 1. / n);
             h10 * (1. - uv.y) + h01 * (1. - uv.x) + h11 * (uv.x + uv.y - 1.)
         }
     }

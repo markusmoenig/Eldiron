@@ -1,0 +1,332 @@
+{
+  "source_base_commit": "957c93c2",
+  "source_delta": "Borrowed per-call terrain grid-corner memo; at most32768exact-bit keys, normal uncached overflow",
+  "profile": "release",
+  "retained_for": "Modest steady-frame preparation improvement; no full performance acceptance or uniform speedup claim",
+  "cpu_contracts": 3,
+  "focused_gpu": {
+    "executable": "/Users/markusmoenig/Eldiron/target/release/deps/eldiron_creator-5edeb499b544aeac",
+    "executable_sha256": "19cad14b4ca9c2144e68b862a7e9c9a2db64f6bdd5bff871e243b094fa929ce8",
+    "results": [
+      {
+        "test": "shipped_isometric_guides_match_actual_cpu_lines_with_and_without_batching",
+        "exit": 0,
+        "seconds": 5.1107205,
+        "log": "/private/tmp/eldiron-height-corner-shipped_isometric_guides_match_actual_cpu_lines_with_and_without_batching.log"
+      },
+      {
+        "test": "source_guides_preserve_hidden_rgb_and_touched_alpha_at_all_densities",
+        "exit": 0,
+        "seconds": 0.08242016699999954,
+        "log": "/private/tmp/eldiron-height-corner-source_guides_preserve_hidden_rgb_and_touched_alpha_at_all_densities.log"
+      },
+      {
+        "test": "native_creator_application_paints_the_root_ui_without_a_root_framebuffer",
+        "exit": 0,
+        "seconds": 24.204478792,
+        "log": "/private/tmp/eldiron-height-corner-native_creator_application_paints_the_root_ui_without_a_root_framebuffer.log"
+      }
+    ]
+  },
+  "before_manifest": {
+    "executable": "/Users/markusmoenig/Eldiron/target/release/deps/eldiron_creator-5edeb499b544aeac",
+    "executable_sha256": "9fda3a1c7b4c014869e74f6f44efec9735c9b69b45c184d4914d795267f1c47c",
+    "source_head": "957c93c2204770235a98ca75d20ecd7549ba9d13",
+    "source_delta": "baseline-before-corner-cache",
+    "rust_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "after_manifest": {
+    "executable": "/Users/markusmoenig/Eldiron/target/release/deps/eldiron_creator-5edeb499b544aeac",
+    "executable_sha256": "19cad14b4ca9c2144e68b862a7e9c9a2db64f6bdd5bff871e243b094fa929ce8",
+    "source_head": "957c93c2204770235a98ca75d20ecd7549ba9d13",
+    "source_delta": "candidate-per-call-corner-cache-32768",
+    "rust_diff_sha256": "ff54fa4974d179270ca11c94464735df36aba54c5e5594697dd82f7a1a1e93c6"
+  },
+  "runs": [
+    {
+      "version": "before",
+      "repeat": 1,
+      "raw": "concepts/native-wgpu-evidence/release-height-corners-before-native-1.json",
+      "peak_process_rss_bytes": 3285073920,
+      "total_ms": {
+        "hover": {
+          "mean": 13.84445415,
+          "p50": 9.454707999999998,
+          "p95": 31.097708,
+          "p99": 34.089625
+        },
+        "idle": {
+          "mean": 9.528359041666665,
+          "p50": 8.874375,
+          "p95": 9.334999999999999,
+          "p99": 27.321208
+        },
+        "pan": {
+          "mean": 34.300526749999975,
+          "p50": 34.049,
+          "p95": 37.511041,
+          "p99": 42.101791
+        },
+        "zoom": {
+          "mean": 25.411009383333337,
+          "p50": 24.610541,
+          "p95": 54.340208000000004,
+          "p99": 55.406583000000005
+        }
+      }
+    },
+    {
+      "version": "before",
+      "repeat": 2,
+      "raw": "concepts/native-wgpu-evidence/release-height-corners-before-native-2.json",
+      "peak_process_rss_bytes": 3278831616,
+      "total_ms": {
+        "hover": {
+          "mean": 13.572619391666665,
+          "p50": 9.389959,
+          "p95": 29.383083,
+          "p99": 31.633957999999996
+        },
+        "idle": {
+          "mean": 9.800466741666664,
+          "p50": 8.983583,
+          "p95": 11.097042,
+          "p99": 28.983667
+        },
+        "pan": {
+          "mean": 33.617599649999995,
+          "p50": 34.02575,
+          "p95": 36.571542,
+          "p99": 38.065374999999996
+        },
+        "zoom": {
+          "mean": 25.599799316666676,
+          "p50": 24.250125,
+          "p95": 53.273125,
+          "p99": 56.326458
+        }
+      }
+    },
+    {
+      "version": "after",
+      "repeat": 1,
+      "raw": "concepts/native-wgpu-evidence/release-height-corners-after-native-1.json",
+      "peak_process_rss_bytes": 3297525760,
+      "total_ms": {
+        "hover": {
+          "mean": 13.00098431666667,
+          "p50": 8.892707999999999,
+          "p95": 29.648208,
+          "p99": 30.493833000000002
+        },
+        "idle": {
+          "mean": 9.153498975000002,
+          "p50": 8.388375,
+          "p95": 9.596333,
+          "p99": 28.236334
+        },
+        "pan": {
+          "mean": 33.446175016666665,
+          "p50": 33.783833,
+          "p95": 36.350458,
+          "p99": 37.467665999999994
+        },
+        "zoom": {
+          "mean": 25.10163852499999,
+          "p50": 23.228125,
+          "p95": 53.782542,
+          "p99": 55.855291
+        }
+      }
+    },
+    {
+      "version": "after",
+      "repeat": 2,
+      "raw": "concepts/native-wgpu-evidence/release-height-corners-after-native-2.json",
+      "peak_process_rss_bytes": 3334832128,
+      "total_ms": {
+        "hover": {
+          "mean": 13.387040283333329,
+          "p50": 8.956709,
+          "p95": 29.063667000000002,
+          "p99": 30.342708
+        },
+        "idle": {
+          "mean": 8.733960391666667,
+          "p50": 8.401292,
+          "p95": 8.865333,
+          "p99": 26.894250000000003
+        },
+        "pan": {
+          "mean": 33.52274129166666,
+          "p50": 33.695833,
+          "p95": 36.297042000000005,
+          "p99": 41.240209
+        },
+        "zoom": {
+          "mean": 25.218551075000015,
+          "p50": 24.226791000000002,
+          "p95": 53.909833,
+          "p99": 56.109083999999996
+        }
+      }
+    }
+  ],
+  "cpu_reference": [
+    {
+      "version": "before",
+      "raw": "concepts/native-wgpu-evidence/release-height-corners-before-reference.json",
+      "total_ms": {
+        "hover": {
+          "mean": 27.398483675000012,
+          "p50": 27.048541,
+          "p95": 28.71125,
+          "p99": 29.330167
+        },
+        "idle": {
+          "mean": 27.098361166666663,
+          "p50": 27.125333,
+          "p95": 28.732457999999998,
+          "p99": 29.483333000000002
+        },
+        "pan": {
+          "mean": 26.872551049999988,
+          "p50": 26.789666,
+          "p95": 28.361292,
+          "p99": 29.51
+        },
+        "zoom": {
+          "mean": 34.429874325,
+          "p50": 35.435666999999995,
+          "p95": 37.533333,
+          "p99": 38.3145
+        }
+      }
+    },
+    {
+      "version": "after",
+      "raw": "concepts/native-wgpu-evidence/release-height-corners-after-reference.json",
+      "total_ms": {
+        "hover": {
+          "mean": 26.69212361666667,
+          "p50": 26.479375,
+          "p95": 28.107792,
+          "p99": 28.480209
+        },
+        "idle": {
+          "mean": 26.739511866666664,
+          "p50": 26.753167,
+          "p95": 28.335459,
+          "p99": 28.553124999999998
+        },
+        "pan": {
+          "mean": 26.435664183333333,
+          "p50": 26.222125,
+          "p95": 28.445542,
+          "p99": 30.520542000000003
+        },
+        "zoom": {
+          "mean": 34.308534333333334,
+          "p50": 35.196166,
+          "p95": 38.507625,
+          "p99": 39.073499999999996
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Native pan remains slower than matched CPU reference.",
+    "First8192corner candidate only modestly improved timings; larger bound improves idle/hover more than pan.",
+    "CPU reference shares the guide optimization; both old/new reference executables measured explicitly.",
+    "No whole-scene frozen RGBA claim for animated benchmark captures; numeric/cache and fixed guide/alpha contracts supply correctness proof.",
+    "Hardware/runtime/input/display-latency and full acceptance gates remain open."
+  ],
+  "target_checks": [
+    {
+      "step": "boundaries",
+      "command": [
+        "python3",
+        "tools/check_renderer_boundaries.py"
+      ],
+      "exit": 0,
+      "seconds": 4.552607459,
+      "log": "/private/tmp/eldiron-height-corner-target-boundaries.log"
+    },
+    {
+      "step": "windows",
+      "command": [
+        "cargo",
+        "check",
+        "--release",
+        "--locked",
+        "--offline",
+        "--target",
+        "x86_64-pc-windows-gnu",
+        "-p",
+        "eldiron-creator",
+        "-p",
+        "eldiron-client-wgpu",
+        "-p",
+        "eldiron-client"
+      ],
+      "exit": 0,
+      "seconds": 23.812675625,
+      "log": "/private/tmp/eldiron-height-corner-target-windows.log"
+    },
+    {
+      "step": "linux",
+      "command": [
+        "python3",
+        "/private/tmp/eldiron-final-linux-checks.py"
+      ],
+      "exit": 0,
+      "seconds": 33.380307333000005,
+      "log": "/private/tmp/eldiron-height-corner-target-linux.log"
+    },
+    {
+      "step": "web-creator",
+      "command": [
+        "cargo",
+        "check",
+        "--release",
+        "--locked",
+        "--offline",
+        "--target",
+        "wasm32-unknown-unknown",
+        "-p",
+        "eldiron-creator",
+        "--no-default-features",
+        "--features",
+        "browser-host",
+        "--bin",
+        "eldiron-creator-web"
+      ],
+      "exit": 0,
+      "seconds": 28.15307462500001,
+      "log": "/private/tmp/eldiron-height-corner-target-web-creator.log"
+    },
+    {
+      "step": "web-player",
+      "command": [
+        "cargo",
+        "check",
+        "--release",
+        "--locked",
+        "--offline",
+        "--target",
+        "wasm32-unknown-unknown",
+        "-p",
+        "eldiron-client-wgpu",
+        "--no-default-features",
+        "--features",
+        "native-web",
+        "--bin",
+        "eldiron-client-wgpu"
+      ],
+      "exit": 0,
+      "seconds": 16.059742166999996,
+      "log": "/private/tmp/eldiron-height-corner-target-web-player.log"
+    }
+  ],
+  "status": "retained; targeted correctness and release feature/target checks passed; overall acceptance incomplete"
+}

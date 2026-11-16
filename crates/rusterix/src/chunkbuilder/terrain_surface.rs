@@ -201,6 +201,30 @@ impl TerrainSurface {
         }
         Some(self.sampler.height_on_grid(p, self.subdivisions))
     }
+
+    /// Reuse exact corner evaluations during one caller's sampling pass. The
+    /// borrow binds this bounded scratch cache to this immutable surface; no
+    /// map revision, source pointer or cross-frame cache identity is needed.
+    pub fn height_sampler(&self) -> impl FnMut(Vec2<f32>) -> Option<f32> + '_ {
+        const MAX_CORNERS: usize = 32768;
+        let mut corners = rustc_hash::FxHashMap::<[u32; 2], f32>::default();
+        move |p| {
+            if !self.contains(p) {
+                return None;
+            }
+            Some(TerrainSampler::height_on_grid_with(p, self.subdivisions, |corner| {
+                let key = [corner.x.to_bits(), corner.y.to_bits()];
+                if let Some(&height) = corners.get(&key) {
+                    return height;
+                }
+                let height = self.sampler.sample(corner);
+                if corners.len() < MAX_CORNERS {
+                    corners.insert(key, height);
+                }
+                height
+            }))
+        }
+    }
     pub fn triangles(&self, clip: BBox, mut emit: impl FnMut([Vec3<f32>; 3])) {
         let n = self.subdivisions as f32;
         let min = self
@@ -295,6 +319,46 @@ pub(crate) mod tests {
         peak.properties.set("smoothness", Value::Float(1.));
         map.vertices.push(peak);
         map
+    }
+    #[test]
+    fn local_corner_samples_preserve_exact_facets_and_source_independence() {
+        let mut map = hill();
+        map.vertices[0].x = -16.;
+        map.vertices[0].y = -16.;
+        map.vertices[1].x = 16.;
+        map.vertices[1].y = 16.;
+        for subdivisions in [1, 3, 4, 8] {
+            map.properties.set("terrain_subdivisions", Value::Int(subdivisions));
+            let field = TerrainSurface::from_map(&map).unwrap();
+            let mut sample = field.height_sampler();
+            let mut valid = 0;
+            // The fine grid visits more corners than the bounded cache holds.
+            // Repeat it to exercise hits and the uncached overflow path alike.
+            for _ in 0..2 {
+                for x in -160..=160 {
+                    for y in -160..=160 {
+                        let p = Vec2::new(x as f32 / 10., y as f32 / 10.);
+                        let expected = field.height_at(p).map(f32::to_bits);
+                        valid += usize::from(expected.is_some());
+                        assert_eq!(sample(p).map(f32::to_bits), expected);
+                    }
+                }
+            }
+            assert!(valid > 10_000);
+            for p in [Vec2::new(-0., 0.), Vec2::zero(), Vec2::new(100., 100.), Vec2::new(f32::NAN, 0.)] {
+                assert_eq!(sample(p).map(f32::to_bits), field.height_at(p).map(f32::to_bits));
+            }
+        }
+        let before = TerrainSurface::from_map(&map).unwrap();
+        let mut old = before.height_sampler();
+        let p = Vec2::new(0.5, 0.5);
+        let original = old(p).unwrap();
+        map.vertices[2].z = 2.4;
+        let after = TerrainSurface::from_map(&map).unwrap();
+        let mut new = after.height_sampler();
+        assert_eq!(old(p).unwrap().to_bits(), original.to_bits());
+        assert_eq!(new(p).map(f32::to_bits), after.height_at(p).map(f32::to_bits));
+        assert_ne!(new(p).unwrap().to_bits(), original.to_bits());
     }
     #[test]
     fn terrain_heights_and_triangles_are_camera_independent_and_match_shared_sampler() {

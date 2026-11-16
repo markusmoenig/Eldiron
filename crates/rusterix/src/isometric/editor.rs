@@ -149,10 +149,11 @@ pub fn guide_segments(
     } else {
         None
     };
-    let screen = |q: Vec2<f32>| {
+    let mut heights = surface.as_ref().map(|surface| surface.height_sampler());
+    let mut screen = |q: Vec2<f32>| {
         p.screen(
             q,
-            surface.as_ref().and_then(|t| t.height_at(q)).unwrap_or(0.),
+            heights.as_mut().and_then(|sample| sample(q)).unwrap_or(0.),
         )
     };
     if guides.grid {

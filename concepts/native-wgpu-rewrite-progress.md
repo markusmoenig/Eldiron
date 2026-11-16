@@ -19293,3 +19293,76 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   explain its checker material; no speculative material bug inferred.
 - Parsed both changed CI workflows and bash syntax checked22relevant run
   steps after substituting expression placeholders; no remote workflow run.
+
+## Per-call terrain guide corner reuse (2026-11-16, candidate)
+
+- Fresh unchanged-source release baseline13151 terminalPASS two120sample native
+  runs, exact executableSHA9fda3a1c7b4c014869e74f6f44efec9735c9b69b45c184d4914d795267f1c47c.
+  P50pan34.049/34.026ms, idle8.874/8.984, hover9.455/9.390, zoom24.611/24.250.
+  Root /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-height-corner-matched-asyr7xt9.
+  Preserved exact original executable /private/tmp/eldiron-height-corner-baseline-tests
+  before compiling a new candidate. No stale executable evidence.
+- Profile attribution showed terrain height/shape sampling in guide preparation.
+  Source inspection now identifies repeated evaluations of THREE/FOUR GRID
+  CORNERS per height query, even for adjacent sub-cell guide points. A cache of
+  final arbitrary query points would miss much of this reuse; this candidate
+  instead memoizes exact corner f32bits for one sampling pass.
+- Candidate TerrainSurface::height_sampler borrows ONE immutable surface and
+  owns at most8192corner values. Drop at end of guide_segments; no cross-frame
+  cache, global owner, revision/pointer key, source pin, lock or GPU allocation.
+  On capacity overflow compute normally; do not clear/reorder source geometry.
+  Shared interpolation expression/order remains unchanged; ordinary physics
+  height_at remains uncached. No serialized fields or paint versions changed.
+- Focused release CPU10266 terminalPASS3, including bit-exact differential
+  sampling across subdivisions1/3/4/8, overflow-sized repeated grids, signedzero,
+  invalid/outside points and simultaneous old/new immutable sources. Existing
+  walking/picking/camera-independent facet tests also pass.
+  /private/tmp/eldiron-height-corner-cpu.log.
+- Current serialized94482 release Creator --lib --no-run selects the actual
+  candidate test executable. Next frozen guide RGB/alpha tests, assembled
+  Creator and two fresh120sample timings before retaining. No Rust edits or
+  compiler/test/profile overlaps until terminal.
+
+- Candidate8192 focused77355 terminalPASS: shipped dense guide geometry/pixels1,
+  source RGB/alpha at fiveDPI1, assembledCreator1(24.65s), two current native
+ 120sample runs. Actual executableSHA
+  cbb1de08c0c5bc9f175a5d968950c2899f85ed5fa6b421fc55ee881975527731.
+  P50pan33.554/33.769ms versus fresh34.049/34.026 baseline; idle8.742/8.724,
+  hover9.273/9.353, zoom23.639/24.224. Small gain only; no broad speedup claim.
+  Raw /var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-height-corner-matched-q5e2o67e.
+  Initial evaluation saved /private/tmp/eldiron-height-corner-8192-results.json.
+- Current second/final capacity candidate keeps at most32768corners per call,
+  still borrowed/local with uncached overflow. Expanded grid crosses this
+  capacity at subdivision8; focused CPU62973 terminalPASS3(0.07s).
+  Original no-cache binary and8192 executable preserved before replacement.
+  Current90194 compiles exact Creator release candidate; next same focused
+  pixel/assembled contracts and120sample pair, then retain/reject from evidence.
+  Do not edit Rust or overlap compiler/test/profile until terminal.
+
+- Final32768corner candidate55654 terminalPASS both fixed guide/alpha GPU cases,
+  assembledCreator1(24.20s), two120sample native runs. ExecutableSHA
+ 19cad14b4ca9c2144e68b862a7e9c9a2db64f6bdd5bff871e243b094fa929ce8.
+  Fresh P50 idle8.388/8.401ms vs before8.874/8.984; hover8.893/8.957 vs
+ 9.455/9.390; pan33.784/33.696 vs34.049/34.026; zoom23.228/24.227 vs
+ 24.611/24.250. Retain modest steady-frame improvement with bounded scratch;
+  do NOT claim broad slowness resolved or uniform pan/zoom win.
+- Matched old/new CPU-reference84758 terminalPASS120samples/mode each using
+  separately hashed preserved original/current binaries. Reference pan26.790→
+ 26.222ms remains faster than native33.7; idle27.125→26.753, hover27.049→26.479,
+  zoom35.436→35.196. Both render paths share this pure guide optimization.
+  Durable release-height-corners-acceptance.json, six raw benchmarkJSONs and
+  CPU log. First8192candidate stays explicitly separate; no stale-path proof.
+  Full physical input/platform and performance acceptance remain open.
+
+- Final terrain corner target65102 terminalPASS5steps:29isolated feature/source
+  boundaries, default WindowsGNU graphical release check, original-feature
+  Linux graphical plus separate CPU/runtime/terminal checks, explicit browser
+  Creator/player release checks. No dependency/serialization/device changes.
+  Target results added to release-height-corners-acceptance.json.
+- Retain bounded per-call32768corner helper. Implementation now freezes for
+  current release executable refresh; no broad unchanged GPU/CPU suite rerun.
+  Numeric3, fixed guide/alpha2, assembledCreator1, exact-executable native/reference
+  performance and relevant target checks are the validation for this change.
+  Native pan is still33.7ms versus26.2ms CPUreference; physical OS/runtime/input
+  gates and overall goal remain incomplete. Hardware-access question pending;
+  independent work continues without waiting for routine approval.
