@@ -1,5 +1,30 @@
 use super::*;
 
+#[test]
+fn admitted_paint_snapshot_finishes_before_capturing_newer_edits() {
+    let mut map = Map::default();
+    map.block_prop_instances.push(rusterix::BlockPropInstance::new(Uuid::new_v4()));
+    let scope = (Uuid::new_v4(), ProjectContext::Region(map.id), map.id, None);
+    let assets = rusterix::Assets::default();
+    let catalog = indexmap::IndexMap::new();
+    let mut base = IsoPaintLayer::default();
+    base.baked_version = ISO_PAINT_BAKE_VERSION;
+    base.baked_chunks.insert("page".into(), IsoPaintBakedChunk::new(
+        IsoPaintOwner::Terrain { x: 0, z: 0 }, [1, 2, 3, 4], [0; 2]));
+    let mut capture = Capture::default();
+    assert!(capture.request_source(scope, Some(&base), false, Some(&map),
+        &assets, &catalog, 0).is_none());
+    assert!(capture.pending());
+    let before = base.baked_chunks["page"].color_rgba[0];
+    base.baked_chunks.get_mut("page").unwrap().color_rgba[0] = 77;
+    let admitted = capture.advance_pinned(&assets).unwrap();
+    assert_eq!(admitted.baked_chunks["page"].color_rgba[0], before);
+    let latest = capture.request_source(scope, Some(&base), false, Some(&map),
+        &assets, &catalog, 4096).unwrap();
+    assert_eq!(latest.baked_chunks["page"].color_rgba[0], 77);
+    assert!(!Arc::ptr_eq(&admitted, &latest));
+}
+
 fn drain(
     capture: &mut Capture,
     scope: Scope,

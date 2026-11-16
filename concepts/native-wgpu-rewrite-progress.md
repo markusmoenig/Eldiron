@@ -19563,3 +19563,119 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   checks remain unverified. Historical audit/evidence paths retain the original
   names at their recorded revisions; current code/tooling uses the new layout.
   Eight unrelated untracked concept documents remain untouched.
+
+## Paint/MZ regression investigation and Gate fixture palette (2026-11-16)
+
+- User reports intermittent hangs with plain grey, unusable material painting,
+  and continuous variants in the lower-left panel even while idle. User
+  identifies Paint Brushes / Paint / Moss and confirms that panel shows the
+  material close-up, rather than the scene minimap. Preserve missing equipment
+  references/rulesets: the user explicitly identifies those as a project issue.
+- Sampled an existing optimized Release Creator against an isolated Gate copy
+  twice (8 seconds each). The first trace contains paint input, duplicate generic
+  scene picking and repeated selected_spec -> MZ bundle/recipe parsing. The
+  second trace still contains parsing, but no accepted paint-region events or
+  WorldGpu query; it cannot establish material stroke timing. Asset-bake worker
+  was waiting for jobs. No evidence for continuous authored-asset rebaking in
+  these samples; do not equate inclusive sample counts with function durations.
+- PaintOverlay now retains one parsed recipe Spec, including negative lookups,
+  keyed by source UUID and ProceduralAssets mutation stamp. Authored edits,
+  in-place String edits, undo and project replacement invalidate it; pointer,
+  presentation and preparation calls reuse it. Cache contains no image output
+  or project snapshot and has one entry.
+- Native-equivalent Paint recipes store four stable source variants, but the
+  image import exposes those as animation frames. Native material display now
+  holds those recipes at time zero, eliminating the idle four-variant loop.
+  Existing native-generator equivalence check limits this policy: edited MZ
+  animations/compositions and ordinary animated materials keep playback.
+  Authored bake settings and all brush variants are unchanged.
+- Native Paint queries derive their authoring base hit, camera and ray from the
+  static paint query already required by the brush. They no longer repeat the
+  generic dynamic/base/guide queries and another static paint scan. Other tools
+  keep their existing picking policy and displayed-output freshness checks.
+- After the user's explicit override of the prior no-build instruction, focused
+  Release verification passed: recipe-cache edit/undo/replacement regression,
+  native brush variant/bake/display metadata regression, actual Moss idle
+  request reuse across 64 ticks, five panel fixture/input/capture regressions,
+  native GPU material animation/selected-target regression, and assembled native
+  Creator paint input/presentation including isometric and 3D strokes. Ten
+  tests passed in total; one additional GPU panel test was left ignored in the
+  panel group. No broad benchmark/platform acceptance campaign was run.
+- Canonical Release Creator build passed with no warnings. Test-only build
+  reports two existing dead-code warning groups for Apple document host helpers.
+  Updated executable SHA256 is recorded in the evidence below. Launched it with
+  the isolated Gate copy for the user's Moss responsiveness/idle-preview retest.
+  Manual retest and measured before/after material stroke performance remain
+  pending; do not claim the 1 FPS regression is resolved yet.
+- Gate colour diagnosis is separate: test_projects/Gate retained the pre-palette-
+  unification primary palette while its old art_palette equals the maintained
+  Gate starter palette. Updated only the fixture's root palette field. Verified
+  all other JSON fields and ZIP payloads unchanged; no schema/legacy migration.
+  Existing Release terminal startup reports unknown equipment Sword on Rogue;
+  the maintained starter fails identically. Left missing Sword/Shield references
+  and rulesets unchanged as requested. Gate Play remains blocked by project data.
+- Evidence: native-wgpu-evidence/paint-material-regression-2026-11-16.json records
+  source/binary hashes, sample and test log locations/hashes, Release results,
+  fixture repair receipt and explicit limits. Raw traces/logs and the original
+  Gate backup are under /private/tmp/eldiron-paint-profile and /private/tmp.
+  All eight unrelated untracked concept documents remain untouched. Overall
+  rewrite hardware/performance acceptance is not marked complete by this fix.
+
+### Follow-up: long continuous-stroke pause
+
+- First updated-Release manual retest confirms stable Moss preview and fast
+  immediate painting, but a longer brush pause still occurs after several
+  seconds. User confirms a long pause during a coordinated 25-second active
+  capture; another AI thread may contribute smaller CPU stutters. That capture
+  has no selected_spec parsing. Recorded event phase max22.28ms and native-view
+  phase max26.71ms do not explain a multi-second synchronous UI stall. An earlier
+  15-second capture was idle NSRunLoop/no frame activity and is explicitly not
+  treated as evidence of a hang.
+- Added opt-in, bounded Paint input admission counters under the existing
+  ELDIRON_PROFILE_EDITOR switch. Diagnostic Release reproduces the issue:
+  recorded622accepted drags versus2158drag_query_unavailable outcomes. Queries
+  are unavailable while the scene prepares replacement paint output, despite
+  the tool already owning its immutable authoring surface capture.
+- Accepted native brush gestures now query that existing tool-owned capture
+  for drag surface/UV/normal/brush derivatives and use their original camera for
+  the ray. No additional readback, VM scan, project snapshot or mutable GPU page
+  is introduced. Fresh strokes retain displayed-output checks. Existing
+  document/tool/view/size/camera binding validation still cancels stale gestures.
+  Stamps/noncapturing tools keep their existing query path.
+- Focused Release unit regression passes for captured hit, miss, derivative,
+  no additional capture, and release revocation. Extended the actual assembled
+  native GPU test to force fresh scene queries unavailable during a 3D stroke:
+  drag hover still advances and total explicit surface captures remain one.
+  Full assembled test passes25.91s. Corrected Release executable builds without
+  warnings and is open against the isolated Gate copy for final user retest.
+  Remaining long-pause status is pending that retest; no broad performance or
+  overall port-completion claim follows from these targeted checks.
+
+### Follow-up: preserve live display during an accepted continuous stroke
+
+- User retest of the captured-drag fix rejects its visual behavior: painting
+  updates appear only after pointer release. Counters show763accepted drags and
+  no drag-query rejection in the initial corrected sample, so accepting input
+  alone was insufficient. Do not mark that intermediate fix complete.
+- A changing authored source replaced/cancelled CPU preparation and private GPU
+  uploads before they could publish a complete intermediate paint generation.
+  NativeWorld now admits one immutable paint capture through merge, CPU page
+  preparation, GPU upload and acknowledged display. New authoring continues on
+  the current project; after presentation, the next requested frame captures
+  its newest accumulated edits. Existing pending transfer budgets and complete-
+  output publication remain intact. Binding invalidation resets admission.
+  No unbounded queue, mutable live GPU pages, partial source exposure, serialized
+  change or additional authoring capture was introduced.
+- Capture regression passes: an admitted merge finishes with its original bytes
+  after concurrent authoring changes; the subsequent request captures those
+  latest bytes. Strengthened actual native GPU regression paints on every one
+  of64frames and requires at least two distinct completed scene revisions
+  before pointer release, while retaining the forced-unavailable query check
+  and single-readback assertion. PASS35.70s in Release. Updated executable build
+  passes without warnings. Final user retest: no hangs, but fresh paint sometimes
+  disappears for a few seconds before returning. User accepts this as good
+  enough for now and explicitly defers further optimization. Keep this transient
+  display regression open; do not claim complete visual consistency or CPU-speed
+  parity. Current Release window remains open for the user. No further profiling,
+  build or optimization is required for this checkpoint. Evidence records the
+  final binary, all source hashes, targeted checks and this accepted limitation.

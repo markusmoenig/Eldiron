@@ -13,6 +13,32 @@ use std::sync::atomic::{AtomicBool, Ordering};
 mod capture;
 pub(super) use capture::Capture;
 
+/// The down-frame's immutable paint capture remains the authoring coordinate
+/// system until release. Repainting those surfaces does not require another
+/// displayed-output query while their replacement GPU pages are pending.
+pub(super) fn captured_query(
+    camera: scenevm::Camera3D,
+    size: (usize, usize),
+    at: Vec2<i32>,
+    paint: crate::tools::ToolPaintInput,
+) -> (EditorPick, crate::tools::ToolViewInput) {
+    let ray = Some(scenevm::vm::cpu_ray_from_uv(&camera, size.0 as u32, size.1 as u32,
+        [at.x as f32 / size.0 as f32, at.y as f32 / size.1 as f32]));
+    let pick = EditorPick {
+        camera, ray,
+        base: paint.surface.map(|surface| (surface.geo_id, Vec3::from(surface.world),
+            surface.depth, Vec3::from(surface.normal))),
+        paint_geo: paint.surface.map(|surface| surface.paint_geo),
+        dynamic: None, guide: None, gizmo: None,
+    };
+    let input = crate::tools::ToolViewInput {
+        camera: Some(camera), ray, isometric_item: None,
+        base: pick.base.map(|(geo, at, depth, _)| (geo, at, depth)),
+        dynamic: None, paint_geo: pick.paint_geo, paint: Some(paint), rectangle: None,
+    };
+    (pick, input)
+}
+
 type Scope = (Uuid, ProjectContext, Uuid, Option<Uuid>);
 #[derive(Default)]
 pub(super) struct Owner {

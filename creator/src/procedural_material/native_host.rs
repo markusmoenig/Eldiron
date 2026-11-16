@@ -170,7 +170,7 @@ impl Host {
                 };
                 let asset = EditableMaterialAsset::reopen(bundle).map_err(|e| e.to_string())?;
                 asset.validate().map_err(|e| e.to_string())?;
-                frames = super::preview_metadata::animation_settings(&asset)?.frames;
+                frames = super::preview_metadata::display_frames(&asset)?;
                 origin = asset
                     .instances
                     .iter()
@@ -587,6 +587,30 @@ mod tests {
                 .unwrap();
         }
     }
+    #[test]
+    fn native_moss_preview_reuses_its_request_across_idle_ticks() {
+        let mut project = Project::default();
+        super::super::paint_assets::install(&mut project).unwrap();
+        let tile = *project.tiles.iter().find(|(_, tile)| tile.alias == "Paint / moss").unwrap().0;
+        let bundle = &project.procedural_materials[&tile];
+        let input = |tick| Input {
+            tile: Some(tile), bundle: Some(bundle), target: Target::Root,
+            tick, channel: 0, size: [200, 200], checker: [[0, 0, 0, 255]; 2],
+        };
+        let mut host = Host::default();
+        assert!(host.queue(input(0)));
+        assert_eq!(host.source.as_ref().unwrap().frames, 1);
+        for tick in 1..64 {
+            assert!(!host.queue(input(tick)), "idle brush preview changed on tick {tick}");
+        }
+        // Actual animation still advances on the same display path.
+        let mut animated = starter(tile).unwrap();
+        animated.root.project.materials[0].animation.frames = 4;
+        let animated = animated.save().unwrap();
+        assert!(host.queue(Input { bundle: Some(&animated), ..input(0) }));
+        assert!(host.queue(Input { bundle: Some(&animated), ..input(1) }));
+    }
+
     #[test]
     #[ignore = "requires native GPU"]
     fn native_material_panel_uses_shared_device_and_owns_painted_source_receipts() {

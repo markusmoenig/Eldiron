@@ -233,8 +233,30 @@ impl SceneViews {
 #[derive(Clone, Copy, Debug)]
 pub struct EditorPaintPick {
     pub output: ViewImage,
+    pub camera: scenevm::Camera3D,
+    pub ray: Option<(scenevm::prelude::Vec3<f32>, scenevm::prelude::Vec3<f32>)>,
     pub surface: Option<scenevm::PaintSurfacePixel>,
     pub brush_transform: Option<[f32; 4]>,
+}
+impl EditorPaintPick {
+    /// Paint targets the static surface already queried here. Do not perform
+    /// additional dynamic/base/guide ray scans just to populate unused hits.
+    pub fn editor_pick(&self) -> EditorPick {
+        EditorPick {
+            camera: self.camera,
+            ray: self.ray,
+            base: self.surface.map(|surface| (
+                surface.geo_id,
+                scenevm::prelude::Vec3::from(surface.world),
+                surface.depth,
+                scenevm::prelude::Vec3::from(surface.normal),
+            )),
+            paint_geo: self.surface.map(|surface| surface.paint_geo),
+            dynamic: None,
+            guide: None,
+            gizmo: None,
+        }
+    }
 }
 /// Explicit CPU authoring data. Camera and output identify exactly the snapshot
 /// used by selection/projected strokes, independently of subsequent preparation.
@@ -264,6 +286,8 @@ impl SceneViews {
         let vm = &mut view.scene.vm;
         let active = vm.active_vm_index();
         vm.set_active_vm(0);
+        let camera = vm.active_vm().camera3d;
+        let ray = vm.ray_from_uv_with_size(view.size.0, view.size.1, uv);
         let surface = vm
             .pick_paint_surface_at_uv(view.size.0, view.size.1, uv)
             .filter(|s| s.valid);
@@ -273,6 +297,8 @@ impl SceneViews {
         vm.set_active_vm(active);
         Some(EditorPaintPick {
             output: displayed,
+            camera,
+            ray,
             surface,
             brush_transform,
         })

@@ -135,6 +135,9 @@ pub trait Tool: Send + Sync {
     }
     /// Request CPU authoring surface data for this event, independently of paint.
     fn view_surface_capture(&self, _event: &MapEvent) -> bool { false }
+    /// Continue an already accepted gesture using its immutable authoring data.
+    /// The viewport must still validate the gesture's document/tool/view/camera.
+    fn captured_paint_input(&self, _at: Vec2<i32>) -> Option<ToolPaintInput> { None }
     fn sync_overlay_sources(&mut self, _project: &Project, _server: &CreatorContext) {}
     fn overlay_paint(&mut self) -> Option<&mut paint_overlay::PaintOverlay> { None }
     fn clear_paint_overlay_hover(&mut self, _server: &mut CreatorContext) {}

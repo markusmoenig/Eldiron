@@ -1523,10 +1523,37 @@ mod tests {
             .context
             .ui
             .send(TheEvent::RenderViewClicked(world_view.clone(), at));
+        app.update(&mut host, Duration::from_millis(16));
+        app.application.editor.native_paint_query_pending_for_test();
+        let drag = at + Vec2::new(1, 0);
+        app.session.context.ui.send(TheEvent::RenderViewDragged(world_view.clone(), drag));
+        app.update(&mut host, Duration::from_millis(16));
+        assert_eq!(app.application.editor.native_paint_hover_for_test(), Some(drag),
+            "an accepted brush stroke keeps moving while replacement paint output is pending");
+        let initial_output = app.application.editor.native_paint_output_revision_for_test().unwrap();
+        let mut revisions = std::collections::HashSet::new();
+        // Keep authoring on every frame: waiting for a quiet pointer or for Up
+        // before admitting paint output would starve this feedback stream.
+        for step in 0..64 {
+            let point = at + Vec2::new(1 + step % 4, step % 3);
+            app.session.context.ui.send(TheEvent::RenderViewDragged(world_view.clone(), point));
+            app.update(&mut host, Duration::from_millis(16));
+            let paint = app.frame(&mut host, &mut replacement).unwrap();
+            renderer.render(&paint, &replacement, &output.view, output.descriptor.format,
+                (1600, 1000), 1., [0.; 4]).unwrap();
+            app.presented(&mut host);
+            if let Some(revision) = app.application.editor.native_paint_output_revision_for_test()
+                && revision > initial_output
+            {
+                revisions.insert(revision);
+            }
+        }
+        assert!(revisions.len() >= 2,
+            "paint must publish multiple complete scene updates before pointer release: {revisions:?}");
         app.session
             .context
             .ui
-            .send(TheEvent::RenderViewUp(world_view.clone(), at));
+            .send(TheEvent::RenderViewUp(world_view.clone(), drag));
         app.update(&mut host, Duration::from_millis(16));
         assert!(
             app.application.editor.native_paint_state_for_test().1 > original.1,

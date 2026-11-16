@@ -311,7 +311,15 @@ impl Capture {
                 ready,
             });
         }
-        let state = self.state.as_mut().unwrap();
+        self.advance_snapshot(assets, items)
+    }
+    /// Finish the immutable generation already admitted to the display pipeline.
+    /// New authored changes are captured after that generation is presented.
+    pub fn advance_pinned(&mut self, assets: &rusterix::Assets) -> Option<Arc<IsoPaintLayer>> {
+        self.advance_snapshot(assets, 4096)
+    }
+    fn advance_snapshot(&mut self, assets: &rusterix::Assets, items: usize) -> Option<Arc<IsoPaintLayer>> {
+        let state = self.state.as_mut()?;
         if let Some(merge) = &mut state.merge
             && merge.advance(&state.source, assets, items)
         {

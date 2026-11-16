@@ -1,0 +1,325 @@
+{
+  "date": "2026-11-16",
+  "base_commit": "e0a5991bf9132e4a0b12fa99cd207e3b0d461d45",
+  "scope": "User-reported native Paint/MZ regression and Gate fixture palette; focused Release verification only",
+  "changes": [
+    "Cache one parsed Paint spec by selected source and ProceduralAssets mutation stamp; cache misses too.",
+    "Native-equivalent Paint recipe image frames remain baked variants; hold display preview at time zero. Edited MZ animation and ordinary animated materials retain playback.",
+    "Reuse the static Paint pick for authoring input instead of repeating generic dynamic/base/guide and paint scans.",
+    "Gate fixture: change only root palette to maintained starter palette, identical to original art_palette."
+  ],
+  "source_sha256": {
+    "crates/presentation/src/scene_views/picking.rs": "6ad92394ddc2f47442924ec68079d4806a79f58ef5c5ccc2d99a5079eb1776cb",
+    "creator/src/editor/native_world.rs": "20228994d1579619720e12de6cad5fcfc18b72916293327082a5296285328c7c",
+    "creator/src/procedural_material/native_host.rs": "afa1bdefa2071556cdbdb130c0c982a5d99647ebb05e856e776a43035d08b8ba",
+    "creator/src/procedural_material/paint_assets.rs": "7de6299cd5655719228a4027cdf9295ea20ca46d27d640fbc5b4082a1878317a",
+    "creator/src/procedural_material/preview_metadata.rs": "5b057498d57ab9fd043816046720a2eb1603ef532dde28fc799c228f9ef2c42d",
+    "creator/src/tools/paint_overlay.rs": "f66368fc00ff60dfb5d3c1ba76d70605909488e5c199c6dbde949457b1bbed24",
+    "test_projects/Gate.eldiron": "7b0c4115f39a5c53454bbfab0e9f1b166be9fc54687173326cae83243bcaf2de",
+    "creator/src/editor/native_world_paint.rs": "f7aca3386c172468a1b71caeeca7846d079461e854f60ed155f0cf489e33c8bf",
+    "creator/src/editor/native_world_input_profile.rs": "44f6b4d720752e13036e6f4bf49235c3ac967ed8eb4a14d88992831abfe2ed2a",
+    "creator/src/native_application.rs": "ddfd5395f9cb6ff8102c83dcbc75aa59d24f95194707890c496e01aa8c439fa9",
+    "creator/src/tools/iso_paint.rs": "5a49d4fbf1e30f6aabf1e93a102b7949dad0af0715e15be5e4ae8775cbdc903e",
+    "creator/src/tools/mod.rs": "6e4d6d5e61d5244e6d643ace9918948fc12f7b1a080c6defdb026f1e31776146",
+    "creator/src/editor/native_world_paint/capture.rs": "8dc6fc857b135c09202cf53452415e31c2e7e908990d19b1b5d0ab44e722a65d",
+    "creator/src/editor/native_world_paint/capture/tests.rs": "ed83d7ea3c6ff6d0f3af2bf010fdaef21e66b9e654768cfdc8416dfbe9989940"
+  },
+  "baseline_process": {
+    "pid": 56718,
+    "executable": "/Users/markusmoenig/Eldiron/target/release/eldiron-creator",
+    "binary_sha256": "038f9b06eab206a8be0523904ed9596064ed6a89002756955d3ab5d78ea9449a",
+    "project": "/private/tmp/eldiron-paint-profile/Gate.eldiron",
+    "log": "/private/tmp/eldiron-paint-profile/creator.log",
+    "scope": "Existing optimized executable; no rebuild; temporary document copy"
+  },
+  "baseline_samples": [
+    {
+      "path": "/private/tmp/eldiron-paint-profile/painting.sample.txt",
+      "sha256": "e5f6879f2e39a1825361d4e01ca145d763a1c2bed3c642b362f04c467cfcae55",
+      "bytes": 4282120,
+      "observations": {
+        "selected_recipe_parsing_observed": true,
+        "native_world_query_observed": true,
+        "paint_region_events_observed": true,
+        "asset_bake_worker_receiving": true
+      },
+      "interpretation": "Baseline existing Release executable, not the patched source. Sample counts are not function durations or CPU percentages."
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/material-paint.sample.txt",
+      "sha256": "dcdbc7d03a03ffd12cf0dddcc6b16272d7c44e22daabef1a08788cf614a9ea66",
+      "bytes": 1200381,
+      "observations": {
+        "selected_recipe_parsing_observed": true,
+        "native_world_query_observed": false,
+        "paint_region_events_observed": false,
+        "asset_bake_worker_receiving": true
+      },
+      "interpretation": "Baseline existing Release executable, not the patched source. Sample counts are not function durations or CPU percentages."
+    }
+  ],
+  "baseline_sampling": {
+    "pid": 56718,
+    "executable": "/Users/markusmoenig/Eldiron/target/release/eldiron-creator",
+    "binary_sha256": "038f9b06eab206a8be0523904ed9596064ed6a89002756955d3ab5d78ea9449a",
+    "project": "/private/tmp/eldiron-paint-profile/Gate.eldiron",
+    "log": "/private/tmp/eldiron-paint-profile/creator.log",
+    "scope": "Existing optimized executable; no rebuild; temporary document copy",
+    "sample_exit": 0,
+    "sample_seconds": 8.921949875,
+    "sample": "/private/tmp/eldiron-paint-profile/painting.sample.txt",
+    "sample_stdout": "",
+    "sample_stderr": "Sampling process 56718 for 8 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 56718 written to file /private/tmp/eldiron-paint-profile/painting.sample.txt\n"
+  },
+  "material_sampling": {
+    "pid": 56718,
+    "start_epoch": 1794798654.2248871,
+    "end_epoch": 1794798663.751733,
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "Sampling process 56718 for 8 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 56718 written to file /private/tmp/eldiron-paint-profile/material-paint.sample.txt\n",
+    "scope": "existing release executable, material texture painting"
+  },
+  "updated_process": {
+    "pid": 62468,
+    "executable": "/Users/markusmoenig/Eldiron/target/release/eldiron-creator",
+    "binary_sha256": "4ce6a673fbc1158b54423e490643a7b3b6fa0f7843362c6369ff8ca8dbb230b9",
+    "project": "/private/tmp/eldiron-paint-profile/Gate.eldiron",
+    "log": "/private/tmp/eldiron-paint-profile/updated-creator.log",
+    "launch_epoch": 1794799594.321377,
+    "scope": "Updated optimized Release executable, focused regressions passed; temporary Gate document"
+  },
+  "verification": [
+    {
+      "log": "/private/tmp/eldiron-paint-profile/cache-release-test.log",
+      "sha256": "e4279eb97fd383a13c4fc12c6e7b290ac798b8e3cc6d03e77df39976b35f0762",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 3m 03s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 767 filtered out; finished in 0.06s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/moss-idle-release-test.log",
+      "sha256": "1abf896a5816f5b2697e9f4c8e97fbc88c25a29e2d1ec5d6668fa510c5fb759d",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 17s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 768 filtered out; finished in 0.20s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/brush-variants-release-test.log",
+      "sha256": "8834ea816e732b0ad0f75bb8998388e5ea2e36df6f82df6589887e57b9729521",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 0.29s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 768 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/paint-panels-release-test.log",
+      "sha256": "4202b76b2d81fc058a5227da260610a5611de1a129461744aa74e767f174fce7",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 0.23s",
+        "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 763 filtered out; finished in 0.97s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/material-animation-release-test.log",
+      "sha256": "e50732f3966379a2cf294649aba5e67f69cf024f895e3b445342126b836085e5",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 0.22s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 768 filtered out; finished in 0.99s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/native-paint-input-release-test.log",
+      "sha256": "20025afa0cf66ec34ff3f448ddfb05d3c1ee63329c191019831ed424eefdd8cb",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 0.23s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 768 filtered out; finished in 26.28s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/creator-release-build.log",
+      "sha256": "e64712597e5b5f5d49f092c34e89527ea7df479999bf7c60f5ceb51b81b44da9",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 00s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/creator-input-profile-release-build.log",
+      "sha256": "35cccfe1ddd466c4a253fb8556645b29bda91cedd2bbdfbd9a8cb06ac3dab3d8",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 03s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/captured-drag-release-test.log",
+      "sha256": "4136bbb512a2aea2d3c0dc5118534d21f31fa3042ae6d80adf28ebdc643aaa80",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 19s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 769 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/pending-drag-native-release-test.log",
+      "sha256": "9fc3883734dbe56524abecce3603bb9ddacf1e6d5832d669a513fba810f89787",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 0.54s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 769 filtered out; finished in 25.91s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/creator-captured-drag-release-build.log",
+      "sha256": "26b1fcb439349fc80da5223222f738c76309c7cd4454ebffd2ccb88c922e38c1",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 57.64s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/pinned-snapshot-release-test.log",
+      "sha256": "1d24ba5c9306d022291bb9923620f82e7e839c8d1985cc04b42bf0242fd17a0b",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 14s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 770 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/continuous-feedback-native-release-test.log",
+      "sha256": "a0cf2393621941d9018037274c3795298e663158f4639de122682ede4599984b",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 0.49s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 770 filtered out; finished in 35.70s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/creator-continuous-feedback-release-build.log",
+      "sha256": "7ffe7587e9feb1a7ba4e59babb4a600c9edb95e864b3107d6b3c00d73b203acc",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 53.69s"
+      ]
+    }
+  ],
+  "gate_repair": {
+    "project": "/Users/markusmoenig/Eldiron/test_projects/Gate.eldiron",
+    "original_sha256": "b797c47778da7a9088f7c4e17a7c0b2e03383f2d2e7d7e7760d1aa0c19e77730",
+    "updated_sha256": "7b0c4115f39a5c53454bbfab0e9f1b166be9fc54687173326cae83243bcaf2de",
+    "backup": "/private/tmp/eldiron-gate-palette-original.eldiron",
+    "change": "Only the root palette JSON value changed, copied exactly from the maintained Gate starter and equal to the original art_palette. Other project.json bytes and ZIP entry payloads preserved.",
+    "missing_equipment": "Unchanged; Rogue still references missing Sword/Shield. No ruleset or equipment mappings changed."
+  },
+  "gate_startup_blocker": "Existing Release terminal reports Rogue template references unknown equipment Sword; maintained starter fails the same way. User explicitly says this is project data, and no ruleset or missing equipment reference was changed.",
+  "limits": [
+    "The material baseline sample contained no accepted paint region events; cannot infer per-stroke cost from it.",
+    "No broad benchmark or unavailable hardware acceptance runs.",
+    "Current native test build reports two existing dead-code warning groups for Apple host document helpers; normal Release executable build has no warnings.",
+    "Final user retest accepts no-hang/live-update improvement, with intermittent disappearance/reappearance of fresh paint still unresolved. Further optimization explicitly deferred; no CPU-speed parity or overall port-completion claim."
+  ],
+  "followup": {
+    "user_first_retest": "Preview still, immediate painting fast, but a longer brush hang after several seconds; hang confirmed during coordinated active capture. Concurrent AI thread may contribute smaller stutters.",
+    "active_sample_receipt": {
+      "pid": 62468,
+      "binary_sha256": "4ce6a673fbc1158b54423e490643a7b3b6fa0f7843362c6369ff8ca8dbb230b9",
+      "start_epoch": 1794799957.208241,
+      "end_epoch": 1794799983.110261,
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "Sampling process 62468 for 25 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 62468 written to file /private/tmp/eldiron-paint-profile/updated-active-moss.sample.txt\n",
+      "log_start_offset": 3752805,
+      "log_end_offset": 4313624
+    },
+    "active_sample_sha256": "e6025a6024bfb02452b84c9f242b1a3992f1d0cec617082fe934a18ee2fbff52",
+    "active_phase_max_ms": {
+      "events": 22.28,
+      "native_views": 26.71,
+      "materials": 3.95
+    },
+    "active_phase_log_sha256": "b03bc1c9a852c994ebe272d8a3f3135161696930e4569a65a4e0f9578d34310c",
+    "idle_capture": {
+      "receipt": {
+        "pid": 62468,
+        "binary_sha256": "4ce6a673fbc1158b54423e490643a7b3b6fa0f7843362c6369ff8ca8dbb230b9",
+        "start_epoch": 1794799743.74705,
+        "end_epoch": 1794799759.775697,
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Sampling process 62468 for 15 seconds with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 62468 written to file /private/tmp/eldiron-paint-profile/updated-material-paint.sample.txt\n",
+        "log_start_offset": 3077674,
+        "log_end_offset": 3077674
+      },
+      "interpretation": "Idle NSRunLoop, no input/frame activity; explicitly not evidence of a stall."
+    },
+    "input_profile_process": {
+      "pid": 63820,
+      "executable": "/Users/markusmoenig/Eldiron/target/release/eldiron-creator",
+      "binary_sha256": "05491e232b923a2562c4b36fcf2fbd4d13834f915c35bec63890e5dc819154d7",
+      "project": "/private/tmp/eldiron-paint-profile/Gate.eldiron",
+      "log": "/private/tmp/eldiron-paint-profile/input-profile-creator.log",
+      "launch_epoch": 1794800214.212024,
+      "scope": "Release with opt-in brush admission counters; pending source handoff diagnosis"
+    },
+    "diagnostic_log": "/private/tmp/eldiron-paint-profile/input-profile-creator.log",
+    "recorded_counter_intervals": 55,
+    "recorded_outcomes": {
+      "fresh_accepted": 376,
+      "overlay_no_frame": 8,
+      "overlay_consumed": 86,
+      "frame_stale": 9,
+      "drag_accepted": 622,
+      "drag_query_unavailable": 2158,
+      "frame_unready": 7
+    },
+    "fix": "Continue only an already accepted native brush gesture using its tool-owned immutable surface capture and original camera. New strokes keep displayed-output checks. Capture owner/camera changes still cancel through existing binding validation. Stamp/noncapturing tools retain ordinary queries.",
+    "pending": "Captured-drag input fix is verified, but its first visual behavior was rejected; see continuous_feedback for the subsequent live-publication fix.",
+    "corrected_input_counters_so_far": {
+      "log": "/private/tmp/eldiron-paint-profile/captured-drag-creator.log",
+      "intervals": 35,
+      "outcomes": {
+        "fresh_accepted": 109,
+        "overlay_no_frame": 7,
+        "overlay_consumed": 125,
+        "drag_accepted": 763,
+        "frame_unready": 21
+      }
+    },
+    "captured_drag_user_result": "Rejected: brush accepted movement but visible painting only updated after pointer release."
+  },
+  "final_process": {
+    "pid": 65870,
+    "executable": "/Users/markusmoenig/Eldiron/target/release/eldiron-creator",
+    "binary_sha256": "3829015a3d49f1aed631aa8ab610ae2f37bcfb1bbf464b8bd08c21bf04ad0358",
+    "project": "/private/tmp/eldiron-paint-profile/Gate.eldiron",
+    "log": "/private/tmp/eldiron-paint-profile/continuous-feedback-creator.log",
+    "launch_epoch": 1794801291.547651,
+    "scope": "Release with captured-drag and live paint publication fixes; 64-frame continuous feedback GPU regression passed"
+  },
+  "captured_drag_process": {
+    "pid": 64738,
+    "executable": "/Users/markusmoenig/Eldiron/target/release/eldiron-creator",
+    "binary_sha256": "7685be00d2babae96ed5a3ea74c9e56853801fd9c78e3dd7fcad91abbbc572ce",
+    "project": "/private/tmp/eldiron-paint-profile/Gate.eldiron",
+    "log": "/private/tmp/eldiron-paint-profile/captured-drag-creator.log",
+    "launch_epoch": 1794800747.4302452,
+    "scope": "Release with captured-drag fix; forced pending-output GPU regression passed"
+  },
+  "continuous_feedback": {
+    "change": "Admit one immutable paint capture until a complete frame is acknowledged. Accumulate newer edits in the project and capture them on the next scheduled frame; reset admission on binding invalidation.",
+    "tests": [
+      "Snapshot finishes with its original bytes despite newer edits; subsequent capture includes latest bytes.",
+      "Native GPU test keeps authoring on every one of 64 frames and observes at least two successful output revisions before releasing the mouse, with a single explicit authoring capture."
+    ],
+    "user_retest": "No hangs. Fresh paint sometimes disappears for several seconds and returns. User accepts current state as good enough and explicitly defers further optimization.",
+    "final_recorded_input_counters": {
+      "intervals": 46,
+      "outcomes": {
+        "frame_unready": 9,
+        "overlay_no_frame": 18,
+        "fresh_accepted": 600,
+        "overlay_consumed": 173,
+        "drag_accepted": 1474,
+        "frame_stale": 1
+      },
+      "log": "/private/tmp/eldiron-paint-profile/continuous-feedback-creator.log"
+    },
+    "handoff": "Owned Release window left open for user testing. No pending sample, build or approval."
+  }
+}

@@ -9,6 +9,8 @@ mod source;
 mod stamps;
 #[path = "native_world_paint.rs"]
 mod paint;
+#[path = "native_world_input_profile.rs"]
+mod input_profile;
 #[cfg(not(target_arch = "wasm32"))]
 #[path = "native_world_cpu_jobs.rs"]
 mod cpu_jobs;
@@ -313,21 +315,31 @@ impl WorldGpu {
         rectangle: Option<(Vec2<f32>, Vec2<f32>, scenevm::GeoId)>,
         capture_surface: bool,
     ) -> Option<(EditorPick, crate::tools::ToolViewInput)> {
-        let pick = self.scenes.pick_editor(
-            frame.output,
-            [
-                at.x as f32 / frame.binding.size.0 as f32,
-                at.y as f32 / frame.binding.size.1 as f32,
-            ],
-            matches!(
-                server.shared.curr_map_tool_type,
-                MapToolType::Vertex
-                    | MapToolType::Linedef
-                    | MapToolType::Sector
-                    | MapToolType::Effects
-            ),
-            server.shared.curr_map_tool_type != MapToolType::Sector,
-        )?;
+        let uv = [
+            at.x as f32 / frame.binding.size.0 as f32,
+            at.y as f32 / frame.binding.size.1 as f32,
+        ];
+        let paint_surface = if server.shared.curr_map_tool_type == MapToolType::IsoPaint {
+            Some(self.scenes.pick_editor_paint(frame.output, uv)?)
+        } else {
+            None
+        };
+        let pick = if let Some(surface) = &paint_surface {
+            surface.editor_pick()
+        } else {
+            self.scenes.pick_editor(
+                frame.output,
+                uv,
+                matches!(
+                    server.shared.curr_map_tool_type,
+                    MapToolType::Vertex
+                        | MapToolType::Linedef
+                        | MapToolType::Sector
+                        | MapToolType::Effects
+                ),
+                server.shared.curr_map_tool_type != MapToolType::Sector,
+            )?
+        };
         let rectangle = match rectangle {
             Some((top, bottom, kind)) => Some((
                 top,
@@ -337,12 +349,7 @@ impl WorldGpu {
             )),
             None => None,
         };
-        let paint = if server.shared.curr_map_tool_type == MapToolType::IsoPaint {
-            let uv = [
-                at.x as f32 / frame.binding.size.0 as f32,
-                at.y as f32 / frame.binding.size.1 as f32,
-            ];
-            let surface = self.scenes.pick_editor_paint(frame.output, uv)?;
+        let paint = if let Some(surface) = paint_surface {
             let capture = if capture_surface {
                 Some(self.scenes.capture_editor_paint(frame.output)?.buffer)
             } else {
@@ -435,6 +442,9 @@ pub(crate) struct NativeWorld {
     stamps: stamps::Owner,
     uv: paint::Owner,
     paint_capture: paint::Capture,
+    /// One immutable generation may finish CPU preparation and GPU publication
+    /// while the project accumulates newer edits. Release only after display.
+    paint_cycle: bool,
     bake_jobs: bake_job::Jobs,
     paste: Option<paste::Preview>,
     binding: Option<Binding>,
@@ -443,6 +453,7 @@ pub(crate) struct NativeWorld {
     receipt_owner: u64,
     presented: Option<Arc<NativeWorldFrame>>,
     overlay_input: ToolOverlayInputState,
+    input_profile: input_profile::InputProfile,
     world_capture: Option<WorldGesture>,
     retry_click: Option<RetryClick>,
     cube: ViewCubeFrames,
@@ -485,6 +496,7 @@ impl Default for NativeWorld {
             stamps: Default::default(),
             uv: Default::default(),
             paint_capture: Default::default(),
+            paint_cycle: false,
             bake_jobs: Default::default(),
             paste: None,
             binding: None,
@@ -493,6 +505,7 @@ impl Default for NativeWorld {
             receipt_owner: theframework::paint::new_receipt_owner(),
             presented: None,
             overlay_input: Default::default(),
+            input_profile: Default::default(),
             world_capture: None,
             retry_click: None,
             cube: Default::default(),
@@ -610,6 +623,7 @@ impl NativeWorld {
             .checked_add(1)
             .expect("world binding epoch exhausted");
         self.presented = None;
+        self.paint_cycle = false;
         self.speech.invalidate_geometry();
         self.overlay_input.invalidate();
         self.world_capture = None;
@@ -1272,8 +1286,12 @@ impl Editor {
         gpu.scenes.begin_surface_paint_upload_frame();
         let needs_paint = camera.is_some() && binding.custom.is_none();
         let paint = if needs_paint {
-            world.paint_capture.request(scope, &self.documents.project, &self.server_ctx, map, assets)?
-        } else { world.paint_capture.clear(); None };
+            if world.paint_cycle {
+                world.paint_capture.advance_pinned(assets)
+            } else {
+                world.paint_capture.request(scope, &self.documents.project, &self.server_ctx, map, assets)?
+            }
+        } else { world.paint_cycle = false; world.paint_capture.clear(); None };
         let paint_pending = needs_paint && paint.is_none();
         if let Some(paint) = &paint {
             let limit = u64::from(images.registry.context().device.limits().max_storage_buffer_binding_size);
@@ -1475,6 +1493,7 @@ impl Editor {
         gpu.stamps_ready = gpu.scenes.stamp_paint_ready(gpu.view).map_err(|e| e.to_string())?;
         gpu.paint_ready &= gpu.scenes.surface_paint_ready(gpu.view).map_err(|e| e.to_string())?;
         gpu.paint_ready &= gpu.scenes.scene_sources_ready(gpu.view).map_err(|e| e.to_string())?;
+        world.paint_cycle |= needs_paint && !gpu.paint_ready;
         let output = match gpu.scenes.output(gpu.view) {
             Some(output) => output,
             None if !gpu.paint_ready => {
@@ -1761,6 +1780,12 @@ impl Editor {
                 &mut self.server_ctx,
             );
         if accepted {
+            if world.paint_cycle && frame.ready {
+                world.paint_cycle = false;
+                // Capture the newest coalesced edits on the next requested
+                // frame, even if the pointer has since stopped moving.
+                ctx.ui.invalidate_paint();
+            }
             world.presented = Some(frame);
         } else {
             ctx.ui.invalidate_paint();
@@ -2019,6 +2044,7 @@ impl Editor {
         if self.handle_native_viewcube_input(&binding, input, ctx) {
             return true;
         }
+        let paint_input = self.server_ctx.shared.curr_map_tool_type == MapToolType::IsoPaint;
         let world = &mut self.native_viewport.world;
         if matches!(input, MapEvent::MapUp(_))
             && world
@@ -2074,10 +2100,16 @@ impl Editor {
         );
         match route {
             ToolOverlayRoute::Unavailable => {
+                world.input_profile.mark(paint_input, if frame.is_none() {
+                    "overlay_no_frame"
+                } else if frame.as_ref().is_some_and(|f| !f.ready) {
+                    "overlay_unready"
+                } else { "overlay_unavailable" });
                 ctx.ui.invalidate_paint();
                 return true;
             }
             ToolOverlayRoute::Consumed { redraw, command } => {
+                world.input_profile.mark(paint_input, "overlay_consumed");
                 ctx.ui.invalidate_paint_if(redraw);
                 if let Some(command) = command
                     && let Some(effects) =
@@ -2115,7 +2147,11 @@ impl Editor {
                 let mut tools = self.server_ctx.tools.write();
                 let tool = tools.get_current_tool();
                 let rectangle = tool.view_rectangle_query(at);
-                let query = frame
+                let captured = world.world_capture.as_ref()
+                    .and_then(|owner| owner.query.as_ref()?.camera)
+                    .and_then(|camera| tool.captured_paint_input(at)
+                        .map(|paint| paint::captured_query(camera, binding.size, at, paint)));
+                let query = captured.or_else(|| frame
                     .as_ref()
                     .filter(|frame| frame.camera == current_camera)
                     .and_then(|frame| {
@@ -2123,12 +2159,13 @@ impl Editor {
                             .gpu
                             .as_mut()?
                             .query(frame, at, &self.server_ctx, rectangle, false)
-                    });
+                    }));
                 if let Some((pick, input)) = query {
                     apply_pick(pick, map, &mut self.server_ctx);
                     accepted_query = Some(input.clone());
                     tool.set_view_input(Some(input));
                 } else {
+                    world.input_profile.mark(paint_input, "drag_query_unavailable");
                     ctx.ui.invalidate_paint();
                     return true;
                 }
@@ -2147,6 +2184,7 @@ impl Editor {
                     .as_ref()
                     .and_then(|frame| isometric_input(world, frame, at))
                 else {
+                    world.input_profile.mark(paint_input, "iso_drag_query_unavailable");
                     ctx.ui.invalidate_paint();
                     return true;
                 };
@@ -2171,12 +2209,16 @@ impl Editor {
             if matches!(input, MapEvent::MapEscape) {
                 world.world_capture = None;
             }
+            world.input_profile.mark(paint_input, "drag_accepted");
             return false;
         }
         let fresh = frame
             .as_ref()
             .is_some_and(|frame| world.frame_is_fresh(frame, map, &current_camera));
         if !fresh || matches!(input, MapEvent::MapDragged(_) | MapEvent::MapUp(_)) {
+            world.input_profile.mark(paint_input, if frame.as_ref().is_some_and(|f| f.ready) {
+                "frame_stale"
+            } else { "frame_unready" });
             ctx.ui.invalidate_paint();
             return true;
         }
@@ -2201,6 +2243,7 @@ impl Editor {
                         .query(frame, at, &self.server_ctx, None, capture_surface)
                 });
                 let Some((pick, input)) = query else {
+                    world.input_profile.mark(paint_input, "fresh_query_unavailable");
                     ctx.ui.invalidate_paint();
                     return true;
                 };
@@ -2217,6 +2260,7 @@ impl Editor {
                     query: accepted_query,
                 });
             }
+            world.input_profile.mark(paint_input, "fresh_accepted");
             return false;
         }
         if binding.camera == MapCamera::TwoDIso {
@@ -2463,6 +2507,21 @@ impl Editor {
                     && scope::map(&self.documents.project, &self.server_ctx)
                         .is_some_and(|map| frame.stamp == SourceStamp::new(map))
             })
+    }
+    pub(crate) fn native_paint_query_pending_for_test(&mut self) {
+        let world = &mut self.native_viewport.world;
+        let output = world.presented.as_ref().unwrap().output;
+        let gpu = world.gpu.as_mut().unwrap();
+        // A pending renderer owns its mutable VM; fresh output queries must
+        // remain unavailable even though the accepted gesture has a capture.
+        let _ = gpu.scenes.scene_mut(gpu.view).unwrap();
+        assert!(gpu.scenes.pick_editor_paint(output, [0.5, 0.5]).is_none());
+    }
+    pub(crate) fn native_paint_hover_for_test(&self) -> Option<Vec2<i32>> {
+        self.server_ctx.shared.iso_paint_hover_screen
+    }
+    pub(crate) fn native_paint_output_revision_for_test(&self) -> Option<u64> {
+        Some(self.native_viewport.world.presented.as_ref()?.output.revision)
     }
     pub(crate) fn native_prefab_projection_for_test(&self) -> Option<Vec2<f32>> {
         let asset = self

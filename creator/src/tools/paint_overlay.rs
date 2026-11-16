@@ -26,7 +26,11 @@ pub struct Controls {
     pub visible: bool,
 }
 impl Controls {
-    pub fn read(project: &Project, server: &CreatorContext) -> Option<Self> {
+    fn read(
+        project: &Project,
+        server: &CreatorContext,
+        specs: &mut crate::procedural_material::paint_assets::SelectedSpecCache,
+    ) -> Option<Self> {
         let paint = if let ProjectContext::Prefab(id) = server.shared.pc {
             project.block_prop_paint.get(&id)?
         } else {
@@ -56,8 +60,7 @@ impl Controls {
         controls.title = source
             .and_then(|id| project.tiles.get(&id))
             .map_or_else(|| fl!("iso_paint_color"), |t| t.alias.clone());
-        controls.spec = source
-            .and_then(|id| crate::procedural_material::paint_assets::selected_spec(project, id));
+        controls.spec = source.and_then(|id| specs.read(project, id));
         if let Some(spec) = &controls.spec {
             controls.colors = spec.colors.clone();
             controls.material = spec.material_id;
@@ -80,6 +83,7 @@ pub(crate) enum Action {
 #[derive(Default)]
 pub struct PaintOverlay {
     controls: Option<Controls>,
+    specs: crate::procedural_material::paint_assets::SelectedSpecCache,
     frames: PanelFrames<Option<Controls>, Action>,
     reference_context: Option<ProjectContext>,
     native_input: bool,
@@ -92,7 +96,7 @@ impl PaintOverlay {
         self.controls.is_some()
     }
     pub fn sync(&mut self, project: &Project, server: &CreatorContext) {
-        let next = Controls::read(project, server);
+        let next = Controls::read(project, server, &mut self.specs);
         if self.controls != next || self.reference_context != Some(server.shared.pc) {
             self.frames.invalidate();
         }

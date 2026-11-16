@@ -37,7 +37,7 @@ fn native_template(id: Uuid, name: &str, spec: &Spec) -> Result<EditableMaterial
     EditableMaterialAsset::parse(&id.to_string(), &recipe, "surface").map_err(|e| e.to_string())
 }
 
-fn native_layout(
+pub(super) fn native_layout(
     asset: &EditableMaterialAsset,
     spec: &Spec,
 ) -> rusterix::map::tile::PaintAssetLayout {
@@ -102,6 +102,25 @@ fn native_layout(
 
 pub(crate) fn selected_spec(project: &Project, id: Uuid) -> Option<Spec> {
     Spec::from_asset(&EditableMaterialAsset::reopen(project.procedural_materials.get(&id)?).ok()?)
+}
+
+/// The viewport reads Paint controls during preparation, presentation and input.
+/// Reopening a recipe parses its embedded image frames too; do that only after an
+/// authored recipe/selection change, including undo and document replacement.
+#[derive(Default)]
+pub(crate) struct SelectedSpecCache {
+    key: Option<(u64, Uuid)>,
+    spec: Option<Spec>,
+}
+impl SelectedSpecCache {
+    pub(crate) fn read(&mut self, project: &Project, id: Uuid) -> Option<Spec> {
+        let key = (project.procedural_materials.revision(), id);
+        if self.key != Some(key) {
+            self.spec = selected_spec(project, id);
+            self.key = Some(key);
+        }
+        self.spec.clone()
+    }
 }
 
 /// Publish simple Paint controls back into the same MZ recipe and refresh its native cache.
@@ -569,6 +588,65 @@ pub(crate) fn synchronize(project: &mut Project) {
 mod tests {
     use super::*;
     use crate::tools::paint_picker;
+
+    #[test]
+    fn native_brush_variants_bake_all_frames_but_do_not_animate_the_preview() {
+        let spec = Spec::new("moss", false);
+        let asset = native_template(Uuid::from_u128(500), "Moss", &spec).unwrap();
+        let asset = image_source::set(&asset, "paint-source", Some(spec.render().unwrap().0))
+            .unwrap();
+        assert_eq!(super::super::preview_metadata::animation_settings(&asset).unwrap().frames, 4);
+        assert_eq!(super::super::preview_metadata::display_frames(&asset).unwrap(), 1);
+        assert!(native_layout(&asset, &spec).generator.is_some());
+
+        let mut animated = asset.clone();
+        animated.root.project.materials[0].animation.frames = 8;
+        assert_eq!(super::super::preview_metadata::display_frames(&animated).unwrap(), 8);
+        assert!(native_layout(&animated, &spec).generator.is_none());
+
+        let mut ordinary = native_template(Uuid::from_u128(503), "Animated MZ", &spec).unwrap();
+        ordinary.root.project.materials[0].animation.frames = 4;
+        assert_eq!(super::super::preview_metadata::display_frames(&ordinary).unwrap(), 4);
+    }
+
+    #[test]
+    fn selected_spec_cache_tracks_recipe_edits_selection_and_document_replacement() {
+        let id = Uuid::from_u128(501);
+        let other = Uuid::from_u128(502);
+        let recipe = |spec: &Spec| {
+            let asset = native_template(id, "Cache regression", spec).unwrap();
+            image_source::set(&asset, "paint-source", Some(spec.render().unwrap().0))
+                .unwrap().save().unwrap()
+        };
+        let mut project = Project::default();
+        let before = Spec::new("moss", false);
+        let mut after = before.clone();
+        after.size = 2.;
+        let before_bundle = recipe(&before);
+        let after_bundle = recipe(&after);
+        project.procedural_materials.insert(id, before_bundle.clone());
+        let mut cache = SelectedSpecCache::default();
+        assert_eq!(cache.read(&project, id), Some(before.clone()));
+        let revision = project.procedural_materials.revision();
+        assert_eq!(cache.read(&project, id), Some(before.clone()));
+        assert_eq!(project.procedural_materials.revision(), revision);
+        // Edits through mutable String access must invalidate, as must undo.
+        *project.procedural_materials.get_mut(&id).unwrap() = after_bundle.clone();
+        assert_eq!(cache.read(&project, id), Some(after.clone()));
+        *project.procedural_materials.get_mut(&id).unwrap() = before_bundle;
+        assert_eq!(cache.read(&project, id), Some(before.clone()));
+        // Missing/ordinary MZ sources cache None without hiding later repairs.
+        assert_eq!(cache.read(&project, other), None);
+        project.procedural_materials.insert(other, after_bundle.clone());
+        assert_eq!(cache.read(&project, other), Some(after.clone()));
+        assert_eq!(cache.read(&project, id), Some(before));
+        let mut replacement = project.clone();
+        replacement.procedural_materials.insert(id, after_bundle);
+        assert_eq!(cache.read(&replacement, id), Some(after));
+        project.procedural_materials.shift_remove(&id);
+        assert_eq!(cache.read(&project, id), None);
+    }
+
     #[test]
     fn picker_recipes_preserve_native_art_and_edits_drive_persistent_paint_and_stamps() {
         let mut p = Project::default();

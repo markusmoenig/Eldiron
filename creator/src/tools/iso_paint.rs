@@ -1342,6 +1342,18 @@ impl Tool for IsoPaintTool {
     fn set_view_input(&mut self, input: Option<ToolViewInput>) {
         self.view_input = input;
     }
+    fn captured_paint_input(&self, at: Vec2<i32>) -> Option<super::ToolPaintInput> {
+        if !self.native_input || !self.painting { return None; }
+        let buffer = self.paint_surface_cache.as_ref()?;
+        let surface = buffer.pixel(at.x, at.y).copied().filter(|pixel| pixel.valid);
+        Some(super::ToolPaintInput {
+            surface,
+            brush_transform: surface.and_then(|pixel| {
+                Self::screen_space_transform(buffer, at.x, at.y, pixel.paint_geo)
+            }),
+            capture: None,
+        })
+    }
     fn view_surface_capture(&self, event: &MapEvent) -> bool {
         matches!(event, MapEvent::MapClicked(_))
             && self.overlay.controls().is_some_and(|c| {
@@ -1973,6 +1985,40 @@ impl Tool for IsoPaintTool {
             }
             other => other,
         }
+    }
+}
+
+#[cfg(test)]
+mod captured_paint_tests {
+    use super::*;
+    #[test]
+    fn captured_native_brush_drag_uses_frozen_surface_without_another_capture() {
+        let mut tool = IsoPaintTool::new();
+        tool.native_input = true;
+        tool.painting = true;
+        assert!(tool.captured_paint_input(Vec2::new(5, 5)).is_none());
+        let mut buffer = scenevm::PaintSurfaceBuffer::new(12, 12);
+        for y in 0..12 {
+            for x in 0..12 {
+                buffer.pixels[(y * 12 + x) as usize] = scenevm::PaintSurfacePixel {
+                    valid: true, geo_id: scenevm::GeoId::Sector(7), paint_geo: [7, 8, 9, 10],
+                    face_id: 9, depth: 2., world: [x as f32, 0., y as f32],
+                    normal: [0., 1., 0.], uv: [x as f32 * 0.1, y as f32 * 0.2],
+                };
+            }
+        }
+        tool.paint_surface_cache = Some(std::sync::Arc::new(buffer));
+        let hit = tool.captured_paint_input(Vec2::new(5, 5)).unwrap();
+        assert_eq!(hit.surface.unwrap().world, [5., 0., 5.]);
+        assert_eq!(hit.surface.unwrap().paint_geo, [7, 8, 9, 10]);
+        assert!(hit.capture.is_none());
+        let transform = hit.brush_transform.unwrap();
+        for (actual, expected) in transform.into_iter().zip([0.1, 0., 0., 0.2]) {
+            assert!((actual - expected).abs() < 0.00001);
+        }
+        assert!(tool.captured_paint_input(Vec2::new(-1, 5)).unwrap().surface.is_none());
+        tool.painting = false;
+        assert!(tool.captured_paint_input(Vec2::new(5, 5)).is_none());
     }
 }
 

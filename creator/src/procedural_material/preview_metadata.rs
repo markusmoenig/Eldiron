@@ -1,6 +1,24 @@
 //! Shared CPU-only preview metadata; no renderer, worker or project mutation.
 use denrim_materials::integration::{EditableMaterialAsset, InstanceRecord};
 use std::collections::HashSet;
+
+/// Native Paint recipes store stable brush variants as image frames. Baking
+/// keeps every frame, but displaying a brush must not start an animation loop.
+/// Only suppress playback while the recipe still matches its native generator;
+/// authored MZ animation/composition changes retain their normal preview policy.
+#[cfg(any(feature = "native-render", test))]
+pub(super) fn display_frames(asset: &EditableMaterialAsset) -> Result<u32, String> {
+    let frames = animation_settings(asset)?.frames;
+    if frames > 1
+        && shared::paint_source::Spec::from_asset(asset)
+            .is_some_and(|spec| super::paint_assets::native_layout(asset, &spec).generator.is_some())
+    {
+        Ok(1)
+    } else {
+        Ok(frames)
+    }
+}
+
 pub(super) fn animation_settings(
     asset: &EditableMaterialAsset,
 ) -> Result<denrim_materials::format::Animation, String> {
