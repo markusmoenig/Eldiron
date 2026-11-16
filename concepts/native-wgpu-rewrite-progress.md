@@ -19823,3 +19823,93 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Final source/binary/log hashes, commands, failed intermediate outcomes and the
   later runtime failure are in the accompanying JSON evidence. Concurrent work,
   its Cargo.lock synchronization and unrelated concepts stay outside this commit.
+
+### Gate replacement flash after retaining the previous image
+
+- User retest confirms the scene stays visible, but the whole viewport visibly
+  flashes when replacement content arrives. Blank-display fix is accepted only
+  for retaining the prior image; replacement visual correctness remains open.
+- Strengthened native Paint check compares unchanged atlas replacement output
+  against its preceding complete image over four frames. PASS12.48s: zero changed
+  pixels in all four frames on the simple fixture. That fixture does not reproduce
+  Gate's first-frame defect and is insufficient as visual acceptance.
+- Added a focused actual-Gate Release/Metal test comparing the first five ready
+  scene/window frames for Paint entry, Terrain entry, geometry replacement and
+  atlas replacement. Gate reproduces immediately on Paint entry: first scene
+  frame351,521/383,731pixels differ by more than4channel units from settled
+  output; frames1–4have zero changed pixels. Source image has large incorrect
+  regions under the grid; the next frame is correct. Saved raw scene captures:
+  /private/tmp/eldiron-paint-profile/Gate-tool.iso_paint-{0..4}.png. No fades,
+  arbitrary skipped frames or project/ruleset edits have been introduced.
+- Logs: replacement-flash-release-test.log (simple-fixture pass),
+  gate-replacement-flash-release-test.log and gate-replacement-capture-release-test.log
+  (Gate reproduction failures) under /private/tmp/eldiron-paint-profile.
+  Comparing actual VM cameras next to distinguish stale camera state from a
+  first-use GPU source/target initialization defect. No product fix claimed yet.
+- Actual VM camera is identical across the bad and four settled frames (same
+  OrthoIso position/basis/scale/near/far). Found a readiness mismatch: NativeWorld
+  checked CPU geometry, stamp/paint uploads and source uploads but not the pending
+  private render itself. A preceding output could receive a ready receipt for
+  the current source/camera while rendering was unfinished, also releasing its
+  pinned paint-generation cycle too early. Candidate fix includes
+  !SceneViews::scene_preparation_pending in readiness. Gate verification pending;
+  no warm-up frame count, crossfade or unconditional delay introduced.
+- Private-render readiness alone does not remove the reproduction; retained as
+  an unaccepted candidate pending the final fix/review. Base VM geometry counts,
+  camera, document content revision and asset revisions are identical on first
+  and settled frames. Disabling both target and writable-buffer reuse only inside
+  the test reproduces the same flash, excluding stale pooled storage as its cause.
+  Current diagnostic compares raster layer vertex/index/uniform/tile-table hashes
+  (ELDIRON_GATE_TRACE_RASTER); temporary instrumentation must be removed before
+  the final normal Release build. No app restart or successful visual claim yet.
+- Raster hashes isolate the mismatch to base-layer dynamic positions/normals.
+  Static vertex hash, all indices, uniforms, UVs, tile indices, opacity and tile
+  metadata stay unchanged. Dynamic vertex hash changes exactly once from bad
+  frame0to stable frames1–4. Capturing those dynamic quads and their object IDs
+  next; temporary trace code remains uncommitted and must be removed afterward.
+- Dynamic object metadata is identical; raw differences are small MZ animation
+  movements (maximum position delta0.009715world units), insufficient to explain
+  the full-view corruption. Per-layer capture locates the defect in base3Dlayer0;
+  the three overlays remain pixel-identical. Reverted the unproven readiness
+  candidate. Comparing actual GPU vertex/uniform bytes with CPU inputs next.
+
+### Retired worktree disk cleanup (user requested)
+
+- Removed notes/native-wgpu-rewrite-worktree with git worktree remove after
+  confirming every codex/native-wgpu-rewrite commit is an ancestor of master.
+  Branch/history retained. Active source, builds and Gate debugging use the main
+  /Users/markusmoenig/Eldiron checkout and its target directory.
+- Preserved40unique/differing ignored/untracked files (generated fixtures and
+  screenshots, differing networking concept draft and vendor lock) in
+  generated/native-wgpu-worktree-backup-2026-11-16.tar.gz (61,232,512bytes).
+  Each archive entry verified against source SHA256 before deletion; archive
+  SHA2568f0d00df2d533541bb168d7700ee0dbd3558021e534b6ef2d820aae6ad8d85f2.
+  Adjacent .tar.manifest.json records paths, hashes and prior checkout HEAD.
+  Free disk space after removal6.6GiB. Other worktrees/concurrent edits retained.
+
+### Build stop and recoverable Gate checkpoint
+
+- User explicitly says not to build and will build later. Stopped this chat's
+  isolated Cargo/compiler process tree. No further builds or tests are authorized
+  by the earlier approval until the user changes this instruction.
+- Repeated concurrent Rusterix movement/region refactors interrupted later probe
+  builds (camera ownership errors, then unresolved region module). These edits
+  were not changed here. Created a master00309b406snapshot plus this chat's four
+  diagnostic files to avoid interfering; its build was stopped at user request
+  before any new GPU-buffer comparison result. Preserved the compact source
+  snapshot in /private/tmp/eldiron-paint-profile/gate-flash-diagnostic-source-2026-11-16.tar.gz
+  and removed the full temporary checkout to avoid retaining unnecessary disk use.
+- First GPU-byte probe failed validation because its vertex source lacked the
+  temporary COPY_SRC usage. Corrected that diagnostic setup, but subsequent main
+  builds were blocked and isolated build cancelled. Actual GPU-vs-CPU byte
+  comparison remains unperformed; do not infer a GPU buffer mismatch or match.
+- Removed all temporary renderer tracing, readback code and extra COPY_SRC flags
+  from the main checkout. crates/scenevm/src/vm.rs has no remaining diff. No product
+  flash fix has been identified or claimed. Main source retains only the ignored
+  Gate regression and stronger simple-fixture comparison, with no normal-build
+  instrumentation or extra readback. Source parsing/diff checks only after stop.
+- Next: once user permits a build, resume the preserved GPU-input comparison in
+  isolation, then inspect base-layer raster texture/index state if buffers match.
+  Gate first-replacement visual correctness remains rejected. No new Release
+  executable was delivered in this follow-up. Existing worktree/history backup
+  remains at generated/native-wgpu-worktree-backup-2026-11-16.tar.gz.

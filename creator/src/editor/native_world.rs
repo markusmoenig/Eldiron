@@ -2600,6 +2600,9 @@ impl Editor {
         self.native_viewport.world.source = None;
         image
     }
+    pub(crate) fn native_display_image_for_test(&self) -> renderkit::ImageHandle {
+        self.native_viewport.world.gpu.as_ref().unwrap().display.current().unwrap()
+    }
     pub(crate) fn native_paint_query_pending_for_test(&mut self) {
         let world = &mut self.native_viewport.world;
         let output = world.presented.as_ref().unwrap().output;

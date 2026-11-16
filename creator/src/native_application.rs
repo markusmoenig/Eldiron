@@ -378,6 +378,10 @@ impl UiApplication for NativeCreatorApplication {
 }
 
 #[cfg(test)]
+#[path = "native_application/paint_display_check.rs"]
+mod paint_display_check;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use super::visibility_check::check_native_visibility;
@@ -388,7 +392,7 @@ mod tests {
     // Return the first complete native candidate without acknowledging it. This
     // preserves tests of input against an unpresented frame while allowing the
     // same bounded source preparation that production hosts drive over frames.
-    fn ready_world_frame(
+    pub(super) fn ready_world_frame(
         app: &mut UiApplicationAdapter<NativeCreatorApplication>,
         host: &mut HostContext,
         images: &mut ImageRegistry,
@@ -1516,6 +1520,7 @@ mod tests {
             (1600, 1000), 1., [0.; 4]).unwrap();
         app.presented(&mut host);
         let retained = app.application.editor.native_force_atlas_refresh_for_test();
+        let atlas_pixels = read_scene(replacement.get(retained).unwrap());
         let deadline = Instant::now() + Duration::from_secs(30);
         loop {
             app.update(&mut host, Duration::from_millis(16));
@@ -1533,7 +1538,22 @@ mod tests {
             assert!(Instant::now() < deadline, "atlas replacement never settled without input");
             std::thread::sleep(Duration::from_millis(2));
         }
-        let before = gpu.transfers(); // Exclude the two explicit diagnostic captures above.
+        for frame in 0..4 {
+            let image = app.application.editor.native_display_image_for_test();
+            let pixels = read_scene(replacement.get(image).unwrap());
+            let changed = pixels.chunks_exact(4).zip(atlas_pixels.chunks_exact(4))
+                .filter(|(a,b)| a.iter().zip(b.iter()).any(|(a,b)| a.abs_diff(*b) > 4)).count();
+            eprintln!("Atlas replacement frame {frame}: {changed}/{} changed pixels", pixels.len()/4);
+            assert!(changed * 100 < pixels.len()/4,
+                "replacing an unchanged 3D scene must not flash across the viewport");
+            app.update(&mut host, Duration::from_millis(16));
+            let paint = ready_world_frame(&mut app, &mut host, &mut replacement,
+                &gpu, &mut renderer, &output);
+            renderer.render(&paint, &replacement, &output.view, output.descriptor.format,
+                (1600, 1000), 1., [0.; 4]).unwrap();
+            app.presented(&mut host);
+        }
+        let before = gpu.transfers(); // Exclude the explicit diagnostic captures above.
         let target = app.application.editor.native_paint_3d_target_for_test();
         if target.is_none() {
             let mut capture = ReadbackTicket::capture(&gpu, output.clone()).unwrap();

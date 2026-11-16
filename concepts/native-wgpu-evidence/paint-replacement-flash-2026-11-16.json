@@ -1,0 +1,162 @@
+{
+  "date": "2026-11-16",
+  "baseline": "00309b4061f90647718ed502f72b2f5005561374",
+  "status": "UNRESOLVED; user requested no more builds and will build later",
+  "manual_result": "Prior image stays visible, but replacement visibly flashes across the whole viewport.",
+  "reproduction": {
+    "project": "test_projects/Gate.eldiron",
+    "view": "3D Iso",
+    "first_frame_changed_pixels": 351521,
+    "viewport_pixels": 383731,
+    "settled_frames_changed_pixels": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "threshold_per_channel": 4,
+    "simple_fixture": "Unchanged atlas replacement: four frames, zero changed pixels; Gate-specific repro is required."
+  },
+  "findings": [
+    "Camera, image size, geometry counts and asset revisions match.",
+    "Disabling GPU target and working-buffer reuse in the test does not remove the flash.",
+    "Base layer contains the incorrect pixels; overlays are unchanged.",
+    "Static geometry/indices/uniforms/tile metadata match. Dynamic differences are small MZ animation movements (max position delta 0.009715), insufficient to explain the flash.",
+    "Actual GPU-vs-CPU buffer comparison is still unperformed. First probe failed validation; corrected probe builds were blocked by concurrent edits or cancelled."
+  ],
+  "production_change": "None: unproven readiness candidate reverted; all temporary renderer diagnostics removed.",
+  "sources": {
+    "creator/src/editor/native_world.rs": "697d6f2eda819ec578a79b5567372071b6c8d041d21d82b688d187a6213a7709",
+    "creator/src/native_application.rs": "435c7c83a2cacefc89346fce93a81d0182e1e6fea3df7d8e19cd7996f5726c6e",
+    "creator/src/native_application/paint_display_check.rs": "c7125cb96e0e6041eace0d7b702b30cc53ecfa1f076477a3d25d474b28e6adc1"
+  },
+  "logs": [
+    {
+      "path": "/private/tmp/eldiron-paint-profile/replacement-flash-release-test.log",
+      "sha256": "cfce64103226eae9340202dad8f3d2e70fa4fbcc90b781616addf000d2ee8529",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 13s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 775 filtered out; finished in 12.48s"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-replacement-flash-release-test.log",
+      "sha256": "78e42a84646ab4df90271e4e6ac1f6edd24f4abbcef8a07488c6ed79bbc8fe88",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 21s",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 776 filtered out; finished in 5.51s"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-replacement-capture-release-test.log",
+      "sha256": "1e9889a210a9c5c95e03443c39be8782ca35e0ef3827dca3745b01d6ce35de94",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 09s",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 776 filtered out; finished in 5.72s"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-replacement-camera-release-test.log",
+      "sha256": "10e3c32c1c4af6965b720655689d6fbab04e17a3fcf79829ff81f8d0df12f5d8",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 48s",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 776 filtered out; finished in 5.57s"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-complete-render-release-test.log",
+      "sha256": "d52c14e94348c4f4b9bc4ac5a47e420de1952756f6f8a523ac7a0b3709f84d6f",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 01s",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 776 filtered out; finished in 5.43s"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-replacement-state-release-test.log",
+      "sha256": "499edfd0d3acf515bd1371e633f3c0435ce4a890d500b99baeb62c39c9bf96f4",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 25s",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 776 filtered out; finished in 9.13s"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-cold-resources-release-test.log",
+      "sha256": "5ee0b5b4cbb4338126d370ca01301698a993b9cfb5bd9f0333b869e754bbd5f0",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 40s",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 776 filtered out; finished in 6.67s"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-raster-state-release-test.log",
+      "sha256": "676238105957d0b96f3a184113e11e6d75a5aab8a1ea25883d163c753a7f468a",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 03s",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 776 filtered out; finished in 5.59s"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-raster-fields-release-test.log",
+      "sha256": "067caf8b04e347e823d45dbc0b61168e7ccafb120719bc6a30f0f920c9e2fb0b",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 57s",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 776 filtered out; finished in 5.56s"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-dynamic-state-release-test.log",
+      "sha256": "dc26b6b31007a4f9e2c6c6c5551fc4bee267cdbf5e9c4d943d0340059fd8e146",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 08s",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 776 filtered out; finished in 5.49s"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-layer-capture-release-test.log",
+      "sha256": "af327329ae9aba2975e5ea2551814a41cd6fbe1a517d10266bc7138a7ce69183",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 05s",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 776 filtered out; finished in 5.88s"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-gpu-buffers-release-test.log",
+      "sha256": "2fb232c63962335370e8bf55aee89360d755782428098922b073c1fa241bbb95",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 14s",
+        "    Usage flags BufferUsages(COPY_DST | VERTEX | STORAGE) of Buffer with 'renderkit pooled working buffer' label do not contain required usage flags BufferUsages(COPY_SRC)",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 776 filtered out; finished in 4.17s"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-gpu-buffers-release-retry.log",
+      "sha256": "1496b1615d8243699f43db2c07cc18d13ad2df41213afa012c4ef5fbb125c543",
+      "summary": [
+        "error: could not compile `rusterix` (lib) due to 4 previous errors"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-gpu-buffers-release-final.log",
+      "sha256": "2be3bcf7410ba5f87e817a44548f2ebba29cddc14a23f9907079aee3a9d932eb",
+      "summary": [
+        "error: could not compile `rusterix` (lib) due to 1 previous error"
+      ]
+    },
+    {
+      "path": "/private/tmp/eldiron-paint-profile/gate-isolated-gpu-release-test.log",
+      "sha256": "5e19f6ba10498da16036a94af5c3dc766cdd457d5c683179d5219b1798ae100d",
+      "summary": []
+    }
+  ],
+  "stop": "Own isolated Cargo and compiler process tree terminated at explicit user request. No more builds/tests started.",
+  "diagnostic_source_archive": "/private/tmp/eldiron-paint-profile/gate-flash-diagnostic-source-2026-11-16.tar.gz",
+  "cleanup": {
+    "removed": "notes/native-wgpu-rewrite-worktree",
+    "all_commits_in_master": true,
+    "branch_history_retained": true,
+    "backup": "generated/native-wgpu-worktree-backup-2026-11-16.tar.gz",
+    "verified_archive_files": 40,
+    "backup_bytes": 61232512
+  },
+  "next": "When builds are allowed, resume GPU-input byte comparison from preserved source snapshot, then examine base-layer texture/index state if buffers match. No successful visual fix or overall acceptance claimed."
+}
