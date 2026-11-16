@@ -1,0 +1,31 @@
+shared source: no graphical aggregate imports
+theframework-core: boundary passed
+eldiron-ruleset: boundary passed
+scenevm: boundary passed
+rusterix: boundary passed
+eldiron-shared: boundary passed
+eldiron-runtime: boundary passed
+rusterix [browser-codec-worker] (wasm32-unknown-unknown): boundary passed
+eldiron-client-terminal: boundary passed
+scenevm (wasm32-unknown-unknown): boundary passed
+rusterix (wasm32-unknown-unknown): boundary passed
+eldiron-shared (wasm32-unknown-unknown): boundary passed
+eldiron-runtime (wasm32-unknown-unknown): boundary passed
+theframework [ui-paint]: boundary passed
+theframework [render-wgpu]: boundary passed
+theframework [platform-winit]: boundary passed
+theframework [platform-web] (wasm32-unknown-unknown): boundary passed
+theframework [platform-apple]: boundary passed
+eldiron-player [native-web] (wasm32-unknown-unknown): boundary passed
+eldiron-client [native-web] (wasm32-unknown-unknown): boundary passed
+eldiron-player [native-apple]: boundary passed
+eldiron-client: boundary passed
+eldiron-player: boundary passed
+eldiron-player [native-player]: boundary passed
+eldiron-creator: boundary passed
+eldiron-creator (wasm32-unknown-unknown): boundary passed
+eldiron-creator [staticlib]: boundary passed
+eldiron-creator [native-host]: boundary passed
+eldiron-creator [browser-host] (wasm32-unknown-unknown): boundary passed
+eldiron-client (wasm32-unknown-unknown): boundary passed
+eldiron-player (wasm32-unknown-unknown): boundary passed

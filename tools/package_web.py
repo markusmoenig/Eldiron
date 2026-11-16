@@ -30,8 +30,8 @@ def main():
         package = "eldiron-creator"
         features = "browser-host"
     else:
-        binary = "eldiron-client-wgpu"
-        package = "eldiron-client-wgpu"
+        binary = "eldiron-client"
+        package = "eldiron-client"
         features = "native-web"
     cargo("build", ["-p", package, "--bin", binary, "--no-default-features", "--features", features, "--release", "--target", "wasm32-unknown-unknown"])
     for name in ["eldiron-bake-codec-worker", binary]:

@@ -53,7 +53,7 @@ def main():
     # Swift's linker subprocess must see the selected simulator SDK instead.
     os.environ["SDKROOT"] = sdk
     target = "aarch64-apple-ios-sim"
-    package = "eldiron-creator" if args.creator else "eldiron-client-wgpu"
+    package = "eldiron-creator" if args.creator else "eldiron-player"
     features = "staticlib" if args.creator else "native-apple"
     bundle = BUNDLE + (".creator" if args.creator else ".player")
     run("rust", ["cargo", "rustc", "--release", "--locked", "--offline", "-p",

@@ -1,18 +1,12 @@
 [package]
-default-run = "eldiron-client-wgpu"
-name = "eldiron-client-wgpu"
+name = "eldiron-player"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Eldiron player using the shared native WGPU presentation host."
-
-[[bin]]
-name = "eldiron-client-wgpu"
-path = "src/main.rs"
-required-features = ["native-window"]
+description = "Shared Eldiron player application and desktop, browser and Apple host adapters."
 
 [lib]
 name = "scenevm_unified_app"
@@ -27,18 +21,18 @@ native-web = ["native-window", "theframework/platform-web"]
 native-apple = ["native-player", "theframework/platform-apple"]
 
 [[example]]
-name = "native_player"
-required-features = ["native-window"]
+name = "legacy_reference"
+required-features = ["legacy-reference"]
 
 [dependencies]
-eldiron-presentation = {path="../../crates/presentation"}
-theframework = {path="../../crates/theframework", default-features=false, features=["render-wgpu"], optional=true}
-renderkit = {path="../../crates/renderkit", optional=true}
-eldiron-runtime = { path = "../../crates/runtime" }
+eldiron-presentation = {path="../presentation"}
+theframework = {path="../theframework", default-features=false, features=["render-wgpu"], optional=true}
+renderkit = {path="../renderkit", optional=true}
+eldiron-runtime = { path = "../runtime" }
 rustc-hash = "2"
 scenevm = { workspace = true, default-features = false, features=["gpu"] }
 rusterix.workspace = true
-shared = { path = "../../crates/shared", version = "0.96.0", package = "eldiron-shared" }
+shared = { path = "../shared", version = "0.96.0", package = "eldiron-shared" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.9.5"
@@ -49,11 +43,6 @@ uuid = { version = "1.18", features = ["v4"] }
 [dev-dependencies]
 futures = "0.3"
 png = "0.18"
-
-[[bin]]
-name = "eldiron-client-wgpu-reference"
-path = "src/reference_main.rs"
-required-features = ["legacy-reference"]
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]
 objc2-quartz-core = { version = "0.3.2", default-features = false, features = ["std", "CALayer", "CAMetalLayer", "objc2-metal", "objc2-core-foundation"] }

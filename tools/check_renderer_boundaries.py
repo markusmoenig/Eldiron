@@ -64,17 +64,18 @@ def main():
     check("theframework", {"pixels", "softbuffer"}, features="platform-winit", no_widget_ui=True)
     check("theframework", {"pixels", "softbuffer"}, features="platform-web", no_widget_ui=True, target="wasm32-unknown-unknown")
     check("theframework", {"winit", "pixels", "softbuffer"}, features="platform-apple", no_widget_ui=True)
-    check("eldiron-client-wgpu", {"pixels", "softbuffer"}, features="native-web", target="wasm32-unknown-unknown")
-    check("eldiron-client-wgpu", {"winit", "pixels", "softbuffer"}, features="native-apple")
+    check("eldiron-player", {"pixels", "softbuffer"}, features="native-web", target="wasm32-unknown-unknown")
+    check("eldiron-client", {"pixels", "softbuffer"}, features="native-web", target="wasm32-unknown-unknown")
+    check("eldiron-player", {"winit", "pixels", "softbuffer"}, features="native-apple")
     check("eldiron-client", {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',))
-    check("eldiron-client-wgpu", {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',))
-    check("eldiron-client-wgpu", {"winit", "pixels", "softbuffer"}, features="native-player")
+    check("eldiron-player", {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',))
+    check("eldiron-player", {"winit", "pixels", "softbuffer"}, features="native-player")
     check("eldiron-creator", {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',))
     check("eldiron-creator", {"pixels", "softbuffer", "open", "arboard", "ureq", "font-kit"}, forbidden_features=('scenevm feature "windowing"', 'theframework feature "winit_app"'), target="wasm32-unknown-unknown")
     check("eldiron-creator", {"winit", "pixels", "softbuffer"}, features="staticlib", forbidden_features=('scenevm feature "windowing"',))
     check("eldiron-creator", {"pixels", "softbuffer"}, features="native-host", forbidden_features=('scenevm feature "windowing"',))
     check("eldiron-creator", {"pixels", "softbuffer", "open", "arboard", "ureq", "font-kit"}, features="browser-host", forbidden_features=('scenevm feature "windowing"', 'theframework feature "winit_app"'), target="wasm32-unknown-unknown")
-    for package in ("eldiron-client", "eldiron-client-wgpu"):
+    for package in ("eldiron-client", "eldiron-player"):
         check(package, {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',), target="wasm32-unknown-unknown")
 
 

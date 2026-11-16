@@ -33,7 +33,7 @@ def main():
     # Match the checked-in Xcode deployment target for native C build scripts
     # too; otherwise they can silently inherit this host's newer OS minimum.
     os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "26.1")
-    run("rust", ["cargo", "rustc", "--release", "--locked", "--offline", "-p", "eldiron-client-wgpu",
+    run("rust", ["cargo", "rustc", "--release", "--locked", "--offline", "-p", "eldiron-player",
                  "--no-default-features", "--features", "native-apple", "--lib",
                  "--", "--print", "native-static-libs"])
     log = (OUTPUT / "rust.log").read_text()
@@ -41,7 +41,7 @@ def main():
     if not match:
         raise RuntimeError("Rust did not report its native link dependencies")
     # The compatibility facade must retain every existing exported ABI name.
-    reference = (ROOT / "clients/client-wgpu/src/apple_reference.rs").read_text()
+    reference = (ROOT / "crates/player/src/apple_reference.rs").read_text()
     expected = set(re.findall(r'pub unsafe extern "C" fn ([a-z_]+)', reference))
     archive = TARGET / "release/libscenevm_unified_app.a"
     members = subprocess.check_output(["ar", "-t", str(archive)], text=True).splitlines()

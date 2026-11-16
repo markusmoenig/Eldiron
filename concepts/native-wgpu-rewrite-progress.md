@@ -19529,3 +19529,37 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   and same-cell one-pixel jitter; these are not native integration proof.
   New regression execution and user's runtime retest remain pending. Shipped
   UnendingNight archive inspected only for metadata; not decoded or modified.
+
+## Retire the redundant WGPU client package (2026-11-16)
+
+- User requests removal of the extra WGPU client now that normal client uses
+  GPU presentation. Removed clients/client-wgpu and the eldiron-client-wgpu
+  Cargo package/executable. clients now contains the graphical client and
+  CPU terminal client, plus their explicit reference/testing adapters.
+- Shared implementation moved to crates/player, package eldiron-player.
+  All21retained source files have identical SHA256s, including the legacy
+  runner moved from a separate reference binary to an optional library example.
+  Removed only duplicate normal main/native-player example wrappers.
+- Normal eldiron-client still calls the same library. Rust library name and
+  Apple libscenevm_unified_app.a / exported source ABI unchanged; all existing
+  shared host feature definitions unchanged. Apple/UIKit check tools point
+  to the new package/source location. No serialized format or runtime change.
+- Browser packaging now builds eldiron-client with an explicit forwarded
+  native-web feature plus the existing codec worker. Updated client/shared
+  library/Xcode documentation. Linux/Windows CI matrices and release jobs no
+  longer build or publish duplicate WGPU executables; normal client release
+  artifact names remain unchanged. No remote jobs or push triggered.
+- Cargo.lock differs only by the workspace package rename/dependency edge and
+  package-block ordering: exact normalized lock content verified, no external
+  dependency/version changes. Locked/offline Cargo metadata PASS;30isolated
+  dependency/source boundaries PASS, including canonical client's native-web
+  selection and shared library's Apple/no-window/desktop selections.
+- Both workflow YAMLs parse, job dependencies resolve,29Bash run scripts pass
+  syntax-only checks, four Python tools parse. Source move and target inventory
+  verified; old library package has no binary targets. Durable
+  player-package-consolidation.json and boundary log.
+- Respecting user's no-build instruction: no Rust build, cargo check, Rust test,
+  Apple link or browser package build performed. Those fresh runtime/build
+  checks remain unverified. Historical audit/evidence paths retain the original
+  names at their recorded revisions; current code/tooling uses the new layout.
+  Eight unrelated untracked concept documents remain untouched.

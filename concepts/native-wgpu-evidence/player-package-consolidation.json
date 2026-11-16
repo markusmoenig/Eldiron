@@ -1,0 +1,122 @@
+{
+  "source_parent": "28c7f415aea9d4dbffb6e14822457f84e1794c8a",
+  "retained_files": [
+    {
+      "from": "clients/client-wgpu/src/apple_tests.rs",
+      "to": "crates/player/src/apple_tests.rs",
+      "sha256": "1f65444fe5859b3dc10633559072c906f9cf45d729c7d6c000a6047f19846ece"
+    },
+    {
+      "from": "clients/client-wgpu/src/lib.rs",
+      "to": "crates/player/src/lib.rs",
+      "sha256": "a7b0d74191fcb03aa33f51106655a67a67f9d40df105a6ee2a50009001d8c908"
+    },
+    {
+      "from": "clients/client-wgpu/src/apple_reference.rs",
+      "to": "crates/player/src/apple_reference.rs",
+      "sha256": "3c1f9fbfb965cf9867f8952251fc7aa1161d18da91139be6b39bba82ceff3d36"
+    },
+    {
+      "from": "clients/client-wgpu/src/misc.rs",
+      "to": "crates/player/src/misc.rs",
+      "sha256": "8642af40580d4263420f0a85fe42afd50ccd2bdb3ee6737620d95f28b528b8e9"
+    },
+    {
+      "from": "clients/client-wgpu/src/apple.rs",
+      "to": "crates/player/src/apple.rs",
+      "sha256": "f27742b0004c6012d4032c9c286a1f88b9461d2b5b24304d2cd5bd51826dd317"
+    },
+    {
+      "from": "clients/client-wgpu/src/reference_main.rs",
+      "to": "crates/player/examples/legacy_reference.rs",
+      "sha256": "b8c1d77239ceeb65e6cfee11883a43661d44ed258862cc728d03b28f8ce6a536"
+    },
+    {
+      "from": "clients/client-wgpu/src/player_session.rs",
+      "to": "crates/player/src/player_session.rs",
+      "sha256": "3bed028fbcfbe2f8a5a8881d05ef9ef781d90435d4a7924c054a4242c9db0fa5"
+    },
+    {
+      "from": "clients/client-wgpu/src/app.rs",
+      "to": "crates/player/src/app.rs",
+      "sha256": "82da2a9406ba0a590b976f1d741c2ffc045d641dd4763a7d3af8fe448612a6e2"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/foreign_tests.rs",
+      "to": "crates/player/src/native_player/foreign_tests.rs",
+      "sha256": "946232d6c4aa344c8103faa712a2cbdfc307538d231b1718c64a546293b7a47e"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/mod.rs",
+      "to": "crates/player/src/native_player/mod.rs",
+      "sha256": "270e32a1d09ddda73afc120e8b0ac0437b144ee6c1deb5ac6529854b10c80715"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/desktop.rs",
+      "to": "crates/player/src/native_player/desktop.rs",
+      "sha256": "06611fa5a45adbfa3202d7e0fa292e8e00c704b1fa79666b967290ee2b2a5910"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/foreign.rs",
+      "to": "crates/player/src/native_player/foreign.rs",
+      "sha256": "7d64c6d50bdaa25136be5500a4d10e8b94750eb2104843c545aa82a7033514fd"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/audio.rs",
+      "to": "crates/player/src/native_player/audio.rs",
+      "sha256": "3a189e14e298adf1fd5eb77986f6285b11224ed7150804910d78f519a76b518a"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/tests.rs",
+      "to": "crates/player/src/native_player/tests.rs",
+      "sha256": "07c04046dcceb86be6e01579e071cf87d75ea1ed6b7106d08305110ab14cc507"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/viewport.rs",
+      "to": "crates/player/src/native_player/viewport.rs",
+      "sha256": "98f73d323970015093834be190a85e443df917397b92846ec28673510412abf6"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/browser.rs",
+      "to": "crates/player/src/native_player/browser.rs",
+      "sha256": "f267ede942f1b12d8213444303cf6aa334782371b2e7164cf95aff423f74d274"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/timing.rs",
+      "to": "crates/player/src/native_player/timing.rs",
+      "sha256": "e0bc5d6203f24684bf3651010db793f9ff576ebfcac79340d5eaf6de3ab1dfbd"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/tests/preferences.rs",
+      "to": "crates/player/src/native_player/tests/preferences.rs",
+      "sha256": "49ec515663ec8a9a2c3b9c5960d94042a2cd22c89dd2101a16367d618d1c6492"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/tests/tooltip.rs",
+      "to": "crates/player/src/native_player/tests/tooltip.rs",
+      "sha256": "543ba055ac7f1ac63a971d734979b900bfd5286b617958c398ba24bafe4727a8"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/tests/isometric.rs",
+      "to": "crates/player/src/native_player/tests/isometric.rs",
+      "sha256": "44bb650f2d4e8924ce43f5ac2a1a7714ce2b856c5f5c9858cdef42a84fa2833a"
+    },
+    {
+      "from": "clients/client-wgpu/src/native_player/tests/container.rs",
+      "to": "crates/player/src/native_player/tests/container.rs",
+      "sha256": "5994e509c04dec6324314e017a33b0ad058de7296eb24505a3d66bfbd11fa0d4"
+    }
+  ],
+  "removed_duplicate_wrappers": [
+    "examples/native_player.rs",
+    "src/main.rs"
+  ],
+  "library_name": "scenevm_unified_app",
+  "features_unchanged": true,
+  "external_dependencies_unchanged": true,
+  "dependency_boundaries_passed": 30,
+  "workflow_yaml_and_job_dependencies": "PASS",
+  "bash_scripts_syntax_checked": 29,
+  "python_tool_scripts_parsed": 4,
+  "scope": "Metadata, exact file hashes and script syntax only. No Rust build, cargo check, Rust test, browser packaging or Apple linking executed. Historical evidence paths remain unchanged."
+}

@@ -64,8 +64,7 @@ jobs:
         run: |
           cargo build --release --locked --verbose \
             -p eldiron-creator --bin eldiron-creator \
-            -p eldiron-client --bin eldiron-client \
-            -p eldiron-client-wgpu --bin eldiron-client-wgpu
+            -p eldiron-client --bin eldiron-client
 
       - name: Build isolated CPU terminal
         shell: bash
