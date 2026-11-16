@@ -172,6 +172,7 @@ impl Editor {
                         && self.server_ctx.shared.curr_map_tool_type == MapToolType::Effects)))
     }
 
+    #[cfg(feature = "staticlib")]
     pub(crate) fn native_creator_theme(&self) -> super::CreatorTheme {
         self.server_ctx.theme
     }

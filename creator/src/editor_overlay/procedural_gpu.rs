@@ -116,6 +116,7 @@ impl GpuIcons {
             stats: IconStats::default(),
         })
     }
+    #[cfg(test)]
     pub(crate) fn stats(&self) -> IconStats {
         self.stats
     }
@@ -272,6 +273,7 @@ impl GpuIcons {
             .sum();
         Ok(())
     }
+    #[cfg(test)]
     pub(crate) fn clear(&mut self, registry: &mut ImageRegistry) {
         for entry in self.entries.values() {
             registry.remove(entry.handle);
@@ -298,6 +300,7 @@ pub(crate) struct IconFrameImages<'a> {
     cache: &'a mut UiImageCache,
     registry: &'a mut ImageRegistry,
 }
+#[cfg(test)]
 impl IconFrameImages<'_> {
     pub(crate) fn finish_frame(
         &mut self,

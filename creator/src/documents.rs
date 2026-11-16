@@ -2,6 +2,7 @@
 //! live here. ProjectSession IDs are ephemeral and never change the file format.
 use crate::undo::UndoManager;
 #[path = "documents/transfers.rs"]
+#[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
 pub(crate) mod transfers;
 use shared::project::Project;
 use std::path::PathBuf;
@@ -37,6 +38,7 @@ pub(crate) struct Documents {
     pub project_path: Option<PathBuf>,
     pub sessions: Vec<ProjectSession>,
     pub active_session: usize,
+    #[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
     pub transfers: transfers::Transfers,
     pub host_io: bool,
     pub host_requests: Vec<(&'static str, Uuid)>,
@@ -50,6 +52,7 @@ impl Documents {
             project_path: None,
             sessions: vec![initial],
             active_session: 0,
+            #[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
             transfers: Default::default(),
             host_io: false,
             host_requests: Vec::new(),
@@ -67,6 +70,7 @@ impl Documents {
     pub fn install(&mut self, project: Project, path: Option<PathBuf>, replace: bool) {
         let next = ProjectSession::new(project, path);
         if replace && self.active_session < self.sessions.len() {
+            #[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
             self.transfers
                 .cancel_document(self.sessions[self.active_session].id);
             self.sessions[self.active_session] = next;
@@ -82,6 +86,7 @@ impl Documents {
         if self.active_session >= self.sessions.len() {
             return false;
         }
+        #[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
         self.transfers
             .cancel_document(self.sessions[self.active_session].id);
         self.sessions.remove(self.active_session);

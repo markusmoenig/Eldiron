@@ -143,6 +143,7 @@ pub(crate) struct HudFrame {
     pub(crate) token: HudToken,
 }
 impl HudFrame {
+    #[cfg(test)]
     pub(crate) fn commands(&self) -> &EditorOverlay {
         &self.commands
     }

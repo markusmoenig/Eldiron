@@ -22,7 +22,7 @@ impl SimulationWorld {
     /// Zero is the existing NO_ID sentinel. Exhaustion must never reuse IDs.
     pub fn next_id(&self) -> u32 {
         self.ids
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
             .expect("simulation exhausted its runtime entity/item IDs")
     }
     pub fn get(&self, key: &str) -> Option<Value> {

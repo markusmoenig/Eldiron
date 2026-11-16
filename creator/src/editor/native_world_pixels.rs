@@ -46,6 +46,7 @@ struct Cached {
     ops: Vec<SourceOp>,
     image: ImageHandle,
     density: u32,
+    #[cfg(test)]
     source_draws: usize,
 }
 #[derive(Default)]
@@ -146,6 +147,7 @@ impl Gpu {
                 .map_err(|e| e.to_string());
             images.remove(opaque);
             result?;
+            #[cfg(test)]
             let source_draws = self.renderer.as_ref().unwrap().frame_stats().draw_calls;
             if self.alpha.is_none() {
                 self.alpha = Some(
@@ -209,6 +211,7 @@ impl Gpu {
                 ops,
                 image,
                 density: density.to_bits(),
+                #[cfg(test)]
                 source_draws,
             }) {
                 images.remove(old.image);

@@ -1,9 +1,8 @@
 //! Scoped preparation/presentation and native input for source-owned displays.
 use super::*;
-use crate::editor_overlay::{
-    EditorOverlay,
-    panel::{PanelFrame, PanelFrames, PanelScope},
-};
+use crate::editor_overlay::panel::{PanelFrame, PanelFrames, PanelScope};
+#[cfg(test)]
+use crate::editor_overlay::EditorOverlay;
 
 /// Current authoritative binding, supplied by the owning viewport controller.
 /// Scope revision is a binding/source epoch; local draft edits have their own
@@ -67,6 +66,7 @@ pub(crate) struct DisplayFrame {
     transform: ProfileTransform,
 }
 impl DisplayFrame {
+    #[cfg(test)]
     pub(crate) fn commands(&self) -> &EditorOverlay {
         &self.panel.commands
     }

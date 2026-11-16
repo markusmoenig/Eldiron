@@ -19484,3 +19484,24 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   exact revision and current executable hashes. Main tracked source unchanged
   after fast-forward, no push performed. User can now build/run directly from
   /Users/markusmoenig/Eldiron with cargo run --release --locked -p eldiron-creator.
+
+## Desktop build warning cleanup (2026-11-16)
+
+- User's supplied Release log completes successfully, then starts Creator; it
+  reports one deprecated atomic method and19Creator dead-code warnings.
+- Replaced AtomicU32::fetch_update with compiler-recommended try_update, keeping
+  checked ID exhaustion and memory ordering unchanged.
+- Host byte-transfer storage/APIs now compile for tests, browser and staticlib
+  hosts only. Shared desktop save bookkeeping/request routing stays available.
+  Apple-only theme accessors follow staticlib; browser/Apple diagnostics keep
+  their existing target/feature gates. No global warning suppression.
+- Scoped test-only overlay command accessors, cube receipts, icon statistics/
+  cleanup/frame helpers, logical source draw counts and bake tile counts to
+  tests. Retained bake metadata/readiness for browser/Apple diagnostics plus
+  tests. No rendering, input, save-format or simulation policy change.
+- User explicitly requested no build. No cargo build/check/test was run.
+  Non-mutating rustfmt parsing of all16modified Rust files PASS; git diff
+  --check PASS. Reviewed callers across default desktop, test and host code;
+  compiler/type/feature verification and a fresh zero-warning log remain
+  unverified until the user's next build. Eight unrelated concept documents
+  remain untracked and untouched.

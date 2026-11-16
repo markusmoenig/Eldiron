@@ -7,6 +7,7 @@ use web_time::{Duration, Instant};
 use theframework::{paint::PaintList, platform::*, prelude::*, render_wgpu::UiFrameImages};
 
 #[path = "native_documents.rs"]
+#[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
 mod documents;
 #[cfg(test)]
 #[path = "native_visibility_check.rs"]

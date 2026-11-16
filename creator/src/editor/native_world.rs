@@ -416,6 +416,7 @@ pub(super) struct NativeWorldFrame {
     waiting_cpu_sources: bool,
     camera: Option<CameraStamp>,
     output: ViewImage,
+    #[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
     baked: bool,
     paste_ignored: Option<Arc<FxHashSet<scenevm::GeoId>>>,
     cube: Option<CubeFrame>,
@@ -1695,6 +1696,7 @@ impl Editor {
             waiting_cpu_sources,
             camera: camera_stamp,
             output,
+            #[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
             baked,
             paste_ignored,
             cube,

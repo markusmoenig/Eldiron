@@ -85,6 +85,7 @@ impl Gpu {
         self.image = Some((composed, image));
         Ok(Some(image))
     }
+    #[cfg(test)]
     pub(super) fn visible_tiles(&self) -> usize {
         self.renderer
             .as_ref()

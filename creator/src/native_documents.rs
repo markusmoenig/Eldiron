@@ -4,6 +4,7 @@ use super::*;
 use crate::editor::{DocumentInfo, SaveInfo, SaveResult};
 use std::path::PathBuf;
 impl NativeCreatorApplication {
+    #[cfg(feature = "staticlib")]
     pub(crate) fn host_creator_theme(&self) -> u32 {
         match self.editor.native_creator_theme() {
             crate::editor::CreatorTheme::Brown => 0,

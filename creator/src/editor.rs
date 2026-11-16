@@ -368,6 +368,7 @@ mod play_session;
 mod document_io;
 mod deferred_input;
 mod example_sources;
+#[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
 pub(crate) use document_io::{DocumentInfo, SaveInfo, SaveResult};
 use play_session::CreatorPlaySession;
 

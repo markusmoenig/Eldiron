@@ -346,6 +346,7 @@ impl ToolOverlayFrame {
             self.parts.push(Part::Props(frame));
         }
     }
+    #[cfg(test)]
     pub(crate) fn commands(&self) -> impl Iterator<Item = &EditorOverlay> {
         self.parts.iter().map(|part| match part {
             Part::Commands(commands) => commands,
@@ -356,6 +357,7 @@ impl ToolOverlayFrame {
             Part::Props(frame) => &frame.commands,
         })
     }
+    #[cfg(test)]
     pub(crate) fn draw_reference(&self, buffer: &mut TheRGBABuffer, ctx: &TheContext) {
         for commands in self.commands() {
             commands.draw_reference(buffer, ctx);

@@ -487,6 +487,7 @@ enum State {
     Prepared(std::sync::Arc<PaintPageIndex>),
 }
 impl Preparation {
+    #[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
     pub(super) fn ready(&self) -> bool {
         matches!(self.0, State::Prepared(..))
     }

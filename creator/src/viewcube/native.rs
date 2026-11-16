@@ -1,9 +1,8 @@
 //! Camera-scoped immutable cube geometry and input activated by root receipts.
 use super::*;
-use crate::editor_overlay::{
-    EditorOverlay,
-    panel::{PanelFrame, PanelFrames, PanelHit, PanelScope},
-};
+use crate::editor_overlay::panel::{PanelFrame, PanelFrames, PanelHit, PanelScope};
+#[cfg(test)]
+use crate::editor_overlay::EditorOverlay;
 use std::sync::Arc;
 
 #[derive(Clone, Copy)]
@@ -59,10 +58,11 @@ impl CubeTarget {
     }
 }
 impl CubeFrame {
+    #[cfg(test)]
     pub(crate) fn commands(&self) -> &EditorOverlay {
         &self.panel.commands
     }
-    #[cfg(feature = "native-ui")]
+    #[cfg(all(test, feature = "native-ui"))]
     pub(crate) fn receipt(&self) -> theframework::paint::FrameReceipt {
         self.panel.receipt()
     }

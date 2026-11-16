@@ -1,7 +1,9 @@
 //! Native/browser document I/O uses immutable bytes and addressed completion.
 //! Tab activation, migrations, controller cancellation and undo stay in Creator.
 use super::*;
+#[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
 pub(crate) use crate::documents::transfers::SaveInfo;
+#[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
 #[derive(serde::Serialize)]
 pub(crate) struct DocumentInfo {
     pub document: Uuid,
@@ -9,6 +11,7 @@ pub(crate) struct DocumentInfo {
     pub title: String,
     pub dirty: bool,
 }
+#[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
 #[derive(serde::Serialize)]
 pub(crate) struct SaveResult {
     pub document: Uuid,
@@ -19,11 +22,13 @@ pub(crate) struct SaveResult {
 // refreshed only on the encoder's clone. Canonical key ordering also survives tab
 // snapshots whose hash-map iteration order differs. Retain full bytes rather than
 // a collision-prone fingerprint: completion must never clean a different source.
+#[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
 fn source_bytes(project: &Project) -> Result<Vec<u8>, String> {
     let mut source = serde_json::to_value(project).map_err(|e| e.to_string())?;
     source.sort_all_objects();
     serde_json::to_vec(&source).map_err(|e| e.to_string())
 }
+#[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
 impl Editor {
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn has_document(&self, document: Uuid) -> bool {
@@ -38,6 +43,8 @@ impl Editor {
     pub(crate) fn take_host_document_requests(&mut self) -> Vec<(&'static str, Uuid)> {
         std::mem::take(&mut self.documents.host_requests)
     }
+}
+impl Editor {
     pub(super) fn queue_host_document_request(&mut self, name: &str) -> bool {
         if !self.documents.host_io {
             return false;
@@ -57,7 +64,9 @@ impl Editor {
         }
         true
     }
-
+}
+#[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
+impl Editor {
     pub(crate) fn document_info(&self) -> Option<DocumentInfo> {
         Some(DocumentInfo {
             document: self.documents.active_id()?,
@@ -204,6 +213,8 @@ impl Editor {
             })
         }
     }
+}
+impl Editor {
     pub(super) fn mark_current_document_saved(&mut self, ui: &mut TheUI) {
         self.server_ctx.history.write().mark_saved();
         self.server_ctx.docks.write().mark_saved();
