@@ -1,0 +1,54 @@
+{
+  "merge": {
+    "main_checkout": "/Users/markusmoenig/Eldiron",
+    "branch": "master",
+    "before_head": "f8d880110366e8638305493ac7c4bc6c58b9313d",
+    "rewrite_head": "0cda30900227da7b90a43b89b8155129870f0d52",
+    "backup_directory": "/private/tmp/eldiron-main-merge-backup-nr5cv7e4",
+    "original_plan_backup": "/private/tmp/eldiron-main-merge-backup-nr5cv7e4/native-wgpu-modular-rewrite.md",
+    "untracked_before_sha256": {
+      "concepts/native-wgpu-modular-rewrite.md": "66eaf87be4bc9cdbbd5078fb194583b01c541dc8ec5f7972f3b626df7295bdbb",
+      "concepts/networking-mmo-concept.md": "3295b093c9a160d2622a99b771a65360f33d6b21ea1b0b00e94cc065ff5e871e",
+      "concepts/ruleset-contribution-contract.md": "dfe9b6ba9f1cb4863bb71c64626ffd7a06e9f197dd11bb05f20ab7e6a0350d7b",
+      "concepts/ruleset-data-model-concept.md": "1d48f6efcb49c035acfb34df5c04f26019ddeb05c2f10432f5dbc90435b3a6d1",
+      "concepts/ruleset-editor-concept.md": "b1680ad9d3c236eb801f6d74a48b3aada979250e3931fb98729ab819c7a226dc",
+      "concepts/ruleset-foundation-concept.md": "90220da8523dac5ffcf6273d20b071b2303aa58b28c2002b10eb1baeb0d16803",
+      "concepts/ruleset-foundation-gap-review.md": "6cb30cb22ae691a62ab57d24bf52469d8e2c94e936dac9feba4132e556d24230",
+      "concepts/shared-operation-contract.md": "672fec8c5eb19d1b28b8e99ff5e49a5c360c16352cdb76ffa8372da0dc1b5302",
+      "concepts/world-resource-lifecycle-contract.md": "f591ade5e03d6de5183fce87a26129b94a275b2aa710d44ab41d964d2c4e0b8c"
+    },
+    "after_head": "0cda30900227da7b90a43b89b8155129870f0d52",
+    "merge_exit": 0,
+    "other_untracked_files_preserved": true
+  },
+  "checks": [
+    {
+      "step": "boundaries",
+      "exit": 0,
+      "seconds": 4.865698125,
+      "log": "/private/tmp/eldiron-main-merge-boundaries.log"
+    },
+    {
+      "step": "release-build",
+      "exit": 0,
+      "seconds": 116.528375375,
+      "log": "/private/tmp/eldiron-main-merge-release-build.log"
+    }
+  ],
+  "executables": [
+    {
+      "path": "/Users/markusmoenig/Eldiron/target/release/eldiron-creator",
+      "sha256": "6e916d543ab7816224bbc4834057ae18c580782a10e1dda1e9f9b47ac6e15aba",
+      "bytes": 104293712,
+      "version": "Eldiron Creator 0.96.0"
+    },
+    {
+      "path": "/Users/markusmoenig/Eldiron/target/release/eldiron-client",
+      "sha256": "80bd3fb77d74d59178ee6d8b732ee2a0ac4fba70fdc16f3698538984ef9cb936",
+      "bytes": 69078048,
+      "version": "Eldiron Player 0.96.0"
+    }
+  ],
+  "pushed": false,
+  "scope": "Source-identical local fast-forward onto existing master; 29 boundaries and canonical Release builds pass from normal checkout. Existing outstanding rewrite acceptance gates are unchanged."
+}

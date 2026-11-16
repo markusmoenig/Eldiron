@@ -19453,3 +19453,34 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   open latest/Creator.command to physically retest 2D/iso keyboard movement
   and ordinary2D Play/Stop icon policy. Physical smoothness remains unverified
   until observed; no FPS, simulation cadence or broad performance claim.
+
+## User-approved integration into the main checkout (2026-11-16)
+
+- User requests merging the usable rewrite into their normal checkout to make
+  compiling/testing easier. The main branch is actually named master; no main
+  branch existed. Kept that branch name and fast-forwarded it locally from
+  f8d880110 to0cda30900 (rewrite HEAD). No source conflicts or divergent main
+  commits; original tracked main work is an ancestor and remains in history.
+- Main checkout /Users/markusmoenig/Eldiron is now the canonical location for
+  further user builds/work. Rewrite worktree/branch and all versioned test
+  executables/project copies remain available; no worktree deletion or push.
+- Main had nine untracked concept documents. Eight unrelated documents remain
+  untouched, hash verified. The overlapping native-WGPU plan differed only by
+  the rewrite activation note and the user's obsolete-paint compatibility scope;
+  incoming current plan retained. Original untracked plan backed up with merge
+  receipt in /private/tmp/eldiron-main-merge-backup-nr5cv7e4.
+- Serialized main-checkout source boundaries and release/locked/offline Creator
+  plus canonical eldiron-client build underway, receipt
+  /private/tmp/eldiron-main-merge-checks.json. No broad unchanged suites or
+  physical UI runs required for this source-identical fast-forward. M0–M9
+  outstanding acceptance evidence remains unchanged; merging is not a claim
+  that unavailable hardware or remaining performance gates passed.
+
+- Main-checkout90173 terminalPASS:29 boundaries4.87s; canonical Creator +
+  eldiron-client release/locked/offline build116.53s. Executables verified by
+  --version and SHA256. Eight unrelated untracked concept documents rechecked
+  unchanged after build; both old main and rewrite remain ancestors.
+  Durable release-main-checkout-integration.json includes merge backup receipt,
+  exact revision and current executable hashes. Main tracked source unchanged
+  after fast-forward, no push performed. User can now build/run directly from
+  /Users/markusmoenig/Eldiron with cargo run --release --locked -p eldiron-creator.
