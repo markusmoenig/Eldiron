@@ -1,0 +1,57 @@
+   Compiling renderkit v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/renderkit)
+warning: method `take_pending` is never used
+  --> crates/theframework/src/platform/wake.rs:64:19
+   |
+39 | impl ApplicationWake {
+   | -------------------- method in this implementation
+...
+64 |     pub(crate) fn take_pending(&self) -> bool {
+   |                   ^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `icon_owner` is never read
+  --> crates/theframework/src/theui/theuicontext.rs:54:5
+   |
+33 | pub struct TheUIContext {
+   |            ------------ field in this struct
+...
+54 |     icon_owner: Uuid,
+   |     ^^^^^^^^^^
+
+warning: `theframework` (lib) generated 2 warnings
+   Compiling scenevm v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/scenevm)
+   Compiling rusterix v0.96.0 (/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree/crates/rusterix)
+warning: use of deprecated method `std::sync::atomic::Atomic::<u32>::fetch_update`: renamed to `try_update` for consistency
+  --> crates/rusterix/src/server/world.rs:25:14
+   |
+25 |             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+   |              ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+25 -             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+25 +             .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+   |
+
+warning: unreachable `else` clause
+     --> crates/rusterix/src/client/mod.rs:10673:61
+      |
+10673 |         let Command::CreateEntity(_, entity) = &commands[0] else {
+      |         --------------------------------------------------- ^^^^
+      |         |
+      |         assigning to binding pattern will always succeed
+      |
+      = note: this pattern always matches, so the else clause is unreachable
+      = note: `#[warn(irrefutable_let_patterns)]` on by default
+
+warning: `rusterix` (lib test) generated 2 warnings (run `cargo fix --lib -p rusterix --tests` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 51.17s
+     Running unittests src/lib.rs (/Users/markusmoenig/Eldiron/target/release/deps/rusterix-cdf08aba863121ac)
+
+running 1 test
+test scene_handler::tests::stopped_2d_markers_replace_actor_sprites_without_stale_dynamics ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 722 filtered out; finished in 0.05s
+

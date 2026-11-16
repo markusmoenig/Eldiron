@@ -2075,6 +2075,23 @@ mod tests {
         assert!(app.application.editor.native_play_projection_received_for_test());
         assert!(!app.application.editor.native_world_character_preview_for_test(),
             "owned Play renders runtime character state without authoring defaults");
+        for isometric in [false, true] {
+            let (mode, camera, sprite) = app.application.editor.prepare_native_runtime_sprite_for_test(isometric);
+            app.frame(&mut host, &mut replacement).unwrap();
+            let actors = app.application.editor.native_world_actor_display_for_test();
+            assert!(!actors.0, "running 2D authoring hides placement markers");
+            app.application.editor.set_native_runtime_sprite_for_test(sprite, true);
+            app.frame(&mut host, &mut replacement).unwrap();
+            let appeared = app.application.editor.native_world_actor_display_for_test();
+            assert_eq!(appeared.2, actors.2, "no animation tick between frames");
+            assert_eq!(appeared.1, actors.1 + 1,
+                "live actor publication reaches 2D/iso dynamics before the next animation tick; iso={isometric}");
+            app.application.editor.set_native_runtime_sprite_for_test(sprite, false);
+            app.frame(&mut host, &mut replacement).unwrap();
+            assert_eq!(app.application.editor.native_world_actor_display_for_test(), actors,
+                "per-frame runtime changes cannot reuse a stale authoring scene; iso={isometric}");
+            app.application.editor.restore_native_runtime_view_for_test(mode, camera);
+        }
         assert_eq!(
             app.application.editor.native_play_authoring_checkpoint_for_test(),
             authored_session,

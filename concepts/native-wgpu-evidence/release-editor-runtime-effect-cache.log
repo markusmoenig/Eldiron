@@ -1,0 +1,6 @@
+
+running 1 test
+test scene_handler::tests::dynamics_cache_tracks_effect_edits_without_overlay_invalidation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 722 filtered out; finished in 0.06s
+

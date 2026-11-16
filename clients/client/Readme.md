@@ -19,14 +19,17 @@ cargo install eldiron-client
 ## Running a project
 
 ```bash
-cargo run -p eldiron-client -- path/to/game.eldiron
+cargo run --release --locked -p eldiron-client -- path/to/game.eldiron
 ```
 
-The native executable shares the WGPU presentation host and runtime session with
-`eldiron-client-wgpu`; both default to `./game.eldiron`. Use `--help` for options.
+Use `eldiron-client` for normal GPU gameplay. `eldiron-client-wgpu` is an alternate
+launcher for exactly the same presentation host and runtime session, retained
+during migration; it does not provide a second renderer or additional GPU mode.
+Both default to `./game.eldiron`. Use `--help` for options.
 The previous launcher is available for comparisons with
-`--features legacy-reference --bin eldiron-client-reference`. The browser entry
-retains its compatibility adapter while the common browser host is implemented.
+`--features legacy-reference --bin eldiron-client-reference`. Both browser entry
+points also use the common WebGPU host; see the
+[shared player packaging instructions](../client-wgpu/README.md#browser-webgpu).
 
 ## License
 

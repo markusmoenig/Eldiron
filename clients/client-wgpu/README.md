@@ -1,5 +1,7 @@
 # Eldiron Client WGPU
 
+Use `eldiron-client` for normal gameplay. `eldiron-client-wgpu` remains an
+alternate launcher during migration, not a separate rendering implementation.
 The native `eldiron-client-wgpu` and `eldiron-client` executables use the same
 application-owned WGPU host, runtime session and game-screen presenter. Scene
 views, UI and Swash glyph atlases compose on the shared GPU without a viewport

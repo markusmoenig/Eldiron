@@ -1,0 +1,28 @@
+{
+  "source_parent": "cdb63d2a5c47db96805386db696c0b5ebe899b5c",
+  "source_sha256": {
+    "creator/src/editor/native_world.rs": "f85384d57f090c0cfae407204d34b08123ae2ffece9193e085088d8d94c6ccbc",
+    "creator/src/native_application.rs": "efa17518c67999a7103d1d33d16366bfe644f2ddd7c59678c073b65b862d2f17",
+    "crates/rusterix/src/scene_handler.rs": "9bb719287fc065de7a6759ddcf62e09edd29a51709a650b1c665ae74c5ae957b"
+  },
+  "creator": {
+    "executable": "/Users/markusmoenig/Eldiron/target/release/deps/eldiron_creator-5edeb499b544aeac",
+    "sha256": "1ad38e184ab639e8858d5941c9f7b3481751a6653843b824e8b7ab3c794e4eef",
+    "build_seconds": 74.351401958,
+    "exit": 0,
+    "test_seconds": 26.227135290999996
+  },
+  "checks": {
+    "engine": "PASS1: unchanged-map/frame sprite-policy transitions true/true/false/false/true/false, ordinary gameplay sprites preserved and serialized authored map unchanged",
+    "creator": "PASS1 assembled: ordinary2D AND2Diso actor appearance/disappearance between frames without animation tick; runtime marker suppression; existing authoring/gameplay/ownership/text checks",
+    "effect_cache": "PASS1: effects survive overlay rebuild; removed effects retire",
+    "boundaries": "PASS29"
+  },
+  "logs": {
+    "engine": "concepts/native-wgpu-evidence/release-editor-runtime-engine.log",
+    "creator": "concepts/native-wgpu-evidence/release-editor-runtime-creator.log",
+    "effect-cache": "concepts/native-wgpu-evidence/release-editor-runtime-effect-cache.log",
+    "boundaries": "concepts/native-wgpu-evidence/release-editor-runtime-boundaries.log"
+  },
+  "scope": "Fix stale 2D/2D-isometric runtime scene reuse and ordinary 2D stopped marker/sprite policy. No simulation or FPS cadence change. Does not establish physical movement smoothness or full performance acceptance."
+}

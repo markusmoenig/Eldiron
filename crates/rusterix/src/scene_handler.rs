@@ -431,6 +431,39 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn stopped_2d_markers_replace_actor_sprites_without_stale_dynamics() {
+        let mut handler = SceneHandler::default();
+        let mut assets = Assets::default();
+        let tile = Tile::from_texture(Texture::from_color([255; 4]));
+        let tile_id = tile.id;
+        assets.tiles.insert(tile_id, tile);
+        let mut map = Map::new();
+        let mut entity = Entity::new();
+        entity.id = 42;
+        entity.attributes.set("visible", Value::Bool(true));
+        entity.attributes.set("source", Value::Source(PixelSource::TileId(tile_id)));
+        map.entities.push(entity);
+        let mut item = Item::new();
+        item.id = 43;
+        item.attributes.set("visible", Value::Bool(true));
+        item.attributes.set("source", Value::Source(PixelSource::TileId(tile_id)));
+        map.items.push(item);
+        let saved = serde_json::to_value(&map).unwrap();
+        let styles = Default::default();
+        // The same map/frame must rebuild across both Play and Stop, including
+        // repeated cache hits within each state. No authored visibility edit.
+        for visible in [true, true, false, false, true, false] {
+            handler.build_dynamics_2d_with_actor_sprites(&map, 0, &assets, &styles, visible);
+            assert_eq!(handler.vm.vm.debug_stats().dynamics, if visible { 2 } else { 0 });
+            assert_eq!(serde_json::to_value(&map).unwrap(), saved);
+        }
+        handler.build_dynamics_2d(&map, 0, &assets, &styles);
+        assert_eq!(handler.vm.vm.debug_stats().dynamics, 2,
+            "ordinary game rendering retains both actor sprites");
+    }
+
+    #[test]
     fn particle_speed_is_independent_of_update_rate() {
         for updates_per_second in [4, 10, 15, 30, 60, 144] {
             let mut clock = ParticleClock::default();
@@ -683,7 +716,7 @@ pub struct SceneHandler {
     frame_counter: usize,
     avatar_builder: AvatarRuntimeBuilder,
     procedural_avatars: crate::procedural_avatar::Runtime,
-    last_dynamics_hash_2d: Option<u64>,
+    last_dynamics_hash_2d: Option<(u64, bool)>,
     last_dynamics_hash_3d: Option<u64>,
     last_dynamics_tick_2d: Option<usize>,
     last_dynamics_tick_3d: Option<usize>,
@@ -3691,6 +3724,20 @@ impl SceneHandler {
         assets: &Assets,
         avatar_frame_styles: &FxHashMap<u32, AvatarFrameStyle>,
     ) {
+        self.build_dynamics_2d_with_actor_sprites(map, animation_frame, assets, avatar_frame_styles, true);
+    }
+
+    /// Placement markers replace actor sprites in a stopped authoring region.
+    /// Keep geometry, lights and effects alive, and include this policy in the
+    /// cache identity so Play/Stop cannot retain the previous actor sprites.
+    pub fn build_dynamics_2d_with_actor_sprites(
+        &mut self,
+        map: &Map,
+        animation_frame: usize,
+        assets: &Assets,
+        avatar_frame_styles: &FxHashMap<u32, AvatarFrameStyle>,
+        actor_sprites: bool,
+    ) {
         // SceneVM's current 2D dynamic ordering consumes higher layer numbers first.
         // Give ground items a numerically higher layer so characters are composited over them.
         const D2_GROUND_ITEM_LAYER: i32 = 20;
@@ -3709,7 +3756,7 @@ impl SceneHandler {
         self.procedural_avatars.tick(animation_frame, tick_seconds);
         let profile = std::env::var_os("ELDIRON_PROFILE_VALIDATION").is_some();
         let validation_start = Instant::now();
-        let current_hash = self.dynamics_hash_2d(map, animation_frame, avatar_frame_styles, assets);
+        let current_hash = (self.dynamics_hash_2d(map, animation_frame, avatar_frame_styles, assets), actor_sprites);
         let validation_ms = validation_start.elapsed().as_secs_f64() * 1000.;
         let rebuild_start = Instant::now();
         let has_active_tile_particles = !self.tile_emitters_2d.is_empty();
@@ -3758,6 +3805,7 @@ impl SceneHandler {
                 });
             }
 
+            if !actor_sprites { continue; }
             let mz_id = Self::item_render_geo_id(item, item_index);
             if item.attributes.get_bool_default("visible", false)
                 && self
@@ -3877,7 +3925,7 @@ impl SceneHandler {
                 }
             }
 
-            if entity.attributes.get_bool_default("visible", false) {
+            if actor_sprites && entity.attributes.get_bool_default("visible", false) {
                 let geo_id = Self::entity_render_geo_id(entity, entity_index);
                 let size_2d = entity
                     .attributes

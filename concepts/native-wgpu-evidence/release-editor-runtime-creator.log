@@ -1,0 +1,373 @@
+
+running 1 test
+test native_application::tests::native_creator_application_paints_the_root_ui_without_a_root_framebuffer ... Scene manager has started up.
+Persisted native bake phase0: max reference delta=0
+Persisted native bake phase1: max reference delta=0
+Persisted native bake phase2: max reference delta=0
+Persisted native bake phase3: max reference delta=0
+Persisted native bake phase4: max reference delta=0
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 148921348, readback_bytes: 68568952, capture_requests: 16, status_readback_bytes: 0, asset_bake_readback_bytes: 262144, asset_bake_readback_requests: 1 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 148924800, readback_bytes: 68568952, capture_requests: 16, status_readback_bytes: 0, asset_bake_readback_bytes: 262144, asset_bake_readback_requests: 1 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 148924812, readback_bytes: 68568952, capture_requests: 16, status_readback_bytes: 0, asset_bake_readback_bytes: 262144, asset_bake_readback_requests: 1 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 150498376, readback_bytes: 68568952, capture_requests: 16, status_readback_bytes: 0, asset_bake_readback_bytes: 262144, asset_bake_readback_requests: 1 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 150499076, readback_bytes: 68831096, capture_requests: 17, status_readback_bytes: 0, asset_bake_readback_bytes: 524288, asset_bake_readback_requests: 2 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 150499776, readback_bytes: 68831096, capture_requests: 17, status_readback_bytes: 0, asset_bake_readback_bytes: 524288, asset_bake_readback_requests: 2 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 152073340, readback_bytes: 68831096, capture_requests: 17, status_readback_bytes: 0, asset_bake_readback_bytes: 524288, asset_bake_readback_requests: 2 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 152074040, readback_bytes: 69093240, capture_requests: 18, status_readback_bytes: 0, asset_bake_readback_bytes: 786432, asset_bake_readback_requests: 3 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 152074740, readback_bytes: 69093240, capture_requests: 18, status_readback_bytes: 0, asset_bake_readback_bytes: 786432, asset_bake_readback_requests: 3 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 152075440, readback_bytes: 69355384, capture_requests: 19, status_readback_bytes: 0, asset_bake_readback_bytes: 1048576, asset_bake_readback_requests: 4 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 152076140, readback_bytes: 69355384, capture_requests: 19, status_readback_bytes: 0, asset_bake_readback_bytes: 1048576, asset_bake_readback_requests: 4 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 152076840, readback_bytes: 69617528, capture_requests: 20, status_readback_bytes: 0, asset_bake_readback_bytes: 1310720, asset_bake_readback_requests: 5 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 152077540, readback_bytes: 69617528, capture_requests: 20, status_readback_bytes: 0, asset_bake_readback_bytes: 1310720, asset_bake_readback_requests: 5 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 152085264, readback_bytes: 71714680, capture_requests: 21, status_readback_bytes: 0, asset_bake_readback_bytes: 3407872, asset_bake_readback_requests: 6 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 153658828, readback_bytes: 71714680, capture_requests: 21, status_readback_bytes: 0, asset_bake_readback_bytes: 3407872, asset_bake_readback_requests: 6 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 153659528, readback_bytes: 71976824, capture_requests: 22, status_readback_bytes: 0, asset_bake_readback_bytes: 3670016, asset_bake_readback_requests: 7 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 155233092, readback_bytes: 71976824, capture_requests: 22, status_readback_bytes: 0, asset_bake_readback_bytes: 3670016, asset_bake_readback_requests: 7 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 155233792, readback_bytes: 72238968, capture_requests: 23, status_readback_bytes: 0, asset_bake_readback_bytes: 3932160, asset_bake_readback_requests: 8 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 156807356, readback_bytes: 72238968, capture_requests: 23, status_readback_bytes: 0, asset_bake_readback_bytes: 3932160, asset_bake_readback_requests: 8 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 156808056, readback_bytes: 72501112, capture_requests: 24, status_readback_bytes: 0, asset_bake_readback_bytes: 4194304, asset_bake_readback_requests: 9 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 156808756, readback_bytes: 72501112, capture_requests: 24, status_readback_bytes: 0, asset_bake_readback_bytes: 4194304, asset_bake_readback_requests: 9 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 156810096, readback_bytes: 72763256, capture_requests: 25, status_readback_bytes: 0, asset_bake_readback_bytes: 4456448, asset_bake_readback_requests: 10 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 156810796, readback_bytes: 72763256, capture_requests: 25, status_readback_bytes: 0, asset_bake_readback_bytes: 4456448, asset_bake_readback_requests: 10 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 156811496, readback_bytes: 73025400, capture_requests: 26, status_readback_bytes: 0, asset_bake_readback_bytes: 4718592, asset_bake_readback_requests: 11 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 156812196, readback_bytes: 73025400, capture_requests: 26, status_readback_bytes: 0, asset_bake_readback_bytes: 4718592, asset_bake_readback_requests: 11 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 156819920, readback_bytes: 75122552, capture_requests: 27, status_readback_bytes: 0, asset_bake_readback_bytes: 6815744, asset_bake_readback_requests: 12 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 158393484, readback_bytes: 75122552, capture_requests: 27, status_readback_bytes: 0, asset_bake_readback_bytes: 6815744, asset_bake_readback_requests: 12 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 158394184, readback_bytes: 75384696, capture_requests: 28, status_readback_bytes: 0, asset_bake_readback_bytes: 7077888, asset_bake_readback_requests: 13 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 159967748, readback_bytes: 75384696, capture_requests: 28, status_readback_bytes: 0, asset_bake_readback_bytes: 7077888, asset_bake_readback_requests: 13 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 159969064, readback_bytes: 75646840, capture_requests: 29, status_readback_bytes: 0, asset_bake_readback_bytes: 7340032, asset_bake_readback_requests: 14 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 161542628, readback_bytes: 75646840, capture_requests: 29, status_readback_bytes: 0, asset_bake_readback_bytes: 7340032, asset_bake_readback_requests: 14 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 161543328, readback_bytes: 75908984, capture_requests: 30, status_readback_bytes: 0, asset_bake_readback_bytes: 7602176, asset_bake_readback_requests: 15 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 161544028, readback_bytes: 75908984, capture_requests: 30, status_readback_bytes: 0, asset_bake_readback_bytes: 7602176, asset_bake_readback_requests: 15 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 161544728, readback_bytes: 76171128, capture_requests: 31, status_readback_bytes: 0, asset_bake_readback_bytes: 7864320, asset_bake_readback_requests: 16 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 161545428, readback_bytes: 76171128, capture_requests: 31, status_readback_bytes: 0, asset_bake_readback_bytes: 7864320, asset_bake_readback_requests: 16 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 161546128, readback_bytes: 76433272, capture_requests: 32, status_readback_bytes: 0, asset_bake_readback_bytes: 8126464, asset_bake_readback_requests: 17 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 161546828, readback_bytes: 76433272, capture_requests: 32, status_readback_bytes: 0, asset_bake_readback_bytes: 8126464, asset_bake_readback_requests: 17 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 161554552, readback_bytes: 78530424, capture_requests: 33, status_readback_bytes: 0, asset_bake_readback_bytes: 10223616, asset_bake_readback_requests: 18 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 163128116, readback_bytes: 78530424, capture_requests: 33, status_readback_bytes: 0, asset_bake_readback_bytes: 10223616, asset_bake_readback_requests: 18 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 163128816, readback_bytes: 78792568, capture_requests: 34, status_readback_bytes: 0, asset_bake_readback_bytes: 10485760, asset_bake_readback_requests: 19 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 164702380, readback_bytes: 78792568, capture_requests: 34, status_readback_bytes: 0, asset_bake_readback_bytes: 10485760, asset_bake_readback_requests: 19 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 164703080, readback_bytes: 79054712, capture_requests: 35, status_readback_bytes: 0, asset_bake_readback_bytes: 10747904, asset_bake_readback_requests: 20 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 166276644, readback_bytes: 79054712, capture_requests: 35, status_readback_bytes: 0, asset_bake_readback_bytes: 10747904, asset_bake_readback_requests: 20 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 166277344, readback_bytes: 79316856, capture_requests: 36, status_readback_bytes: 0, asset_bake_readback_bytes: 11010048, asset_bake_readback_requests: 21 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 166278044, readback_bytes: 79316856, capture_requests: 36, status_readback_bytes: 0, asset_bake_readback_bytes: 11010048, asset_bake_readback_requests: 21 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 166279360, readback_bytes: 79579000, capture_requests: 37, status_readback_bytes: 0, asset_bake_readback_bytes: 11272192, asset_bake_readback_requests: 22 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 166280060, readback_bytes: 79579000, capture_requests: 37, status_readback_bytes: 0, asset_bake_readback_bytes: 11272192, asset_bake_readback_requests: 22 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 166280760, readback_bytes: 79841144, capture_requests: 38, status_readback_bytes: 0, asset_bake_readback_bytes: 11534336, asset_bake_readback_requests: 23 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 166281460, readback_bytes: 79841144, capture_requests: 38, status_readback_bytes: 0, asset_bake_readback_bytes: 11534336, asset_bake_readback_requests: 23 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 166289184, readback_bytes: 81938296, capture_requests: 39, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 167862748, readback_bytes: 81938296, capture_requests: 39, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 167863448, readback_bytes: 81938296, capture_requests: 39, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 167864148, readback_bytes: 81938296, capture_requests: 39, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 140520136, readback_bytes: 68306808, capture_requests: 15, status_readback_bytes: 0, asset_bake_readback_bytes: 0, asset_bake_readback_requests: 0 }, after=TransferCounters { uploaded_bytes: 167864848, readback_bytes: 81938296, capture_requests: 39, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }
+Native generated bake published after 55 GPU frames
+Painted fixture floor GeometryObject(d7d08296-04e1-468a-a8b8-b7c205623a6c), surface=[976145799, 3915344351, 1145947040, 1752005624]
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 206607124, readback_bytes: 85270288, capture_requests: 42, status_readback_bytes: 24, asset_bake_readback_bytes: 13893632, asset_bake_readback_requests: 25 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 206607136, readback_bytes: 85270288, capture_requests: 42, status_readback_bytes: 24, asset_bake_readback_bytes: 13893632, asset_bake_readback_requests: 25 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 206607148, readback_bytes: 85270288, capture_requests: 42, status_readback_bytes: 24, asset_bake_readback_bytes: 13893632, asset_bake_readback_requests: 25 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 208180712, readback_bytes: 85270288, capture_requests: 42, status_readback_bytes: 24, asset_bake_readback_bytes: 13893632, asset_bake_readback_requests: 25 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 208181412, readback_bytes: 85270288, capture_requests: 42, status_readback_bytes: 28, asset_bake_readback_bytes: 13893632, asset_bake_readback_requests: 25 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 208182112, readback_bytes: 85270288, capture_requests: 42, status_readback_bytes: 28, asset_bake_readback_bytes: 13893632, asset_bake_readback_requests: 25 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 208182812, readback_bytes: 85270288, capture_requests: 42, status_readback_bytes: 28, asset_bake_readback_bytes: 13893632, asset_bake_readback_requests: 25 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 208183512, readback_bytes: 85270288, capture_requests: 42, status_readback_bytes: 28, asset_bake_readback_bytes: 13893632, asset_bake_readback_requests: 25 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 208184212, readback_bytes: 85532432, capture_requests: 43, status_readback_bytes: 28, asset_bake_readback_bytes: 14155776, asset_bake_readback_requests: 26 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 208184912, readback_bytes: 85532432, capture_requests: 43, status_readback_bytes: 28, asset_bake_readback_bytes: 14155776, asset_bake_readback_requests: 26 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 209758476, readback_bytes: 85532432, capture_requests: 43, status_readback_bytes: 28, asset_bake_readback_bytes: 14155776, asset_bake_readback_requests: 26 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 209759176, readback_bytes: 85532432, capture_requests: 43, status_readback_bytes: 32, asset_bake_readback_bytes: 14155776, asset_bake_readback_requests: 26 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 209759876, readback_bytes: 85794576, capture_requests: 44, status_readback_bytes: 32, asset_bake_readback_bytes: 14417920, asset_bake_readback_requests: 27 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 209760576, readback_bytes: 85794576, capture_requests: 44, status_readback_bytes: 32, asset_bake_readback_bytes: 14417920, asset_bake_readback_requests: 27 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 209761276, readback_bytes: 85794576, capture_requests: 44, status_readback_bytes: 36, asset_bake_readback_bytes: 14417920, asset_bake_readback_requests: 27 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 209761976, readback_bytes: 86056720, capture_requests: 45, status_readback_bytes: 36, asset_bake_readback_bytes: 14680064, asset_bake_readback_requests: 28 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 209762676, readback_bytes: 86056720, capture_requests: 45, status_readback_bytes: 36, asset_bake_readback_bytes: 14680064, asset_bake_readback_requests: 28 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 209763376, readback_bytes: 86056720, capture_requests: 45, status_readback_bytes: 40, asset_bake_readback_bytes: 14680064, asset_bake_readback_requests: 28 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 209764076, readback_bytes: 86318864, capture_requests: 46, status_readback_bytes: 40, asset_bake_readback_bytes: 14942208, asset_bake_readback_requests: 29 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 209764776, readback_bytes: 86318864, capture_requests: 46, status_readback_bytes: 40, asset_bake_readback_bytes: 14942208, asset_bake_readback_requests: 29 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 209772500, readback_bytes: 88416016, capture_requests: 47, status_readback_bytes: 40, asset_bake_readback_bytes: 17039360, asset_bake_readback_requests: 30 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 211346064, readback_bytes: 88416016, capture_requests: 47, status_readback_bytes: 40, asset_bake_readback_bytes: 17039360, asset_bake_readback_requests: 30 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 211346764, readback_bytes: 88416016, capture_requests: 47, status_readback_bytes: 44, asset_bake_readback_bytes: 17039360, asset_bake_readback_requests: 30 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 211347464, readback_bytes: 88678160, capture_requests: 48, status_readback_bytes: 44, asset_bake_readback_bytes: 17301504, asset_bake_readback_requests: 31 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 212921028, readback_bytes: 88678160, capture_requests: 48, status_readback_bytes: 44, asset_bake_readback_bytes: 17301504, asset_bake_readback_requests: 31 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 212921728, readback_bytes: 88678160, capture_requests: 48, status_readback_bytes: 48, asset_bake_readback_bytes: 17301504, asset_bake_readback_requests: 31 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 212922428, readback_bytes: 88940304, capture_requests: 49, status_readback_bytes: 48, asset_bake_readback_bytes: 17563648, asset_bake_readback_requests: 32 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 214495992, readback_bytes: 88940304, capture_requests: 49, status_readback_bytes: 48, asset_bake_readback_bytes: 17563648, asset_bake_readback_requests: 32 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 214496692, readback_bytes: 88940304, capture_requests: 49, status_readback_bytes: 52, asset_bake_readback_bytes: 17563648, asset_bake_readback_requests: 32 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 214497392, readback_bytes: 89202448, capture_requests: 50, status_readback_bytes: 52, asset_bake_readback_bytes: 17825792, asset_bake_readback_requests: 33 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 214498092, readback_bytes: 89202448, capture_requests: 50, status_readback_bytes: 52, asset_bake_readback_bytes: 17825792, asset_bake_readback_requests: 33 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 214498792, readback_bytes: 89202448, capture_requests: 50, status_readback_bytes: 56, asset_bake_readback_bytes: 17825792, asset_bake_readback_requests: 33 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 214499492, readback_bytes: 89464592, capture_requests: 51, status_readback_bytes: 56, asset_bake_readback_bytes: 18087936, asset_bake_readback_requests: 34 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 214500192, readback_bytes: 89464592, capture_requests: 51, status_readback_bytes: 56, asset_bake_readback_bytes: 18087936, asset_bake_readback_requests: 34 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 214500892, readback_bytes: 89464592, capture_requests: 51, status_readback_bytes: 60, asset_bake_readback_bytes: 18087936, asset_bake_readback_requests: 34 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 214501592, readback_bytes: 89726736, capture_requests: 52, status_readback_bytes: 60, asset_bake_readback_bytes: 18350080, asset_bake_readback_requests: 35 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 214502292, readback_bytes: 89726736, capture_requests: 52, status_readback_bytes: 60, asset_bake_readback_bytes: 18350080, asset_bake_readback_requests: 35 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 214510016, readback_bytes: 91823888, capture_requests: 53, status_readback_bytes: 60, asset_bake_readback_bytes: 20447232, asset_bake_readback_requests: 36 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 216083580, readback_bytes: 91823888, capture_requests: 53, status_readback_bytes: 60, asset_bake_readback_bytes: 20447232, asset_bake_readback_requests: 36 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 216084280, readback_bytes: 91823888, capture_requests: 53, status_readback_bytes: 64, asset_bake_readback_bytes: 20447232, asset_bake_readback_requests: 36 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 216084980, readback_bytes: 92086032, capture_requests: 54, status_readback_bytes: 64, asset_bake_readback_bytes: 20709376, asset_bake_readback_requests: 37 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 217658544, readback_bytes: 92086032, capture_requests: 54, status_readback_bytes: 64, asset_bake_readback_bytes: 20709376, asset_bake_readback_requests: 37 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 217659244, readback_bytes: 92086032, capture_requests: 54, status_readback_bytes: 68, asset_bake_readback_bytes: 20709376, asset_bake_readback_requests: 37 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 217659944, readback_bytes: 92348176, capture_requests: 55, status_readback_bytes: 68, asset_bake_readback_bytes: 20971520, asset_bake_readback_requests: 38 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 219233508, readback_bytes: 92348176, capture_requests: 55, status_readback_bytes: 68, asset_bake_readback_bytes: 20971520, asset_bake_readback_requests: 38 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 219234208, readback_bytes: 92348176, capture_requests: 55, status_readback_bytes: 72, asset_bake_readback_bytes: 20971520, asset_bake_readback_requests: 38 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 219234908, readback_bytes: 92610320, capture_requests: 56, status_readback_bytes: 72, asset_bake_readback_bytes: 21233664, asset_bake_readback_requests: 39 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 219235608, readback_bytes: 92610320, capture_requests: 56, status_readback_bytes: 72, asset_bake_readback_bytes: 21233664, asset_bake_readback_requests: 39 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 219236308, readback_bytes: 92610320, capture_requests: 56, status_readback_bytes: 76, asset_bake_readback_bytes: 21233664, asset_bake_readback_requests: 39 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 219237008, readback_bytes: 92872464, capture_requests: 57, status_readback_bytes: 76, asset_bake_readback_bytes: 21495808, asset_bake_readback_requests: 40 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 219237708, readback_bytes: 92872464, capture_requests: 57, status_readback_bytes: 76, asset_bake_readback_bytes: 21495808, asset_bake_readback_requests: 40 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 219238408, readback_bytes: 92872464, capture_requests: 57, status_readback_bytes: 80, asset_bake_readback_bytes: 21495808, asset_bake_readback_requests: 40 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 219239108, readback_bytes: 93134608, capture_requests: 58, status_readback_bytes: 80, asset_bake_readback_bytes: 21757952, asset_bake_readback_requests: 41 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 219239808, readback_bytes: 93134608, capture_requests: 58, status_readback_bytes: 80, asset_bake_readback_bytes: 21757952, asset_bake_readback_requests: 41 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 219247532, readback_bytes: 95231760, capture_requests: 59, status_readback_bytes: 80, asset_bake_readback_bytes: 23855104, asset_bake_readback_requests: 42 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 220821096, readback_bytes: 95231760, capture_requests: 59, status_readback_bytes: 80, asset_bake_readback_bytes: 23855104, asset_bake_readback_requests: 42 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 220821796, readback_bytes: 95231760, capture_requests: 59, status_readback_bytes: 84, asset_bake_readback_bytes: 23855104, asset_bake_readback_requests: 42 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 220822496, readback_bytes: 95493904, capture_requests: 60, status_readback_bytes: 84, asset_bake_readback_bytes: 24117248, asset_bake_readback_requests: 43 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 222396060, readback_bytes: 95493904, capture_requests: 60, status_readback_bytes: 84, asset_bake_readback_bytes: 24117248, asset_bake_readback_requests: 43 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 222396760, readback_bytes: 95493904, capture_requests: 60, status_readback_bytes: 88, asset_bake_readback_bytes: 24117248, asset_bake_readback_requests: 43 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 222397460, readback_bytes: 95756048, capture_requests: 61, status_readback_bytes: 88, asset_bake_readback_bytes: 24379392, asset_bake_readback_requests: 44 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 223971024, readback_bytes: 95756048, capture_requests: 61, status_readback_bytes: 88, asset_bake_readback_bytes: 24379392, asset_bake_readback_requests: 44 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 223971724, readback_bytes: 95756048, capture_requests: 61, status_readback_bytes: 92, asset_bake_readback_bytes: 24379392, asset_bake_readback_requests: 44 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 223972424, readback_bytes: 96018192, capture_requests: 62, status_readback_bytes: 92, asset_bake_readback_bytes: 24641536, asset_bake_readback_requests: 45 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 223973124, readback_bytes: 96018192, capture_requests: 62, status_readback_bytes: 92, asset_bake_readback_bytes: 24641536, asset_bake_readback_requests: 45 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 223973824, readback_bytes: 96018192, capture_requests: 62, status_readback_bytes: 96, asset_bake_readback_bytes: 24641536, asset_bake_readback_requests: 45 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 223974524, readback_bytes: 96280336, capture_requests: 63, status_readback_bytes: 96, asset_bake_readback_bytes: 24903680, asset_bake_readback_requests: 46 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 223975224, readback_bytes: 96280336, capture_requests: 63, status_readback_bytes: 96, asset_bake_readback_bytes: 24903680, asset_bake_readback_requests: 46 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 223975924, readback_bytes: 96280336, capture_requests: 63, status_readback_bytes: 100, asset_bake_readback_bytes: 24903680, asset_bake_readback_requests: 46 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 223976624, readback_bytes: 96542480, capture_requests: 64, status_readback_bytes: 100, asset_bake_readback_bytes: 25165824, asset_bake_readback_requests: 47 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 223977324, readback_bytes: 96542480, capture_requests: 64, status_readback_bytes: 100, asset_bake_readback_bytes: 25165824, asset_bake_readback_requests: 47 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 223985048, readback_bytes: 98639632, capture_requests: 65, status_readback_bytes: 100, asset_bake_readback_bytes: 27262976, asset_bake_readback_requests: 48 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 225558612, readback_bytes: 98639632, capture_requests: 65, status_readback_bytes: 100, asset_bake_readback_bytes: 27262976, asset_bake_readback_requests: 48 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 225559312, readback_bytes: 98639632, capture_requests: 65, status_readback_bytes: 100, asset_bake_readback_bytes: 27262976, asset_bake_readback_requests: 48 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 225560012, readback_bytes: 98639632, capture_requests: 65, status_readback_bytes: 100, asset_bake_readback_bytes: 27262976, asset_bake_readback_requests: 48 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 225560712, readback_bytes: 98639632, capture_requests: 65, status_readback_bytes: 100, asset_bake_readback_bytes: 27262976, asset_bake_readback_requests: 48 }
+Concurrent explicit asset transfers: before=TransferCounters { uploaded_bytes: 197228668, readback_bytes: 85008144, capture_requests: 41, status_readback_bytes: 0, asset_bake_readback_bytes: 13631488, asset_bake_readback_requests: 24 }, after=TransferCounters { uploaded_bytes: 225561412, readback_bytes: 98639632, capture_requests: 65, status_readback_bytes: 100, asset_bake_readback_bytes: 27262976, asset_bake_readback_requests: 48 }
+Painted bake (1, 1) beauty: max reference delta=0
+Painted bake (1, 1) albedo: max reference delta=0
+Painted bake (1, 1) normal: max reference delta=0
+Painted bake (1, 1) material: max reference delta=0
+Painted bake (0, 0) beauty: max reference delta=0
+Painted bake (0, 0) albedo: max reference delta=0
+Painted bake (0, 0) normal: max reference delta=0
+Painted bake (0, 0) material: max reference delta=0
+Painted bake (1, 0) beauty: max reference delta=0
+Painted bake (1, 0) albedo: max reference delta=0
+Painted bake (1, 0) normal: max reference delta=0
+Painted bake (1, 0) material: max reference delta=0
+Painted bake (0, 1) beauty: max reference delta=0
+Painted bake (0, 1) albedo: max reference delta=0
+Painted bake (0, 1) normal: max reference delta=0
+Painted bake (0, 1) material: max reference delta=0
+Painted progressive bake: 63849 green albedo pixels; authored paint unchanged
+Paint request state: mode=Iso, context=Region(3297f4a5-66da-4fec-b453-b6576fd7b749), status=Requested, active=false, adapter=false, source_ready=None
+Native 64-tile bake published after 77 pending root frames; source bytes=58720256
+Custom screen phase 0: max reference delta=0
+Custom screen phase 1: max reference delta=0
+Custom screen phase 2: max reference delta=0
+Custom surface phase 0: max reference delta=0
+Custom surface phase 1: max reference delta=0
+Custom surface phase 2: max reference delta=0
+Custom surface phase 3: max reference delta=0
+Custom screen-stored-3d phase 0: max reference delta=0
+Custom screen-stored-3d phase 1: max reference delta=0
+Custom screen-stored-3d phase 2: max reference delta=0
+Custom screen-iso phase 0: max reference delta=0
+Custom screen-iso phase 1: max reference delta=0
+Custom surface-iso phase 0: max reference delta=0
+Custom surface-iso phase 1: max reference delta=0
+Custom surface-stored-3d phase 0: max reference delta=0
+Custom surface-stored-3d phase 1: max reference delta=0
+Custom surface-stored-3d phase 2: max reference delta=0
+Native 2D visibility DPI=1: max reference delta=1
+Native 2D visibility DPI=1.25: max reference delta=1
+Native 2D visibility DPI=1.5: max reference delta=1
+Native 2D visibility DPI=1.75: max reference delta=1
+Native 2D visibility DPI=2: max reference delta=1
+Region: Startup with 0 errors.
+Region: Spawned `Player`
+Unseen runtime region: Startup with 0 errors.
+Region: Startup with 0 errors.
+Region: Spawned `Player`
+Unseen runtime region: Startup with 0 errors.
+Native minimap mode=0: source max delta=0
+Native minimap mode=1: source max delta=0
+Application-owned reference minimap cache/isolation/clear passed
+Native minimap mode=2: source max delta=0
+Native screen overview mode=0 size=Vec2 { x: 143, y: 83 }: max delta=0
+Native screen overview mode=0 size=Vec2 { x: 84, y: 144 }: max delta=0
+Native screen overview mode=1 size=Vec2 { x: 143, y: 83 }: max delta=0
+Native screen explicit occlusion: max delta=0
+Native screen overview mode=1 size=Vec2 { x: 84, y: 144 }: max delta=0
+Native screen overview mode=2 size=Vec2 { x: 143, y: 83 }: max delta=0
+Native screen overview mode=2 size=Vec2 { x: 84, y: 144 }: max delta=0
+Native asset populated: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset clipped ghost: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset particle ghost: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap pixel editor: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap tilemap: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap iso hover: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap rig: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap rig editor: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset rig editor preview: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap pixel editor: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap tilemap: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap iso hover: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap rig: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap rig editor: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset rig editor preview: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap edited pixels: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap particles: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset particle source alpha: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap particles: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset particle source alpha: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset minimap particles: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset particle source alpha: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset geometry minimap: max reference delta=0
+Native source DPI=1.25: max reference delta=0
+Native source DPI=1.5: max reference delta=0
+Native source DPI=1.75: max reference delta=0
+Native source DPI=2: max reference delta=0
+Native asset geometry minimap: max reference delta=0
+Native source DPI=1.25: max reference delta=0
+Native source DPI=1.5: max reference delta=0
+Native source DPI=1.75: max reference delta=0
+Native source DPI=2: max reference delta=0
+Native asset geometry minimap: max reference delta=0
+Native source DPI=1.25: max reference delta=0
+Native source DPI=1.5: max reference delta=0
+Native source DPI=1.75: max reference delta=0
+Native source DPI=2: max reference delta=0
+Native asset geometry minimap: max reference delta=0
+Native source DPI=1.25: max reference delta=0
+Native source DPI=1.5: max reference delta=0
+Native source DPI=1.75: max reference delta=0
+Native source DPI=2: max reference delta=0
+Native asset geometry minimap: max reference delta=0
+Native source DPI=1.25: max reference delta=0
+Native source DPI=1.5: max reference delta=0
+Native source DPI=1.75: max reference delta=0
+Native source DPI=2: max reference delta=0
+Native asset geometry minimap: max reference delta=0
+Native source DPI=1.25: max reference delta=0
+Native source DPI=1.5: max reference delta=0
+Native source DPI=1.75: max reference delta=0
+Native source DPI=2: max reference delta=0
+Native asset palette minimap: max reference delta=0
+Native source DPI=1.25: max reference delta=0
+Native source DPI=1.5: max reference delta=0
+Native source DPI=1.75: max reference delta=0
+Native source DPI=2: max reference delta=0
+Native asset palette minimap: max reference delta=0
+Native source DPI=1.25: max reference delta=0
+Native source DPI=1.5: max reference delta=0
+Native source DPI=1.75: max reference delta=0
+Native source DPI=2: max reference delta=0
+Native asset palette minimap: max reference delta=0
+Native source DPI=1.25: max reference delta=0
+Native source DPI=1.5: max reference delta=0
+Native source DPI=1.75: max reference delta=0
+Native source DPI=2: max reference delta=0
+Native asset palette minimap: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset palette minimap: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+Native asset palette minimap: max reference delta=1
+Native source DPI=1.25: max reference delta=1
+Native source DPI=1.5: max reference delta=1
+Native source DPI=1.75: max reference delta=1
+Native source DPI=2: max reference delta=1
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 764 filtered out; finished in 24.94s
+

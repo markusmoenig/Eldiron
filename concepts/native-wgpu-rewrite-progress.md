@@ -19399,3 +19399,42 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   M0–M9 acceptance claim. Known native-pan regression, physical input/IME/display
   and complete workflow/performance gates remain open. Hardware-only unavailable
   gates are explicitly retained; do not ask again for unavailable hardware.
+
+## User-reported editor gameplay / marker regressions (2026-11-16)
+
+- User reports choppy movement with GameInput in the authoring view, smooth full
+  Game mode; 2D placement icons and actor sprites visible simultaneously.
+- Inspection finds native 2D same_scene keyed by authored geometry, selection,
+  animation tick and render policy, omitting per-frame runtime actors. Disable
+  static scene reuse while runtime Running; retain geometry source ownership
+  and the single runtime clock. No FPS/simulation cadence increase or guess.
+- Placement markers were enabled unconditionally. They now follow actual owned
+  runtime Off state; Running/Paused render sprites. Stopped ordinary region
+  dynamics suppress character/item sprites while retaining geometry/lights/FX.
+  Asset/custom editor previews retain their sprites. Sprite policy is an explicit
+  dynamics cache key member so Play/Stop cannot retain stale dynamic objects.
+- Both native launchers call the identical native_player::desktop::run, and both
+  browser entries call common native_player::browser::start. Normal client is
+  already GPU-based; old wgpu-named executable is a redundant launcher alias,
+  not another renderer. Underlying crate still owns common player/Apple ABI.
+  README now recommends eldiron-client and removes stale browser-adapter wording.
+- Added focused actual-GPU sprite state/cache regression and assembled Creator
+  same-animation-frame runtime publication checks; release validation ongoing.
+  Current serialized engine10141; no overlapping Rust edit/compiler/test/profile.
+
+- User confirms choppiness in BOTH ordinary2D and2Disometric. Running-state
+  static-cache bypass applies to both. Extended actual assembled regression to
+  both camera paths: inject a runtime sprite, prepare hidden/visible/hidden
+  frames without any update/animation tick, verify actual SceneVM dynamics
+  change immediately and markers remain hidden. Temporary authored camera
+  restored; existing project/history/checkpoint isolation assertions pass.
+- Final48415 terminalPASS assembledCreator1: release build74.35s, test26.23s
+  driver timing; executableSHA1ad38e184ab639e8858d5941c9f7b3481751a6653843b824e8b7ab3c794e4eef.
+  Initial ordinary-only test also passed before extending coverage.
+- Engine10141 terminalPASS1, same-map/frame stopped/live sprite cache transitions
+  and unchanged serialized map. Existing effect-cache contract24349 PASS1;
+  source/isolated feature boundaries PASS29. Durable
+  release-editor-runtime-regressions.json and four focused logs.
+- Physical movement smoothness and performance are not inferred from these
+  contracts. Next freeze source and provide fresh optimized runnable copies
+  so the user can retest ordinary2D/2Diso and Play/Stop marker visibility.

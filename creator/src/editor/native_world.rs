@@ -1219,6 +1219,8 @@ impl Editor {
             gpu.configured = Some(binding.assets.clone());
             gpu.scene_key = None;
         }
+        let runtime_state = self.play_session.as_ref()
+            .map(|play| play.state(&bridge.server)).unwrap_or(bridge.server.state);
         let key = SceneInputKey {
             detail: binding.detail.clone(),
             custom_content: binding.custom.as_ref().map(|_| custom::content(map)),
@@ -1239,9 +1241,7 @@ impl Editor {
             grid: self.server_ctx.shared.show_editor_grid,
             hour: bridge.client.server_time.to_f32().to_bits(),
             animation: bridge.client.animation_frame,
-            preview_character_setup: self.play_session.as_ref()
-                .map(|play| play.state(&bridge.server)).unwrap_or(bridge.server.state)
-                == rusterix::ServerState::Off,
+            preview_character_setup: runtime_state == rusterix::ServerState::Off,
             canvas: bridge.client.editor_canvas_colors.filter(|_| {
                 binding.custom.is_none() || bridge.client.use_editor_canvas
             }),
@@ -1259,7 +1259,10 @@ impl Editor {
         // The existing 3D guides include transient gizmos/ghosts beyond the 2D
         // key. Prepare them on requested frames until their owner revisions are
         // extracted; do not cache an incomplete description.
-        let same_scene = camera.is_none()
+        // Runtime positions interpolate between animation/system ticks. The
+        // static authoring key cannot stand in for those per-frame dynamics.
+        let same_scene = runtime_state != rusterix::ServerState::Running
+            && camera.is_none()
             && gpu.scene_key.as_ref() == Some(&key)
             && gpu
                 .scene_source
@@ -1417,7 +1420,7 @@ impl Editor {
                     gpu.guides
                         .set_map_hover_info(self.server_ctx.shared.hover, self.server_ctx.shared.hover_cursor);
                     gpu.guides.draw_grid = self.server_ctx.shared.show_editor_grid;
-                    gpu.guides.show_entity_markers = true;
+                    gpu.guides.show_entity_markers = key.preview_character_setup;
                     if binding.custom.is_some() {
                         gpu.guide_scene = gpu.guides.build(map, assets,
                             Vec2::new(binding.size.0 as f32, binding.size.1 as f32), &self.build_values);
@@ -1433,11 +1436,13 @@ impl Editor {
                         scene,
                         binding.custom.is_some(),
                     );
-                    scene.build_dynamics_2d(
+                    scene.build_dynamics_2d_with_actor_sprites(
                         map,
                         bridge.client.animation_frame,
                         assets,
                         &Default::default(),
+                        !key.preview_character_setup || binding.custom.is_some()
+                            || !scope::uses_region(&self.server_ctx),
                     );
                     if let Some(custom) = &binding.custom {
                         gpu.guide_scene.animation_frame = bridge.client.animation_frame;
@@ -2665,5 +2670,45 @@ impl Editor {
     pub(crate) fn native_world_character_preview_for_test(&self) -> bool {
         let gpu = self.native_viewport.world.gpu.as_ref().expect("world GPU owner");
         gpu.scenes.scene(gpu.view).unwrap().preview_character_setup
+    }
+    pub(crate) fn native_world_actor_display_for_test(&self) -> (bool, usize, usize) {
+        let gpu = self.native_viewport.world.gpu.as_ref().expect("world GPU owner");
+        (gpu.guides.show_entity_markers,
+            gpu.scenes.scene(gpu.view).unwrap().vm.vm.debug_stats().dynamics,
+            self.server_ctx.reference.read().client.animation_frame)
+    }
+    pub(crate) fn prepare_native_runtime_sprite_for_test(&mut self, isometric: bool) -> (EditorViewMode, MapCamera, Uuid) {
+        let previous = self.server_ctx.shared.editor_view_mode;
+        self.server_ctx.shared.editor_view_mode = EditorViewMode::D2;
+        let authored = scope::map_mut(&mut self.documents.project, &self.server_ctx).unwrap();
+        let camera = authored.camera;
+        authored.camera = if isometric { MapCamera::TwoDIso } else { MapCamera::TwoD };
+        let map_id = authored.id;
+        let tile = rusterix::Tile::from_texture(rusterix::Texture::from_color([255; 4]));
+        let tile_id = tile.id;
+        let mut bridge = self.server_ctx.reference.write();
+        let play = self.play_session.as_mut().unwrap();
+        let bridge = &mut *bridge;
+        let parts = play.parts(&mut bridge.server, &mut bridge.assets);
+        parts.assets.tiles.insert(tile_id, tile);
+        parts.assets.tiles_revision = parts.assets.tiles_revision.wrapping_add(1);
+        let map = &mut parts.project.regions.iter_mut().find(|r| r.map.id == map_id).unwrap().map;
+        let mut item = rusterix::Item::new();
+        let id = item.creator_id;
+        item.id = 987654;
+        item.attributes.set("visible", Value::Bool(false));
+        item.attributes.set("source", Value::Source(rusterix::PixelSource::TileId(tile_id)));
+        map.items.push(item);
+        (previous, camera, id)
+    }
+    pub(crate) fn set_native_runtime_sprite_for_test(&mut self, id: Uuid, visible: bool) {
+        let play = self.play_session.as_mut().unwrap();
+        let item = play.project_mut().regions.iter_mut().flat_map(|r| &mut r.map.items)
+            .find(|item| item.creator_id == id).unwrap();
+        item.attributes.set("visible", Value::Bool(visible));
+    }
+    pub(crate) fn restore_native_runtime_view_for_test(&mut self, mode: EditorViewMode, camera: MapCamera) {
+        scope::map_mut(&mut self.documents.project, &self.server_ctx).unwrap().camera = camera;
+        self.server_ctx.shared.editor_view_mode = mode;
     }
 }
