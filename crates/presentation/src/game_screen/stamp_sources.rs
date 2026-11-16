@@ -325,6 +325,7 @@ mod tests {
             rotation: 0.,
             variation: 0,
             material_id: 0,
+            material_override: false,
             color: [255; 4],
             palette_colors: Vec::new(),
             opacity: 1.,

@@ -1276,11 +1276,12 @@ impl IsoPaintRenderer {
         size: f32,
         work: &mut Slice,
     ) {
-        if let Some(spec) = stamp
+        if let Some(mut spec) = stamp
             .source_image
             .as_deref()
             .and_then(crate::paint_source::Spec::from_tile)
         {
+            if stamp.material_override { spec.material_id = stamp.material_id; }
             // Evaluate the original artwork at the actual placement size. The picker image
             // is a thumbnail, never a replacement for the native stamp generator.
             let mut native = stamp.clone();
@@ -1382,6 +1383,9 @@ impl IsoPaintRenderer {
                     }
                     let (mut color, material) = tile
                         .sample_paint_surface([sx / width, sy / height], stamp.variation as usize);
+                    let material = if stamp.material_override {
+                        rusterix::material_library::MaterialDefinition::from_id(stamp.material_id).rmoe_values()
+                    } else { material };
                     if color[3] == 0 {
                         continue;
                     }

@@ -421,6 +421,10 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
     fn presented(&mut self, host: &mut HostContext) {
         self.application.presented(&mut self.session);
         self.platform_state(host);
+        // frame()/presented() can admit work after the last FrameRequest was
+        // computed. Re-evaluate once without requiring another input event.
+        // The ensuing update decides whether another rendered frame is needed.
+        host.wake.request_update();
     }
     fn close_requested(&mut self, host: &mut HostContext) -> bool {
         let close = self.application.close_requested(&mut self.session);
@@ -440,6 +444,28 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn presentation_wakes_work_admitted_after_an_idle_frame_request() {
+        struct Deferred { work: bool }
+        impl UiApplication for Deferred {
+            fn initialize(&mut self, _: &mut UiSession, _: &mut UiFrameImages<'_>) -> Result<()> { Ok(()) }
+            fn presented(&mut self, _: &mut UiSession) { self.work = true; }
+            fn update(&mut self, _: &mut UiSession, _: web_time::Duration) -> FrameRequest {
+                FrameRequest { redraw: std::mem::take(&mut self.work), wake_after: None }
+            }
+        }
+        let mut adapter = UiApplicationAdapter::new(Deferred { work: false });
+        let mut host = HostContext::new((400, 120));
+        let idle = adapter.application.update(&mut adapter.session, web_time::Duration::ZERO);
+        assert!(!idle.redraw && idle.wake_after.is_none());
+        assert!(!host.wake.take_pending());
+        adapter.presented(&mut host);
+        assert!(host.wake.take_pending(), "post-frame work must not wait for mouse input");
+        assert!(adapter.application.update(&mut adapter.session, web_time::Duration::ZERO).redraw);
+        assert!(!adapter.application.update(&mut adapter.session, web_time::Duration::ZERO).redraw,
+            "one update wake must not force an idle render loop");
+        assert!(!host.wake.take_pending());
+    }
     struct Application;
     impl UiApplication for Application {
         fn initialize(&mut self, _: &mut UiSession, _: &mut UiFrameImages<'_>) -> Result<()> {

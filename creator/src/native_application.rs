@@ -471,6 +471,14 @@ mod tests {
     #[test]
     #[ignore = "requires actual native GPU; exercises the assembled Creator UI"]
     fn native_creator_application_paints_the_root_ui_without_a_root_framebuffer() {
+        creator_editor_scenario(false);
+    }
+    #[test]
+    #[ignore = "requires actual native GPU; focused Paint display and continuous-stroke regression"]
+    fn native_paint_display_retains_complete_frames_and_live_strokes() {
+        creator_editor_scenario(true);
+    }
+    fn creator_editor_scenario(paint_only: bool) {
         let gpu = pollster::block_on(GpuContext::headless()).unwrap();
         if std::env::var_os("ELDIRON_NATIVE_TILE_BOARD_ONLY").is_some() {
             let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
@@ -1287,6 +1295,9 @@ mod tests {
         // Deliver activation's queued source/picker refresh before acknowledging
         // its controls, then exercise input through the actual editor event loop.
         app.update(&mut host, Duration::from_millis(16));
+        assert!(app.application.editor.native_tool_switch_backdrop_for_test(
+            &mut app.session.ui, &mut app.session.context),
+            "tool activation must retain a passive complete scene while revoking old input receipts");
         let paint = app.frame(&mut host, &mut replacement).unwrap();
         assert!(
             app.application.pending.as_ref().unwrap().world_for_test(),
@@ -1478,6 +1489,51 @@ mod tests {
             before.readback_bytes,
             "3D Paint presentation cannot capture surface data"
         );
+        // Retire the real scene/atlas while its complete 3D image is displayed.
+        // Pending replacement frames must keep valid scene pixels without input.
+        let read_scene = |image| {
+            let mut read = ReadbackTicket::capture(&gpu, image).unwrap();
+            gpu.device.poll(wgpu::PollType::Wait {
+                submission_index: None, timeout: Some(Duration::from_secs(30)),
+            }).unwrap();
+            read.try_finish(&gpu).unwrap().unwrap().pixels().to_vec()
+        };
+        let retained = app.application.editor.native_suspend_world_source_for_test();
+        let previous_pixels = read_scene(replacement.get(retained).unwrap());
+        let paint = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(!app.application.pending.as_ref().unwrap().world_ready_for_test(),
+            "a GPU frame without completed geometry cannot replace the displayed scene");
+        assert!(paint.image_handles().any(|image| image == retained));
+        assert!(replacement.get(retained).is_some());
+        assert_eq!(read_scene(replacement.get(retained).unwrap()), previous_pixels,
+            "partial geometry must not overwrite the complete display image");
+        renderer.render(&paint, &replacement, &output.view, output.descriptor.format,
+            (1600, 1000), 1., [0.; 4]).unwrap();
+        app.presented(&mut host);
+        let paint = ready_world_frame(&mut app, &mut host, &mut replacement,
+            &gpu, &mut renderer, &output);
+        renderer.render(&paint, &replacement, &output.view, output.descriptor.format,
+            (1600, 1000), 1., [0.; 4]).unwrap();
+        app.presented(&mut host);
+        let retained = app.application.editor.native_force_atlas_refresh_for_test();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            app.update(&mut host, Duration::from_millis(16));
+            let paint = app.frame(&mut host, &mut replacement).unwrap();
+            let ready = app.application.pending.as_ref().unwrap().world_ready_for_test();
+            if !ready {
+                assert!(replacement.get(retained).is_some(), "atlas retirement removed displayed pixels");
+                assert!(paint.image_handles().any(|image| image == retained),
+                    "pending 3D replacement must keep its last complete backdrop");
+            }
+            renderer.render(&paint, &replacement, &output.view, output.descriptor.format,
+                (1600, 1000), 1., [0.; 4]).unwrap();
+            app.presented(&mut host);
+            if ready { break; }
+            assert!(Instant::now() < deadline, "atlas replacement never settled without input");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let before = gpu.transfers(); // Exclude the two explicit diagnostic captures above.
         let target = app.application.editor.native_paint_3d_target_for_test();
         if target.is_none() {
             let mut capture = ReadbackTicket::capture(&gpu, output.clone()).unwrap();
@@ -1589,6 +1645,7 @@ mod tests {
             captured.readback_bytes,
             "rendering committed paint never recaptures its surface"
         );
+        if paint_only { return; }
         // A moving camera revokes the frozen down-camera's draft rather than
         // reinterpreting its captured screen-space coordinates.
         let at = app

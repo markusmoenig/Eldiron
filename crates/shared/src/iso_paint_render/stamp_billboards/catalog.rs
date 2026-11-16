@@ -182,6 +182,7 @@ pub(super) fn visual_hash(stamp: &IsoPaintStamp) -> u64 {
     stamp.opacity.to_bits().hash(&mut hash);
     stamp.variation.hash(&mut hash);
     stamp.material_id.hash(&mut hash);
+    stamp.material_override.hash(&mut hash);
     stamp.color.hash(&mut hash);
     stamp.palette_colors.hash(&mut hash);
     stamp.source_material_pass.hash(&mut hash);
@@ -193,7 +194,7 @@ pub(super) fn visual_hash(stamp: &IsoPaintStamp) -> u64 {
     hash.finish()
 }
 pub(super) fn same_visual(a: &IsoPaintStamp, b: &IsoPaintStamp) -> bool {
-    a.kind == b.kind
+    a.material_override == b.material_override && a.kind == b.kind
         && a.variant == b.variant
         && a.size.to_bits() == b.size.to_bits()
         && a.rotation.to_bits() == b.rotation.to_bits()

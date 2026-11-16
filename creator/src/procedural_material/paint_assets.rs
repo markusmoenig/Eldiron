@@ -590,6 +590,55 @@ mod tests {
     use crate::tools::paint_picker;
 
     #[test]
+    fn paint_finish_changes_only_future_strokes_without_publishing_the_recipe() {
+        let mut project = Project::default();
+        install(&mut project).unwrap();
+        let source = *project.tiles.iter().find(|(_, tile)| tile.alias == "Paint / moss").unwrap().0;
+        let region = Region::new();
+        let mut server = CreatorContext::default();
+        server.shared.curr_region = region.id;
+        server.shared.pc = ProjectContext::Region(region.id);
+        server.shared.curr_map_tool_type = MapToolType::IsoPaint;
+        project.regions = vec![region];
+        assert!(paint_picker::pick(source, &mut project, &server));
+        let mut point = IsoPaintPoint::new([0; 2], Some(Vec3::zero()),
+            Some(IsoPaintOwner::Terrain { x: 0, z: 0 }));
+        point.surface_uv = Some([0.5, 0.5]);
+        point.paint_geo = Some([1, 2, 3, 4]);
+        project.regions[0].iso_paint.begin_stroke(point.clone());
+        let baked = project.regions[0].iso_paint.baked_chunks.clone();
+        let recipe = project.procedural_materials[&source].clone();
+        let revision = project.procedural_materials.revision();
+        let tile = project.tiles[&source].clone();
+        let material = project.regions[0].iso_paint.active_material_id;
+        let (mut ui, mut ctx) = super::super::tests::workspace_ui(1100, 800);
+        assert!(paint_picker::event(&TheEvent::ContextMenuSelected(
+            TheId::named("Paint Overlay Choices"), TheId::named("Paint Overlay Choice Finish 3")),
+            &mut ui, &mut ctx, &mut project, &mut server));
+        assert_eq!(project.procedural_materials.revision(), revision);
+        assert_eq!(project.procedural_materials[&source], recipe);
+        assert_eq!(project.tiles[&source], tile);
+        let layer = &mut project.regions[0].iso_paint;
+        assert_eq!(layer.baked_chunks, baked, "finish selection must not replay existing paint");
+        assert_eq!(layer.active_material_id, material / 4 * 4 + 3);
+        point.surface_uv = Some([2.5, 0.5]);
+        layer.begin_stroke(point);
+        let materials: Vec<_> = layer.chunks.values().flat_map(|c| c.strokes.iter().map(|s| s.material_id)).collect();
+        assert_eq!(materials, [material, material / 4 * 4 + 3]);
+        let overrides: Vec<_> = layer.chunks.values().flat_map(|c| c.strokes.iter().map(|s| s.material_override)).collect();
+        assert_eq!(overrides, [false, true]);
+        let strokes: Vec<_> = layer.chunks.values().flat_map(|c| c.strokes.iter()).collect();
+        let saved = serde_json::to_string(strokes[1]).unwrap();
+        let loaded: shared::iso_paint::IsoPaintStroke = serde_json::from_str(&saved).unwrap();
+        assert!(loaded.material_override);
+        assert_eq!(loaded.material_id, material / 4 * 4 + 3);
+        assert!(!serde_json::to_string(strokes[0]).unwrap().contains("material_override"));
+        let expected = layer.baked_chunks.clone();
+        layer.rebuild_baked_paint();
+        assert_eq!(layer.baked_chunks, expected, "replay must preserve each stroke's chosen finish");
+    }
+
+    #[test]
     fn native_brush_variants_bake_all_frames_but_do_not_animate_the_preview() {
         let spec = Spec::new("moss", false);
         let asset = native_template(Uuid::from_u128(500), "Moss", &spec).unwrap();
@@ -1095,7 +1144,8 @@ mod tests {
             &mut p,
             &mut server,
         );
-        assert_eq!(selected_spec(&p, flower).unwrap().material_id, 45);
+        assert_eq!(selected_spec(&p, flower).unwrap().material_id, 44);
+        assert_eq!(paint_picker::layer(&mut p, &server).unwrap().active_material_id, 45);
         assert!(
             Spec::from_tile(&p.tiles[&flower]).is_some(),
             "routine controls must preserve native generation"

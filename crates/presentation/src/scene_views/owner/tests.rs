@@ -2,6 +2,37 @@ use super::*;
 use scenevm::{Atom, OrganicBillboardInstance, OrganicBillboardSprite, RenderMode};
 
 #[test]
+#[ignore = "native GPU; completed image must survive private target mutation"]
+fn published_scene_pixels_do_not_alias_the_mutable_work_target() {
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = ImageRegistry::new(gpu.clone());
+    let mut views = SceneViews::new(&images, SharedAtlas::new(64, 64));
+    let id = ViewId::new();
+    views.create(id, (8, 8)).unwrap();
+    let scene = views.scene_mut(id).unwrap();
+    scene.vm.execute(Atom::SetRenderMode(RenderMode::Raster2D));
+    scene.vm.execute(Atom::SetBackground(scenevm::prelude::Vec4::new(1., 0., 0., 1.)));
+    let output = loop {
+        views.begin_surface_paint_upload_frame();
+        if let Some(output) = views.render(id, 1, &mut images).unwrap() { break output; }
+    };
+    let private = views.views[&id].scene.target.as_ref().unwrap().image();
+    let published = images.get(output.image).unwrap();
+    assert!(!Arc::ptr_eq(&private, &published));
+    // Pending paint phases clear/draw into this target before final composition.
+    gpu.queue.write_texture(private.texture.as_image_copy(), &[0, 255, 0, 255].repeat(64),
+        renderkit::wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(32), rows_per_image: Some(8) },
+        private.texture.size());
+    let mut read = ReadbackTicket::capture(&gpu, published).unwrap();
+    gpu.device.poll(renderkit::wgpu::PollType::Wait {
+        submission_index: None, timeout: Some(std::time::Duration::from_secs(30)),
+    }).unwrap();
+    let pixels = read.try_finish(&gpu).unwrap().unwrap();
+    assert!(pixels.pixels().chunks_exact(4).all(|pixel| pixel == [255, 0, 0, 255]),
+        "a pending work target must not replace the displayed complete red frame");
+}
+
+#[test]
 #[ignore = "native GPU; live pose ownership during multi-frame source staging"]
 fn live_source_staging_preserves_pose_revision_and_scope() {
     let context = futures::executor::block_on(GpuContext::headless()).unwrap();

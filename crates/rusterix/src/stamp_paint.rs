@@ -22,6 +22,7 @@ pub struct StampRecipe {
     pub rotation: f32,
     pub variation: u32,
     pub material_id: u8,
+    pub material_override: bool,
     pub color: [u8; 4],
     pub palette_colors: Vec<[u8; 4]>,
     pub opacity: f32,

@@ -1,0 +1,272 @@
+{
+  "date": "2026-11-16",
+  "base_commit": "f7b01ac40e3ab37d65a0c7746dfb8ce002d22d35",
+  "scope": [
+    "Paint activation/end-of-terrain-stroke black/unfinished display",
+    "Wet finish should apply only to future strokes",
+    "Failed Play opens Debug; red errors, yellow warnings; warnings alone do not switch"
+  ],
+  "source_sha256": {
+    "crates/presentation/src/game_screen/stamp_sources.rs": "435c4b434b22b23e1efd608591a5fc2aa132059daf390bafe1cf33162b94f7b6",
+    "crates/presentation/src/scene_views.rs": "ad94c3ed5c7082a35992df43a0f15f8dc89a700d47c5661d7b28311a5e1d5f95",
+    "crates/presentation/src/scene_views/owner/tests.rs": "ae4ba1df774a6f982c578fb86353281e8459ab497f5f9147e774e462dcabda44",
+    "crates/presentation/src/scene_views/publication.rs": "fe48722fe7c963320db38fb0f45ecfb506c626fa103ca6f524605faaff08e78b",
+    "crates/rusterix/src/stamp_paint.rs": "19a398daf5612881e5ab201ed61a9f5c077b1ea9a5cb4f472819e64e42d8d705",
+    "crates/shared/src/iso_paint.rs": "4d9609372df777976ba77ecd6994770b6f55fb58c67a6429582bab41ab342dc4",
+    "crates/shared/src/iso_paint_render/stamp_billboards/catalog.rs": "1d08f13e3f4c98be9c3a1cac1088caf5efd52162f2c6818285140dcaf06112a2",
+    "crates/shared/src/iso_paint_render/stamp_raster/procedural.rs": "253fc38fd4f12f00859412b0f1d505c30a3af67e35ba9e3e9275f63b440ae26a",
+    "crates/shared/src/stamp_paint.rs": "a804d4ff125ea0d5f32461e3b999f3aed7343583e3bb7dc001fab0ed11aa0a5b",
+    "crates/theframework/src/platform/ui.rs": "f7fc8f5a3951bb740c82c6084c7f51bf3a2b79d7a0a08c526ab4769bd1a635cf",
+    "creator/src/editor.rs": "fc4b2b9bc260e88cf332cedd59d50d301f221dbc8195cca732fef461e3b5a4a1",
+    "creator/src/editor/native_world.rs": "a4f80b2864b0a566aadc8e263d387820e4c7fdd97e7d954f189c0981ae493903",
+    "creator/src/editor/native_world_image.rs": "e6e2066fad7c88f6c6b4e39cc070e17eb11f79859f13237b88a152dc8928e626",
+    "creator/src/native_application.rs": "614e29d49c853d65bd593c3c8fcf2112b748193f1a7ceb9842f6cd6aa9c9a084",
+    "creator/src/procedural_material/paint_assets.rs": "aa108a2b57c79b7a5d28f8933f7ccf6e66d511d86075ddddaedf3a3850c614ef",
+    "creator/src/tools/paint_overlay.rs": "f2ea273c61e03bb962ca27986c0f125dceeec4bbea657b0d931f4c96eff3f1be",
+    "creator/src/tools/paint_picker.rs": "a34bd588c8a9231a8425680d328ea97f0b7dc9aab2ab5605c5be9061d9bc0d6f",
+    "creator/src/tools/terrain.rs": "24ee7607c8459cf29cfb67beb81b501222765aa598c3815744d73b458c2bb99e"
+  },
+  "baseline_stalls": [
+    {
+      "log": "/private/tmp/eldiron-paint-profile/continuous-feedback-creator.log",
+      "sha256": "9e86247a76410a43fcbf99681bce9f9bdff8ed7079d1290d856cb36040dc3805",
+      "largest_recorded_event_ms": 12888.78,
+      "interpretation": "Whole event phase, not a sampled function duration. Source path published the recipe and replayed linked paint; no new stack sample was captured for this interaction."
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/wet-change-creator.log",
+      "sha256": "65186f653a68765fac93a86ff5a2976a51c6d6696e49da486b8f2039723dc874",
+      "largest_recorded_event_ms": 10990.23,
+      "interpretation": "Whole event phase, not a sampled function duration. Source path published the recipe and replayed linked paint; no new stack sample was captured for this interaction."
+    }
+  ],
+  "changes": [
+    "SceneViews publishes a separate resident display image only after a complete scene frame, using a same-device GPU copy. Private target writes cannot alter the current display. This adds one display image and a full image copy per completed frame; no CPU image/readback bridge.",
+    "Same-world tool/asset binding changes keep a passive last-complete image with no old controls or receipts. Different document/map/view/size scopes are excluded.",
+    "Material/Finish overlay choices change local application settings without parsing/publishing MZ recipes, texture refresh or history replay. Explicit per-stroke/stamp overrides persist across save/load; optional default-false markers preserve inherited recipe semantics and direct MZ authoring updates.",
+    "Play startup errors use explicit severity markers and immediately select Debug. Runtime log auto-selection requires an explicit error marker; warnings stay in the current sidebar. Existing theme red #fb4934/yellow #fabd2f verified.",
+    "Shared UI adapter requests an update after presentation so work admitted after the prior FrameRequest can proceed without input.",
+    "Terrain automatic ground selection excludes Paint/stamp tiles; preserves valid authored terrain source. Existing green neutral fallback remains when no valid ground tile exists.",
+    "Viewport owns a separate registration for the complete display image through atlas retirement. Scope changes revoke reuse; retired handles remain pinned by outstanding roots. Pending CPU geometry is detected before rendering into the reusable published image, preserving its pixels."
+  ],
+  "initial_regression_and_resolution": "Removing material-default application broke direct MZ recipe-edit parity. Corrected with explicit override metadata: inherited paint continues following recipe edits while brush-selected overrides remain per placement. Both parity and new future-stroke regression now pass.",
+  "verification": [
+    {
+      "log": "/private/tmp/eldiron-paint-profile/future-finish-release-test.log",
+      "sha256": "7154aeb4df544e2a753959fb37d9ceb7c8d45dbefd31ee0175d9c628a2481f79",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 12s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 772 filtered out; finished in 0.33s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/paint-source-parity-release-test.log",
+      "sha256": "b3ff0c0dcfc96e70b09ce2be6ef6a2c628b7cb2c401179e214f9d0625ca62468",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 0.55s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 772 filtered out; finished in 0.73s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/published-image-release-test.log",
+      "sha256": "dc89f2bfc7395ad808a62ace7a449f6b671eae7f3cf343dec226e43e7a9a7be7",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 29s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 120 filtered out; finished in 0.06s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/debug-routing-release-test.log",
+      "sha256": "3b2fe97502f6c1a3e692877c9c86a2564aac8ec7679a88ce0e70ed4cad16d86b",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 0.25s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 772 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/play-error-debug-release-test.log",
+      "sha256": "728c495791944a57ee0853308bcdc7d11a110b4da7cb7d50b127800d1e52461f",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 0.23s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 772 filtered out; finished in 0.84s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/activation-backdrop-native-release-test.log",
+      "sha256": "d416a441848fee1b0dec273036da48a05aca7de3da9b6b59e55c7297be31e242",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 15s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 772 filtered out; finished in 25.73s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/activation-finish-debug-release-build.log",
+      "sha256": "bff0aa7bee7ae3e47084a4a53d67f2ea02a7e1a6918d80852cc0323184179c9f",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 02s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/post-present-wake-release-test.log",
+      "sha256": "b55f6e531e7ed3d0d98cf5f60926936850d7d72518a864b56da95b59baeb130c",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 23.81s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 166 filtered out; finished in 0.11s"
+      ],
+      "result": "PASS"
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/terrain-ground-release-test.log",
+      "sha256": "81a0ed7e99f7c45691a7cc2eb991ad09ce4dd117d7600d61cba8a4c73f64783d",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 11s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 773 filtered out; finished in 0.00s"
+      ],
+      "result": "PASS"
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/host-wake-native-release-test.log",
+      "sha256": "997ca228897ac847313c10b0b732f07dc7034a3cd4292504dd2a642579da6439",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 05s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 773 filtered out; finished in 26.05s"
+      ],
+      "result": "PASS"
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/terrain-native-release-test.log",
+      "sha256": "ff6991646ac4ba18f615f4cdf0c624c206cd2b6593fda6fdce97e9770b2349fb",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 24s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 773 filtered out; finished in 4.19s"
+      ],
+      "result": "PASS"
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/host-wake-terrain-release-build.log",
+      "sha256": "c058a625efaf46ca6ed623b592a2d41d4cdafe1167872f0fc427843fce309af8",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 02s"
+      ],
+      "result": "PASS"
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/display-registration-release-test.log",
+      "sha256": "56026a0a8f840039785200a25c6499f553368f1848574a5ad90b4c42b6807fc7",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 11s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 774 filtered out; finished in 0.06s"
+      ],
+      "result": "PASS"
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/retained-backdrop-native-release-test.log",
+      "sha256": "63f404d372d111a268064b119237c97beb4c6b68a03895187e98afeec3531454",
+      "summary": [
+        "error: could not compile `eldiron-runtime` (lib) due to 15 previous errors; 3 warnings emitted"
+      ],
+      "result": "FAIL: concurrent runtime compilation"
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/retained-backdrop-native-release-retry.log",
+      "sha256": "bc946db96f855ea7f4b2ed7a3096e3974848300c4fae1c8b2e9808de2dd4e66f",
+      "result": "FAIL: initial incomplete frame eligible as retained backdrop",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 41s",
+        "assertion `left == right` failed: live actor publication reaches 2D/iso dynamics before the next animation tick; iso=false",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 774 filtered out; finished in 16.09s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/retained-backdrop-native-release-final.log",
+      "sha256": "dc99ec26fc85f2f31614d1a900acbc0d45a62477dca30ff31a8c25ea74999960",
+      "result": "FAIL: later runtime clock/output assertion (tick22, output0); Paint/display/live-actor assertions passed before it",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 12s",
+        "Creator shared clock/output did not advance: (22, 8886a6ec-1bc0-4f82-be3d-8021b1ef032d, 0)",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 774 filtered out; finished in 20.85s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/retained-backdrop-paint-release-test.log",
+      "sha256": "e09f9a37660af070133ef57c8a1b542bd5c6c719f4fb4f3bdd5a4e25ac63fed3",
+      "result": "PASS: named Paint-only native GPU scenario; not full runtime acceptance",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 2m 36s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 775 filtered out; finished in 11.60s"
+      ]
+    },
+    {
+      "log": "/private/tmp/eldiron-paint-profile/retained-backdrop-release-build.log",
+      "sha256": "925a761cd451d508572a53d47d3219d14da406ffa9166a07a3835c2e7722a36e",
+      "result": "PASS",
+      "summary": [
+        "    Finished `release` profile [optimized] target(s) in 1m 10s"
+      ],
+      "warnings": []
+    }
+  ],
+  "process": {
+    "pid": 75129,
+    "executable": "/Users/markusmoenig/Eldiron/target/release/eldiron-creator",
+    "binary_sha256": "a51e659c9eb1f3bf004db871b3be9e53827bb79f2b9221714745052b6a6aee25",
+    "project": "/private/tmp/eldiron-paint-profile/Gate.eldiron",
+    "log": "/private/tmp/eldiron-paint-profile/retained-backdrop-creator.log",
+    "launch_epoch": 1794807889.78209,
+    "scope": "Release: viewport-owned display registration, completed-geometry guard, future-only finish, post-present wake, Terrain paint-source exclusion and error-only Debug routing"
+  },
+  "manual_retest": "Prior result rejected: ~500ms blank in 3D entering Paint/ending Terrain; green fallback terrain. Updated Release built and launched with isolated Gate copy; user asked whether the scene now remains visible. Awaiting visual confirmation; no visual pass claimed.",
+  "gate_blocker": "Missing equipment Sword in Rogue template remains a project-data error. No ruleset or equipment-reference edit. New UI reports it in Debug.",
+  "limits": [
+    "Focused Mac Release checks only; no broad performance/platform acceptance run.",
+    "GPU display snapshot adds resident storage and copy bandwidth; no CPU-speed parity claim.",
+    "Test build retains two existing Apple-document helper dead-code warning groups; normal Release build has no warnings.",
+    "Eight unrelated untracked concept documents remain untouched.",
+    "Full assembled native scenario currently fails at shared runtime clock/output after the Paint checks. Concurrent replication/runtime changes are present; later failure not diagnosed or changed here. Named Paint-only scenario excludes the later runtime section and cannot establish full native/runtime acceptance."
+  ],
+  "initial_source_sha256": {
+    "crates/presentation/src/game_screen/stamp_sources.rs": "435c4b434b22b23e1efd608591a5fc2aa132059daf390bafe1cf33162b94f7b6",
+    "crates/presentation/src/scene_views.rs": "ad94c3ed5c7082a35992df43a0f15f8dc89a700d47c5661d7b28311a5e1d5f95",
+    "crates/presentation/src/scene_views/owner/tests.rs": "ae4ba1df774a6f982c578fb86353281e8459ab497f5f9147e774e462dcabda44",
+    "crates/rusterix/src/stamp_paint.rs": "19a398daf5612881e5ab201ed61a9f5c077b1ea9a5cb4f472819e64e42d8d705",
+    "crates/shared/src/iso_paint.rs": "4d9609372df777976ba77ecd6994770b6f55fb58c67a6429582bab41ab342dc4",
+    "crates/shared/src/iso_paint_render/stamp_billboards/catalog.rs": "1d08f13e3f4c98be9c3a1cac1088caf5efd52162f2c6818285140dcaf06112a2",
+    "crates/shared/src/iso_paint_render/stamp_raster/procedural.rs": "253fc38fd4f12f00859412b0f1d505c30a3af67e35ba9e3e9275f63b440ae26a",
+    "crates/shared/src/stamp_paint.rs": "a804d4ff125ea0d5f32461e3b999f3aed7343583e3bb7dc001fab0ed11aa0a5b",
+    "creator/src/editor.rs": "fc4b2b9bc260e88cf332cedd59d50d301f221dbc8195cca732fef461e3b5a4a1",
+    "creator/src/editor/native_world.rs": "21756ff28dc63f5b3d166b7ebef8620882a32175fab55c62fffb826c605402dc",
+    "creator/src/native_application.rs": "8f02983d8e7a2fd9e01768a06b94998ac3da0c9645bcd862aef6c29cc4679745",
+    "creator/src/procedural_material/paint_assets.rs": "aa108a2b57c79b7a5d28f8933f7ccf6e66d511d86075ddddaedf3a3850c614ef",
+    "creator/src/tools/paint_overlay.rs": "f2ea273c61e03bb962ca27986c0f125dceeec4bbea657b0d931f4c96eff3f1be",
+    "creator/src/tools/paint_picker.rs": "a34bd588c8a9231a8425680d328ea97f0b7dc9aab2ab5605c5be9061d9bc0d6f",
+    "crates/presentation/src/scene_views/publication.rs": "fe48722fe7c963320db38fb0f45ecfb506c626fa103ca6f524605faaff08e78b"
+  },
+  "concurrent_work": "Runtime/network/party and related presentation edits are unrelated and remain uncommitted. Their serde/serde_json manifest additions required synchronizing two existing dependency names in Cargo.lock; this lock entry is excluded from the paint commit. First integration attempt temporarily failed on 15 concurrent runtime compile errors; those source changes were not edited by this task.",
+  "real_window_idle_probe": {
+    "result": "FAIL / NOT AN ACCEPTANCE PASS",
+    "receipt": "/private/tmp/eldiron-paint-profile/post-present-idle-probe.json",
+    "detail": "Smoke timed out with 0 successful surface presentations. Later CUA inspection showed a project chooser rather than Gate and failed to establish reliable Gate automation."
+  },
+  "display_eligibility_correction": "Only CPU-geometry-complete and GPU-paint/stamp/scene-ready frames become viewport display registrations. Initial incomplete frames cannot freeze later dynamics. Named Paint-only native scenario passes; broader runtime clock/output assertion remains unresolved.",
+  "focused_display_assertions": [
+    "Complete image survives SceneViews registration removal and is released after root pins retire.",
+    "Suspending geometry keeps both the root image handle and exactly identical scene pixels.",
+    "Actual atlas retirement renders a valid last-complete backdrop until replacement settles without input.",
+    "Continuous 64-frame painting publishes multiple complete revisions before pointer release; one authoring capture; committed paint presents without recapture."
+  ],
+  "diagnostic_captures": "Two explicit test-only scene pixel captures prove equality; normal frame/hover/paint presentation retains no implicit readback assertions.",
+  "previous_process": {
+    "pid": 68290,
+    "executable": "/Users/markusmoenig/Eldiron/target/release/eldiron-creator",
+    "binary_sha256": "f13df3a7687b9da4fbaebf42c2dbd578fff8f6d68cc3927b0b82fa458a21882d",
+    "project": "/private/tmp/eldiron-paint-profile/Gate.eldiron",
+    "log": "/private/tmp/eldiron-paint-profile/activation-finish-debug-creator.log",
+    "launch_epoch": 1794803438.646081,
+    "scope": "Updated Release: stable scene publication, future-stroke finish overrides, and Play error routing"
+  },
+  "verification_commands": [
+    "MACOSX_DEPLOYMENT_TARGET=26.1 CARGO_TARGET_DIR=/Users/markusmoenig/Eldiron/target cargo test --release --locked --offline -p eldiron-creator --lib viewport_display_survives_scene_registration_retirement -- --ignored --nocapture",
+    "MACOSX_DEPLOYMENT_TARGET=26.1 CARGO_TARGET_DIR=/Users/markusmoenig/Eldiron/target cargo test --release --locked --offline -p eldiron-creator --lib native_paint_display_retains_complete_frames_and_live_strokes -- --ignored --nocapture",
+    "MACOSX_DEPLOYMENT_TARGET=26.1 CARGO_TARGET_DIR=/Users/markusmoenig/Eldiron/target cargo build --release --locked --offline -p eldiron-creator --bin eldiron-creator"
+  ]
+}

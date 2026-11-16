@@ -11,6 +11,8 @@ mod stamps;
 mod paint;
 #[path = "native_world_input_profile.rs"]
 mod input_profile;
+#[path = "native_world_image.rs"]
+mod image;
 #[cfg(not(target_arch = "wasm32"))]
 #[path = "native_world_cpu_jobs.rs"]
 mod cpu_jobs;
@@ -261,6 +263,7 @@ impl SceneInputKey {
 }
 
 struct WorldGpu {
+    display: image::Owner,
     registry: u64,
     scope: Option<(Uuid, ProjectContext, Uuid, Option<Uuid>)>,
     scenes: SceneViews,
@@ -300,6 +303,7 @@ impl WorldGpu {
             stamps_ready: true,
             icons: GpuIcons::new(images.context().clone(), 16 * 1024 * 1024, 512)
                 .map_err(|e| e.to_string())?,
+            display: Default::default(),
             images: UiImageCache::default(),
             last_root_images: PaintList::default(),
             custom: Default::default(),
@@ -394,6 +398,7 @@ impl WorldGpu {
             }
         }
         let list = root.unwrap_or(&retained);
+        self.display.finish(images, list);
         self.images
             .finish_frame(images, list)
             .map_err(|e| e.to_string())?;
@@ -423,6 +428,7 @@ pub(super) struct NativeWorldFrame {
     waiting_cpu_sources: bool,
     camera: Option<CameraStamp>,
     output: ViewImage,
+    display_image: renderkit::ImageHandle,
     #[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
     baked: bool,
     paste_ignored: Option<Arc<FxHashSet<scenevm::GeoId>>>,
@@ -519,6 +525,41 @@ impl Default for NativeWorld {
     }
 }
 impl NativeWorld {
+    fn backdrop(binding: &Binding, image: renderkit::ImageHandle) -> PaintList {
+        let mut list = PaintList::default();
+        if binding.mode == EditorViewMode::D2 {
+            if binding.camera == MapCamera::TwoDIso {
+                list.rect(Rect::new(0., 0., binding.size.0 as f32, binding.size.1 as f32), 0., [0., 0., 0., 1.]);
+            }
+            list.ops.push(PaintOp::SpriteImage {
+                image, origin: [0.; 2], scale: [1.; 2], tint: [1.; 4],
+            });
+        } else {
+            list.image(image, Rect::new(0., 0., binding.size.0 as f32, binding.size.1 as f32), Sampling::Nearest);
+        }
+        list
+    }
+    fn show_pending_backdrop(
+        &mut self, binding: &Binding, image: Option<renderkit::ImageHandle>, ui: &mut TheUI,
+    ) -> Result<(), String> {
+        self.presented = None;
+        self.overlay_input.invalidate();
+        if let Some(image) = image {
+            let list = Arc::new(Self::backdrop(binding, image));
+            if let Some(view) = ui.get_render_view(&binding.view.name)
+                && view.id().uuid == binding.view.uuid
+            {
+                view.set_paint_list(Some(list.clone())).map_err(|error| error.to_string())?;
+                self.published = Some((binding.view.clone(), list));
+            }
+        } else if let Some((id, list)) = self.published.take()
+            && let Some(view) = ui.get_render_view(&id.name)
+            && view.id().uuid == id.uuid
+        {
+            view.clear_paint_list(&list);
+        }
+        Ok(())
+    }
     fn frame_is_fresh(
         &self,
         frame: &NativeWorldFrame,
@@ -556,6 +597,25 @@ impl NativeWorld {
         if self.binding == next {
             return;
         }
+        let same_display = self.binding.as_ref().zip(next.as_ref()).is_some_and(|(old, next)| {
+            old.document == next.document && old.runtime == next.runtime
+                && old.view == next.view && old.context == next.context && old.map == next.map
+                && old.mode == next.mode && old.camera == next.camera && old.size == next.size
+                && old.density == next.density && old.paste == next.paste
+                && old.detail == next.detail && old.custom.is_none() && next.custom.is_none()
+        });
+        if !same_display && let Some(gpu) = &mut self.gpu {
+            gpu.display.revoke();
+        }
+        // A tool/asset refresh may take several frames. Keep only the complete
+        // world image as a passive backdrop; old controls/receipts are revoked.
+        let backdrop = self.binding.as_ref().filter(|_| same_display)
+            .and_then(|old| self.presented.as_ref().filter(|frame| frame.ready).map(|frame| frame.display_image)
+                .or_else(|| self.gpu.as_ref().and_then(|gpu| gpu.display.current()))
+                .map(|image| {
+                let list = Self::backdrop(old, image);
+                (old.view.clone(), Arc::new(list))
+            }));
         // Source/material/style refreshes revoke fresh picking, but do not
         // abandon a draft owned by the same document/tool/view transform.
         let capture = self.world_capture.take().and_then(|mut owner| {
@@ -587,6 +647,13 @@ impl NativeWorld {
         }
         self.invalidate(ui, camera, creator_tools);
         self.binding = next;
+        if let Some((id, list)) = backdrop
+            && let Some(view) = ui.get_render_view(&id.name)
+            && view.id().uuid == id.uuid
+            && view.set_paint_list(Some(list.clone())).is_ok()
+        {
+            self.published = Some((id, list));
+        }
         self.world_capture = capture;
         self.retry_click = retry;
         self.cube_capture = cube_capture;
@@ -1160,6 +1227,7 @@ impl Editor {
         let atlas_changed = gpu.configured.as_ref().is_some_and(|old| {
             !old.same_atlas(&binding.assets)
         });
+        gpu.display.scope((scope, binding.view.uuid, binding.mode, binding.camera, binding.size, binding.density));
         if gpu.scope != Some(scope) || atlas_changed {
             // Reopened/copied documents may reuse map IDs and local revisions.
             // Neither atlas residency nor builder caches can cross that lifetime.
@@ -1216,6 +1284,12 @@ impl Editor {
         } else {
             authored_source.is_some_and(|source| source.ready())
         };
+        // Do not render partial CPU geometry into the reusable display image.
+        // Keep the completed scene while its geometry worker catches up.
+        if !ready && let Some(image) = gpu.display.current() {
+            world.show_pending_backdrop(&binding, Some(image), ui)?;
+            return Ok(None);
+        }
         if gpu.configured.as_ref() != Some(&binding.assets) {
             if gpu
                 .configured
@@ -1497,14 +1571,8 @@ impl Editor {
         let output = match gpu.scenes.output(gpu.view) {
             Some(output) => output,
             None if !gpu.paint_ready => {
-                world.presented = None;
-                world.overlay_input.invalidate();
-                if let Some((id, list)) = world.published.take()
-                    && let Some(view) = ui.get_render_view(&id.name)
-                    && view.id().uuid == id.uuid {
-                    view.clear_paint_list(&list);
-                    ctx.ui.invalidate_paint();
-                }
+                let image = gpu.display.current();
+                world.show_pending_backdrop(&binding, image, ui)?;
                 return Ok(None);
             }
             None => return Err("native world has no visible output".into()),
@@ -1514,13 +1582,8 @@ impl Editor {
                 &mut gpu.scenes, &bridge.client, images.registry)? {
                 Some(image) => image,
                 None => {
-                    world.presented = None;
-                    world.overlay_input.invalidate();
-                    if let Some((id, list)) = world.published.take()
-                        && let Some(view) = ui.get_render_view(&id.name)
-                        && view.id().uuid == id.uuid {
-                        view.clear_paint_list(&list);
-                    }
+                    let image = gpu.display.current();
+                    world.show_pending_backdrop(&binding, image, ui)?;
                     ctx.ui.invalidate_paint();
                     return Ok(None);
                 }
@@ -1528,6 +1591,11 @@ impl Editor {
         } else {
             gpu.bake.clear(images.registry);
             output.image
+        };
+        let world_image = if ready && gpu.stamps_ready && gpu.paint_ready {
+            gpu.display.publish(world_image, images.registry)?
+        } else {
+            gpu.display.current().unwrap_or(world_image)
         };
         drop(bake_source);
         drop(bake_owner);
@@ -1715,6 +1783,7 @@ impl Editor {
             waiting_cpu_sources,
             camera: camera_stamp,
             output,
+            display_image: world_image,
             #[cfg(any(test, target_arch = "wasm32", feature = "staticlib"))]
             baked,
             paste_ignored,
@@ -2507,6 +2576,29 @@ impl Editor {
                     && scope::map(&self.documents.project, &self.server_ctx)
                         .is_some_and(|map| frame.stamp == SourceStamp::new(map))
             })
+    }
+    pub(crate) fn native_tool_switch_backdrop_for_test(&mut self, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
+        let next = self.native_world_binding(ui, ctx);
+        self.bind_native_world(next, ui, ctx);
+        let world = &self.native_viewport.world;
+        world.presented.is_none() && world.published.as_ref().is_some_and(|(_, list)| {
+            list.ops.iter().any(|op| matches!(op, PaintOp::Image { .. } | PaintOp::SpriteImage { .. }))
+                && list.receipts().next().is_none()
+        })
+    }
+    pub(crate) fn native_force_atlas_refresh_for_test(&mut self) -> renderkit::ImageHandle {
+        let world = &mut self.native_viewport.world;
+        let image = world.presented.as_ref().unwrap().display_image;
+        let gpu = world.gpu.as_mut().unwrap();
+        // Exercise the real atlas-retirement branch without changing the fixture.
+        let assets = gpu.configured.as_mut().unwrap();
+        assets.tiles = assets.tiles.wrapping_add(1);
+        image
+    }
+    pub(crate) fn native_suspend_world_source_for_test(&mut self) -> renderkit::ImageHandle {
+        let image = self.native_viewport.world.presented.as_ref().unwrap().display_image;
+        self.native_viewport.world.source = None;
+        image
     }
     pub(crate) fn native_paint_query_pending_for_test(&mut self) {
         let world = &mut self.native_viewport.world;

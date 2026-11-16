@@ -27,6 +27,7 @@ pub fn pick(id: Uuid, project: &mut Project, server: &CreatorContext) -> bool {
         return false;
     };
     paint.active_source = Some(id);
+    paint.active_material_override = false;
     paint
         .source_images
         .insert(id, std::sync::Arc::new(tile.clone()));
@@ -178,6 +179,26 @@ pub fn event(
     if server.shared.curr_map_tool_type != MapToolType::IsoPaint {
         return false;
     }
+    // Application material/finish belongs to the next stroke, not the linked
+    // artwork recipe. Publishing a recipe here rebakes all historic paint.
+    if let TheEvent::ContextMenuSelected(id, item) = event
+        && id.name == "Paint Overlay Choices"
+    {
+        let parts: Vec<_> = item.name.split_whitespace().collect();
+        if let (Some(key), Some(index)) = (parts.get(3), parts.last().and_then(|s| s.parse::<u8>().ok()))
+            && matches!(*key, "Material" | "Finish")
+        {
+            if let Some(paint) = layer(project, server) {
+                paint.active_material_override = true;
+                paint.active_material_id = if *key == "Material" {
+                    index.min(14) * 4 + paint.active_material_id % 4
+                } else { paint.active_material_id / 4 * 4 + index.min(3) };
+            }
+            ui.clear_popover(ctx);
+            toolbar(ui, ctx, project, server);
+            return true;
+        }
+    }
     let source = layer(project, server).and_then(|p| p.active_source);
     let mut spec =
         source.and_then(|id| crate::procedural_material::paint_assets::selected_spec(project, id));
@@ -276,14 +297,6 @@ pub fn event(
                 let key = parts.get(3).copied().unwrap_or("");
                 if let Some(spec) = spec.as_mut() {
                     match key {
-                        "Material" => {
-                            spec.material_id = (index.min(14) * 4) as u8 + spec.material_id % 4;
-                            source_edit = true;
-                        }
-                        "Finish" => {
-                            spec.material_id = (spec.material_id / 4) * 4 + index.min(3) as u8;
-                            source_edit = true;
-                        }
                         "Shape" => {
                             spec.shape = [
                                 "solid", "soft", "dirt", "speckle", "jagged", "scratch", "wash",
@@ -296,14 +309,6 @@ pub fn event(
                 } else if source.is_none() {
                     if let Some(paint) = layer(project, server) {
                         match key {
-                            "Material" => {
-                                paint.active_material_id =
-                                    (index.min(14) * 4) as u8 + paint.active_material_id % 4
-                            }
-                            "Finish" => {
-                                paint.active_material_id =
-                                    (paint.active_material_id / 4) * 4 + index.min(3) as u8
-                            }
                             "Shape" => {
                                 paint.active_brush_shape = [
                                     "solid", "soft", "dirt", "speckle", "jagged", "scratch", "wash",

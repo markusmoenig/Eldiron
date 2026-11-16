@@ -19679,3 +19679,147 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   parity. Current Release window remains open for the user. No further profiling,
   build or optimization is required for this checkpoint. Evidence records the
   final binary, all source hashes, targeted checks and this accepted limitation.
+
+## Paint activation/display, future-only finish and Play diagnostics (2026-11-16)
+
+- User reports black then unfinished/garbage images when entering Paint and
+  ending a terrain brush stroke, Wet finish changes blocking with an OS wait
+  cursor, and Gate Play failure not selecting the sidebar Debug view. User
+  explicitly clarifies Material/Finish choices must affect only new strokes.
+- Existing Release profiling logs record event-phase stalls12,888.78ms and
+  10,990.23ms for the reported material interaction. These are whole event-phase
+  timings, not sampled function timings. The source path published an edited
+  MZ recipe, refreshed texture assets and replayed linked paint history.
+- Fixed display ownership: SceneViews now copies a completed scene image into
+  separate resident display storage only after all private paint phases finish.
+  Mutable work targets cannot clear/overwrite an image still displayed by the
+  compositor. Matching descriptors reuse the display image/handle. This costs
+  one extra resident image and a same-device copy per complete frame; no CPU
+  framebuffer/readback bridge. Different descriptors retire registrations.
+- Tool/asset rebinding within the same document/map/view/size retains only the
+  last completed scene as a passive backdrop. Old input/control receipts are
+  revoked. Replacement preparation no longer needs to leave an empty canvas;
+  different document/map/view/size and custom scopes do not reuse the backdrop.
+- Paint Material/Finish context-menu choices now update application settings
+  directly, avoiding MZ parsing/publication, asset refresh and history replay.
+  Explicit material overrides are captured per stroke/stamp and honored by
+  replay, native artwork and derived billboard recipes. Optional default-false
+  serialized markers preserve inherited recipe behavior and omit fields when
+  unset. Picking another source initializes its recipe defaults. Direct MZ
+  authoring still updates inherited linked artwork; explicit choices remain
+  per placement. Initial parity regression caught this distinction and passed
+  after adding the explicit override metadata.
+- Play startup failures in native/reference paths now mark all error lines for
+  red highlighting, select sidebar Debug immediately and show a status message.
+  Runtime log auto-selection requires explicit error/err line markers; warning
+  and warn lines stay yellow without changing the sidebar. Existing log theme
+  verified: error #fb4934, warning #fabd2f. Removed the misleading instruction to
+  fix a rules graph for every startup failure. Gate still contains missing Sword
+  equipment on Rogue; project references and rulesets remain unchanged.
+- Focused Release checks PASS: future-only Wet (recipe/tile/history unchanged,
+  new stroke metadata, replay and serialization), native brush/stamp parity and
+  direct MZ edits, published GPU pixels surviving private-target overwrite,
+  error-only severity selection, project startup error text selecting Debug,
+  and actual assembled native tool-switch backdrop/no-old-receipt plus continuous
+  64-frame painting/single authoring capture. Final assembled test25.73s.
+  Canonical Release executable build passes with no warnings; test-only builds
+  retain two existing Apple document-helper dead-code warning groups.
+- Updated Release app opened with the isolated Gate copy. Manual retest of
+  Paint activation, terrain completion, Wet and Gate Play is pending. Evidence:
+  native-wgpu-evidence/paint-activation-finish-debug-2026-11-16.json records
+  source/binary/log hashes, results and limits. No broad benchmark/platform
+  acceptance campaign or overall port-completion claim. Eight unrelated
+  untracked concept documents remain untouched.
+
+### Manual rejection and host scheduling / Terrain follow-up
+
+- User retest rejects the display result: activation/terrain completion still
+  show empty then unfinished output and settle only after mouse movement. User
+  also reports Terrain using paint-looking content after a Paint brush selection.
+  Do not mark display correctness complete based on image/backdrop unit checks.
+- Found a separate reactive-host gap: the last FrameRequest is decided before
+  frame preparation/presentation can admit more work. With no next deadline,
+  queued CPU preparation or post-ack invalidation can await input. The shared
+  UI application adapter now requests one update after presentation. That update
+  decides whether another rendered frame is needed; it is not an unconditional
+  redraw. Added an idle-deadline/post-present-work regression including settling.
+- Terrain's automatic ground selection accepted paint-only native brush tiles
+  because they had no isometric restriction. It now excludes Paint/stamp sources
+  and replaces an already paint-only automatic ground with valid fallback ground.
+  Valid authored ground remains unchanged. Added Moss/stamp rejection and normal
+  material acceptance regression. Release checks/retest for this follow-up pending.
+
+### Residual 3D blank during geometry/atlas replacement
+
+- User confirms the failing Gate view is 3D. After host-wake and Terrain source
+  filtering, output settles without mouse movement and no longer shows garbage,
+  but entering Paint and ending each Terrain stroke still blanks for about500ms.
+  The display result remains rejected. Terrain is now green: this is the existing
+  neutral fallback when no valid ground material is selected, not a ruleset or
+  project-palette edit.
+- Host wake regression, Terrain source filter regression, actual native root
+  regression and native Terrain stroke/cancel/undo regression passed in Release.
+  Their logs are host-wake-native-release-test.log, post-present-wake-release-test.log,
+  terrain-ground-release-test.log and terrain-native-release-test.log under
+  /private/tmp/eldiron-paint-profile. Host-wake/Terrain Release build passed.
+- A separate real-window idle probe failed: smoke timed out with zero successful
+  surface presentations. This is not an idle/presentation acceptance pass. The
+  subsequent CUA window inspection showed a project chooser rather than Gate;
+  automation could not establish a reliable Gate session. No visual pass is
+  inferred from those attempts.
+- Found two additional display-lifetime gaps. Retiring SceneViews during atlas
+  refresh removes its registry image handle, including one referenced by a passive
+  backdrop. Also, GPU frame completion can precede CPU geometry completion and
+  publish a scene with empty/partial geometry. The viewport now owns an independent
+  registration for the completed image and keeps that image until CPU geometry
+  and GPU preparation can supply a replacement. This registration adds no extra
+  texture/copy beyond the display snapshot already documented above. Retired
+  registrations remain pinned by outstanding root commands and are released
+  when those roots no longer reference them. Document/view/mode/size/density,
+  paste/detail/custom scope changes revoke reuse; tool/atlas changes retain it.
+- Added direct Metal registration-retirement regression and strengthened the
+  assembled native root regression to suspend geometry and retire the real atlas
+  while displaying 3D Paint, render pending backdrops and settle without pointer
+  events. Initial sandbox GPU attempt could not find a Metal adapter; rerunning
+  with approved host access. Final results and updated executable pending.
+- Concurrent runtime work added serde/serde_json dependencies without updating
+  its lock entry. Added only those two existing dependency names to that package's
+  Cargo.lock entry so --locked checks can proceed. Leave this synchronization
+  alongside the unrelated runtime work; exclude it from the paint-fix commit.
+- Direct Metal registration-retirement regression PASS0.06s. The first assembled
+  check was temporarily blocked by15concurrent runtime compile errors; those
+  unrelated edits subsequently compiled. The next full assembled run passed the
+  new 3D geometry pixel-preservation, atlas-retirement and continuous Paint checks,
+  but caught a later live-actor regression: initial incomplete frames had been
+  admitted as reusable display images. Corrected eligibility so only completed
+  CPU geometry plus ready GPU stamp/paint/scene sources can become the retained
+  display. Initial incomplete output may progress but cannot freeze later work
+  as a supposed complete backdrop. Full assembled Release rerun pending. This
+  failed intermediate run is not attributed to the concurrent runtime changes.
+- After the eligibility correction, the full assembled test passes the new Paint
+  checks and the live-actor check. It fails later at the shared runtime clock/output
+  assertion (tick22, collected-output0). Concurrent replication/runtime edits are
+  present; this later failure is not diagnosed or changed here. Preserve that full
+  test and record its failure. Extracted a named Paint-only test invoking the same
+  assembled setup through continuous3Dpaint/commit, then returning before the
+  unrelated runtime scenario. This focused result cannot count as a full native
+  root, runtime or overall rewrite acceptance pass. Final Paint run/build pending.
+- Named focused Release test
+  native_paint_display_retains_complete_frames_and_live_strokes PASS11.60s.
+  It exercises the assembled editor, including pixel equality before/after
+  suspended geometry, producer/atlas removal with retained registry handles,
+  input-free replacement settling, repeated completed revisions during64live
+  paint frames, committed paint and exactly one authoring-surface capture.
+  Two explicit test-only pixel captures establish equality; the normal hover,
+  presentation and committed-paint checks still exclude implicit readback.
+  Canonical Release executable build in progress; manual Gate confirmation of
+  no transient blank remains outstanding. Full runtime failure above remains open.
+- Canonical Release executable build PASS1m10s, no warnings. Launched with isolated
+  /private/tmp/eldiron-paint-profile/Gate.eldiron; PID75129, binary SHA256
+  a51e659c9eb1f3bf004db871b3be9e53827bb79f2b9221714745052b6a6aee25.
+  Startup log confirms the scene manager and unchanged missing-Sword project error.
+  Asked user to test Paint entry and Terrain completion in3D. Manual result is
+  pending; do not mark this visual regression or overall acceptance complete yet.
+  Final source/binary/log hashes, commands, failed intermediate outcomes and the
+  later runtime failure are in the accompanying JSON evidence. Concurrent work,
+  its Cargo.lock synchronization and unrelated concepts stay outside this commit.

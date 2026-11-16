@@ -6,6 +6,8 @@ use crate::shared_vec::SharedVec;
 use theframework_core::prelude::{Uuid, Vec2, Vec3};
 use theframework_core::SharedBytes;
 
+fn is_false(value: &bool) -> bool { !*value }
+
 fn default_visible() -> bool {
     true
 }
@@ -328,6 +330,8 @@ pub struct IsoPaintStamp {
     pub variation: u32,
     #[serde(default = "default_material_id")]
     pub material_id: u8,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub material_override: bool,
     pub color: [u8; 4],
     #[serde(default = "default_palette_indices")]
     pub palette_indices: Vec<u16>,
@@ -392,6 +396,7 @@ impl IsoPaintStamp {
             rotation,
             variation,
             material_id,
+            material_override: false,
             color,
             palette_indices,
             palette_colors,
@@ -435,6 +440,8 @@ pub struct IsoPaintStroke {
     pub finish: String,
     #[serde(default = "default_material_id")]
     pub material_id: u8,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub material_override: bool,
     #[serde(default = "default_material_mode")]
     pub material_mode: String,
     #[serde(default = "default_clip")]
@@ -498,6 +505,7 @@ impl IsoPaintStroke {
             material,
             finish,
             material_id,
+            material_override: false,
             material_mode,
             clip,
             color,
@@ -768,6 +776,8 @@ pub struct IsoPaintLayer {
     pub active_finish: String,
     #[serde(default = "default_material_id")]
     pub active_material_id: u8,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub active_material_override: bool,
     #[serde(default = "default_material_mode")]
     pub active_material_mode: String,
     #[serde(default = "default_clip")]
@@ -824,6 +834,7 @@ impl Default for IsoPaintLayer {
             active_material: default_material(),
             active_finish: default_finish(),
             active_material_id: default_material_id(),
+            active_material_override: false,
             active_material_mode: default_material_mode(),
             active_clip: default_clip(),
             active_color: default_color(),
@@ -1196,7 +1207,9 @@ impl IsoPaintLayer {
                     let (sampled, material) = source.sample_paint_surface([x as f32 / 64., y as f32 / 64.], seed as usize);
                     color[0..3].copy_from_slice(&sampled[0..3]);
                     color[3] = ((color[3] as u16 * sampled[3] as u16) / 255) as u8;
-                    self.active_source_material = Some(rusterix::Texture::encode_material_bytes(material[0],material[1],material[2],material[3]));
+                    if !self.active_material_override {
+                        self.active_source_material = Some(rusterix::Texture::encode_material_bytes(material[0],material[1],material[2],material[3]));
+                    }
                 } else if brush == "brick" {
                     let pattern_color = self.paint_baked_pattern_color(x, y);
                     if pattern_color[3] == 0 {
@@ -1281,6 +1294,7 @@ impl IsoPaintLayer {
             self.active_brush.clone(),
             self.active_brush_shape.clone(),
             self.active_material_id,
+            self.active_material_override,
             self.active_material_mode.clone(),
             self.active_clip.clone(),
             self.active_color,
@@ -1298,6 +1312,7 @@ impl IsoPaintLayer {
         self.active_brush = stroke.brush.clone();
         self.active_brush_shape = stroke.brush_shape.clone();
         self.active_material_id = stroke.material_id;
+        self.active_material_override = stroke.material_override;
         self.active_material_mode = stroke.material_mode.clone();
         self.active_clip = if Self::is_surface_clip(&stroke.clip) {
             "surface".to_string()
@@ -1348,6 +1363,7 @@ impl IsoPaintLayer {
             self.active_brush,
             self.active_brush_shape,
             self.active_material_id,
+            self.active_material_override,
             self.active_material_mode,
             self.active_clip,
             self.active_color,
@@ -1399,7 +1415,9 @@ impl IsoPaintLayer {
                 self.active_source_material = None;
                 let mut sampled_color = if let Some(source) = self.active_source.and_then(|id|self.source_images.get(&id)).filter(|_|native_source.is_none()) {
                     let (color, material) = source.sample_paint_surface([x as f32/64.,y as f32/64.],selection_seed as usize);
-                    self.active_source_material = Some(rusterix::Texture::encode_material_bytes(material[0],material[1],material[2],material[3]));
+                    if !self.active_material_override {
+                        self.active_source_material = Some(rusterix::Texture::encode_material_bytes(material[0],material[1],material[2],material[3]));
+                    }
                     color
                 } else if brush == "brick" {
                     self.paint_baked_pattern_color(x, y)
@@ -1600,14 +1618,15 @@ impl IsoPaintLayer {
     }
 
     /// Keep the original brush evaluation, including masks, local detail and material semantics.
-    /// The recipe supplies its settings; placement size and opacity stay on the stroke.
+    /// The recipe supplies artwork settings; size, opacity and application
+    /// material stay on the stroke. Picking a source initializes its defaults.
     pub fn apply_source_settings(&mut self) {
         let Some(spec) = self.native_source() else { return; };
         self.active_brush = spec.brush;
         self.active_brush_shape = spec.shape;
         self.active_color = spec.colors[0];
         self.active_palette_colors = spec.colors;
-        self.active_material_id = spec.material_id;
+        if !self.active_material_override { self.active_material_id = spec.material_id; }
         self.active_pattern_kind = spec.pattern;
         self.active_pattern_mortar = spec.mortar;
         self.active_pattern_scale = spec.scale;
@@ -1643,6 +1662,7 @@ impl IsoPaintLayer {
             first_point,
         );
         stroke.source = self.active_source;
+        stroke.material_override = self.active_material_override;
         stroke.selection_id = self.active_selection_id;
         stroke.order = self.next_paint_order();
         let id = stroke.id;
@@ -1702,6 +1722,7 @@ impl IsoPaintLayer {
             first_point,
         );
         stroke.selection_id = Some(selection.id);
+        stroke.material_override = self.active_material_override;
         stroke.fill_selection = true;
         stroke.order = self.next_paint_order();
         let operation = std::mem::replace(&mut self.active_operation, "draw".to_string());
@@ -1736,6 +1757,7 @@ impl IsoPaintLayer {
             self.active_stamp_rotation_jitter,
         );
         stamp.source = self.active_source;
+        stamp.material_override = self.active_material_override;
         stamp.source_image = self.active_source.and_then(|id| self.source_images.get(&id).cloned());
         stamp.order = self.next_paint_order();
         let id = stamp.id;

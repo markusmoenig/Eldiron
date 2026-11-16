@@ -168,11 +168,18 @@ impl TerrainTool {
         }
         commands
     }
+    fn can_be_ground(tile: &rusterix::Tile) -> bool {
+        tile.paint.is_none() && tile.isometric.as_ref().is_none_or(|source| source.ground)
+    }
     fn ensure_ground(map: &mut Map, server: &CreatorContext) {
-        if map.properties.contains("default_terrain_tile") {
+        let r = server.reference.read();
+        let paint_ground = map.properties.get_source("default_terrain_tile")
+            .and_then(|source| source.render_tile_id(&r.assets))
+            .and_then(|id| r.assets.tiles.get(&id))
+            .is_some_and(|tile| tile.paint.is_some());
+        if map.properties.contains("default_terrain_tile") && !paint_ground {
             return;
         }
-        let r = server.reference.read();
         let ground = server
             .shared.curr_tile_source
             .map(|s| match s {
@@ -183,7 +190,7 @@ impl TerrainTool {
                 r.assets
                     .tiles
                     .get(id)
-                    .is_some_and(|t| t.isometric.as_ref().is_none_or(|s| s.ground))
+                    .is_some_and(Self::can_be_ground)
             })
             .or_else(|| {
                 map.sectors.iter().find_map(|s| {
@@ -194,7 +201,7 @@ impl TerrainTool {
                             r.assets
                                 .tiles
                                 .get(id)
-                                .is_some_and(|t| t.isometric.as_ref().is_some_and(|s| s.ground))
+                                .is_some_and(|t| Self::can_be_ground(t) && t.isometric.is_some())
                         })
                 })
             });
@@ -675,6 +682,16 @@ impl Tool for TerrainTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn terrain_ground_does_not_inherit_the_selected_paint_brush() {
+        let mut tile = rusterix::Tile::from_texture(rusterix::Texture::new(vec![255; 4], 1, 1));
+        assert!(TerrainTool::can_be_ground(&tile));
+        tile.paint = Some(shared::paint_source::Spec::new("moss", false).layout());
+        assert!(!TerrainTool::can_be_ground(&tile));
+        tile.paint = Some(shared::paint_source::Spec::new("flowers", true).layout());
+        assert!(!TerrainTool::can_be_ground(&tile));
+    }
 
     #[test]
     #[ignore = "native editor scene publication and undo require Metal"]

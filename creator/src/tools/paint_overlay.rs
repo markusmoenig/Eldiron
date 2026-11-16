@@ -63,7 +63,7 @@ impl Controls {
         controls.spec = source.and_then(|id| specs.read(project, id));
         if let Some(spec) = &controls.spec {
             controls.colors = spec.colors.clone();
-            controls.material = spec.material_id;
+            if !paint.active_material_override { controls.material = spec.material_id; }
             controls.shape = spec.shape.clone();
         }
         Some(controls)

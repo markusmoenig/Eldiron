@@ -12,6 +12,7 @@ pub(crate) use owner::GamePaintScope;
 use owner::SceneOwner;
 mod isometric;
 mod picking;
+mod publication;
 mod stamp_paint;
 mod surface_paint;
 pub use surface_paint::SurfacePaintStats;
@@ -337,15 +338,21 @@ impl SceneViews {
             let (scene, target) = view.scene.parts_mut();
             scene.vm.render_gpu(target.ok_or_else(|| RenderError("scene view target missing".into()))?, revision)?
         };
+        let published = publication::publish(&self.context, &rendered.image, view.last_image.as_ref())?;
         let image = if let Some(output) = view.output {
-            if images.get(output.image).is_none() {
-                return Err(RenderError(
-                    "scene view image was removed outside its owner".into(),
-                ));
+            if view.last_image.as_ref().is_none_or(|old| !Arc::ptr_eq(old, &published)) {
+                images.remove(output.image);
+                images.insert(published.clone())?
+            } else {
+                if images.get(output.image).is_none() {
+                    return Err(RenderError(
+                        "scene view image was removed outside its owner".into(),
+                    ));
+                }
+                output.image
             }
-            output.image
         } else {
-            images.insert(rendered.image.clone())?
+            images.insert(published.clone())?
         };
         let output = ViewImage {
             view: id,
@@ -355,7 +362,7 @@ impl SceneViews {
             content_revision: completed_content_revision,
         };
         view.pending_content_revision = None;
-        view.last_image = Some(rendered.image);
+        view.last_image = Some(published);
         view.revision = revision;
         view.output = Some(output);
         view.dirty = false;

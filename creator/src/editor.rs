@@ -4547,9 +4547,22 @@ impl Editor {
         );
     }
 
-    fn log_segment_has_warning_or_error(segment: &str) -> bool {
-        let segment = segment.to_ascii_lowercase();
-        segment.contains("[error]") || segment.contains("[warning]") || segment.contains("[warn]")
+    fn log_segment_has_error(segment: &str) -> bool {
+        segment.lines().any(|line| {
+            let line = line.trim_start();
+            ["[error]", "[err]"].into_iter().any(|marker| {
+                line.get(..marker.len()).is_some_and(|prefix| prefix.eq_ignore_ascii_case(marker))
+            })
+        })
+    }
+
+    fn report_play_start_error(&mut self, error: &str, ui: &mut TheUI, ctx: &mut TheContext) {
+        let log = format!("Play could not start: {error}").lines()
+            .map(|line| format!("[error] {line}")).collect::<Vec<_>>().join("\n");
+        crate::docks::log::LogDock::set_output(&log, ui, ctx);
+        self.sidebar.show_debug_page(ui, ctx, &self.documents.project, &mut self.server_ctx);
+        ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), "Play could not start; see Debug.".into()));
+        ctx.ui.invalidate_paint();
     }
 
     fn example_manifest_url() -> String {
@@ -9155,7 +9168,7 @@ impl TheTrait for Editor {
                             let log_text = server.get_log();
                             crate::docks::log::LogDock::set_output(&log_text, ui, ctx);
 
-                            // Auto-open Debug Log only when new log content contains warning/error.
+                            // Warnings remain visible in the log without changing the sidebar.
                             let mut start = if log_text.len() < self.last_processed_log_len {
                                 0
                             } else {
@@ -9165,7 +9178,7 @@ impl TheTrait for Editor {
                                 start += 1;
                             }
                             let new_segment = &log_text[start..];
-                            if Self::log_segment_has_warning_or_error(new_segment) {
+                            if Self::log_segment_has_error(new_segment) {
                                 ctx.ui.send(TheEvent::StateChanged(
                                     TheId::named("Show Debug Log"),
                                     TheWidgetState::Clicked,
@@ -11209,28 +11222,25 @@ impl TheTrait for Editor {
                                     let quick = ui
                                         .get_widget("Game Entity Defaults")
                                         .is_some_and(|button| button.state() == TheWidgetState::Clicked);
-                                    match CreatorPlaySession::start_owned(
+                                    let start_result = CreatorPlaySession::start_owned(
                                         document,
                                         self.documents.project.clone(),
                                         tick_ms,
                                         quick,
                                         &mut self.server_ctx.reference.write(),
-                                    ) {
+                                    );
+                                    match start_result {
                                         Ok(play) => self.play_session = Some(play),
                                         Err(error) => {
-                                            crate::docks::log::LogDock::set_output(&format!("Rules: {error}"), ui, ctx);
+                                            self.report_play_start_error(&error.to_string(), ui, ctx);
                                             return true;
                                         }
                                     }
                                 } else {
                                     let mut runtime_project = self.documents.project.clone();
-                                    if let Err(error) = start_server(&mut self.server_ctx.reference.write(), &mut runtime_project, true)
-                                    {
-                                        crate::docks::log::LogDock::set_output(&format!("Rules: {error}"), ui, ctx);
-                                        ctx.ui.send(TheEvent::SetStatusText(
-                                            TheId::empty(),
-                                            "Fix the rules graph before starting the game.".into(),
-                                        ));
+                                    let start_result = start_server(&mut self.server_ctx.reference.write(), &mut runtime_project, true);
+                                    if let Err(error) = start_result {
+                                        self.report_play_start_error(&error.to_string(), ui, ctx);
                                         return true;
                                     }
                                     self.server_ctx.reference.write().clear_say_messages();
@@ -13100,15 +13110,32 @@ mod tests {
 
     #[test]
     fn debug_log_severity_detection_requires_an_explicit_marker() {
-        assert!(Editor::log_segment_has_warning_or_error(
+        assert!(!Editor::log_segment_has_error(
             "[warning] missing entrance"
         ));
-        assert!(Editor::log_segment_has_warning_or_error(
+        assert!(Editor::log_segment_has_error(
             "[ERROR] setup failed"
         ));
-        assert!(!Editor::log_segment_has_warning_or_error(
+        assert!(!Editor::log_segment_has_error(
             "StartScene: Startup with 0 errors."
         ));
+        assert!(Editor::log_segment_has_error("  [err] missing item"));
+        assert!(!Editor::log_segment_has_error("[warn] quoted [error] marker"));
+    }
+
+    #[test]
+    fn play_start_failure_opens_debug_and_displays_the_project_error() {
+        let mut editor = Editor::new();
+        let mut ctx = TheContext::new(1100, 800, 1.);
+        let mut ui = TheUI::new();
+        ui.init(&mut ctx);
+        editor.sidebar.init_ui(&mut ui, &mut ctx, &mut editor.server_ctx);
+        let error = "Entity configuration: Rogue\nUnknown equipment item: Sword";
+        editor.report_play_start_error(error, &mut ui, &mut ctx);
+        assert_eq!(ui.get_stack_layout("Sidebar Page Stack").unwrap().index(), 4);
+        let TheValue::Text(text) = ui.get_widget_value("LogEdit").unwrap() else { panic!("log text missing"); };
+        assert!(text.contains("Unknown equipment item: Sword"));
+        assert!(!text.contains("[error]"), "severity markers belong to highlighting, not displayed text");
     }
 }
 
