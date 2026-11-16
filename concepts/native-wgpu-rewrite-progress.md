@@ -19913,3 +19913,31 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Gate first-replacement visual correctness remains rejected. No new Release
   executable was delivered in this follow-up. Existing worktree/history backup
   remains at generated/native-wgpu-worktree-backup-2026-11-16.tar.gz.
+
+### Gate project character cleanup (explicit user request)
+
+- User now authorizes fixing both Gate projects to use ruleset characters,
+  superseding the earlier instruction to leave the missing-equipment project
+  issue untouched. Changed only test_projects/Gate.eldiron and
+  starters/projects/Gate.eldiron plus this checkpoint/evidence; no ruleset changes.
+- Both maps place only Player and Guard. Retained their template/instance IDs,
+  positions, behavior and input graphs and existing official Human/Cleric and
+  Human/Warrior configuration. Removed unused legacy Farmer, Rogue and Merchant
+  templates and their configuration/behavior graphs. Rogue's invalid explicit
+  Sword/Shield equipment references are gone. Cleared both retained templates'
+  obsolete rigging-preview color/equipment overrides so their ruleset visuals
+  and class outfits can be inherited.
+- Applied surgical JSON member/value edits inside the existing ZIP project
+  containers. Reopened archives and verified exact decoded equality against only
+  those intended edits; all remaining project domains (including every region,
+  placement, palette, tile, material, paint layer, item and screen) are unchanged.
+  Manifest/non-project entry bytes preserved. No removed template UUIDs or legacy
+  character references remain in configuration/behavior/world graphs. Starter
+  manifest has no content checksum to update.
+- No builds, tests or runtime Play check were run, following the user's no-build
+  instruction. The specific missing-Sword configuration has been removed; full
+  Play acceptance still awaits the user's later build/reopen. Existing temporary
+  Gate windows keep their previously loaded data until reloaded. Flash remains
+  unresolved and was not rechecked against these changed fixture hashes.
+- Evidence: native-wgpu-evidence/gate-ruleset-characters-2026-11-16.json. Original
+  archive backups/change receipt are in /private/tmp/eldiron-gate-ruleset-fix/.

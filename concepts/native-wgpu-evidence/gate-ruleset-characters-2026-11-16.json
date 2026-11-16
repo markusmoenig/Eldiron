@@ -1,0 +1,58 @@
+{
+  "date": "2026-11-16",
+  "authorization": "User requested both Gate.eldiron projects use ruleset characters to remove the Sword error; keep no-build instruction.",
+  "projects": [
+    {
+      "project": "test_projects/Gate.eldiron",
+      "before_sha256": "7b0c4115f39a5c53454bbfab0e9f1b166be9fc54687173326cae83243bcaf2de",
+      "after_sha256": "4d3e39ab22768f546130d93c1d26575f2f7b7a47a40c8b57961a66bcaf259838",
+      "removed_unused_templates": [
+        "Farmer",
+        "Rogue",
+        "Merchant"
+      ],
+      "retained_characters": {
+        "Player": "Human / Cleric",
+        "Guard": "Human / Warrior"
+      },
+      "cleared_preview_overrides": true,
+      "preserved_other_project_data": true,
+      "archive_entries_preserved": true
+    },
+    {
+      "project": "starters/projects/Gate.eldiron",
+      "before_sha256": "be3d88738ae761571029d5ecfa4641a5a6be44fc88620d163b6da36d578242f4",
+      "after_sha256": "e08b413d1a220a9a43f41d3261b78f21bf3fff9c8d68431f50839b0f4c103ebc",
+      "removed_unused_templates": [
+        "Farmer",
+        "Rogue",
+        "Merchant"
+      ],
+      "retained_characters": {
+        "Player": "Human / Cleric",
+        "Guard": "Human / Warrior"
+      },
+      "cleared_preview_overrides": true,
+      "preserved_other_project_data": true,
+      "archive_entries_preserved": true
+    }
+  ],
+  "changes": [
+    "Removed unused legacy Farmer, Rogue and Merchant templates and their configuration and behavior graphs.",
+    "Kept placed Player (Human/Cleric) and Guard (Human/Warrior), preserving all template/instance IDs and placements.",
+    "Cleared obsolete retained-character rigging preview overrides, including Sword/Shield preview slots, to inherit ruleset visuals/outfits."
+  ],
+  "data_verification": [
+    "Reopened both ZIP/JSON containers; exact decoded equality to baseline with only the listed character/graph edits.",
+    "Every region/map/placement, palette, material, paint, item and screen field remains identical.",
+    "Archive manifest and all other entries retain identical payload bytes.",
+    "Remaining character configuration graph race/class choices match official Human/Cleric and Human/Warrior definitions.",
+    "Removed template UUIDs have no remaining references; no Rogue/Farmer/Merchant references remain in behavior/world graphs.",
+    "Starter manifest contains no project content hash to update."
+  ],
+  "rulesets_modified": false,
+  "builds_or_runtime_tests_run": false,
+  "runtime_status": "Specific invalid Sword/Shield configuration removed; Play not run. Reload Gate after the user build. Existing temporary copies/windows retain prior loaded data.",
+  "flash_status": "Unresolved; no retest against the updated Gate project hashes.",
+  "backup_directory": "/private/tmp/eldiron-gate-ruleset-fix"
+}
