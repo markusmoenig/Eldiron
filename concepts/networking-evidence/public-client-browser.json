@@ -1,0 +1,58 @@
+{
+  "public_package": true,
+  "transport": "explicit loopback WS",
+  "game_documents_served": [
+    "/game.eldiron-client"
+  ],
+  "gpu": {
+    "eldironState": "playing",
+    "eldironCodecWorkers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+    "eldironReadbackBytes": "0",
+    "eldironGpuGeneration": "1",
+    "eldironPresentations": "132",
+    "eldironSession": "16a70eed-efd5-41f2-b6d6-4821c9e44a23",
+    "eldironTicks": "46"
+  },
+  "host": {
+    "mode": "Demo",
+    "players": 1,
+    "entities": 1
+  },
+  "transport_metrics": {
+    "accepted": 2,
+    "refused": 0,
+    "active": 1,
+    "websocket_payload_bytes_received": 11953,
+    "websocket_payload_bytes_sent": 41992,
+    "http_payload_bytes_sent": 8817,
+    "command_queue_peak": 2,
+    "hash_busy": 0,
+    "malformed": 0,
+    "socket_write": {
+      "calls": 46,
+      "total_us": 1747,
+      "last_us": 46,
+      "max_us": 55,
+      "rolling_samples": 46,
+      "p50_us": 39,
+      "p95_us": 49,
+      "p99_us": 55
+    }
+  },
+  "exceptions": 0,
+  "initial_gpu_state": "playing",
+  "date": "2026-11-18",
+  "package": {
+    "archive_bytes": 1402081,
+    "payload_bytes": 52163354,
+    "manifest": {
+      "format": "eldiron.client",
+      "version": 1,
+      "engine": "0.96.0",
+      "protocol": 4,
+      "content_revision": "30af698cda15efd153c95c2a958bb2b332806870b73d22e963ceabe91beac1b9",
+      "payload_sha256": "ef033d4076219be29068e11bdf851fcf1077167d790d7faab4710d681d7f432f"
+    },
+    "archive_sha256": "9e6767dc72f4a9b85f7fe3a5f57417a386d1ff1e5b44ef0a679702a7942c4805"
+  }
+}

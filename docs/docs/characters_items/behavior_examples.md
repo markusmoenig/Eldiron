@@ -23,7 +23,7 @@ Connect Routine to Lookout, choosing a relationship profile from your ruleset.
 - Target Found → Engage Target.
 - Engage Target's Defeated, Target Lost and Cannot Engage → Resume Routine.
 
-Adjust reaction and escape distances on Lookout for the placement. Configure relationships and attack policy in Game / Rules. Set movement speed on the character.
+Adjust reaction and escape distances on Lookout for the placement. Relationships and attack policy come from the supplied ruleset. Set movement speed on the character.
 
 ## Welcome the player to an area
 

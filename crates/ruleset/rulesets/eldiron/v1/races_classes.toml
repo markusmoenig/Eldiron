@@ -59,7 +59,7 @@ description = "Civilian baseline for settlement people, vendors, crafters, train
 role = "civilian"
 primary_attributes = ["VIT"]
 allowed_weapons = []
-allowed_armor = ["cloth", "leather", "focus"]
+allowed_armor = ["cloth", "leather", "focus", "bone_armor"]
 
 [classes.Citizen.attributes]
 HP = 10
@@ -123,7 +123,7 @@ description = "Durable martial adventurer trained for weapons and armor."
 role = "martial"
 primary_attributes = ["STR", "VIT"]
 allowed_weapons = ["sword", "axe", "mace", "spear", "bow"]
-allowed_armor = ["cloth", "leather", "chain", "shield", "focus"]
+allowed_armor = ["cloth", "leather", "chain", "shield", "focus", "bone_armor"]
 
 [classes.Warrior.attributes]
 HP = 16
@@ -174,6 +174,8 @@ clothing = ["wool_trousers", "leather_shoes"]
 inventory = []
 
 [classes.Warrior.action_bar]
+crafting = ["rules.craft_twist_cord", "rules.craft_make_stone_knife", "rules.craft_carve_bowl", "rules.craft_build_tanning_frame", "rules.craft_build_bone_workbench", "rules.craft_tan_hide", "rules.craft_cut_straps", "rules.craft_shape_bone", "rules.craft_bone_helm", "rules.craft_bone_cuirass", "rules.craft_bone_greaves", "rules.craft_bone_gauntlets", "rules.craft_bone_boots", "rules.repair_bone_armor"]
+
 main = [
   "rules.basic_attack",
   "rules.power_strike",
@@ -192,7 +194,7 @@ description = "Armored divine caster trained to heal allies and hold a line."
 role = "divine"
 primary_attributes = ["WIS", "VIT"]
 allowed_weapons = ["mace"]
-allowed_armor = ["cloth", "leather", "chain", "shield", "focus"]
+allowed_armor = ["cloth", "leather", "chain", "shield", "focus", "bone_armor"]
 
 [classes.Cleric.attributes]
 HP = 14
@@ -249,6 +251,8 @@ clothing = ["wool_trousers", "leather_shoes"]
 inventory = ["blessed_herb", "moonwater"]
 
 [classes.Cleric.action_bar]
+crafting = ["rules.craft_twist_cord", "rules.craft_make_stone_knife", "rules.craft_carve_bowl", "rules.craft_build_tanning_frame", "rules.craft_build_bone_workbench", "rules.craft_tan_hide", "rules.craft_cut_straps", "rules.craft_shape_bone", "rules.craft_bone_helm", "rules.craft_bone_cuirass", "rules.craft_bone_greaves", "rules.craft_bone_gauntlets", "rules.craft_bone_boots", "rules.repair_bone_armor"]
+
 main = [
   "rules.basic_attack",
   "rules.guard",
@@ -268,7 +272,7 @@ description = "Mobile hunter trained for bows, light armor, and wilderness survi
 role = "ranged"
 primary_attributes = ["DEX", "VIT"]
 allowed_weapons = ["bow", "sword", "axe"]
-allowed_armor = ["cloth", "leather", "focus"]
+allowed_armor = ["cloth", "leather", "focus", "bone_armor"]
 
 [classes.Ranger.attributes]
 HP = 14
@@ -320,6 +324,8 @@ clothing = ["wool_trousers", "leather_shoes"]
 inventory = ["wooden_arrows"]
 
 [classes.Ranger.action_bar]
+crafting = ["rules.craft_twist_cord", "rules.craft_make_stone_knife", "rules.craft_carve_bowl", "rules.craft_build_tanning_frame", "rules.craft_build_bone_workbench", "rules.craft_tan_hide", "rules.craft_cut_straps", "rules.craft_shape_bone", "rules.craft_bone_helm", "rules.craft_bone_cuirass", "rules.craft_bone_greaves", "rules.craft_bone_gauntlets", "rules.craft_bone_boots", "rules.repair_bone_armor"]
+
 main = [
   "rules.basic_attack",
   "rules.aimed_shot",
@@ -332,3 +338,6 @@ main = [
   "rules.craft_wooden_arrows",
   "rules.craft_hunting_bow",
 ]
+
+[classes.Citizen.action_bar]
+crafting = ["rules.craft_twist_cord", "rules.craft_make_stone_knife", "rules.craft_carve_bowl", "rules.craft_build_tanning_frame", "rules.craft_build_bone_workbench", "rules.craft_tan_hide", "rules.craft_cut_straps", "rules.craft_shape_bone", "rules.craft_bone_helm", "rules.craft_bone_cuirass", "rules.craft_bone_greaves", "rules.craft_bone_gauntlets", "rules.craft_bone_boots", "rules.repair_bone_armor"]

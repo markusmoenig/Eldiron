@@ -448,6 +448,12 @@ pub enum EditOperation {
         id: String,
         bundle: String,
     },
+    MeshPut {
+        id: String,
+        recipe: String,
+        #[serde(default)]
+        blocking: Option<bool>,
+    },
     CompositionPut {
         id: String,
         composition: serde_json::Value,
@@ -470,6 +476,11 @@ pub struct Transaction {
     pub operations: Vec<EditOperation>,
     #[serde(default)]
     pub dry_run: bool,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TransactionPreview {
+    pub operations: Vec<EditOperation>,
+    pub preview: RegionRenderPreview,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AssetId {
@@ -498,12 +509,16 @@ pub enum ScepterCommand {
     RegionEntities(RegionSnapshot),
     #[serde(rename = "project.transaction")]
     Transaction(Transaction),
+    #[serde(rename = "project.preview_transaction")]
+    TransactionPreview(TransactionPreview),
     #[serde(rename = "material.list")]
     MaterialList,
     #[serde(rename = "material.get")]
     MaterialGet(AssetId),
     #[serde(rename = "material.validate")]
     MaterialValidate(MaterialValidate),
+    #[serde(rename = "mesh.get")]
+    MeshGet(AssetId),
     #[serde(rename = "composition.get")]
     CompositionGet(AssetId),
     #[serde(rename = "surface.list")]
@@ -596,9 +611,11 @@ impl ScepterCommand {
             Self::EntityTemplates => "entity.templates",
             Self::RegionEntities(_) => "region.entities",
             Self::Transaction(_) => "project.transaction",
+            Self::TransactionPreview(_) => "project.preview_transaction",
             Self::MaterialList => "material.list",
             Self::MaterialGet(_) => "material.get",
             Self::MaterialValidate(_) => "material.validate",
+            Self::MeshGet(_) => "mesh.get",
             Self::CompositionGet(_) => "composition.get",
             Self::SurfaceList(_) => "surface.list",
             Self::ScepterHelp => "scepter.help",
@@ -685,6 +702,7 @@ pub fn creator_implements(name: &str) -> bool {
             | "project.undo"
             | "project.redo"
             | "project.transaction"
+            | "project.preview_transaction"
             | "region.list"
             | "region.snapshot"
             | "region.summary"
@@ -705,6 +723,7 @@ pub fn creator_implements(name: &str) -> bool {
             | "material.list"
             | "material.get"
             | "material.validate"
+            | "mesh.get"
             | "composition.get"
             | "surface.list"
     )

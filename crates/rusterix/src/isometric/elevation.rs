@@ -5,7 +5,7 @@ use theframework_core::prelude::*;
 pub const STEP_UP: f32 = 0.35;
 pub const STEP_DOWN: f32 = 0.5;
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Surface {
     bounds: BBox,
     triangles: Vec<[Vec2<f32>; 3]>,
@@ -121,7 +121,7 @@ impl Surface {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ElevationMap {
     surfaces: Vec<Surface>,
     pub terrain: Option<std::sync::Arc<crate::chunkbuilder::terrain_surface::TerrainSurface>>,

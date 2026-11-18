@@ -39,6 +39,7 @@ required-features = ["reference-cpu"]
 [dependencies]
 parking_lot = { version = "0.12.5", features = ["arc_lock"] }
 web-time = "1.1.0"
+eldiron-network = { path = "../crates/network" }
 eldiron-runtime = { path = "../crates/runtime" }
 theframework-core = { path = "../crates/theframework-core" }
 renderkit = { path = "../crates/renderkit", optional = true }
@@ -117,6 +118,8 @@ crate-type = ["lib", "staticlib"]
 
 [features]
 default = ["desktop"]
+# Internal ruleset maintenance; never enabled by normal Creator hosts.
+internal-rules-editor = []
 desktop = ["native-host"]
 reference-cpu = ["theframework/winit_app"]
 browser-host = ["native-render", "theframework/platform-web"]

@@ -104,6 +104,7 @@ impl Editor {
             r.characters.len().hash(&mut hasher);
             r.items.len().hash(&mut hasher);
         }
+        self.scepter_hash_sector_data(&mut hasher);
         self.documents.project.config.hash(&mut hasher);
         serde_json::to_string(&self.documents.project.palette.colors)
             .unwrap()

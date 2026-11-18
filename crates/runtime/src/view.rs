@@ -33,9 +33,10 @@ pub struct RegionInspection<'a> {
 /// A graphical/text consumer borrows this snapshot without owning a server,
 /// advancing time or draining addressed outputs. Render settings are plain CPU data.
 pub struct RuntimeView<'a> {
-    /// Ephemeral incarnation, unchanged by polling/pause/GPU recovery. Restart
-    /// and document replacement revoke input even when serialized IDs match.
+    /// Ephemeral view incarnation, stable across ordinary polling/pause/GPU
+    /// recovery. Restart and a new baseline generation revoke old input scopes.
     pub session_id: theframework_core::Uuid,
+    pub player: rusterix::party::PlayerView,
     project: &'a Project,
     pub assets: &'a Assets,
     pub map: Option<&'a Map>,
@@ -44,6 +45,38 @@ pub struct RuntimeView<'a> {
     pub render_state: RuntimeRenderState,
 }
 impl RuntimeView<'_> {
+    pub(crate) fn from_replica<'a>(
+        session_id: theframework_core::Uuid,
+        controlled: Option<u32>,
+        project: &'a Project,
+        assets: &'a Assets,
+        map: Option<&'a Map>,
+        time: TheTime,
+        state: ServerState,
+        render_state: RuntimeRenderState,
+    ) -> RuntimeView<'a> {
+        RuntimeView {
+            session_id,
+            player: rusterix::party::PlayerView::controlled(controlled),
+            project,
+            assets,
+            map,
+            time,
+            state,
+            render_state,
+        }
+    }
+    pub fn player_entity(&self) -> Option<&rusterix::Entity> {
+        self.player.player(self.map?)
+    }
+
+    pub fn party_entity<'a>(
+        &self,
+        map: &'a Map,
+        binding: Option<&str>,
+    ) -> Option<&'a rusterix::Entity> {
+        self.player.resolve(map, binding)
+    }
     /// Creator may edit screen layouts/fonts/config while a session is running.
     /// Those presentation sources can stay live without borrowing authored maps
     /// as simulation storage. Map, time, state and incarnation stay unchanged.
@@ -108,15 +141,22 @@ impl crate::SessionPump {
     /// Off-screen audio/dialog delivery must not resolve entity IDs in whichever
     /// map happens to be visible in the current game screen.
     pub fn view_region<'a>(
-        &self,
+        &'a self,
         project: &'a Project,
         server: &rusterix::Server,
         assets: &'a Assets,
         id: &theframework_core::Uuid,
     ) -> Option<RuntimeView<'a>> {
+        if let Some(client) = self.client_world(server.local_connection()) {
+            return client.view(project, assets, Some(*id));
+        }
         let map = &project.regions.iter().find(|r| &r.map.id == id)?.map;
         Some(RuntimeView {
             session_id: self.session_id(),
+            player: server.local_player_id().map_or(
+                rusterix::party::PlayerView::Legacy,
+                rusterix::party::PlayerView::Controlled,
+            ),
             project,
             assets,
             map: Some(map),
@@ -126,12 +166,17 @@ impl crate::SessionPump {
         })
     }
     pub fn view<'a>(
-        &self,
+        &'a self,
         project: &'a Project,
         server: &rusterix::Server,
         assets: &'a Assets,
         current_map: &str,
     ) -> RuntimeView<'a> {
+        if let Some(client) = self.client_world(server.local_connection()) {
+            return client
+                .view(project, assets, None)
+                .unwrap_or_else(|| client.empty_view(project, assets));
+        }
         let map = project
             .regions
             .iter()
@@ -139,6 +184,10 @@ impl crate::SessionPump {
             .map(|r| &r.map);
         RuntimeView {
             session_id: self.session_id(),
+            player: server.local_player_id().map_or(
+                rusterix::party::PlayerView::Legacy,
+                rusterix::party::PlayerView::Controlled,
+            ),
             project,
             assets,
             map,
@@ -155,6 +204,46 @@ impl crate::SessionPump {
 }
 
 impl GameSession {
+    /// Independent CPU view of one connection's current region and character.
+    /// Gameplay data is owned by the recipient's replica, not the simulation.
+    pub fn view_for_connection(
+        &self,
+        connection: crate::PlayerConnectionId,
+    ) -> Result<RuntimeView<'_>, String> {
+        if let Some(client) = self.client_world(connection) {
+            return Ok(client
+                .view(&self.project, &self.assets, None)
+                .unwrap_or_else(|| client.empty_view(&self.project, &self.assets)));
+        }
+        if self.started {
+            return Err("Client replica is not ready".into());
+        }
+        let state = self
+            .server
+            .connection_state(connection)
+            .ok_or("Unknown or expired player connection")?;
+        let region_id = match state {
+            crate::PlayerConnectionState::Active(control) => Some(control.region_id),
+            crate::PlayerConnectionState::Spawning { region_id } => Some(region_id),
+            crate::PlayerConnectionState::AwaitingCharacter => None,
+        };
+        let name = region_id
+            .and_then(|id| {
+                self.server
+                    .region_name_id_map
+                    .iter()
+                    .find_map(|(name, region)| (*region == id).then_some(name.as_str()))
+            })
+            .unwrap_or("");
+        let mut view = self
+            .pump
+            .view(&self.project, &self.server, &self.assets, name);
+        view.session_id = connection.uuid();
+        view.player = rusterix::party::PlayerView::controlled(
+            state.control().map(|control| control.entity_id),
+        );
+        Ok(view)
+    }
     pub fn inspect_region(&self, id: &theframework_core::Uuid) -> Option<RegionInspection<'_>> {
         self.pump.inspect_region(&self.project, &self.server, id)
     }
@@ -168,7 +257,9 @@ impl GameSession {
             .view(&self.project, &self.server, &self.assets, &self.current_map);
         // GameSession owns runtime document time; borrowed authoring hosts use
         // the pump's server-time snapshot without changing authored time.
-        view.time = self.project.time;
+        if !self.started {
+            view.time = self.project.time;
+        }
         view
     }
 }

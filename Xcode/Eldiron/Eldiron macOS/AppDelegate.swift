@@ -87,6 +87,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         bindFileMenuItem("Close", action: #selector(closeMenu))
         bindFileMenuItem("Save…", action: #selector(saveMenu))
         bindFileMenuItem("Save As…", action: #selector(saveAsMenu))
+        if let fileMenu = menuItem(named: "File")?.submenu,
+           fileMenu.items.allSatisfy({ $0.title != "Export Public Client…" }) {
+            fileMenu.addItem(.separator())
+            let item = NSMenuItem(title: "Export Public Client…", action: #selector(exportPublicClientMenu), keyEquivalent: "")
+            item.target = self
+            fileMenu.addItem(item)
+        }
         ensureFileSeparatorBetweenCloseAndSave()
         trimEditMenuAfterPaste()
         let selectAll = NSMenuItem(title: "Select All", action: #selector(NSResponder.selectAll(_:)), keyEquivalent: "a")
@@ -199,10 +206,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         settings.target = self
         showMenu.addItem(settings)
 
-        let rules = NSMenuItem(title: "Rules", action: #selector(showRulesMenu), keyEquivalent: "")
-        rules.target = self
-        showMenu.addItem(rules)
-
         let locales = NSMenuItem(title: "Locales", action: #selector(showLocalesMenu), keyEquivalent: "")
         locales.target = self
         showMenu.addItem(locales)
@@ -252,6 +255,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func closeMenu() {
         creatorRenderer?.command(2)
+    }
+
+    @objc private func exportPublicClientMenu() {
+        creatorRenderer?.saveDocument(as: true, publicClient: true)
     }
 
     @objc private func saveAsMenu() {

@@ -1,0 +1,1830 @@
+{
+  "schema": 1,
+  "generated_utc": "2026-11-17T13:31:05.333118+00:00",
+  "machine": "macOS-27.0.1-arm64-arm-64bit",
+  "command": [
+    "cargo",
+    "test",
+    "--release",
+    "-p",
+    "eldiron-server",
+    "--test",
+    "deployment_soak",
+    "--offline",
+    "--",
+    "--ignored",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "requested_seconds": 600,
+  "elapsed_seconds": 625.798,
+  "passed": true,
+  "scope": "Local paced, fragmented ordered TCP/TLS with per-world process/restart/backup drills; not WAN packet loss or production capacity.",
+  "head": "37054d324b56b5cb7c33b7e1053ad24ce93bf4f1",
+  "working_tree_dirty": true,
+  "scenarios": [
+    {
+      "actions": 329,
+      "characters": 2,
+      "duplicate_owner_refused": true,
+      "elapsed_seconds": 600.370197708,
+      "host_generations": [
+        {
+          "action_group": {
+            "calls": 145,
+            "last_us": 17161,
+            "max_us": 26013,
+            "p50_us": 19811,
+            "p95_us": 24398,
+            "p99_us": 25520,
+            "rolling_samples": 145,
+            "total_us": 2512997
+          },
+          "backup": {
+            "calls": 11,
+            "last_us": 41018,
+            "max_us": 51299,
+            "p50_us": 44857,
+            "p95_us": 51299,
+            "p99_us": 51299,
+            "rolling_samples": 11,
+            "total_us": 495695
+          },
+          "backup_failures": 0,
+          "backups": 11,
+          "busy_rejections": 0,
+          "command": {
+            "calls": 318,
+            "last_us": 616,
+            "max_us": 23044,
+            "p50_us": 29,
+            "p95_us": 2343,
+            "p99_us": 3097,
+            "rolling_samples": 256,
+            "total_us": 230077
+          },
+          "content_cache_bytes": 17624,
+          "content_misses": 0,
+          "encoding": {
+            "calls": 33191,
+            "last_us": 1,
+            "max_us": 2768,
+            "p50_us": 1,
+            "p95_us": 8,
+            "p99_us": 9,
+            "rolling_samples": 256,
+            "total_us": 211112
+          },
+          "entities": 2,
+          "generated_unix_ms": 1794921992512,
+          "healthy": true,
+          "host_tick": {
+            "calls": 17029,
+            "last_us": 322,
+            "max_us": 62756,
+            "p50_us": 408,
+            "p95_us": 497,
+            "p99_us": 1335,
+            "rolling_samples": 256,
+            "total_us": 16943109
+          },
+          "inactive_region_policy": "all_loaded_regions_tick; no_offline_catchup",
+          "items": 0,
+          "loaded_regions": 1,
+          "maintenance": {
+            "calls": 17029,
+            "last_us": 0,
+            "max_us": 57464,
+            "p50_us": 0,
+            "p95_us": 0,
+            "p99_us": 2,
+            "rolling_samples": 256,
+            "total_us": 1435161
+          },
+          "messages_received": 311,
+          "metrics_write_failures": 0,
+          "mode": "Persistent",
+          "packets_enqueued": 33190,
+          "payload_bytes_enqueued": 23421218,
+          "peak_socket_queue": 64,
+          "peers": 2,
+          "player_limit": 3,
+          "players": 2,
+          "protocol": 4,
+          "rate_rejections": 0,
+          "regions_without_players": 0,
+          "replica_disconnects": 0,
+          "runtime": {
+            "collection": {
+              "calls": 17461,
+              "last_us": 109,
+              "max_us": 6394,
+              "p50_us": 96,
+              "p95_us": 129,
+              "p99_us": 157,
+              "rolling_samples": 256,
+              "total_us": 3535516
+            },
+            "queues": {
+              "overflowed_streams": 0,
+              "peak_stream_frames": 8,
+              "pending_events": 0,
+              "projected_entities": 6,
+              "projected_items": 0,
+              "queued_frames": 0,
+              "streams": 3,
+              "subscribed_streams": 2
+            },
+            "regions": [
+              {
+                "details": {
+                  "behaviors": {
+                    "calls": 68635,
+                    "last_us": 0,
+                    "max_us": 2717,
+                    "p50_us": 0,
+                    "p95_us": 4,
+                    "p99_us": 5,
+                    "rolling_samples": 256,
+                    "total_us": 180620
+                  },
+                  "dynamic_collision": {
+                    "calls": 0,
+                    "last_us": 0,
+                    "max_us": 0,
+                    "p50_us": 0,
+                    "p95_us": 0,
+                    "p99_us": 0,
+                    "rolling_samples": 0,
+                    "total_us": 0
+                  },
+                  "entity_candidates": 0,
+                  "entity_clone": {
+                    "calls": 68635,
+                    "last_us": 6,
+                    "max_us": 3794,
+                    "p50_us": 6,
+                    "p95_us": 19,
+                    "p99_us": 49,
+                    "rolling_samples": 256,
+                    "total_us": 1569243
+                  },
+                  "entity_merge": {
+                    "calls": 68635,
+                    "last_us": 0,
+                    "max_us": 3424,
+                    "p50_us": 0,
+                    "p95_us": 1,
+                    "p99_us": 1,
+                    "rolling_samples": 256,
+                    "total_us": 31063
+                  },
+                  "geometry_collision": {
+                    "calls": 0,
+                    "last_us": 0,
+                    "max_us": 0,
+                    "p50_us": 0,
+                    "p95_us": 0,
+                    "p99_us": 0,
+                    "rolling_samples": 0,
+                    "total_us": 0
+                  },
+                  "item_candidates": 0,
+                  "scripts": {
+                    "calls": 2820,
+                    "last_us": 2,
+                    "max_us": 812,
+                    "p50_us": 3,
+                    "p95_us": 5,
+                    "p99_us": 9,
+                    "rolling_samples": 256,
+                    "total_us": 31565
+                  }
+                },
+                "game": {
+                  "calls": 1365,
+                  "last_us": 21,
+                  "max_us": 2382,
+                  "p50_us": 24,
+                  "p95_us": 167,
+                  "p99_us": 508,
+                  "rolling_samples": 256,
+                  "total_us": 99524
+                },
+                "movement": {
+                  "calls": 17072,
+                  "last_us": 33,
+                  "max_us": 10492,
+                  "p50_us": 31,
+                  "p95_us": 39,
+                  "p99_us": 84,
+                  "rolling_samples": 256,
+                  "total_us": 1212911
+                },
+                "redraw": {
+                  "calls": 51563,
+                  "last_us": 11,
+                  "max_us": 3879,
+                  "p50_us": 12,
+                  "p95_us": 41,
+                  "p99_us": 69,
+                  "rolling_samples": 256,
+                  "total_us": 2283941
+                },
+                "region": 0
+              }
+            ],
+            "replication": {
+              "calls": 17476,
+              "last_us": 186,
+              "max_us": 8388,
+              "p50_us": 193,
+              "p95_us": 246,
+              "p99_us": 286,
+              "rolling_samples": 256,
+              "total_us": 6758381
+            },
+            "simulation": {
+              "calls": 17030,
+              "last_us": 84,
+              "max_us": 10766,
+              "p50_us": 84,
+              "p95_us": 124,
+              "p99_us": 163,
+              "rolling_samples": 256,
+              "total_us": 3300513
+            }
+          },
+          "saves": {
+            "capture": {
+              "calls": 174,
+              "last_us": 223,
+              "max_us": 2504,
+              "p50_us": 337,
+              "p95_us": 837,
+              "p99_us": 1099,
+              "rolling_samples": 174,
+              "total_us": 68838
+            },
+            "commit": {
+              "calls": 174,
+              "last_us": 15906,
+              "max_us": 43210,
+              "p50_us": 18612,
+              "p95_us": 31510,
+              "p99_us": 35548,
+              "rolling_samples": 174,
+              "total_us": 3611207
+            },
+            "encoding": {
+              "calls": 174,
+              "last_us": 357,
+              "max_us": 3344,
+              "p50_us": 749,
+              "p95_us": 1951,
+              "p99_us": 3080,
+              "rolling_samples": 174,
+              "total_us": 160344
+            },
+            "failures": 0,
+            "grouped_actions": 125,
+            "groups": 125,
+            "poisoned": false,
+            "revision": 175,
+            "storage": {
+              "bytes_written": 2915532,
+              "checkpoints": 46,
+              "journal_bytes": 31663,
+              "kind": "journal",
+              "records": 2,
+              "tails_discarded": 0,
+              "transactions": 129
+            }
+          },
+          "scheduling": [
+            {
+              "eligible": false,
+              "idle_ms": 0,
+              "region": 0,
+              "skipped_game": 0,
+              "skipped_movement": 0,
+              "sleeps": 0,
+              "suspended": false,
+              "wakes": 0
+            }
+          ],
+          "schema": 1,
+          "slow_disconnects": 1,
+          "socket_packets_queued": 2,
+          "stashed_entities": 0,
+          "ticks_over_budget": 49,
+          "transport": {
+            "accepted": 3,
+            "active": 2,
+            "command_queue_peak": 1,
+            "hash_busy": 0,
+            "http_payload_bytes_sent": 0,
+            "malformed": 0,
+            "refused": 0,
+            "socket_write": {
+              "calls": 33124,
+              "last_us": 3,
+              "max_us": 5001817,
+              "p50_us": 11,
+              "p95_us": 29,
+              "p99_us": 37,
+              "rolling_samples": 256,
+              "total_us": 5973708
+            },
+            "websocket_payload_bytes_received": 26932,
+            "websocket_payload_bytes_sent": 23373386
+          },
+          "uptime_ms": 341469,
+          "wall_time_clamped_us": 0
+        },
+        {
+          "action_group": {
+            "calls": 54,
+            "last_us": 16023,
+            "max_us": 21213,
+            "p50_us": 16146,
+            "p95_us": 18635,
+            "p99_us": 21213,
+            "rolling_samples": 54,
+            "total_us": 749083
+          },
+          "backup": {
+            "calls": 3,
+            "last_us": 37151,
+            "max_us": 37483,
+            "p50_us": 37151,
+            "p95_us": 37483,
+            "p99_us": 37483,
+            "rolling_samples": 3,
+            "total_us": 110759
+          },
+          "backup_failures": 0,
+          "backups": 3,
+          "busy_rejections": 0,
+          "command": {
+            "calls": 117,
+            "last_us": 4,
+            "max_us": 1156,
+            "p50_us": 16,
+            "p95_us": 659,
+            "p99_us": 1125,
+            "rolling_samples": 117,
+            "total_us": 28296
+          },
+          "content_cache_bytes": 8812,
+          "content_misses": 0,
+          "encoding": {
+            "calls": 10842,
+            "last_us": 1,
+            "max_us": 65,
+            "p50_us": 2,
+            "p95_us": 9,
+            "p99_us": 17,
+            "rolling_samples": 256,
+            "total_us": 39638
+          },
+          "entities": 2,
+          "generated_unix_ms": 1794922111499,
+          "healthy": true,
+          "host_tick": {
+            "calls": 5263,
+            "last_us": 471,
+            "max_us": 39845,
+            "p50_us": 440,
+            "p95_us": 513,
+            "p99_us": 690,
+            "rolling_samples": 256,
+            "total_us": 3010716
+          },
+          "inactive_region_policy": "all_loaded_regions_tick; no_offline_catchup",
+          "items": 0,
+          "loaded_regions": 1,
+          "maintenance": {
+            "calls": 5263,
+            "last_us": 0,
+            "max_us": 39477,
+            "p50_us": 0,
+            "p95_us": 0,
+            "p99_us": 3,
+            "rolling_samples": 256,
+            "total_us": 342233
+          },
+          "messages_received": 113,
+          "metrics_write_failures": 0,
+          "mode": "Persistent",
+          "packets_enqueued": 10842,
+          "payload_bytes_enqueued": 7649158,
+          "peak_socket_queue": 6,
+          "peers": 2,
+          "player_limit": 3,
+          "players": 2,
+          "protocol": 4,
+          "rate_rejections": 0,
+          "regions_without_players": 0,
+          "replica_disconnects": 0,
+          "runtime": {
+            "collection": {
+              "calls": 5416,
+              "last_us": 91,
+              "max_us": 2033,
+              "p50_us": 108,
+              "p95_us": 135,
+              "p99_us": 151,
+              "rolling_samples": 256,
+              "total_us": 588633
+            },
+            "queues": {
+              "overflowed_streams": 0,
+              "peak_stream_frames": 6,
+              "pending_events": 0,
+              "projected_entities": 6,
+              "projected_items": 0,
+              "queued_frames": 0,
+              "streams": 3,
+              "subscribed_streams": 2
+            },
+            "regions": [
+              {
+                "details": {
+                  "behaviors": {
+                    "calls": 21222,
+                    "last_us": 0,
+                    "max_us": 79,
+                    "p50_us": 0,
+                    "p95_us": 5,
+                    "p99_us": 5,
+                    "rolling_samples": 256,
+                    "total_us": 21973
+                  },
+                  "dynamic_collision": {
+                    "calls": 0,
+                    "last_us": 0,
+                    "max_us": 0,
+                    "p50_us": 0,
+                    "p95_us": 0,
+                    "p99_us": 0,
+                    "rolling_samples": 0,
+                    "total_us": 0
+                  },
+                  "entity_candidates": 0,
+                  "entity_clone": {
+                    "calls": 21222,
+                    "last_us": 5,
+                    "max_us": 833,
+                    "p50_us": 6,
+                    "p95_us": 19,
+                    "p99_us": 24,
+                    "rolling_samples": 256,
+                    "total_us": 193794
+                  },
+                  "entity_merge": {
+                    "calls": 21222,
+                    "last_us": 0,
+                    "max_us": 25,
+                    "p50_us": 0,
+                    "p95_us": 0,
+                    "p99_us": 1,
+                    "rolling_samples": 256,
+                    "total_us": 1782
+                  },
+                  "geometry_collision": {
+                    "calls": 0,
+                    "last_us": 0,
+                    "max_us": 0,
+                    "p50_us": 0,
+                    "p95_us": 0,
+                    "p99_us": 0,
+                    "rolling_samples": 0,
+                    "total_us": 0
+                  },
+                  "item_candidates": 0,
+                  "scripts": {
+                    "calls": 868,
+                    "last_us": 2,
+                    "max_us": 12,
+                    "p50_us": 4,
+                    "p95_us": 6,
+                    "p99_us": 8,
+                    "rolling_samples": 256,
+                    "total_us": 2838
+                  }
+                },
+                "game": {
+                  "calls": 422,
+                  "last_us": 18,
+                  "max_us": 60,
+                  "p50_us": 22,
+                  "p95_us": 28,
+                  "p99_us": 38,
+                  "rolling_samples": 256,
+                  "total_us": 9350
+                },
+                "movement": {
+                  "calls": 5271,
+                  "last_us": 26,
+                  "max_us": 3189,
+                  "p50_us": 33,
+                  "p95_us": 42,
+                  "p99_us": 61,
+                  "rolling_samples": 256,
+                  "total_us": 180254
+                },
+                "redraw": {
+                  "calls": 15951,
+                  "last_us": 11,
+                  "max_us": 876,
+                  "p50_us": 11,
+                  "p95_us": 41,
+                  "p99_us": 55,
+                  "rolling_samples": 256,
+                  "total_us": 313308
+                },
+                "region": 0
+              }
+            ],
+            "replication": {
+              "calls": 5426,
+              "last_us": 177,
+              "max_us": 1288,
+              "p50_us": 203,
+              "p95_us": 255,
+              "p99_us": 289,
+              "rolling_samples": 256,
+              "total_us": 1109927
+            },
+            "simulation": {
+              "calls": 5264,
+              "last_us": 89,
+              "max_us": 4159,
+              "p50_us": 86,
+              "p95_us": 115,
+              "p99_us": 145,
+              "rolling_samples": 256,
+              "total_us": 472354
+            }
+          },
+          "saves": {
+            "capture": {
+              "calls": 60,
+              "last_us": 195,
+              "max_us": 296,
+              "p50_us": 194,
+              "p95_us": 275,
+              "p99_us": 296,
+              "rolling_samples": 60,
+              "total_us": 12166
+            },
+            "commit": {
+              "calls": 60,
+              "last_us": 14872,
+              "max_us": 34913,
+              "p50_us": 15634,
+              "p95_us": 29299,
+              "p99_us": 34913,
+              "rolling_samples": 60,
+              "total_us": 1113404
+            },
+            "encoding": {
+              "calls": 60,
+              "last_us": 361,
+              "max_us": 703,
+              "p50_us": 384,
+              "p95_us": 687,
+              "p99_us": 703,
+              "rolling_samples": 60,
+              "total_us": 28894
+            },
+            "failures": 0,
+            "grouped_actions": 45,
+            "groups": 45,
+            "poisoned": false,
+            "revision": 238,
+            "storage": {
+              "bytes_written": 1398163,
+              "checkpoints": 15,
+              "journal_bytes": 37324,
+              "kind": "journal",
+              "records": 2,
+              "tails_discarded": 0,
+              "transactions": 45
+            }
+          },
+          "scheduling": [
+            {
+              "eligible": false,
+              "idle_ms": 0,
+              "region": 0,
+              "skipped_game": 0,
+              "skipped_movement": 0,
+              "sleeps": 0,
+              "suspended": false,
+              "wakes": 0
+            }
+          ],
+          "schema": 1,
+          "slow_disconnects": 0,
+          "socket_packets_queued": 2,
+          "stashed_entities": 0,
+          "ticks_over_budget": 15,
+          "transport": {
+            "accepted": 2,
+            "active": 2,
+            "command_queue_peak": 1,
+            "hash_busy": 0,
+            "http_payload_bytes_sent": 0,
+            "malformed": 0,
+            "refused": 0,
+            "socket_write": {
+              "calls": 10840,
+              "last_us": 15,
+              "max_us": 467,
+              "p50_us": 15,
+              "p95_us": 35,
+              "p99_us": 43,
+              "rolling_samples": 256,
+              "total_us": 185378
+            },
+            "websocket_payload_bytes_received": 10046,
+            "websocket_payload_bytes_sent": 7647736
+          },
+          "uptime_ms": 105449,
+          "wall_time_clamped_us": 0
+        },
+        {
+          "action_group": {
+            "calls": 40,
+            "last_us": 17195,
+            "max_us": 19039,
+            "p50_us": 16279,
+            "p95_us": 18690,
+            "p99_us": 19039,
+            "rolling_samples": 40,
+            "total_us": 559783
+          },
+          "backup": {
+            "calls": 2,
+            "last_us": 37166,
+            "max_us": 48093,
+            "p50_us": 37166,
+            "p95_us": 48093,
+            "p99_us": 48093,
+            "rolling_samples": 2,
+            "total_us": 85259
+          },
+          "backup_failures": 0,
+          "backups": 2,
+          "busy_rejections": 0,
+          "command": {
+            "calls": 88,
+            "last_us": 6,
+            "max_us": 1236,
+            "p50_us": 15,
+            "p95_us": 630,
+            "p99_us": 1236,
+            "rolling_samples": 88,
+            "total_us": 20729
+          },
+          "content_cache_bytes": 8812,
+          "content_misses": 0,
+          "encoding": {
+            "calls": 7734,
+            "last_us": 1,
+            "max_us": 74,
+            "p50_us": 1,
+            "p95_us": 7,
+            "p99_us": 9,
+            "rolling_samples": 256,
+            "total_us": 19932
+          },
+          "entities": 2,
+          "generated_unix_ms": 1794922201152,
+          "healthy": true,
+          "host_tick": {
+            "calls": 3762,
+            "last_us": 353,
+            "max_us": 50727,
+            "p50_us": 363,
+            "p95_us": 450,
+            "p99_us": 650,
+            "rolling_samples": 256,
+            "total_us": 2008015
+          },
+          "inactive_region_policy": "all_loaded_regions_tick; no_offline_catchup",
+          "items": 0,
+          "loaded_regions": 1,
+          "maintenance": {
+            "calls": 3762,
+            "last_us": 0,
+            "max_us": 50298,
+            "p50_us": 0,
+            "p95_us": 0,
+            "p99_us": 0,
+            "rolling_samples": 256,
+            "total_us": 251433
+          },
+          "messages_received": 84,
+          "metrics_write_failures": 0,
+          "mode": "Persistent",
+          "packets_enqueued": 7734,
+          "payload_bytes_enqueued": 5458174,
+          "peak_socket_queue": 6,
+          "peers": 2,
+          "player_limit": 3,
+          "players": 2,
+          "protocol": 4,
+          "rate_rejections": 0,
+          "regions_without_players": 0,
+          "replica_disconnects": 0,
+          "runtime": {
+            "collection": {
+              "calls": 3876,
+              "last_us": 85,
+              "max_us": 2647,
+              "p50_us": 90,
+              "p95_us": 115,
+              "p99_us": 137,
+              "rolling_samples": 256,
+              "total_us": 374527
+            },
+            "queues": {
+              "overflowed_streams": 0,
+              "peak_stream_frames": 6,
+              "pending_events": 0,
+              "projected_entities": 6,
+              "projected_items": 0,
+              "queued_frames": 0,
+              "streams": 3,
+              "subscribed_streams": 2
+            },
+            "regions": [
+              {
+                "details": {
+                  "behaviors": {
+                    "calls": 15169,
+                    "last_us": 0,
+                    "max_us": 50,
+                    "p50_us": 0,
+                    "p95_us": 3,
+                    "p99_us": 4,
+                    "rolling_samples": 256,
+                    "total_us": 10635
+                  },
+                  "dynamic_collision": {
+                    "calls": 0,
+                    "last_us": 0,
+                    "max_us": 0,
+                    "p50_us": 0,
+                    "p95_us": 0,
+                    "p99_us": 0,
+                    "rolling_samples": 0,
+                    "total_us": 0
+                  },
+                  "entity_candidates": 0,
+                  "entity_clone": {
+                    "calls": 15169,
+                    "last_us": 5,
+                    "max_us": 131,
+                    "p50_us": 6,
+                    "p95_us": 20,
+                    "p99_us": 44,
+                    "rolling_samples": 256,
+                    "total_us": 139634
+                  },
+                  "entity_merge": {
+                    "calls": 15169,
+                    "last_us": 0,
+                    "max_us": 52,
+                    "p50_us": 0,
+                    "p95_us": 0,
+                    "p99_us": 1,
+                    "rolling_samples": 256,
+                    "total_us": 880
+                  },
+                  "geometry_collision": {
+                    "calls": 0,
+                    "last_us": 0,
+                    "max_us": 0,
+                    "p50_us": 0,
+                    "p95_us": 0,
+                    "p99_us": 0,
+                    "rolling_samples": 0,
+                    "total_us": 0
+                  },
+                  "item_candidates": 0,
+                  "scripts": {
+                    "calls": 614,
+                    "last_us": 1,
+                    "max_us": 8,
+                    "p50_us": 2,
+                    "p95_us": 5,
+                    "p99_us": 7,
+                    "rolling_samples": 256,
+                    "total_us": 1683
+                  }
+                },
+                "game": {
+                  "calls": 301,
+                  "last_us": 14,
+                  "max_us": 307,
+                  "p50_us": 20,
+                  "p95_us": 25,
+                  "p99_us": 30,
+                  "rolling_samples": 256,
+                  "total_us": 6360
+                },
+                "movement": {
+                  "calls": 3765,
+                  "last_us": 27,
+                  "max_us": 131,
+                  "p50_us": 27,
+                  "p95_us": 37,
+                  "p99_us": 61,
+                  "rolling_samples": 256,
+                  "total_us": 113562
+                },
+                "redraw": {
+                  "calls": 11404,
+                  "last_us": 11,
+                  "max_us": 159,
+                  "p50_us": 11,
+                  "p95_us": 39,
+                  "p99_us": 56,
+                  "rolling_samples": 256,
+                  "total_us": 210117
+                },
+                "region": 0
+              }
+            ],
+            "replication": {
+              "calls": 3886,
+              "last_us": 161,
+              "max_us": 1302,
+              "p50_us": 172,
+              "p95_us": 213,
+              "p99_us": 226,
+              "rolling_samples": 256,
+              "total_us": 710576
+            },
+            "simulation": {
+              "calls": 3763,
+              "last_us": 95,
+              "max_us": 397,
+              "p50_us": 72,
+              "p95_us": 107,
+              "p99_us": 115,
+              "rolling_samples": 256,
+              "total_us": 304144
+            }
+          },
+          "saves": {
+            "capture": {
+              "calls": 45,
+              "last_us": 193,
+              "max_us": 315,
+              "p50_us": 196,
+              "p95_us": 224,
+              "p99_us": 315,
+              "rolling_samples": 45,
+              "total_us": 9057
+            },
+            "commit": {
+              "calls": 45,
+              "last_us": 16097,
+              "max_us": 44070,
+              "p50_us": 16097,
+              "p95_us": 30354,
+              "p99_us": 44070,
+              "rolling_samples": 45,
+              "total_us": 852553
+            },
+            "encoding": {
+              "calls": 45,
+              "last_us": 357,
+              "max_us": 865,
+              "p50_us": 627,
+              "p95_us": 720,
+              "p99_us": 865,
+              "rolling_samples": 45,
+              "total_us": 23709
+            },
+            "failures": 0,
+            "grouped_actions": 33,
+            "groups": 33,
+            "poisoned": false,
+            "revision": 287,
+            "storage": {
+              "bytes_written": 1219637,
+              "checkpoints": 12,
+              "journal_bytes": 41628,
+              "kind": "journal",
+              "records": 2,
+              "tails_discarded": 0,
+              "transactions": 33
+            }
+          },
+          "scheduling": [
+            {
+              "eligible": false,
+              "idle_ms": 0,
+              "region": 0,
+              "skipped_game": 0,
+              "skipped_movement": 0,
+              "sleeps": 0,
+              "suspended": false,
+              "wakes": 0
+            }
+          ],
+          "schema": 1,
+          "slow_disconnects": 0,
+          "socket_packets_queued": 1,
+          "stashed_entities": 0,
+          "ticks_over_budget": 12,
+          "transport": {
+            "accepted": 2,
+            "active": 2,
+            "command_queue_peak": 1,
+            "hash_busy": 0,
+            "http_payload_bytes_sent": 0,
+            "malformed": 0,
+            "refused": 0,
+            "socket_write": {
+              "calls": 7732,
+              "last_us": 10,
+              "max_us": 69,
+              "p50_us": 8,
+              "p95_us": 18,
+              "p99_us": 28,
+              "rolling_samples": 256,
+              "total_us": 88623
+            },
+            "websocket_payload_bytes_received": 7500,
+            "websocket_payload_bytes_sent": 5456752
+          },
+          "uptime_ms": 75329,
+          "wall_time_clamped_us": 0
+        },
+        {
+          "action_group": {
+            "calls": 22,
+            "last_us": 17077,
+            "max_us": 27715,
+            "p50_us": 16183,
+            "p95_us": 17788,
+            "p99_us": 27715,
+            "rolling_samples": 22,
+            "total_us": 324066
+          },
+          "backup": {
+            "calls": 1,
+            "last_us": 36041,
+            "max_us": 36041,
+            "p50_us": 36041,
+            "p95_us": 36041,
+            "p99_us": 36041,
+            "rolling_samples": 1,
+            "total_us": 36041
+          },
+          "backup_failures": 0,
+          "backups": 1,
+          "busy_rejections": 0,
+          "command": {
+            "calls": 55,
+            "last_us": 20,
+            "max_us": 1057,
+            "p50_us": 16,
+            "p95_us": 646,
+            "p99_us": 1057,
+            "rolling_samples": 55,
+            "total_us": 12483
+          },
+          "content_cache_bytes": 8812,
+          "content_misses": 0,
+          "encoding": {
+            "calls": 4594,
+            "last_us": 1,
+            "max_us": 25,
+            "p50_us": 1,
+            "p95_us": 7,
+            "p99_us": 8,
+            "rolling_samples": 256,
+            "total_us": 11338
+          },
+          "entities": 2,
+          "generated_unix_ms": 1794922262790,
+          "healthy": true,
+          "host_tick": {
+            "calls": 2257,
+            "last_us": 427,
+            "max_us": 38421,
+            "p50_us": 379,
+            "p95_us": 457,
+            "p99_us": 983,
+            "rolling_samples": 256,
+            "total_us": 1135549
+          },
+          "inactive_region_policy": "all_loaded_regions_tick; no_offline_catchup",
+          "items": 0,
+          "loaded_regions": 1,
+          "maintenance": {
+            "calls": 2257,
+            "last_us": 0,
+            "max_us": 38044,
+            "p50_us": 0,
+            "p95_us": 0,
+            "p99_us": 0,
+            "rolling_samples": 256,
+            "total_us": 141956
+          },
+          "messages_received": 51,
+          "metrics_write_failures": 0,
+          "mode": "Persistent",
+          "packets_enqueued": 4594,
+          "payload_bytes_enqueued": 3246868,
+          "peak_socket_queue": 6,
+          "peers": 2,
+          "player_limit": 3,
+          "players": 2,
+          "protocol": 4,
+          "rate_rejections": 0,
+          "regions_without_players": 0,
+          "replica_disconnects": 0,
+          "runtime": {
+            "collection": {
+              "calls": 2323,
+              "last_us": 90,
+              "max_us": 1925,
+              "p50_us": 93,
+              "p95_us": 112,
+              "p99_us": 145,
+              "rolling_samples": 256,
+              "total_us": 221982
+            },
+            "queues": {
+              "overflowed_streams": 0,
+              "peak_stream_frames": 6,
+              "pending_events": 0,
+              "projected_entities": 6,
+              "projected_items": 0,
+              "queued_frames": 0,
+              "streams": 3,
+              "subscribed_streams": 2
+            },
+            "regions": [
+              {
+                "details": {
+                  "behaviors": {
+                    "calls": 9099,
+                    "last_us": 0,
+                    "max_us": 36,
+                    "p50_us": 0,
+                    "p95_us": 4,
+                    "p99_us": 5,
+                    "rolling_samples": 256,
+                    "total_us": 5841
+                  },
+                  "dynamic_collision": {
+                    "calls": 0,
+                    "last_us": 0,
+                    "max_us": 0,
+                    "p50_us": 0,
+                    "p95_us": 0,
+                    "p99_us": 0,
+                    "rolling_samples": 0,
+                    "total_us": 0
+                  },
+                  "entity_candidates": 0,
+                  "entity_clone": {
+                    "calls": 9099,
+                    "last_us": 5,
+                    "max_us": 76,
+                    "p50_us": 6,
+                    "p95_us": 19,
+                    "p99_us": 35,
+                    "rolling_samples": 256,
+                    "total_us": 83423
+                  },
+                  "entity_merge": {
+                    "calls": 9099,
+                    "last_us": 0,
+                    "max_us": 8,
+                    "p50_us": 0,
+                    "p95_us": 0,
+                    "p99_us": 1,
+                    "rolling_samples": 256,
+                    "total_us": 367
+                  },
+                  "geometry_collision": {
+                    "calls": 0,
+                    "last_us": 0,
+                    "max_us": 0,
+                    "p50_us": 0,
+                    "p95_us": 0,
+                    "p99_us": 0,
+                    "rolling_samples": 0,
+                    "total_us": 0
+                  },
+                  "item_candidates": 0,
+                  "scripts": {
+                    "calls": 374,
+                    "last_us": 6,
+                    "max_us": 14,
+                    "p50_us": 2,
+                    "p95_us": 6,
+                    "p99_us": 8,
+                    "rolling_samples": 256,
+                    "total_us": 1012
+                  }
+                },
+                "game": {
+                  "calls": 181,
+                  "last_us": 25,
+                  "max_us": 78,
+                  "p50_us": 19,
+                  "p95_us": 25,
+                  "p99_us": 41,
+                  "rolling_samples": 181,
+                  "total_us": 3565
+                },
+                "movement": {
+                  "calls": 2259,
+                  "last_us": 27,
+                  "max_us": 179,
+                  "p50_us": 28,
+                  "p95_us": 39,
+                  "p99_us": 60,
+                  "rolling_samples": 256,
+                  "total_us": 66403
+                },
+                "redraw": {
+                  "calls": 6840,
+                  "last_us": 10,
+                  "max_us": 155,
+                  "p50_us": 11,
+                  "p95_us": 38,
+                  "p99_us": 65,
+                  "rolling_samples": 256,
+                  "total_us": 125313
+                },
+                "region": 0
+              }
+            ],
+            "replication": {
+              "calls": 2333,
+              "last_us": 186,
+              "max_us": 783,
+              "p50_us": 179,
+              "p95_us": 219,
+              "p99_us": 241,
+              "rolling_samples": 256,
+              "total_us": 411021
+            },
+            "simulation": {
+              "calls": 2258,
+              "last_us": 67,
+              "max_us": 379,
+              "p50_us": 75,
+              "p95_us": 105,
+              "p99_us": 131,
+              "rolling_samples": 256,
+              "total_us": 179589
+            }
+          },
+          "saves": {
+            "capture": {
+              "calls": 25,
+              "last_us": 191,
+              "max_us": 216,
+              "p50_us": 199,
+              "p95_us": 215,
+              "p99_us": 216,
+              "rolling_samples": 25,
+              "total_us": 4997
+            },
+            "commit": {
+              "calls": 25,
+              "last_us": 15946,
+              "max_us": 29242,
+              "p50_us": 15499,
+              "p95_us": 26430,
+              "p99_us": 29242,
+              "rolling_samples": 25,
+              "total_us": 453187
+            },
+            "encoding": {
+              "calls": 25,
+              "last_us": 343,
+              "max_us": 739,
+              "p50_us": 651,
+              "p95_us": 711,
+              "p99_us": 739,
+              "rolling_samples": 25,
+              "total_us": 13187
+            },
+            "failures": 0,
+            "grouped_actions": 19,
+            "groups": 19,
+            "poisoned": false,
+            "revision": 297,
+            "storage": {
+              "bytes_written": 714774,
+              "checkpoints": 7,
+              "journal_bytes": 42396,
+              "kind": "journal",
+              "records": 2,
+              "tails_discarded": 0,
+              "transactions": 18
+            }
+          },
+          "scheduling": [
+            {
+              "eligible": false,
+              "idle_ms": 0,
+              "region": 0,
+              "skipped_game": 0,
+              "skipped_movement": 0,
+              "sleeps": 0,
+              "suspended": false,
+              "wakes": 0
+            }
+          ],
+          "schema": 1,
+          "slow_disconnects": 0,
+          "socket_packets_queued": 1,
+          "stashed_entities": 0,
+          "ticks_over_budget": 6,
+          "transport": {
+            "accepted": 2,
+            "active": 2,
+            "command_queue_peak": 1,
+            "hash_busy": 0,
+            "http_payload_bytes_sent": 0,
+            "malformed": 0,
+            "refused": 0,
+            "socket_write": {
+              "calls": 4593,
+              "last_us": 9,
+              "max_us": 44,
+              "p50_us": 9,
+              "p95_us": 23,
+              "p99_us": 35,
+              "rolling_samples": 256,
+              "total_us": 46681
+            },
+            "websocket_payload_bytes_received": 4402,
+            "websocket_payload_bytes_sent": 3246160
+          },
+          "uptime_ms": 45208,
+          "wall_time_clamped_us": 0
+        }
+      ],
+      "incidents": [
+        {
+          "kind": "higher-latency-bandwidth-limit",
+          "seconds": 60.028666625
+        },
+        {
+          "kind": "two-second-blackout",
+          "seconds": 120.053296458
+        },
+        {
+          "kind": "35-second-blackout",
+          "seconds": 210.06630975
+        },
+        {
+          "kind": "outage-reauthenticated",
+          "seconds": 247.443091875
+        },
+        {
+          "independent_world_alive": true,
+          "kind": "graceful",
+          "seconds": 343.500896042
+        },
+        {
+          "independent_world_alive": true,
+          "kind": "crash",
+          "seconds": 463.2213405
+        },
+        {
+          "independent_world_alive": true,
+          "kind": "restored",
+          "seconds": 554.681194875
+        }
+      ],
+      "relays": [
+        {
+          "active": 0,
+          "bytes": 20216616,
+          "connections": 5,
+          "fragments": 226588,
+          "peak_active": 1
+        },
+        {
+          "active": 0,
+          "bytes": 21252778,
+          "connections": 4,
+          "fragments": 239484,
+          "peak_active": 1
+        },
+        {
+          "active": 0,
+          "bytes": 22549965,
+          "connections": 1,
+          "fragments": 251601,
+          "peak_active": 1
+        }
+      ],
+      "requested_seconds": 600,
+      "restored_to_fresh_path": true,
+      "rss_generations": {
+        "crash": [
+          412811264,
+          412811264
+        ],
+        "first": [
+          415760384,
+          415760384
+        ],
+        "graceful": [
+          392232960,
+          392232960
+        ],
+        "restored": [
+          446267392,
+          446267392
+        ]
+      },
+      "rtt_ms": {
+        "max": 390.236541,
+        "p50": 182.058167,
+        "p95": 383.311291
+      },
+      "samples": [
+        {
+          "backups": 0,
+          "generation": "first",
+          "peers": 0,
+          "queued": 0,
+          "rss_bytes": 415760384,
+          "seconds": 0.927309083
+        },
+        {
+          "backups": 1,
+          "generation": "first",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 401113088,
+          "seconds": 11.32489225
+        },
+        {
+          "backups": 1,
+          "generation": "first",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 379666432,
+          "seconds": 21.763483333
+        },
+        {
+          "backups": 1,
+          "generation": "first",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 359743488,
+          "seconds": 32.182346042
+        },
+        {
+          "backups": 2,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359743488,
+          "seconds": 42.569635375
+        },
+        {
+          "backups": 2,
+          "generation": "first",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 359743488,
+          "seconds": 52.984939875
+        },
+        {
+          "backups": 2,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359743488,
+          "seconds": 63.5329845
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359743488,
+          "seconds": 74.763719917
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359743488,
+          "seconds": 85.399345208
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359743488,
+          "seconds": 95.923499167
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 359743488,
+          "seconds": 106.526755417
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 359759872,
+          "seconds": 117.112766167
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359759872,
+          "seconds": 127.716128375
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359759872,
+          "seconds": 138.338298292
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359759872,
+          "seconds": 148.871145583
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359759872,
+          "seconds": 160.013208917
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359759872,
+          "seconds": 170.595211375
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359792640,
+          "seconds": 181.139913792
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359792640,
+          "seconds": 191.676864
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 359792640,
+          "seconds": 202.24926375
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 359792640,
+          "seconds": 212.785890333
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 359792640,
+          "seconds": 223.328931333
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 1,
+          "queued": 1,
+          "rss_bytes": 359792640,
+          "seconds": 233.84226325
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 1,
+          "queued": 0,
+          "rss_bytes": 359841792,
+          "seconds": 244.397824292
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 379797504,
+          "seconds": 254.972026083
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 379781120,
+          "seconds": 265.479021083
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 379781120,
+          "seconds": 276.071929958
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 379797504,
+          "seconds": 286.602911083
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 379813888,
+          "seconds": 297.686898
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 379813888,
+          "seconds": 308.90614825
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 379813888,
+          "seconds": 319.438054333
+        },
+        {
+          "backups": 3,
+          "generation": "first",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 379813888,
+          "seconds": 329.979645833
+        },
+        {
+          "backups": 3,
+          "generation": "graceful",
+          "peers": 0,
+          "queued": 0,
+          "rss_bytes": 392232960,
+          "seconds": 344.565165667
+        },
+        {
+          "backups": 3,
+          "generation": "graceful",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 377651200,
+          "seconds": 355.366041375
+        },
+        {
+          "backups": 3,
+          "generation": "graceful",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 356237312,
+          "seconds": 365.74412875
+        },
+        {
+          "backups": 3,
+          "generation": "graceful",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 336330752,
+          "seconds": 376.167107625
+        },
+        {
+          "backups": 3,
+          "generation": "graceful",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 336347136,
+          "seconds": 386.585645167
+        },
+        {
+          "backups": 3,
+          "generation": "graceful",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 336347136,
+          "seconds": 396.98610125
+        },
+        {
+          "backups": 3,
+          "generation": "graceful",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 336347136,
+          "seconds": 407.378794
+        },
+        {
+          "backups": 3,
+          "generation": "graceful",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 336412672,
+          "seconds": 417.714861458
+        },
+        {
+          "backups": 3,
+          "generation": "graceful",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 336429056,
+          "seconds": 428.044329042
+        },
+        {
+          "backups": 3,
+          "generation": "graceful",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 336445440,
+          "seconds": 438.686975083
+        },
+        {
+          "backups": 3,
+          "generation": "graceful",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 336445440,
+          "seconds": 449.026658
+        },
+        {
+          "backups": 3,
+          "generation": "crash",
+          "peers": 0,
+          "queued": 0,
+          "rss_bytes": 412811264,
+          "seconds": 464.361179833
+        },
+        {
+          "backups": 3,
+          "generation": "crash",
+          "peers": 2,
+          "queued": 0,
+          "rss_bytes": 392380416,
+          "seconds": 475.247549042
+        },
+        {
+          "backups": 3,
+          "generation": "crash",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 361103360,
+          "seconds": 485.589741125
+        },
+        {
+          "backups": 3,
+          "generation": "crash",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 361103360,
+          "seconds": 495.962655458
+        },
+        {
+          "backups": 3,
+          "generation": "crash",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 361103360,
+          "seconds": 506.306328375
+        },
+        {
+          "backups": 3,
+          "generation": "crash",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 361119744,
+          "seconds": 516.731274542
+        },
+        {
+          "backups": 3,
+          "generation": "crash",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 361152512,
+          "seconds": 527.076403458
+        },
+        {
+          "backups": 3,
+          "generation": "crash",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 361152512,
+          "seconds": 537.461879875
+        },
+        {
+          "backups": 3,
+          "generation": "restored",
+          "peers": 0,
+          "queued": 0,
+          "rss_bytes": 446267392,
+          "seconds": 555.895725708
+        },
+        {
+          "backups": 3,
+          "generation": "restored",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 434995200,
+          "seconds": 566.71206725
+        },
+        {
+          "backups": 3,
+          "generation": "restored",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 397475840,
+          "seconds": 577.103090458
+        },
+        {
+          "backups": 3,
+          "generation": "restored",
+          "peers": 2,
+          "queued": 1,
+          "rss_bytes": 390316032,
+          "seconds": 587.474964833
+        },
+        {
+          "backups": 3,
+          "generation": "restored",
+          "peers": 2,
+          "queued": 2,
+          "rss_bytes": 390316032,
+          "seconds": 597.855280875
+        }
+      ],
+      "starter_items": 8,
+      "worlds": 2
+    }
+  ],
+  "sha256": {
+    "servers/dedicated/tests/deployment_soak.rs": "808b100b46fd9b41c99b0cbda3b94ee2e67745a63514aaa7aa040e68cf65f66f",
+    "servers/dedicated/tests/support/relay.rs": "32d6cbc5f15660453990b8e6707596b1b95e31ba39d20fe4ea767ee8b34134d7",
+    "servers/dedicated/tests/support/process.rs": "2afe3cc6649753d54b46d4c08086f87b52fbb7173ca533303f386468142671f2",
+    "servers/dedicated/tests/support/peer.rs": "0a24b894f68ecce4ca0f3c7f20f605f06e149b35094b2b7eaf5af8e7ea2c8969",
+    "tools/verify_network_deployment.py": "5adc625ba3385e4d23b38a5443d8ff350d05530e1cfd1b974de145833773083c",
+    "test_projects/3DStarter.eldiron": "3b620c412d038b1c8fc9233856a5bf6f4c2cea02595333c651e965daa0085059",
+    "target/release/eldiron-server": "eb0c31a7e2e2b5223d8933c95de2a6d9ac2dab8f8157e60eaf1bf3aba6f946c9",
+    "target/release/eldiron-world": "25281df1ba184a28e49236e0996e86cf2d49003ab5e239cde4e2f228de76f90c"
+  }
+}

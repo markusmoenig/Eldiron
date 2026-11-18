@@ -4,7 +4,7 @@ use theframework_core::prelude::FxHashSet;
 use vek::Vec2;
 
 /// A miniature version of the Map used for client side lighting calculations during the rasterization process and server side collision detection etc.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct MapMini {
     pub elevation: crate::isometric::elevation::ElevationMap,
     pub offset: Vec2<f32>,

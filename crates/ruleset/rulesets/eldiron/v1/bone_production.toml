@@ -1,0 +1,598 @@
+# Reference fixture for the bundled bone production graph branches.
+
+["items"."materials"."flint_stone"]
+"appearance_icon" = "icon/flint_stone/on"
+"name" = "Flint Stone"
+"slot" = "material"
+"category" = "world_material"
+"max_stack" = 100
+
+["items"."materials"."flint_stone"."attributes"]
+"stackable" = true
+"quantity" = 1
+
+["items"."materials"."plant_fiber"]
+"appearance_icon" = "icon/plant_fiber/on"
+"name" = "Plant Fiber"
+"slot" = "material"
+"category" = "world_material"
+"max_stack" = 100
+
+["items"."materials"."plant_fiber"."attributes"]
+"stackable" = true
+"quantity" = 1
+
+["items"."materials"."twisted_cord"]
+"appearance_icon" = "icon/twisted_cord/on"
+"name" = "Twisted Cord"
+"slot" = "material"
+"category" = "world_material"
+"max_stack" = 100
+
+["items"."materials"."twisted_cord"."attributes"]
+"stackable" = true
+"quantity" = 1
+
+["items"."materials"."raw_hide"]
+"appearance_icon" = "icon/raw_hide/on"
+"name" = "Raw Hide"
+"slot" = "material"
+"category" = "world_material"
+"max_stack" = 100
+
+["items"."materials"."raw_hide"."attributes"]
+"stackable" = true
+"quantity" = 1
+
+["items"."materials"."leather"]
+"appearance_icon" = "icon/leather/on"
+"name" = "Leather"
+"slot" = "material"
+"category" = "world_material"
+"max_stack" = 100
+
+["items"."materials"."leather"."attributes"]
+"stackable" = true
+"quantity" = 1
+
+["items"."materials"."leather_strap"]
+"appearance_icon" = "icon/leather_strap/on"
+"name" = "Leather Strap"
+"slot" = "material"
+"category" = "world_material"
+"max_stack" = 100
+
+["items"."materials"."leather_strap"."attributes"]
+"stackable" = true
+"quantity" = 1
+
+["items"."materials"."bone_plate"]
+"appearance_icon" = "icon/bone_plate/on"
+"name" = "Bone Plate"
+"slot" = "material"
+"category" = "world_material"
+"max_stack" = 100
+
+["items"."materials"."bone_plate"."attributes"]
+"stackable" = true
+"quantity" = 1
+
+["items"."tools"."stone_knife"]
+"appearance_icon" = "icon/stone_knife/on"
+"name" = "Stone Knife"
+"description" = "A hand-knapped knife for pruning, skinning and preparing wood, bone and leather."
+"slot" = "tool"
+"category" = "world_tool"
+
+["items"."tools"."stone_knife"."attributes"]
+"tool_capabilities" = ["prune", "skin", "carve_bone", "carve_wood", "cut_leather"]
+"condition" = 100
+
+["items"."stations"."tanning_frame"]
+"appearance_icon" = "icon/tanning_frame/on"
+"name" = "Tanning Frame"
+"description" = "Place on the ground nearby to use this station. Carrying it does not enable station work."
+"slot" = "tool"
+"category" = "world_station"
+
+["items"."stations"."tanning_frame"."attributes"]
+"station_capabilities" = ["tan_hide"]
+"condition" = 100
+
+["items"."stations"."bone_workbench"]
+"appearance_icon" = "icon/bone_workbench/on"
+"name" = "Bone Workbench"
+"description" = "Place on the ground nearby to use this station. Carrying it does not enable station work."
+"slot" = "tool"
+"category" = "world_station"
+
+["items"."stations"."bone_workbench"."attributes"]
+"station_capabilities" = ["bonework"]
+"condition" = 100
+
+["items"."armor"."bone_helm"]
+"appearance_icon" = "icon/bone_helm/on"
+"name" = "Bone Helm"
+"description" = "Armor assembled from prepared bone plates and leather bindings."
+"slot" = "head"
+"category" = "bone_armor"
+"rarity" = "common"
+
+["items"."armor"."bone_helm"."attributes"]
+"ARMOR" = 1
+
+["items"."armor"."bone_cuirass"]
+"appearance_icon" = "icon/bone_cuirass/on"
+"name" = "Bone Cuirass"
+"description" = "Armor assembled from prepared bone plates and leather bindings."
+"slot" = "torso"
+"category" = "bone_armor"
+"rarity" = "common"
+
+["items"."armor"."bone_cuirass"."attributes"]
+"ARMOR" = 4
+
+["items"."armor"."bone_greaves"]
+"appearance_icon" = "icon/bone_greaves/on"
+"name" = "Bone Greaves"
+"description" = "Armor assembled from prepared bone plates and leather bindings."
+"slot" = "legs"
+"category" = "bone_armor"
+"rarity" = "common"
+
+["items"."armor"."bone_greaves"."attributes"]
+"ARMOR" = 3
+
+["items"."armor"."bone_gauntlets"]
+"appearance_icon" = "icon/bone_gauntlets/on"
+"name" = "Bone Gauntlets"
+"description" = "Armor assembled from prepared bone plates and leather bindings."
+"slot" = "hands"
+"category" = "bone_armor"
+"rarity" = "common"
+
+["items"."armor"."bone_gauntlets"."attributes"]
+"ARMOR" = 1
+
+["items"."armor"."bone_boots"]
+"appearance_icon" = "icon/bone_boots/on"
+"name" = "Bone Boots"
+"description" = "Armor assembled from prepared bone plates and leather bindings."
+"slot" = "feet"
+"category" = "bone_armor"
+"rarity" = "common"
+
+["items"."armor"."bone_boots"."attributes"]
+"ARMOR" = 1
+
+["skills"."boneworking"]
+"name" = "Boneworking"
+"attribute" = "DEX"
+"min" = 0
+"max" = 100
+
+["skills"."leatherworking"]
+"name" = "Leatherworking"
+"attribute" = "DEX"
+"min" = 0
+"max" = 100
+
+["resource_profiles"."loose_flint"]
+"name" = "Loose Flint"
+"default_interaction" = "collect_flint"
+"spent_when_empty" = true
+
+["resource_profiles"."loose_flint"."supplies"]
+
+["resource_profiles"."loose_flint"."supplies"."flint"]
+"unit" = "count"
+"capacity" = 4
+"outputs" = [{ "item" = "flint_stone", "quantity" = 1 }]
+
+["resource_profiles"."loose_flint"."interactions"]
+
+["resource_profiles"."loose_flint"."interactions"."collect_flint"]
+"supply" = "flint"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+
+["resource_profiles"."fallen_timber"]
+"name" = "Fallen Timber"
+"default_interaction" = "collect_branches"
+"spent_when_empty" = true
+
+["resource_profiles"."fallen_timber"."supplies"]
+
+["resource_profiles"."fallen_timber"."supplies"."branches"]
+"unit" = "count"
+"capacity" = 20
+"outputs" = [{ "item" = "wood_branch", "quantity" = 1 }]
+
+["resource_profiles"."fallen_timber"."interactions"]
+
+["resource_profiles"."fallen_timber"."interactions"."collect_branches"]
+"supply" = "branches"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+
+["resource_profiles"."wild_flax"]
+"name" = "Wild Flax"
+"default_interaction" = "collect_fiber"
+"spent_when_empty" = true
+
+["resource_profiles"."wild_flax"."supplies"]
+
+["resource_profiles"."wild_flax"."supplies"."fiber"]
+"unit" = "count"
+"capacity" = 16
+"outputs" = [{ "item" = "plant_fiber", "quantity" = 1 }]
+
+["resource_profiles"."wild_flax"."interactions"]
+
+["resource_profiles"."wild_flax"."interactions"."collect_fiber"]
+"supply" = "fiber"
+"quantity" = 2
+"policy" = "whole"
+"range" = 2.0
+
+["resource_profiles"."deer_remains"]
+"name" = "Deer Remains"
+"default_interaction" = "collect_hide"
+"spent_when_empty" = true
+"expires_after_ms" = 172800000
+
+["resource_profiles"."deer_remains"."supplies"]
+
+["resource_profiles"."deer_remains"."supplies"."hide"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "raw_hide", "quantity" = 1 }]
+
+["resource_profiles"."deer_remains"."interactions"]
+
+["resource_profiles"."deer_remains"."interactions"."collect_hide"]
+"supply" = "hide"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "skin"
+"tool_wear" = 1
+
+["recipes"."twist_cord"]
+"name" = "Twist Cord"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "plant_fiber", "quantity" = 2 }]
+"produces" = [{ "item" = "twisted_cord", "quantity" = 2 }]
+
+["recipes"."make_stone_knife"]
+"name" = "Make Stone Knife"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "flint_stone", "quantity" = 1 }, { "item" = "wood_branch", "quantity" = 1 }, { "item" = "twisted_cord", "quantity" = 1 }]
+"produces" = [{ "item" = "stone_knife", "quantity" = 1 }]
+
+["recipes"."carve_bowl"]
+"name" = "Carve Wooden Bowl"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "wood_branch", "quantity" = 2 }]
+"produces" = [{ "item" = "wooden_bowl", "quantity" = 1 }]
+"skill" = "woodworking"
+"recommended_skill" = 10
+"difficulty" = 10
+
+["recipes"."carve_bowl"."tool"]
+"capability" = "carve_wood"
+"condition_cost" = 1
+
+["recipes"."build_tanning_frame"]
+"name" = "Build Tanning Frame"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "wood_branch", "quantity" = 4 }, { "item" = "twisted_cord", "quantity" = 2 }]
+"produces" = [{ "item" = "tanning_frame", "quantity" = 1 }]
+
+["recipes"."build_bone_workbench"]
+"name" = "Build Bone Workbench"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "wood_branch", "quantity" = 6 }, { "item" = "twisted_cord", "quantity" = 4 }]
+"produces" = [{ "item" = "bone_workbench", "quantity" = 1 }]
+"skill" = "woodworking"
+"recommended_skill" = 10
+"difficulty" = 10
+
+["recipes"."build_bone_workbench"."tool"]
+"capability" = "carve_wood"
+"condition_cost" = 1
+
+["recipes"."tan_hide"]
+"name" = "Tan Hide"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "raw_hide", "quantity" = 1 }, { "item" = "tree_bark", "quantity" = 2 }, { "item" = "fresh_water", "quantity" = 4 }]
+"produces" = [{ "item" = "leather", "quantity" = 2 }]
+"skill" = "leatherworking"
+"recommended_skill" = 10
+"difficulty" = 10
+
+["recipes"."tan_hide"."station"]
+"capability" = "tan_hide"
+"range" = 2.0
+
+["recipes"."cut_straps"]
+"name" = "Cut Leather Straps"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "leather", "quantity" = 1 }]
+"produces" = [{ "item" = "leather_strap", "quantity" = 2 }]
+"skill" = "leatherworking"
+"recommended_skill" = 10
+"difficulty" = 10
+
+["recipes"."cut_straps"."tool"]
+"capability" = "cut_leather"
+"condition_cost" = 1
+
+["recipes"."shape_bone"]
+"name" = "Shape Bone Plate"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "raw_bone", "quantity" = 1 }, { "item" = "fresh_water", "quantity" = 1 }]
+"produces" = [{ "item" = "bone_plate", "quantity" = 1 }]
+"skill" = "boneworking"
+"recommended_skill" = 10
+"difficulty" = 10
+
+["recipes"."shape_bone"."tool"]
+"capability" = "carve_bone"
+"condition_cost" = 1
+
+["recipes"."make_bone_helm"]
+"name" = "Make Bone Helm"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "bone_plate", "quantity" = 3 }, { "item" = "leather_strap", "quantity" = 2 }]
+"produces" = [{ "item" = "bone_helm", "quantity" = 1 }]
+"skill" = "armorsmithing"
+"recommended_skill" = 10
+"difficulty" = 10
+
+["recipes"."make_bone_helm"."tool"]
+"capability" = "carve_bone"
+"condition_cost" = 1
+
+["recipes"."make_bone_helm"."station"]
+"capability" = "bonework"
+"range" = 2.0
+
+["recipes"."make_bone_cuirass"]
+"name" = "Make Bone Cuirass"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "bone_plate", "quantity" = 8 }, { "item" = "leather_strap", "quantity" = 4 }]
+"produces" = [{ "item" = "bone_cuirass", "quantity" = 1 }]
+"skill" = "armorsmithing"
+"recommended_skill" = 10
+"difficulty" = 10
+
+["recipes"."make_bone_cuirass"."tool"]
+"capability" = "carve_bone"
+"condition_cost" = 1
+
+["recipes"."make_bone_cuirass"."station"]
+"capability" = "bonework"
+"range" = 2.0
+
+["recipes"."make_bone_greaves"]
+"name" = "Make Bone Greaves"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "bone_plate", "quantity" = 6 }, { "item" = "leather_strap", "quantity" = 3 }]
+"produces" = [{ "item" = "bone_greaves", "quantity" = 1 }]
+"skill" = "armorsmithing"
+"recommended_skill" = 10
+"difficulty" = 10
+
+["recipes"."make_bone_greaves"."tool"]
+"capability" = "carve_bone"
+"condition_cost" = 1
+
+["recipes"."make_bone_greaves"."station"]
+"capability" = "bonework"
+"range" = 2.0
+
+["recipes"."make_bone_gauntlets"]
+"name" = "Make Bone Gauntlets"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "bone_plate", "quantity" = 2 }, { "item" = "leather_strap", "quantity" = 2 }]
+"produces" = [{ "item" = "bone_gauntlets", "quantity" = 1 }]
+"skill" = "armorsmithing"
+"recommended_skill" = 10
+"difficulty" = 10
+
+["recipes"."make_bone_gauntlets"."tool"]
+"capability" = "carve_bone"
+"condition_cost" = 1
+
+["recipes"."make_bone_gauntlets"."station"]
+"capability" = "bonework"
+"range" = 2.0
+
+["recipes"."make_bone_boots"]
+"name" = "Make Bone Boots"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "bone_plate", "quantity" = 3 }, { "item" = "leather_strap", "quantity" = 2 }]
+"produces" = [{ "item" = "bone_boots", "quantity" = 1 }]
+"skill" = "armorsmithing"
+"recommended_skill" = 10
+"difficulty" = 10
+
+["recipes"."make_bone_boots"."tool"]
+"capability" = "carve_bone"
+"condition_cost" = 1
+
+["recipes"."make_bone_boots"."station"]
+"capability" = "bonework"
+"range" = 2.0
+
+["actions"."craft_twist_cord"]
+"name" = "Twist Cord"
+"kind" = "craft"
+"recipe" = "twist_cord"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_make_stone_knife"]
+"name" = "Make Stone Knife"
+"kind" = "craft"
+"recipe" = "make_stone_knife"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_carve_bowl"]
+"name" = "Carve Wooden Bowl"
+"kind" = "craft"
+"recipe" = "carve_bowl"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_build_tanning_frame"]
+"name" = "Build Tanning Frame"
+"kind" = "craft"
+"recipe" = "build_tanning_frame"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_build_bone_workbench"]
+"name" = "Build Bone Workbench"
+"kind" = "craft"
+"recipe" = "build_bone_workbench"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_tan_hide"]
+"name" = "Tan Hide"
+"kind" = "craft"
+"recipe" = "tan_hide"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_cut_straps"]
+"name" = "Cut Leather Straps"
+"kind" = "craft"
+"recipe" = "cut_straps"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_shape_bone"]
+"name" = "Shape Bone Plate"
+"kind" = "craft"
+"recipe" = "shape_bone"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_bone_helm"]
+"name" = "Make Bone Helm"
+"kind" = "craft"
+"recipe" = "make_bone_helm"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_bone_cuirass"]
+"name" = "Make Bone Cuirass"
+"kind" = "craft"
+"recipe" = "make_bone_cuirass"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_bone_greaves"]
+"name" = "Make Bone Greaves"
+"kind" = "craft"
+"recipe" = "make_bone_greaves"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_bone_gauntlets"]
+"name" = "Make Bone Gauntlets"
+"kind" = "craft"
+"recipe" = "make_bone_gauntlets"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_bone_boots"]
+"name" = "Make Bone Boots"
+"kind" = "craft"
+"recipe" = "make_bone_boots"
+"target" = "self"
+"cooldown" = 0.0
+
+["equipment"."armor_categories"."bone_armor"]
+contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
+requires_positive_condition = true
+"crafting_family" = "armorsmithing"
+"armor_bonus" = 0
+"dex_penalty" = 0
+
+["equipment_families"."bone_armor"]
+variants = ["strength_bone_cuirass"]
+"name" = "Bone Armor"
+"category" = "bone_armor"
+"required_members" = ["bone_helm", "bone_cuirass", "bone_greaves", "bone_gauntlets", "bone_boots"]
+"required_slots" = ["head", "torso", "legs", "hands", "feet"]
+
+
+["recipes"."repair_bone_armor"]
+"name" = "Bone Armor Repair"
+"consumes" = [{ "item" = "bone_plate", "quantity" = 1 }, { "item" = "leather_strap", "quantity" = 1 }]
+"produces" = []
+
+["recipes"."repair_bone_armor"."repair"]
+"family" = "bone_armor"
+"amount" = 20
+"maximum" = 100
+
+["recipes"."repair_bone_armor"."tool"]
+"capability" = "carve_bone"
+"condition_cost" = 1
+
+["recipes"."repair_bone_armor"."station"]
+"capability" = "bonework"
+"range" = 2.0
+
+["actions"."repair_bone_armor"]
+"name" = "Repair Bone Armor"
+"description" = "Select one damaged owned bone armor piece in inventory or equipment. Restores up to 20 condition without replacing the item."
+"kind" = "craft"
+"recipe" = "repair_bone_armor"
+"target" = "item"
+"range" = 2.0
+"cooldown" = 0.0
+
+["equipment"."armor_categories"."bone_armor"."wear"]
+"damage_kind" = "physical"
+"slot" = "torso"
+"condition_cost" = 1
+
+[enchantments.strength]
+name = "Strength"
+requires_positive_condition = true
+allowed_categories = ["bone_armor"]
+modifiers = [{ attribute = "STR", add = 2 }]
+
+[items.armor.strength_bone_cuirass]
+appearance_icon = "icon/strength_bone_cuirass/on"
+name = "Bone Cuirass of Strength"
+description = "Bone plates bound with leather, bearing a passive Strength enchantment."
+slot = "torso"
+category = "bone_armor"
+rarity = "uncommon"
+enchantments = ["strength"]
+
+[items.armor.strength_bone_cuirass.attributes]
+ARMOR = 4

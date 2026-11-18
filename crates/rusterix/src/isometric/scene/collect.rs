@@ -6,6 +6,7 @@ pub(super) fn collect<'a>(
     seconds: f32,
     avatars: &'a HashMap<usize, AvatarSprite>,
     terrain_model: Option<Arc<TerrainSurface>>,
+    player_view: crate::party::PlayerView,
 ) -> ScenePlan<'a> {
     let mut casters = Vec::new();
     let mut mesh_instances = Vec::new();
@@ -23,17 +24,16 @@ pub(super) fn collect<'a>(
             )
         })
         .collect();
-    let player = map
-        .entities
-        .iter()
-        .find(|e| e.is_player())
-        .map(|e| e.get_pos_xz())
-        .or_else(|| {
-            map.entities.iter().find_map(|entity| {
-                let shown = crate::server::data::character_for_display(entity, assets);
-                shown.is_player().then_some(shown.get_pos_xz())
+    let player = player_view.player(map).map(|e| e.get_pos_xz()).or_else(|| {
+        (player_view == crate::party::PlayerView::Legacy)
+            .then(|| {
+                map.entities.iter().find_map(|entity| {
+                    let shown = crate::server::data::character_for_display(entity, assets);
+                    shown.is_player().then_some(shown.get_pos_xz())
+                })
             })
-        });
+            .flatten()
+    });
     let inside = player.is_some_and(|p| {
         map.sectors
             .iter()
@@ -207,7 +207,7 @@ pub(super) fn collect<'a>(
         if !item.attributes.get_bool_default("visible", true) {
             continue;
         }
-        if item_cutaway(map, item) {
+        if crate::isometric::item_cutaway_for(map, item, player_view) {
             // Cutaway objects still cast their physical mesh shadows, like hidden walls.
             if let Some(surface) = avatars
                 .get(&item_sprite_key(index))

@@ -194,7 +194,7 @@ impl GameScreenController {
                 p.stat(
                     widget,
                     assets,
-                    screen_model::resolve_party_entity(map, widget.party.as_deref()),
+                    world.party_entity(map, widget.party.as_deref()),
                     self.animation_frame,
                 )?;
             }
@@ -226,7 +226,9 @@ impl GameScreenController {
                     widget,
                     self.focused_text() == Some(ScreenTextTarget::Input(key)),
                 );
-                if let Some(input) = self.inputs.get_mut(&ScreenTextTarget::Input(key)) {
+                if widget.secret {
+                    p.label(widget.rect,&"•".repeat(widget.text.chars().count()),&widget.font,widget.font_size,widget.color,Align::Left,true);
+                } else if let Some(input) = self.inputs.get_mut(&ScreenTextTarget::Input(key)) {
                     input.paint(
                         p.text,
                         p.list,
@@ -246,7 +248,7 @@ impl GameScreenController {
             if hidden(&widget.name) {
                 continue;
             }
-            let entity = screen_model::resolve_party_entity(map, widget.party.as_deref());
+            let entity = world.party_entity(map, widget.party.as_deref());
             let command = screen_model::contextual_open_close_command(
                 screen_model::resolved_widget_command(widget, assets, entity, &model.ui_state),
                 self.hovered_item,

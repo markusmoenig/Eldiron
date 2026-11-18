@@ -103,7 +103,7 @@ impl GameScreenController {
                         screen_model::resolved_widget_command(
                             widget,
                             world.assets,
-                            screen_model::resolve_party_entity(map, widget.party.as_deref()),
+                            world.party_entity(map, widget.party.as_deref()),
                             &self.elements.ui_state,
                         )
                         .as_deref()

@@ -64,12 +64,27 @@ struct TerminalCliOptions {
 
 struct TerminalApp {
     runtime: GameSession,
+    replicated_region: Option<shared::region::Region>,
     session: TextSession,
     screen_messages: Vec<String>,
     auto_attack_target: Option<u32>,
     server_log_cursor: usize,
     ai: shared::ai::Assistant,
     ai_session: Uuid,
+}
+
+/// Scope legacy terminal widgets to the explicit observer. The presentation
+/// copy still draws other actors but cannot choose their body as the player.
+fn scope_terminal_player(map: &mut rusterix::Map, player: rusterix::party::PlayerView) {
+    let controlled = player.entity_id(map);
+    for entity in &mut map.entities {
+        if entity.is_player() || Some(entity.id) == controlled {
+            entity.attributes.set(
+                "player",
+                rusterix::Value::Bool(Some(entity.id) == controlled),
+            );
+        }
+    }
 }
 
 enum InputEvent {
@@ -91,9 +106,13 @@ impl TerminalApp {
         let mut project: Project = shared::project_io::decode_project(&bytes)
             .map_err(|err| format!("Failed to parse {}: {}", path.display(), err))?;
         project.migrate_default_ruleset();
+        if matches!(shared::project_play::ProjectPlaySettings::parse(&project.config)?.launch(shared::project_play::LaunchPurpose::Player)?,shared::project_play::LaunchPlan::Remote(_)) {
+            return Err("This is a multiplayer project. Use Eldiron Player for its online connection; Creator Play remains a local test.".into());
+        }
 
         let mut app = Self {
             runtime: GameSession::new(project),
+            replicated_region: None,
             session: TextSession::new(),
             screen_messages: Vec::new(),
             auto_attack_target: None,
@@ -125,15 +144,25 @@ impl TerminalApp {
     }
 
     fn current_region(&self) -> Option<&shared::region::Region> {
-        self.runtime
-            .project
-            .regions
-            .iter()
-            .find(|region| region.map.name == self.runtime.current_map)
+        if self.runtime.is_started() {
+            self.replicated_region.as_ref()
+        } else {
+            self.runtime.project.regions.iter()
+                .find(|region| region.map.name == self.runtime.current_map)
+        }
     }
 
     fn tick(&mut self) {
         self.runtime.tick_once();
+        let view = self.runtime.view();
+        self.session.bind_player(view.player);
+        self.replicated_region = view.map.and_then(|map| {
+            let mut region = self.runtime.project.regions.iter()
+                .find(|r| r.map.id == map.id)?.clone();
+            region.map = map.clone();
+            scope_terminal_player(&mut region.map, view.player);
+            Some(region)
+        });
     }
 
     fn drain_server_diagnostics(&mut self) -> Vec<String> {
@@ -153,26 +182,17 @@ impl TerminalApp {
     }
 
     fn current_time_hour_and_label(&self) -> Option<(u8, String)> {
-        self.runtime
-            .project
-            .regions
-            .iter()
-            .find(|region| region.map.name == self.runtime.current_map)
-            .and_then(|region| self.runtime.server.get_time(&region.map.id))
-            .map(|time| {
-                let label = if time.minutes == 0 {
-                    let period = if time.hours >= 12 { "PM" } else { "AM" };
-                    let hour = if time.hours % 12 == 0 {
-                        12
-                    } else {
-                        time.hours % 12
-                    };
-                    format!("{} {}", hour, period)
-                } else {
-                    time.to_time12()
-                };
-                (time.hours, label)
-            })
+        let view = self.runtime.view();
+        view.map?;
+        let time = view.time;
+        let label = if time.minutes == 0 {
+            let period = if time.hours >= 12 { "PM" } else { "AM" };
+            let hour = if time.hours % 12 == 0 { 12 } else { time.hours % 12 };
+            format!("{} {}", hour, period)
+        } else {
+            time.to_time12()
+        };
+        Some((time.hours, label))
     }
 
     fn render_room_text(&mut self) -> String {
@@ -190,10 +210,16 @@ impl TerminalApp {
         let Some(region) = self.current_region() else {
             return format!("Current region '{}' not found.", self.runtime.current_map);
         };
-        let Some((_, sector)) = sg::current_player_and_sector(&region.map) else {
+        let Some((_, sector)) =
+            sg::current_player_and_sector_for(&region.map, self.runtime.view().player)
+        else {
             return "No local player found.".into();
         };
-        let Some(room) = sg::build_text_room(&region.map, &self.runtime.project.authoring) else {
+        let Some(room) = sg::build_text_room_for(
+            &region.map,
+            &self.runtime.project.authoring,
+            self.runtime.view().player,
+        ) else {
             return "No room text available.".into();
         };
 
@@ -277,7 +303,7 @@ impl TerminalApp {
         let Some(region) = self.current_region() else {
             return None;
         };
-        sg::render_current_sector_description(&region.map)
+        sg::render_current_sector_description_for(&region.map, self.runtime.view().player)
     }
 
     fn move_to_exit(&mut self, exit: &sg::TextExit) -> bool {
@@ -287,7 +313,8 @@ impl TerminalApp {
             .local_player_teleport_pos(exit.target_center);
         self.tick();
         self.current_region().and_then(|region| {
-            sg::current_player_and_sector(&region.map).map(|(_, sector)| sector.id)
+            sg::current_player_and_sector_for(&region.map, self.runtime.view().player)
+                .map(|(_, sector)| sector.id)
         }) == Some(exit.target_sector_id)
     }
 
@@ -340,7 +367,9 @@ impl TerminalApp {
             self.session.clear_auto_attack_target();
             return;
         };
-        let Some((player, sector)) = sg::current_player_and_sector(&region.map) else {
+        let Some((player, sector)) =
+            sg::current_player_and_sector_for(&region.map, self.runtime.view().player)
+        else {
             self.auto_attack_target = None;
             self.session.clear_auto_attack_target();
             return;
@@ -2042,14 +2071,17 @@ fn trigger_text_intent(app: &mut TerminalApp, intent: &str, query: &str) -> Vec<
             app.runtime.current_map
         )];
     };
-    let Some((_player, sector)) = sg::current_player_and_sector(&region.map) else {
+    let Some((_player, _sector)) =
+        sg::current_player_and_sector_for(&region.map, app.runtime.view().player)
+    else {
         return vec!["No local player found.".into()];
     };
 
-    let target = match sg::resolve_text_target(&region.map, sector, query) {
-        Ok(target) => target,
-        Err(err) => return vec![err],
-    };
+    let target =
+        match sg::resolve_current_text_target_for(&region.map, query, app.runtime.view().player) {
+            Ok(target) => target,
+            Err(err) => return vec![err],
+        };
 
     dispatch_text_intent(app, intent, target)
 }
@@ -2099,7 +2131,13 @@ fn dispatch_text_intent(
 
 fn current_player_supported_intents(app: &TerminalApp) -> BTreeSet<String> {
     app.current_region()
-        .map(|region| sg::current_player_supported_intents(&app.runtime.project, &region.map))
+        .map(|region| {
+            sg::current_player_supported_intents_for(
+                &app.runtime.project,
+                &region.map,
+                app.runtime.view().player,
+            )
+        })
         .unwrap_or_default()
 }
 
@@ -2155,7 +2193,9 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
         _ if matches!(direction, "north" | "south" | "east" | "west") => {
             let mut moved = false;
             if let Some(region) = app.current_region() {
-                if let Some((_, sector)) = sg::current_player_and_sector(&region.map) {
+                if let Some((_, sector)) =
+                    sg::current_player_and_sector_for(&region.map, app.runtime.view().player)
+                {
                     let exits = sg::resolve_text_exits(
                         &region.map,
                         sector,
@@ -2216,7 +2256,9 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
         }
         "inventory" | "inv" => {
             if let Some(region) = app.current_region() {
-                if let Some(text) = sg::render_player_inventory(&region.map) {
+                if let Some(text) =
+                    sg::render_player_inventory_for(&region.map, app.runtime.view().player)
+                {
                     output.push(text);
                 } else {
                     output.push("No local player found.".into());
@@ -2252,7 +2294,9 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
             } else {
                 let mut moved = false;
                 if let Some(region) = app.current_region() {
-                    if let Some((_, sector)) = sg::current_player_and_sector(&region.map) {
+                    if let Some((_, sector)) =
+                        sg::current_player_and_sector_for(&region.map, app.runtime.view().player)
+                    {
                         let exits = sg::resolve_text_exits(
                             &region.map,
                             sector,
@@ -3308,6 +3352,23 @@ fn run_text_terminal_app(mut app: TerminalApp) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn terminal_player_markers_cannot_fall_back_to_another_visible_character() {
+        use rusterix::party::PlayerView;
+        let mut map = rusterix::Map::default();
+        for id in [1, 2] {
+            let mut actor = rusterix::Entity::default();
+            actor.id = id;
+            actor.attributes.set("player", rusterix::Value::Bool(true));
+            map.entities.push(actor);
+        }
+        scope_terminal_player(&mut map, PlayerView::Controlled(2));
+        assert_eq!(map.entities.iter().find(|e| e.is_player()).unwrap().id, 2);
+        assert_eq!(map.entities.len(), 2);
+        scope_terminal_player(&mut map, PlayerView::Uncontrolled);
+        assert!(!map.entities.iter().any(|e| e.is_player()));
+    }
 
     #[test]
     fn formats_rules_summary_for_catalog() {

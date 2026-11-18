@@ -141,6 +141,11 @@ impl Item {
     pub fn can_stack_with(&self, other: &Item) -> bool {
         self.is_stackable()
             && other.is_stackable()
+            && !["enchantments", "item_enchantment_instances"]
+                .iter()
+                .any(|key| {
+                    self.attributes.get(key).is_some() || other.attributes.get(key).is_some()
+                })
             && self.stack_key().is_some()
             && self.stack_key() == other.stack_key()
             && self.stack_percent_attr("quality") == other.stack_percent_attr("quality")
@@ -463,6 +468,19 @@ mod tests {
         item.set_attribute("quantity", Value::Int(quantity));
         item.set_attribute("max_stack", Value::Int(max_stack));
         item
+    }
+
+    #[test]
+    fn enchantment_presets_and_instance_state_never_merge_into_another_stack() {
+        let plain = stack(1, 1, 100);
+        let mut enchanted = stack(2, 1, 100);
+        assert!(plain.can_stack_with(&enchanted));
+        enchanted.set_attribute("enchantments", Value::StrArray(vec!["strength".into()]));
+        assert!(!plain.can_stack_with(&enchanted));
+        assert!(!enchanted.can_stack_with(&plain));
+        enchanted.attributes.remove("enchantments");
+        enchanted.set_attribute("item_enchantment_instances", Value::Str("[]".into()));
+        assert!(!plain.can_stack_with(&enchanted));
     }
 
     #[test]

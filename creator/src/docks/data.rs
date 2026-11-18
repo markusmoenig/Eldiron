@@ -9,6 +9,7 @@ use toml::Table;
 
 const SETTINGS_NAV_LAYOUT_ID: &str = "Game Settings Navigation";
 const SETTINGS_NAV_ITEM_PREFIX: &str = "Game Settings Nav ";
+const PROJECT_MODE_ID: &str = "Game Project Mode";
 const MATERIAL_RESOLUTION_ID: &str = "Game Material Pixels Per Tile";
 const SPRITE_RESOLUTION_ID: &str = "Game Appearance Sprite Pixels 2D";
 const TILE_BACKGROUND_ID: &str = "Game Material Tile Background 2D";
@@ -55,6 +56,17 @@ fn set_render_setting(
     Ok(document.to_string())
 }
 
+fn set_project_mode(config:&str,multiplayer:bool)->Result<String,String> {
+    let mut changed=set_render_setting(config,"game","mode",toml_edit::Value::from(if multiplayer {"multiplayer"}else{"single_player"}))?;
+    if multiplayer {
+        for (key,value) in [("endpoint",toml_edit::Value::from("")),("deployment_id",toml_edit::Value::from("")),("allow_insecure_loopback",toml_edit::Value::from(false))] {
+            let table=changed.parse::<toml::Table>().map_err(|e|e.to_string())?;
+            if table.get("multiplayer").and_then(|t|t.get(key)).is_none() {changed=set_render_setting(&changed,"multiplayer",key,value)?;}
+        }
+    }
+    Ok(changed)
+}
+
 struct SettingNavEntry {
     key: &'static str,
     status: &'static str,
@@ -69,6 +81,7 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
     SettingNavSection {
         table: "game",
         entries: &[
+            SettingNavEntry { key:"mode", status:"Project execution: single_player runs locally; multiplayer connects to the configured server. Creator Play remains a local test." },
             SettingNavEntry {
                 key: "target_fps",
                 status: "Target render refresh rate in frames per second. Higher values look smoother but cost more CPU/GPU.",
@@ -143,6 +156,11 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
             },
         ],
     },
+    SettingNavSection { table:"multiplayer", entries:&[
+        SettingNavEntry{key:"endpoint",status:"Public WSS gameplay URL, for example wss://game.example.com/play. Used by exported multiplayer players."},
+        SettingNavEntry{key:"deployment_id",status:"Optional public deployment identity for managed or self-hosted publishing. Never enter credentials here."},
+        SettingNavEntry{key:"allow_insecure_loopback",status:"Allow plain WS only for explicit localhost testing. Public games require WSS."},
+    ]},
     SettingNavSection {
         table: "ruleset",
         entries: &[
@@ -665,7 +683,7 @@ impl Dock for DataDock {
             TheEvent::ValueChanged(id, value) => {
                 if matches!(
                     id.name.as_str(),
-                    MATERIAL_RESOLUTION_ID
+                    PROJECT_MODE_ID | MATERIAL_RESOLUTION_ID
                         | SPRITE_RESOLUTION_ID
                         | ENTITY_PIXEL_SIZE_ID
                         | TILE_BACKGROUND_ID
@@ -689,7 +707,9 @@ impl Dock for DataDock {
                             as u32,
                         _ => return false,
                     };
-                    let changed = if id.name == MATERIAL_RESOLUTION_ID {
+                    let changed = if id.name == PROJECT_MODE_ID {
+                        set_project_mode(&project.config,pixels==1)
+                    } else if id.name == MATERIAL_RESOLUTION_ID {
                         crate::procedural_material::pixel_style::set_density(
                             &project.config,
                             pixels,
@@ -1105,6 +1125,10 @@ impl DataDock {
     }
 
     fn sync_material_resolution(&self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
+        if let Some(widget)=ui.get_widget("Game Session Mode").and_then(|w|w.as_tree_item()).and_then(|w|w.embedded_widget_mut()) {
+            let online=shared::project_play::ProjectPlaySettings::parse(&project.config).is_ok_and(|p|p.mode==shared::project_play::ProjectMode::Multiplayer);
+            widget.set_value(TheValue::Int(i32::from(online)));widget.set_needs_redraw(true);
+        }
         for (item, key) in [
             ("Game Sprite Resolution", "sprite_pixels_2d"),
             ("Game Entity Pixel Size", "pixel_size_3d"),
@@ -1172,6 +1196,15 @@ impl DataDock {
         if !active {
             return;
         }
+
+        let mut execution=TheTreeNode::new(TheId::named("Project Execution"));
+        execution.set_open(true);
+        let mut item=TheTreeItem::new(TheId::named("Game Session Mode"));
+        item.set_text("Game mode".into());
+        let mut mode=TheDropdownMenu::new(TheId::named(PROJECT_MODE_ID));
+        mode.add_option("Single player".into());mode.add_option("Multiplayer".into());
+        mode.set_status_text("The project chooses local or server-hosted gameplay. Creator Play always tests locally. Configure multiplayer.endpoint for exported online players.");
+        item.add_widget_column(140,Box::new(mode));execution.add_widget(Box::new(item));root.add_child(execution);
 
         let mut materials = TheTreeNode::new(TheId::named("Procedural Materials"));
         materials.set_open(true);
@@ -1694,6 +1727,7 @@ impl DataDock {
     fn collect_project_validation_issues(project: &Project) -> Vec<String> {
         let mut issues = Vec::new();
 
+        if let Err(error)=shared::project_play::ProjectPlaySettings::parse(&project.config) {issues.push(error);}
         let effective_locales =
             match shared::rulesets::resolve_project_locales(&project.config, &project.locales) {
                 Ok(locales) => locales,
@@ -2120,6 +2154,23 @@ mod material_resolution_tests {
             crate::procedural_material::pixel_style::density(&reopened.config),
             32
         );
+    }
+    #[test]
+    fn project_mode_preserves_deployment_configuration_and_roundtrips() {
+        let source="# Keep
+[game]
+start_region='World'
+";
+        let online=set_project_mode(source,true).unwrap();
+        let policy=shared::project_play::ProjectPlaySettings::parse(&online).unwrap();
+        assert_eq!(policy.mode,shared::project_play::ProjectMode::Multiplayer);
+        assert!(online.contains("# Keep"));assert!(online.contains("start_region='World'"));
+        let online=set_render_setting(&online,"multiplayer","endpoint",toml_edit::Value::from("wss://game.example/play")).unwrap();
+        let local=set_project_mode(&online,false).unwrap();
+        assert!(local.contains("wss://game.example/play"));
+        let mut project=Project::default();project.config=set_project_mode(&local,true).unwrap();
+        let restored:Project=serde_json::from_slice(&serde_json::to_vec(&project).unwrap()).unwrap();
+        assert_eq!(shared::project_play::ProjectPlaySettings::parse(&restored.config).unwrap().multiplayer.endpoint,"wss://game.example/play");
     }
     #[test]
     fn appearance_settings_preserve_comments_and_material_density() {

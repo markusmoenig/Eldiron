@@ -25,6 +25,16 @@ impl SimulationWorld {
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
             .expect("simulation exhausted its runtime entity/item IDs")
     }
+    pub fn high_water(&self) -> u32 {
+        self.ids.load(Ordering::Relaxed)
+    }
+    pub fn snapshot(&self) -> ValueContainer {
+        self.state.read().unwrap().clone()
+    }
+    pub fn restore(&self, next_id: u32, state: ValueContainer) {
+        self.ids.store(next_id, Ordering::Relaxed);
+        *self.state.write().unwrap() = state;
+    }
     pub fn get(&self, key: &str) -> Option<Value> {
         self.state
             .read()
@@ -36,4 +46,17 @@ impl SimulationWorld {
             state.set(key, value);
         }
     }
+    /// Serialize stock and destination commitments across all region workers.
+    pub(crate) fn with_state<T>(&self, operation: impl FnOnce(&mut ValueContainer) -> T) -> T {
+        operation(&mut self.state.write().unwrap())
+    }
+    pub fn advance_resource_time(&self, elapsed: std::time::Duration) {
+        self.with_state(|state| {
+            let key = "__world_resource_clock_ms";
+            let current = match state.get(key) { Some(Value::Int64(n)) => *n, _ => 0 };
+            let elapsed = i64::try_from(elapsed.as_millis()).expect("Resource clock duration overflow");
+            state.set(key, Value::Int64(current.checked_add(elapsed).expect("Resource clock exhausted")));
+        });
+    }
+
 }

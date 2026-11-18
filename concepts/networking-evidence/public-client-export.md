@@ -1,0 +1,21 @@
+# Public client export acceptance — 2026-11-18
+
+The public distribution boundary is implemented in `shared::public_client`, with canonical identity/export entry points in `eldiron_network::public_client`. Creator offers a separate export document transfer and File action; the CPU CLI supports endpoint/deployment overrides and fresh-path publication. Canonical desktop, WASM and foreign/Apple Player loaders accept `.eldiron-client`; the legacy reference applications remain authored-project compatibility tools.
+
+## Automated checks
+
+- Six CPU package tests passed: private source/modules/configuration/instances excluded; authoring source untouched; original identity retained; Creator/source re-save rejection; wrong protocol, damaged digest, extra ZIP entries, truncated packages, private fields, duplicate IDs and malformed texture bounds rejected; authored single-player loading preserved; action requirements/costs/cooldowns/roles retained without authoritative rule results; material/normal pixels retained in both UUID and indexed tile registries, including saved generated tiles with separate baked material bytes.
+- Sixteen networking tests passed after extracting the shared public geometry DTO. Existing exact-revision content delivery, bounded queues, cancellation and canonical identity behavior remain intact.
+- Creator export completion test passed: the host receives the addressed export request, exported bytes decode, completion cannot mark the source clean or change its path, stale completion is rejected and authored output extensions are refused.
+- Four runtime mode/scheduling tests passed: remote clients create no local authority, Creator override works without an endpoint, embedded sessions retain their scheduling policy and suspended checkpoints restore without duplicate bodies.
+- Two real socket Player tests passed: a public starter release joins a disposable demo with frozen visuals and the action catalog, rejects local Creator startup, starts no local region instances, receives starter equipment and predicts acknowledged movement; a public release also supports password registration, saved character creation, reconnect and rejoin of the same body with one character record.
+- Native Player/Creator/CLI, WASM Player/Creator and Creator static-library checks passed. Both changed Swift host/document sources typechecked and the Player's registered public file type plist passed validation. The renderer dependency-boundary script passed.
+- The CPU CLI exported a real starter project, decoded its result before publishing and refused both an existing release and an authored output extension without changing the existing file.
+
+## Browser runtime evidence
+
+The full WASM WebGPU Player loaded only the public client package from a task-owned HTTP web root, joined an isolated accountless authority over explicit loopback WS, fetched immutable region/collision content and rendered remote frames. Chromium reported no runtime exceptions and the engine's implicit color readback counter remained zero. The starter package was 1,402,081 bytes compressed and 52,163,354 bytes of MessagePack payload. See [machine-readable result](public-client-browser.json) for its manifest, digest and observed presentation/transport counters.
+
+The harness is `tools/verify_public_client_browser.mjs`. It starts its own server and browser profile, selects Play through actual pointer events, verifies one admitted player, remote ticks and continued surface presentations, and shuts down both processes. The private authoring document is outside the public directory; the HTTP harness refuses authored `.eldiron` requests. This test uses local WS/HTTP so no TLS certificate bypass or public deployment is required. Earlier WSS/WAN-emulation evidence remains separate.
+
+These checks establish this export workflow and one desktop Chromium WebGPU run. They do not establish every browser/OS or physical Apple/mobile execution, arbitrary content parity, incremental asset delivery, production publishing/signing or managed tenant orchestration. The format eagerly loads a single release with separate 128 MiB compressed-archive and decoded-payload limits; static public region art/layout is intentionally inspectable. Keep secrets out of public UI/assets and keep authoritative source/storage private.

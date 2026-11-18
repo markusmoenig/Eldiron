@@ -1,0 +1,247 @@
+# Reference fixture for the resource definitions in rules.graph.json.
+
+["items"]
+
+["items"."materials"]
+
+["items"."materials"."wood_branch"]
+"appearance_icon" = "icon/wood_branch/on"
+"name" = "Wood Branch"
+"category" = "world_material"
+"slot" = "material"
+"max_stack" = 100
+
+["items"."materials"."wood_branch"."attributes"]
+"stackable" = true
+"quantity" = 1
+
+["items"."materials"."tree_bark"]
+"appearance_icon" = "icon/tree_bark/on"
+"name" = "Tree Bark"
+"category" = "world_material"
+"slot" = "material"
+"max_stack" = 100
+
+["items"."materials"."tree_bark"."attributes"]
+"stackable" = true
+"quantity" = 1
+
+["items"."materials"."tree_resin"]
+"appearance_icon" = "icon/tree_resin/on"
+"name" = "Tree Resin"
+"category" = "world_material"
+"slot" = "material"
+"max_stack" = 100
+
+["items"."materials"."tree_resin"."attributes"]
+"stackable" = true
+"quantity" = 1
+
+["items"."materials"."wood_log"]
+"appearance_icon" = "icon/wood_log/on"
+"name" = "Wood Log"
+"category" = "world_material"
+"slot" = "material"
+"max_stack" = 100
+
+["items"."materials"."wood_log"."attributes"]
+"stackable" = true
+"quantity" = 1
+
+["items"."materials"."raw_bone"]
+"appearance_icon" = "icon/raw_bone/on"
+"name" = "Raw Bone"
+"category" = "world_material"
+"slot" = "material"
+"max_stack" = 100
+
+["items"."materials"."raw_bone"."attributes"]
+"stackable" = true
+"quantity" = 1
+
+["items"."reagents"]
+
+["items"."reagents"."fresh_water"]
+"appearance_icon" = "icon/fresh_water/on"
+"name" = "Fresh Water"
+"category" = "world_material"
+"slot" = "material"
+"quantity_unit" = "volume"
+
+["items"."reagents"."fresh_water"."attributes"]
+
+["items"."tools"]
+
+["items"."tools"."wooden_bowl"]
+"appearance_icon" = "icon/wooden_bowl/on"
+"name" = "Wooden Bowl"
+"category" = "world_tool"
+"slot" = "tool"
+
+["items"."tools"."wooden_bowl"."attributes"]
+"liquid_capacity" = 4
+"liquid_quantity" = 0
+
+["items"."tools"."pruning_knife"]
+"appearance_icon" = "icon/pruning_knife/on"
+"name" = "Pruning Knife"
+"category" = "world_tool"
+"slot" = "tool"
+
+["items"."tools"."pruning_knife"."attributes"]
+"tool_capabilities" = ["prune", "carve_bone"]
+"condition" = 100
+
+["items"."tools"."woodcutting_axe"]
+"appearance_icon" = "icon/woodcutting_axe/on"
+"name" = "Woodcutting Axe"
+"category" = "world_tool"
+"slot" = "tool"
+
+["items"."tools"."woodcutting_axe"."attributes"]
+"tool_capabilities" = ["fell_tree"]
+"condition" = 100
+
+["resource_profiles"]
+
+["resource_profiles"."mature_tree"]
+"name" = "Mature Tree"
+"default_interaction" = "collect_branches"
+"allow_overrides" = ["branches.initial", "branches.capacity", "branches.recovery_interval_ms", "branches.recovery_amount"]
+
+["resource_profiles"."mature_tree"."supplies"]
+
+["resource_profiles"."mature_tree"."supplies"."branches"]
+"unit" = "count"
+"outputs" = [{ "item" = "wood_branch", "quantity" = 1 }]
+"capacity" = 12
+"healthy_at" = 8
+
+["resource_profiles"."mature_tree"."supplies"."branches"."recovery"]
+"amount" = 4
+"interval_ms" = 86400000
+
+["resource_profiles"."mature_tree"."supplies"."bark"]
+"unit" = "count"
+"outputs" = [{ "item" = "tree_bark", "quantity" = 1 }]
+"capacity" = 4
+
+["resource_profiles"."mature_tree"."supplies"."resin"]
+"unit" = "count"
+"outputs" = [{ "item" = "tree_resin", "quantity" = 1 }]
+"capacity" = 2
+
+["resource_profiles"."mature_tree"."supplies"."felling"]
+"unit" = "opportunity"
+"outputs" = [{ "item" = "wood_log", "quantity" = 6 }]
+"capacity" = 1
+
+["resource_profiles"."mature_tree"."interactions"]
+
+["resource_profiles"."mature_tree"."interactions"."collect_branches"]
+"supply" = "branches"
+"quantity" = 2
+"policy" = "whole"
+"range" = 2.0
+"tool" = "prune"
+"tool_wear" = 1
+"skill" = "woodworking"
+"skill_gain" = 1
+
+["resource_profiles"."mature_tree"."interactions"."collect_bark"]
+"supply" = "bark"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "prune"
+"tool_wear" = 1
+
+["resource_profiles"."mature_tree"."interactions"."collect_resin"]
+"supply" = "resin"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "prune"
+"tool_wear" = 1
+
+["resource_profiles"."mature_tree"."interactions"."fell_tree"]
+"supply" = "felling"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "fell_tree"
+"tool_wear" = 1
+"transition" = "stump"
+"discard_supplies" = true
+
+["resource_profiles"."river"]
+"name" = "River"
+"default_interaction" = "fill_water"
+
+["resource_profiles"."river"."supplies"]
+
+["resource_profiles"."river"."supplies"."water"]
+"unit" = "volume"
+"outputs" = [{ "item" = "fresh_water", "quantity" = 1 }]
+
+["resource_profiles"."river"."interactions"]
+
+["resource_profiles"."river"."interactions"."fill_water"]
+"supply" = "water"
+"quantity" = 4
+"policy" = "clamped"
+"range" = 2.0
+
+["resource_profiles"."finite_well"]
+"name" = "Finite Well"
+"default_interaction" = "fill_water"
+"allow_overrides" = ["water.capacity", "water.initial", "water.recovery_interval_ms", "water.recovery_amount"]
+
+["resource_profiles"."finite_well"."supplies"]
+
+["resource_profiles"."finite_well"."supplies"."water"]
+"unit" = "volume"
+"outputs" = [{ "item" = "fresh_water", "quantity" = 1 }]
+"capacity" = 12
+"initial" = 3
+
+["resource_profiles"."finite_well"."supplies"."water"."recovery"]
+"amount" = 3
+"interval_ms" = 43200000
+
+["resource_profiles"."finite_well"."interactions"]
+
+["resource_profiles"."finite_well"."interactions"."fill_water"]
+"supply" = "water"
+"quantity" = 4
+"policy" = "clamped"
+"range" = 2.0
+
+["resource_profiles"."skeleton_remains"]
+"name" = "Skeleton Remains"
+"default_interaction" = "collect_bones"
+"spent_when_empty" = true
+"expires_after_ms" = 172800000
+
+["resource_profiles"."skeleton_remains"."supplies"]
+
+["resource_profiles"."skeleton_remains"."supplies"."bones"]
+"unit" = "opportunity"
+"outputs" = [{ "item" = "raw_bone", "quantity" = 6 }]
+"capacity" = 1
+
+["resource_profiles"."skeleton_remains"."interactions"]
+
+["resource_profiles"."skeleton_remains"."interactions"."collect_bones"]
+"supply" = "bones"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+
+["resource_pools"]
+
+["resource_pools"."river"]
+"profile" = "river"
+
+["resource_pools"."village_well"]
+"profile" = "finite_well"

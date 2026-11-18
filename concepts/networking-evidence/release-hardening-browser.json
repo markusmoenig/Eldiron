@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "generated_utc": "2026-11-17T10:44:55.969699+00:00",
+  "machine": "macOS-27.0.1-arm64-arm-64bit",
+  "command": "ELDIRON_SERVER=target/release/eldiron-server node tools/verify_online_browser.mjs",
+  "wasm_sha256": "64d63f0fc4d9571c24268f853ed9d91dbf90c55cfa6fe1be51045fca85b2b222",
+  "server_sha256": "f39ff29e8949e0a9fb0ccf0f2d472f1edb6a41e8c63976e548e7f24dbc054ea8",
+  "scope": "Two isolated headless Chrome tabs, actual WASM and WSS/HTTPS, pinned temporary certificate. Fast polling is foregrounded with background timer throttling disabled; four time-sliced pumps per callback. This is a network polling test, not measured GPU rendering FPS.",
+  "fast_window_ms": 3000,
+  "result": {
+    "transport": "WSS (temporary certificate pinned)",
+    "content": "HTTPS compiled physics",
+    "clients": 2,
+    "wasm": "spatial replicas, asynchronous content preloads, fixed inputs and sequenced requests",
+    "accounts": "none",
+    "saveStore": "none",
+    "high_refresh": {
+      "pumps": 1368,
+      "sent": 165,
+      "status": "Playing demo"
+    },
+    "reload": true
+  }
+}

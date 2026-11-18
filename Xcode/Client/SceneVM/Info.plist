@@ -12,6 +12,7 @@
 			<key>CFBundleTypeExtensions</key>
 			<array>
 				<string>eldiron</string>
+				<string>eldiron-client</string>
 				<string>scenevm</string>
 			</array>
 			<key>CFBundleTypeName</key>
@@ -23,6 +24,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.moenig.eldiron.project</string>
+				<string>com.moenig.eldiron.client</string>
 				<string>com.scenevm.project</string>
 			</array>
 			<key>LSTypeIsPackage</key>
@@ -33,6 +35,19 @@
 	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
+        <dict>
+            <key>UTTypeConformsTo</key>
+            <array><string>public.data</string></array>
+            <key>UTTypeDescription</key>
+            <string>Eldiron Public Client</string>
+            <key>UTTypeIdentifier</key>
+            <string>com.moenig.eldiron.client</string>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array><string>eldiron-client</string></array>
+            </dict>
+        </dict>
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>

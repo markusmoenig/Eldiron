@@ -28,6 +28,7 @@ required-features = ["legacy-reference"]
 eldiron-presentation = {path="../presentation"}
 theframework = {path="../theframework", default-features=false, features=["render-wgpu"], optional=true}
 renderkit = {path="../renderkit", optional=true}
+eldiron-network = { path = "../network" }
 eldiron-runtime = { path = "../runtime" }
 rustc-hash = "2"
 scenevm = { workspace = true, default-features = false, features=["gpu"] }
@@ -39,6 +40,9 @@ toml = "0.9.5"
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 vek = "0.17"
 uuid = { version = "1.18", features = ["v4"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["rt", "time", "macros"] }
 
 [dev-dependencies]
 futures = "0.3"
@@ -56,3 +60,6 @@ wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams", "Response", "Document", "Element", "HtmlElement", "Node", "console"] }
 console_error_panic_hook = "0.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+eldiron-server = { path = "../../servers/dedicated" }

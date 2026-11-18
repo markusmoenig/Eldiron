@@ -15,7 +15,7 @@ sidebar_position: 3
   </iframe>
 </div>
 
-Authoring in **Eldiron Creator** adds narrative and descriptive metadata to the world. It is used by the terminal client already, and the same data can also drive room descriptions, sector enter text, and other presentation in normal 2D and 3D games.
+Authoring in **Eldiron Creator** adds narrative and descriptive metadata to the world. It also binds map placements to ruleset-defined resources such as trees and wells. Descriptions serve text, 2D and 3D play; resource supplies use the same authoritative rules in solo and online play.
 
 ## Authoring Dock
 
@@ -31,7 +31,7 @@ This makes Authoring a persistent mode:
 
 ## What You Can Edit
 
-The Authoring dock edits player-facing TOML metadata for:
+The Authoring dock edits TOML metadata for:
 
 - selected sectors
 - selected linedefs
@@ -51,7 +51,7 @@ Important:
 
 So the split is:
 
-- `Authoring`: descriptive and presentation text
+- `Authoring`: descriptive and presentation text, plus resource bindings on sectors, linedefs and Geometry Objects
 - `Entity Nodes` and `Behavior Nodes`: configuration, input mappings, rules-based actions, and gameplay logic
 
 ## Minimal Format
@@ -97,6 +97,125 @@ Right now the authoring metadata is already used by:
 - text-style exit and room presentation
 - authored sector description messages in regular gameplay
 - `look` for characters and items in 2D, 3D, and text play when no behavior response supplies a description
+
+## Bind world resources
+
+A tree image does not automatically provide wood. A placement's `[resource]` binding names a profile from the project's supplied ruleset. The profile owns the supplies, registered output items, interaction requirements and recovery policy; the placement can override only the settings that profile exposes. Choose an existing profile in Authoring; opening a ruleset editor is not required.
+
+1. Select a sector, linedef or 3D Geometry Object and open **Authoring**.
+2. Choose a resource profile in the profile selector.
+3. Choose **Independent** for a separate source, or choose a compatible shared pool.
+4. Click **Bind Resource**. Review the resulting TOML and save the project.
+
+The binding preserves other authoring values and supports Undo/Redo. If `[resource]` already exists, edit it directly; Bind Resource will not overwrite it. Resource binding controls currently apply to sectors, linedefs and Geometry Objects. Reusable Prefab and paint-asset resource inheritance remains planned.
+
+### Bundled profiles
+
+| Profile | Default interaction | Supply and recovery |
+| --- | --- | --- |
+| `mature_tree` | `collect_branches` | 12 branches; recovers 4 per 86,400,000 simulation milliseconds. Also holds 4 bark, 2 resin and one felling opportunity yielding 6 logs. Bark, resin and felling do not recover. |
+| `river` | `fill_water` | Unlimited fresh water; fills up to 4 volume units per interaction. |
+| `finite_well` | `fill_water` | Capacity 12, initially 3 water units; recovers 3 per 43,200,000 simulation milliseconds. Fills up to 4 units per interaction. |
+| `skeleton_remains` | `collect_bones` | One extraction yielding 6 raw bones; no recovery. Becomes spent when emptied and expires after 172,800,000 simulation milliseconds. |
+| `loose_flint` | `collect_flint` | 4 flint stones, collected one at a time by hand; finite with no recovery. |
+| `fallen_timber` | `collect_branches` | 20 branches, collected one at a time by hand; finite with no recovery. |
+| `wild_flax` | `collect_fiber` | 16 fiber, collected in whole batches of 2 by hand; finite with no recovery. |
+| `deer_remains` | `collect_hide` | One raw hide; requires a skinning tool and costs 1 condition. No recovery; expires after 172,800,000 simulation milliseconds. |
+
+All bundled interactions require the actor to be within 2 world-space units. **Use** on a bound map placement invokes the profile's default interaction, or the named `interaction` selected in that access point's binding. Named requests can also select an interaction directly. There is not yet a dedicated menu exposing every interaction.
+
+Branch collection takes a whole batch of 2 and requires an owned tool with the `prune` capability, such as `pruning_knife`. Successful collection costs 1 tool condition and grants woodworking practice subject to skill caps. Bark and resin collection also require `prune` and cost 1 condition. Felling requires `fell_tree`, supplied by `woodcutting_axe`, costs 1 condition, changes the source to `stump` and discards its remaining supplies. Automatic regrowth is not implemented.
+
+Water fills an existing owned vessel, such as `wooden_bowl` with capacity 4. The amount is limited by available water and free vessel capacity. Full vessels and incompatible liquids cannot be filled. The vessel keeps its identity and other attributes; water does not become a loose inventory stack. Tools and vessels must be in top-level inventory or equipment. Their definitions do not automatically give them to characters; configure starting items or place obtainable tools in the world.
+
+### Independent tree
+
+Add this to the selected placement's Authoring TOML:
+
+```toml
+title = "Old orchard tree"
+description = "A broad tree with low, reachable branches."
+
+[resource]
+profile = "mature_tree"
+
+[resource.supplies.branches]
+initial = 8
+capacity = 12
+recovery_amount = 4
+recovery_interval_ms = 86400000
+```
+
+The tree profile exposes those four branch settings. It does not permit a placement to substitute outputs or invent an item. Output identifiers must exist in the ruleset. For finite supplies, omitted `initial` means full capacity; unlimited supplies omit capacity and initial stock entirely.
+
+To make normal **Use** collect bark at a tree access point, use:
+
+```toml
+[resource]
+profile = "mature_tree"
+interaction = "collect_bark"
+```
+
+The interaction must already exist in the profile. Different access parts can
+select different interactions while sharing the same explicit logical `instance`
+UUID; selecting an interaction does not change their shared supply policy.
+
+### River and shared well
+
+Bind river access points to the bundled `river` pool:
+
+```toml
+[resource]
+profile = "river"
+pool = "river"
+```
+
+Bind each access point for the village well to the same bundled pool:
+
+```toml
+[resource]
+profile = "finite_well"
+pool = "village_well"
+```
+
+A pool shares stock across access points, including points in different regions of the same world. Pool access bindings cannot override supplies or specify `instance`; the supplied pool definition owns those settings. For a well with its own independent stock and exposed local settings, omit `pool`.
+
+Independent source identity comes from the map and placement UUIDs, not the tile artwork. Different trees using one image have different stock. An optional, explicit non-nil `instance` UUID groups several parts into one logical source; all parts must resolve to the same policy. Conflicting owners are rejected. Copying a placement without an explicit instance creates an independent source; copying an explicit instance intentionally shares it.
+
+### Skeleton remains
+
+Opt a character into remains extraction by setting the character's mechanical `remains_profile` attribute to `skeleton_remains`. The initialization record is equivalent to:
+
+```toml
+[attributes]
+remains_profile = "skeleton_remains"
+```
+
+Set this through character configuration, separately from descriptive Authoring TOML. Death creates one logical remains source for that incarnation, reusing the loot corpse when present. Carried loot stays ordinary loot; the 6 potential bones belong to the resource supply and are not granted again as a random reward. Duplicate death notifications do not create another source. Expiry prevents further extraction without removing bones already collected.
+
+Use `remains_profile = "deer_remains"` on a character that should leave a
+skinnable hide. This selects gameplay supplies; it does not add deer artwork or
+a new creature catalogue. Authors choose the character appearance and behavior.
+
+### State, time and appearance
+
+Stock, phase, deadlines and source identity survive world save/reload. Recovery uses running simulation milliseconds, independent of player count, rendering and decorative calendar settings. Pausing or closing the world does not accumulate recovery. Choose durations to match your game's tempo; the large bundled values are literal simulation durations.
+
+When a full supply is depleted, its recovery interval starts. Further extraction does not restart that interval. Recovery stops at capacity and does not bank extra stock. Optional exploitation policies can suspend recovery; the bundled tree does not enable one by default.
+
+Actors contend for one authoritative supply in both local and hosted games. Extraction commits outputs, stock, tool wear and skill gain together. A failed action grants no partial output and charges no wear or practice; elapsed recovery or expiry can still settle. Existing source state is not replenished by inspection, reconnecting or editing the initial-stock value. Capacity, output and recovery-policy changes require migration; migration tooling remains planned.
+
+Optional `[resource.visual_tiles]` entries map appearances such as `healthy`, `sparse`, `bare` or `stump` to actual project tile UUIDs. Include a `healthy` fallback whenever supplying a visual map. Clients also receive semantic phase and supply information. These mappings change authored tile appearances; mesh and collision replacement, planting and growth are not yet implemented.
+
+The supplied [bone armor production chain](../official_rules#world-to-bone-armor-production)
+connects these sources to tools, stations, liquid-consuming processing recipes
+and all five armor pieces. Place at least one flint patch, one fallen timber
+source, one flax patch, two bark-bearing trees, river access, and enough
+hide/bone sources for the desired production. Four deer and four skeleton
+remains cover the worked full-set example. The default Actions catalogue
+provides crafting and [bone armor repair](../official_rules#bone-armor-wear-and-repair);
+the ruleset editor is not needed. Enchantments remain separate work. NPC participation and economic balancing are authored
+gameplay policies.
 
 ## Author a placed door or character
 

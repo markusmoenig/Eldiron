@@ -14,6 +14,7 @@ pub enum TextSessionOutput {
 
 #[derive(Default, Clone)]
 pub struct TextSession {
+    player: rusterix::party::PlayerView,
     initialized: bool,
     last_sector_id: Option<u32>,
     last_nearby_attackers: BTreeSet<String>,
@@ -30,7 +31,18 @@ impl TextSession {
     }
 
     pub fn reset(&mut self) {
+        let player = self.player;
         *self = Self::default();
+        self.player = player;
+    }
+
+    /// Bind a text observer explicitly; changing character revokes room history
+    /// and private output context without changing the authoritative map.
+    pub fn bind_player(&mut self, player: rusterix::party::PlayerView) {
+        if self.player != player {
+            self.player = player;
+            self.reset();
+        }
     }
 
     pub fn auto_attack_target(&self) -> Option<u32> {
@@ -52,32 +64,36 @@ impl TextSession {
         current_hour: Option<u8>,
     ) -> Vec<TextSessionOutput> {
         self.initialized = true;
-        self.last_sector_id = sg::current_player_and_sector(map).map(|(_, sector)| sector.id);
-        self.last_nearby_attackers = current_nearby_attackers(map, authoring);
-        self.last_room_items = current_room_items(map, authoring);
+        self.last_sector_id =
+            sg::current_player_and_sector_for(map, self.player).map(|(_, sector)| sector.id);
+        self.last_nearby_attackers = current_nearby_attackers(map, authoring, self.player);
+        self.last_room_items = current_room_items(map, authoring, self.player);
         self.last_announced_hour = current_hour;
 
         match sg::authoring_startup_display(authoring) {
-            sg::StartupDisplay::Description => sg::render_current_sector_description(map)
-                .map(TextSessionOutput::Plain)
-                .or_else(|| {
-                    (sg::current_player_and_sector(map).is_none()
-                        && sg::build_text_room(map, authoring).is_some())
-                    .then_some(TextSessionOutput::RenderRoom)
-                })
-                .into_iter()
-                .collect(),
+            sg::StartupDisplay::Description => {
+                sg::render_current_sector_description_for(map, self.player)
+                    .map(TextSessionOutput::Plain)
+                    .or_else(|| {
+                        (sg::current_player_and_sector_for(map, self.player).is_none()
+                            && sg::build_text_room_for(map, authoring, self.player).is_some())
+                        .then_some(TextSessionOutput::RenderRoom)
+                    })
+                    .into_iter()
+                    .collect()
+            }
             sg::StartupDisplay::Room => vec![TextSessionOutput::RenderRoom],
             sg::StartupDisplay::None => Vec::new(),
         }
     }
 
     pub fn after_movement(&mut self, map: &Map, authoring: &str) -> Vec<TextSessionOutput> {
-        self.last_sector_id = sg::current_player_and_sector(map).map(|(_, sector)| sector.id);
+        self.last_sector_id =
+            sg::current_player_and_sector_for(map, self.player).map(|(_, sector)| sector.id);
         self.suppress_next_sector_render = self.last_sector_id;
         self.suppress_next_description_for_sector = self.last_sector_id;
-        self.last_nearby_attackers = current_nearby_attackers(map, authoring);
-        self.last_room_items = current_room_items(map, authoring);
+        self.last_nearby_attackers = current_nearby_attackers(map, authoring, self.player);
+        self.last_room_items = current_room_items(map, authoring, self.player);
         vec![TextSessionOutput::RenderRoom]
     }
 
@@ -93,7 +109,8 @@ impl TextSession {
     ) -> Vec<TextSessionOutput> {
         let mut output = Vec::new();
         let mut rendered_room_this_update = false;
-        let current_sector_id = sg::current_player_and_sector(map).map(|(_, sector)| sector.id);
+        let current_sector_id =
+            sg::current_player_and_sector_for(map, self.player).map(|(_, sector)| sector.id);
 
         if !self.initialized {
             output.extend(self.startup(map, authoring, current_hour));
@@ -110,20 +127,18 @@ impl TextSession {
                 output.push(TextSessionOutput::RenderRoom);
                 rendered_room_this_update = true;
             }
-            self.last_nearby_attackers = current_nearby_attackers(map, authoring);
+            self.last_nearby_attackers = current_nearby_attackers(map, authoring, self.player);
         }
 
-        let player_id = sg::current_player_and_sector(map).map(|(player, _)| player.id);
-        let current_description = sg::render_current_sector_description(map);
+        let player_id = self.player.entity_id(map);
+        let current_description = sg::render_current_sector_description_for(map, self.player);
         let mut saw_death = false;
 
         for (sender_entity, _sender_item, receiver_id, message, category) in messages.drain(..) {
             if saw_death {
                 break;
             }
-            if let Some(player_id) = player_id
-                && receiver_id != player_id
-            {
+            if player_id.is_none_or(|player_id| receiver_id != player_id) {
                 continue;
             }
             if auto_attack_on_attack
@@ -184,8 +199,8 @@ impl TextSession {
             self.last_announced_hour = Some(hour);
         }
 
-        let current_nearby_attackers = current_nearby_attackers(map, authoring);
-        let current_room_items = current_room_items(map, authoring);
+        let current_nearby_attackers = current_nearby_attackers(map, authoring, self.player);
+        let current_room_items = current_room_items(map, authoring, self.player);
         if !rendered_room_this_update && !saw_death {
             let new_attackers: Vec<String> = current_nearby_attackers
                 .difference(&self.last_nearby_attackers)
@@ -229,14 +244,22 @@ impl TextSession {
     }
 }
 
-fn current_nearby_attackers(map: &Map, authoring: &str) -> BTreeSet<String> {
-    sg::build_text_room(map, authoring)
+fn current_nearby_attackers(
+    map: &Map,
+    authoring: &str,
+    player: rusterix::party::PlayerView,
+) -> BTreeSet<String> {
+    sg::build_text_room_for(map, authoring, player)
         .map(|room| room.nearby_attackers.into_iter().collect())
         .unwrap_or_default()
 }
 
-fn current_room_items(map: &Map, authoring: &str) -> BTreeSet<String> {
-    sg::build_text_room(map, authoring)
+fn current_room_items(
+    map: &Map,
+    authoring: &str,
+    player: rusterix::party::PlayerView,
+) -> BTreeSet<String> {
+    sg::build_text_room_for(map, authoring, player)
         .map(|room| room.items.into_iter().collect())
         .unwrap_or_default()
 }

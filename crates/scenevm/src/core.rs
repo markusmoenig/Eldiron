@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use uuid::Uuid;
 use vek::{Mat3, Vec2, Vec4};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 /// The Geometry Identifier for polygons and triangles.
 pub enum GeoId {
     Unknown(u32),
@@ -529,7 +529,7 @@ pub enum Atom {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u32)]
 pub enum PaletteRemap2DMode {
     #[default]

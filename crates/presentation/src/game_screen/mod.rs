@@ -59,6 +59,7 @@ struct ScreenGeometry {
 
 pub struct GameScreenController {
     session: Uuid,
+    player_scope: rusterix::party::PlayerView,
     hud: hud::Hud,
     tooltips: tooltip::Tooltips,
     tooltip_shortcuts: FxHashMap<String, Vec<String>>,
@@ -108,7 +109,7 @@ impl GameScreenController {
     /// captures are not transferred. Hosts call this before preparing the new
     /// screen, and return the owners to the old screen if preparation fails.
     pub fn retain_session_presentation_from(&mut self, previous: &mut Self, fonts: &mut GameFonts) {
-        if self.session == previous.session {
+        if self.session == previous.session && self.player_scope == previous.player_scope {
             self.sources = std::mem::take(&mut previous.sources);
             self.stamp_sources = std::mem::take(&mut previous.stamp_sources);
             self.source_wake = previous.source_wake.clone();
@@ -196,6 +197,7 @@ impl GameScreenController {
     fn with_elements(name: &str, world: &RuntimeView<'_>, elements: ScreenElements) -> Self {
         Self {
             session: world.session_id,
+            player_scope: world.player,
             hud: Default::default(),
             tooltips: Default::default(),
             tooltip_shortcuts: Default::default(),
@@ -244,10 +246,11 @@ impl GameScreenController {
     /// the first fresh batch must survive, and stale choices/IME must not act
     /// during the interval before the next frame. Authored bindings survive.
     fn bind_runtime(&mut self, world: &RuntimeView<'_>) -> bool {
-        if self.session == world.session_id {
+        if self.session == world.session_id && self.player_scope == world.player {
             return false;
         }
         self.session = world.session_id;
+        self.player_scope = world.player;
         self.hud = Default::default();
         self.tooltips.clear();
         self.tooltip_shortcuts.clear();
@@ -297,12 +300,13 @@ impl GameScreenController {
         self.world_texts.receive(world, events);
         let map = world.map.unwrap_or(&self.empty_map);
         for widget in &mut self.elements.messages_widgets {
-            widget.queue_messages(
+            widget.queue_messages_for(
                 world.assets,
                 map,
                 &world.time,
                 &events.messages,
                 &events.choices,
+                world.player,
             );
         }
     }
@@ -396,8 +400,7 @@ impl GameScreenController {
             if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide) {
                 continue;
             }
-            let Some(entity) = screen_model::resolve_party_entity(map, widget.party.as_deref())
-            else {
+            let Some(entity) = world.party_entity(map, widget.party.as_deref()) else {
                 continue;
             };
             let outline = widget.prepare_outline(entity, world.assets);
@@ -414,8 +417,7 @@ impl GameScreenController {
                 continue;
             }
             widget.animation_frame = animation_frame;
-            let Some(entity) = screen_model::resolve_party_entity(map, widget.party.as_deref())
-            else {
+            let Some(entity) = world.party_entity(map, widget.party.as_deref()) else {
                 self.profiles.remove(id);
                 continue;
             };
@@ -436,8 +438,7 @@ impl GameScreenController {
             if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide) {
                 continue;
             }
-            let Some(entity) = screen_model::resolve_party_entity(map, widget.party.as_deref())
-            else {
+            let Some(entity) = world.party_entity(map, widget.party.as_deref()) else {
                 continue;
             };
             if widget.portrait {
@@ -561,6 +562,7 @@ impl GameScreenController {
         let mut graphical_views = Vec::new();
         let mut world_order = Vec::new();
         for (key, widget) in &mut self.elements.game_widgets {
+            widget.player_view = world.player;
             if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide) {
                 if let Some(id) = self.view_ids.get(key) {
                     views.set_surface_paint_source(*id, None).map_err(|e| e.to_string())?;

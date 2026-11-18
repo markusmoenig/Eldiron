@@ -17,6 +17,7 @@ mod mouse_look;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct Binding {
     session: Uuid,
+    player: rusterix::party::PlayerView,
     region: Option<Uuid>,
     active: bool,
     revision: ContentRevision,
@@ -29,6 +30,7 @@ impl Binding {
         }
         Some(Self {
             session: world.session_id,
+            player: world.player,
             region: world.map.map(|map| map.id),
             active: world.state != ServerState::Off,
             revision,
@@ -37,6 +39,7 @@ impl Binding {
     }
     fn same_source(self, other: Self) -> bool {
         self.session == other.session
+            && self.player == other.player
             && self.active == other.active
             && self.region == other.region
             && self.revision == other.revision
@@ -569,7 +572,7 @@ impl GameScreenController {
             {
                 continue;
             }
-            if let Some(entity) = screen_model::resolve_party_entity(map, w.party.as_deref()) {
+            if let Some(entity) = world.party_entity(map, w.party.as_deref()) {
                 targets.push(DropTarget {
                     source: DropOwner::Profile(id),
                     rect: w.rect,
@@ -590,7 +593,7 @@ impl GameScreenController {
             {
                 continue;
             }
-            if let Some(entity) = screen_model::resolve_party_entity(map, w.party.as_deref()) {
+            if let Some(entity) = world.party_entity(map, w.party.as_deref()) {
                 targets.push(DropTarget {
                     source: DropOwner::Button(id),
                     rect: w.rect,

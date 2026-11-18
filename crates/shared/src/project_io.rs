@@ -172,6 +172,9 @@ pub fn decode_project(bytes: &[u8]) -> Result<Project, String> {
 }
 
 pub fn encode_project(project: &Project) -> Result<Vec<u8>, String> {
+    if project.client_release.is_some() {
+        return Err("Public client releases cannot be saved as authored projects".into());
+    }
     let mut archived_project = project.clone();
     for error in crate::isometric::synchronize(&mut archived_project) {
         eprintln!("{error}");

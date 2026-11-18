@@ -31,6 +31,7 @@ pub(crate) struct DisplayDefaults {
 struct ParsedRulesCache {
     source: String,
     table: Option<Arc<Table>>,
+    values: Option<Arc<crate::effective_values::ValueRules>>,
 }
 
 /// A startup asset snapshot shared by region runtimes. Region-local edits detach
@@ -289,9 +290,25 @@ impl Assets {
             *cache = Some(ParsedRulesCache {
                 source: self.rules.clone(),
                 table: table.clone(),
+                values: None,
             });
         }
         table
+    }
+
+    pub fn value_rules(&self) -> Option<Arc<crate::effective_values::ValueRules>> {
+        if let Ok(slot) = self.parsed_rules.read()
+            && let Some(cache) = slot.as_ref()
+            && cache.source == self.rules
+            && let Some(values) = &cache.values
+        { return Some(values.clone()); }
+        let table = self.rules_table()?;
+        let values = Arc::new(crate::effective_values::ValueRules::resolve(&table).ok()?);
+        if let Ok(mut slot) = self.parsed_rules.write()
+            && let Some(cache) = slot.as_mut()
+            && cache.source == self.rules
+        { cache.values = Some(values.clone()); }
+        Some(values)
     }
 
     /// Keep presentation on the configured server tick without parsing the

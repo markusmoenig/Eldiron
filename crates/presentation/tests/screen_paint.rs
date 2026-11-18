@@ -37,6 +37,7 @@ fn screen_controls_paint_without_cpu_targets_and_keep_controller_geometry() {
     label.text = "Welcome {UI.name}".into();
     label.font_size = 22.;
     let input = TextInputWidget {
+            secret: false,
         name: "Name".into(),
         id: 1,
         rect: Rect::new(16., 70., 260., 36.),

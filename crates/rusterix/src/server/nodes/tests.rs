@@ -537,7 +537,8 @@ fn gate_characters_are_converted_and_their_graphs_compile() {
     let Some((characters, graphs)) = gate_character_graphs() else {
         return;
     };
-    assert_eq!(characters.len(), 5, "Gate ships five characters");
+    let names: std::collections::BTreeSet<_> = characters.iter().map(|(name, _)| name.as_str()).collect();
+    assert_eq!(names, std::collections::BTreeSet::from(["Guard", "Player"]));
     for (name, character) in &characters {
         let id = character["id"].as_str().unwrap_or_default();
         let document = graphs
@@ -2523,8 +2524,9 @@ fn hideout2d_nessa_opens_her_stock_from_the_shipped_graph() {
         "the stock has to open as a choice list, got {messages:?}"
     );
 
-    // The second branch is advice in a separate Prompt.
-    run_intent(&mut ctx);
+    // Advice is a separate conversation; the stock choice list above is still
+    // open and correctly prevents another greeting from replacing its session.
+    let (mut ctx, receiver) = run_shipped_character("Quartermaster Nessa").unwrap();
     let _ = drain_messages(&receiver);
     ctx.dialog_choices.insert(2, DialogChoiceMade::Index(1));
     region::tick(&mut ctx);
@@ -2989,4 +2991,21 @@ fn stonefall_ramps_are_continuous_and_the_prefab_gate_controls_passage() {
         .move_towards_on_floors_direct(start, end, 3., 0.35, 1., 0.5)
         .unwrap();
     assert!(opened.z > 28.8, "open leaves clear the passage: {opened:?}");
+}
+
+#[test]
+fn durable_scheduler_restore_does_not_synthesize_startup_or_repeat_completed_effects() {
+    let plan=Arc::new(Registry::builtin().compile(&graph("startup","Once")).unwrap());
+    let mut runtime=Runtime::default();let mut output=Output::default();
+    let handle=runtime.attach_shared(Uuid::new_v4(),Uuid::new_v4(),1,Some(plan.clone())).unwrap();
+    runtime.send(handle,"startup",BTreeMap::new(),0);runtime.update(&mut output);
+    assert_eq!(output.0,["Once"]);
+    let saved=serde_json::from_str(&serde_json::to_string(&runtime.save()).unwrap()).unwrap();
+    let mut restored=Runtime::restore(&saved,Some(plan.clone())).unwrap();
+    restored.update(&mut output);restored.update(&mut output);assert_eq!(output.0,["Once"]);
+    // A not-yet-processed event survives, with its original actor incarnation.
+    restored.send(handle,"startup",BTreeMap::new(),1);
+    let saved=serde_json::from_str(&serde_json::to_string(&restored.save()).unwrap()).unwrap();
+    let mut restored=Runtime::restore(&saved,Some(plan)).unwrap();restored.update(&mut output);restored.update(&mut output);
+    assert_eq!(output.0,["Once","Once"]);
 }

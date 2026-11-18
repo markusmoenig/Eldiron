@@ -108,13 +108,13 @@ impl GameScreenController {
             let command = screen_model::resolved_widget_command(
                 widget,
                 world.assets,
-                screen_model::resolve_party_entity(map, widget.party.as_deref()),
+                world.party_entity(map, widget.party.as_deref()),
                 &self.elements.ui_state,
             );
             if command.as_deref().is_some_and(|command| {
                 !rusterix::client::rules_ui::command_state(
                     world.assets,
-                    screen_model::resolve_party_entity(map, widget.party.as_deref()),
+                    world.party_entity(map, widget.party.as_deref()),
                     command,
                 )
                 .enabled

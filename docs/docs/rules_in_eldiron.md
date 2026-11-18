@@ -13,15 +13,28 @@ resolution, project-owned rules, and rule testing.
 
 The bundled official rules are currently compiled from `crates/ruleset/rulesets/eldiron/v1/rules.graph.json`. New projects receive their own rules document, including an original and recovery checkpoints. Project storage and runtime resolution use that document; the former project rules graph is no longer the authoring source.
 
-## Game / Rules
+The split TOML files beside the bundled graph, including `world_resources.toml`, are reference fixtures used for verification. Changing a reference fixture alone does not change the bundled rules.
 
-The rules editor provides a searchable catalogue and a property inspector. Select a definition to edit its existing values, add fields, or duplicate and rename it. List entries can be added, removed, and reordered. Icon fields offer an artwork selector and preview, and particle presets show an animated preview. See [Ruleset Editor](./creator/docks/ruleset_nodes) for the workflow.
+## Internal Ruleset Maintenance
 
-Valid changes refresh running and paused games. Invalid rules remain saved, while a running game retains its last valid rules and new play sessions are blocked until errors are repaired. Checkpoint, recovery, and undo support experimentation.
+Normal Creator builds hide the ruleset editor from the project tree, menus and
+dock registry. Creators use the supplied content and build acquisition paths in
+their worlds. Hiding this UI does not replace, strip or reinitialize the rules
+document, templates or saved item identities.
+
+Maintainer builds can opt in with the `internal-rules-editor` Cargo feature.
+The retained editor provides a searchable catalogue and property forms, list
+editing, icon selection, particle previews and recovery. See the
+[internal editor reference](./creator/docks/ruleset_nodes). The feature changes
+authoring access only; runtime rules are resolved the same way in all builds.
+
+Compatible valid changes refresh running and paused games. Invalid rules remain saved, while a running game retains its last valid rules and new play sessions are blocked until errors are repaired. Existing resource policy changes can require state migration; editing initial stock does not refill a live source. Checkpoint, recovery, and undo support experimentation.
+
+The shared catalogue normalizes stable definition identities independently of storage paths and item-template UUIDs. Item identifiers must be unique across item groups. **Armor Family** adds a guided five-piece bone-pattern family using ordinary recipes, actions and equipment definitions, with a preview and atomic Undo/Redo. See [Create a bone armor family](./creator/docks/ruleset_nodes#create-a-bone-armor-family).
 
 Projects currently own complete rules documents. Inherited deltas and upgrade conflict handling remain future work. Game / Settings still supplies asset and locale lookup; it does not replace the owned document or apply `update_policy` to it.
 
-Global definitions own gameplay policy. Character and item configuration graphs select those definitions and author entity-specific settings. Ruleset timing uses seconds; world scheduling commands still use in-game minutes.
+Global definitions own gameplay policy. Character and item configuration graphs select those definitions and author entity-specific settings. Timing units are explicit per subsystem: existing action timing uses seconds, world scheduling commands use in-game minutes, and world resource recovery/expiry use simulation milliseconds.
 
 ## Locales And Assets
 
@@ -688,7 +701,18 @@ Regenerating resources use top-level `resource_regen` rules. For example,
 progress between ticks, and clamps the result to `MAX_MP`. This keeps MP
 restoration in the ruleset instead of in individual behavior graphs or screen widgets.
 
-Resource nodes are separate from inventory materials. For example,
+Map-bound resources use `resource_profiles` and `resource_pools` in the same
+project rules document. Authoring binds a sector, linedef or Geometry Object to
+a profile; artwork alone does not create supplies. Bundled profiles cover a
+multi-supply tree, an unlimited river, a finite recovering well and skeleton
+remains. Extraction shares authoritative stock, tool/vessel checks and atomic
+commitment across solo and hosted play. Saved identity and stock survive reload;
+recovery uses running simulation time with no offline catch-up. See
+[Bind world resources](./creator/authoring#bind-world-resources) for working TOML,
+shared pools, death-linked remains and current limitations.
+
+Legacy resource-item nodes remain supported separately from inventory materials.
+For example,
 `wild_herb_node` is a placed world item with `static = true`, `resource_id =
 "wild_herb_node"`, `respawn = 300`, and `amount = 2`. Gathering it with
 `gather_herbs` adds `wild_herb x2` to the actor's inventory, hides the node, and
@@ -718,6 +742,106 @@ craft ember beads
 
 When no target is named, the text command chooses the nearest visible resource
 node for that action and leaves range validation to the rules action.
+
+## Recipe Commitment
+
+The supplied [bone production chain](./official_rules#world-to-bone-armor-production)
+uses the same item identities and crafting action path in local and hosted play.
+Recipe `consumes` entries naming an item with `quantity_unit = "volume"` debit
+matching contents from top-level owned/equipped vessels, preserving those vessels.
+Solid inputs still come from inventory stacks. All quantities are aggregated
+with action item costs before commitment; insufficient materials, liquid, usable
+tools, deployed stations or output capacity leave action effects unchanged.
+
+Enforced recipe requirements use records such as
+`tool = { capability = "carve_bone", condition_cost = 1 }` and
+`station = { capability = "bonework", range = 2.0 }`. Stations must be visible,
+usable root world items within the declared 3D range. Carrying a station does not
+grant its capability. Legacy text station values remain descriptive hints.
+`fixed_quality = 100` selects the bone slice's fixed quality; absent that field,
+the existing skill-based quality calculation applies. Crafts are immediate;
+scheduled work, reservations and liquid recipe output policies remain separate.
+
+A repair recipe declares `repair = { family = "bone_armor", amount = 20, maximum = 100 }`
+and no produced items or replacement quality. Its action uses `target = "item"`.
+The existing owned-item request supplies the exact runtime item ID; the planner
+checks ownership and family membership and mutates only that item's condition.
+It shares material, tool, station, action-cost and retry behavior with crafting.
+
+Equipment categories may declare `requires_positive_condition = true` and a
+wear record such as `wear = { damage_kind = "physical", slot = "torso", condition_cost = 1 }`.
+Wear runs after a committed event actually lowers health. Equipment contribution
+eligibility is shared by combat and equipment-stat presentation. Categories
+without these fields keep their earlier behavior; this does not implement the
+complete universal contribution or enchantment contracts.
+
+### Passive wearer contributions
+
+Equipment categories can explicitly project item-local ratings into actor
+attributes:
+
+```toml
+[equipment.armor_categories.bone_armor]
+requires_positive_condition = true
+contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }]
+
+[enchantments.strength]
+name = "Strength"
+requires_positive_condition = true
+allowed_categories = ["bone_armor"]
+modifiers = [{ attribute = "STR", add = 2 }]
+
+[items.armor.example_cuirass]
+name = "Example Cuirass"
+category = "bone_armor"
+slot = "torso"
+enchantments = ["strength"]
+
+[items.armor.example_cuirass.attributes]
+ARMOR = 4
+```
+
+Targets must be declared numeric attributes. Modifiers support finite `add`,
+`multiply`, `minimum` and `maximum` values, with unique targets per enchantment.
+Allowed categories are optional restrictions; positive condition is required
+by default. These fields declare passive wearer behavior while equipped.
+
+The shared evaluator calculates a saved/derived baseline, sums applicable
+equipment, enchantment and stack-scaled condition additions, applies their
+combined multipliers, then minimum and maximum bounds. Derived dependencies
+use the same effective values. Maximum wins if contribution bounds conflict.
+Intermediate fractions retain the existing numeric behavior; this slice does
+not introduce a new combat rounding or quality curve.
+
+Each result has a structured source trace. Querying it never moves an item,
+changes saved attributes, spends charges or advances condition time. Explicit
+`armor.<attribute>` and `equipped.<attribute>` expressions remain item-rating
+queries; ordinary actor attributes include declared projections. The legacy
+structured damage adapter excludes ratings already projected into that same
+actor attribute, including a wielded focus's projected source bonus. Explicit
+custom combat formulas retain their authored meaning.
+
+Definition presets live in the normal item `enchantments` array. Item construction
+materializes unique attachment UUIDs in `item_enchantment_instances`, a serialized
+item-state attribute carried by existing saves and item deltas. Reapplying item
+data preserves existing attachments. Unmaterialized legacy presets have a stable
+compound identity including the actual runtime item ID, creator/template UUID,
+preset position and definition ID. A template UUID alone never identifies a
+contributing item instance. Trusted runtime attachment changes preserve these
+explicit instance identities. An explicit empty attachment list
+overrides presets after removal. Treat this state as runtime-owned data.
+
+One item cannot repeat an enchantment definition; distinct item sources combine.
+Items with enchantment state do not stack-merge. Invalid identities, references,
+ratings or non-finite candidate totals reject an equipment change before items
+move. Armor families can list optional `variants` in their existing covered
+slots; family repair accepts those variants without replacing the five-piece
+coverage list.
+
+The supplied Strength cuirass proves passive attachment, break/repair and
+ownership lifetime. Charged triggers, gameplay enchanting operations, talents,
+item-local modifier stages and advanced stacking/replacement groups still need
+their remaining contracts and implementation.
 
 ## Containers
 

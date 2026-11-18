@@ -528,6 +528,7 @@ fn sum_equipped_attr(entity: &crate::Entity, assets: &Assets, attr: &str, weapon
     entity
         .equipped
         .iter()
+        .filter(|(_, item)| crate::equipment_lifecycle::active(&policy, item))
         .filter(|(slot, _)| {
             slots
                 .iter()
@@ -537,20 +538,29 @@ fn sum_equipped_attr(entity: &crate::Entity, assets: &Assets, attr: &str, weapon
         .sum()
 }
 
-fn sum_all_equipped_attr(entity: &crate::Entity, attr: &str) -> f32 {
+fn sum_all_equipped_attr(entity: &crate::Entity, assets: &Assets, attr: &str) -> f32 {
+    let policy = assets
+        .rules_table()
+        .and_then(|rules| eldiron_ruleset::resolve_equipment_policy(&rules).ok())
+        .unwrap_or_default();
     entity
         .equipped
         .values()
+        .filter(|item| crate::equipment_lifecycle::active(&policy, item))
         .map(|item| item.attributes.get_float_default(attr, 0.0))
         .sum()
 }
 
 fn resolve_entity_attr(entity: &crate::Entity, attr: &str, assets: &Assets) -> String {
+    if let Some(attribute) = attr.strip_prefix("explain.") {
+        return assets.value_rules().and_then(|rules| rules.explain(entity, attribute, 0.0).ok())
+            .map(|value| value.summary()).unwrap_or_else(|| "Invalid effective value".into());
+    }
     if let Some(inner) = attr.strip_prefix("weapon.") {
         return fmt_scalar(sum_equipped_attr(entity, assets, inner, true));
     }
     if let Some(inner) = attr.strip_prefix("equipped.") {
-        return fmt_scalar(sum_all_equipped_attr(entity, inner));
+        return fmt_scalar(sum_all_equipped_attr(entity, assets, inner));
     }
     if let Some(inner) = attr.strip_prefix("armor.") {
         return fmt_scalar(sum_equipped_attr(entity, assets, inner, false));
@@ -562,9 +572,11 @@ fn resolve_entity_attr(entity: &crate::Entity, attr: &str, assets: &Assets) -> S
         return fmt_scalar(sum_equipped_attr(entity, assets, &attribute, true));
     }
     if attr.eq_ignore_ascii_case("ARMOR") {
-        let Some(attribute) = ruleset_attribute_role(assets, "armor") else {
-            return "0".to_string();
-        };
+        let Some(attribute) = ruleset_attribute_role(assets, "armor") else { return "0".into(); };
+        if let Some(rules) = assets.value_rules()
+            && rules.equipment.armor_categories.values().any(|c| c.contributions.iter().any(|p| p.attribute == attribute))
+            && let Ok(value) = rules.explain(entity, &attribute, 0.0)
+        { return fmt_scalar(value.value); }
         return fmt_scalar(sum_equipped_attr(entity, assets, &attribute, false));
     }
     if attr.eq_ignore_ascii_case("LEVEL") {
@@ -587,6 +599,15 @@ fn resolve_entity_attr(entity: &crate::Entity, attr: &str, assets: &Assets) -> S
         }
     }
 
+    if let Some(rules) = assets.value_rules()
+        && let Some(table) = assets.rules_table()
+        && eldiron_ruleset::contributions::declared_attribute(&table, attr)
+    {
+        match rules.explain(entity, attr, 0.0) {
+            Ok(value) => return fmt_scalar(value.value),
+            Err(_) => return "?".into(),
+        }
+    }
     if let Some(attr_val) = entity.attributes.get(attr) {
         format!("{}", attr_val)
     } else {
@@ -619,6 +640,35 @@ fn matches_token_syntax(value: &str) -> bool {
 #[cfg(test)]
 mod ruleset_equipment_tests {
     use super::*;
+
+    #[test]
+    fn broken_equipment_totals_reactivate_without_mutating_saved_actor_attributes() {
+        let mut assets = Assets::default();
+        assets.rules = eldiron_ruleset::document::RulesState::default().current;
+        let mut actor = crate::Entity::default();
+        actor.set_attribute("ARMOR", crate::Value::Int(7));
+        let mut item = crate::Item::default();
+        item.set_attribute("category", crate::Value::Str("bone_armor".into()));
+        item.set_attribute("slot", crate::Value::Str("torso".into()));
+        item.set_attribute("ARMOR", crate::Value::Int(4));
+        item.set_attribute("condition", crate::Value::Int(0));
+        actor.equipped.insert("torso".into(), item);
+        assert_eq!(resolve_entity_attr(&actor, "ARMOR", &assets), "7");
+        for name in ["armor.ARMOR", "equipped.ARMOR"] {
+            assert_eq!(resolve_entity_attr(&actor, name, &assets), "0");
+        }
+        actor.equipped.get_mut("torso").unwrap().set_attribute("condition", crate::Value::Int(20));
+        assert_eq!(resolve_entity_attr(&actor, "ARMOR", &assets), "11");
+        for name in ["armor.ARMOR", "equipped.ARMOR"] {
+            assert_eq!(resolve_entity_attr(&actor, name, &assets), "4");
+        }
+        assert_eq!(actor.attributes.get_int("ARMOR"), Some(7));
+        // An older category without this policy keeps its previous semantics.
+        let item = actor.equipped.get_mut("torso").unwrap();
+        item.set_attribute("category", crate::Value::Str("leather".into()));
+        item.set_attribute("condition", crate::Value::Int(0));
+        assert_eq!(resolve_entity_attr(&actor, "ARMOR", &assets), "11");
+    }
 
     #[test]
     fn equipment_placeholders_use_ruleset_owned_custom_slots() {

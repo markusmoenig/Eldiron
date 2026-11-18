@@ -42,7 +42,7 @@ impl GameScreenController {
             {
                 continue;
             }
-            let actor = screen_model::resolve_party_entity(map, widget.party.as_deref());
+            let actor = world.party_entity(map, widget.party.as_deref());
             if let Some(command) = screen_model::resolved_widget_command(
                 widget,
                 world.assets,

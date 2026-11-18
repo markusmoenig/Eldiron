@@ -89,7 +89,8 @@ impl ScreenPainter<'_> {
     pub fn text_input(&mut self, widget: &TextInputWidget, focused: bool) {
         self.text_input_chrome(widget, focused);
         let mut view = theframework::text_edit::EditorView::new(false);
-        view.editor.set_text(self.text, &widget.text);
+        let displayed=if widget.secret {"•".repeat(widget.text.chars().count())}else{widget.text.clone()};
+        view.editor.set_text(self.text, &displayed);
         view.set_focused(self.text, focused);
         view.prepare(
             self.text,

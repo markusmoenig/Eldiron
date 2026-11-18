@@ -89,6 +89,9 @@ pub struct IsometricSceneRenderer {
     ground_cache: ground_cache::GroundCache,
 }
 impl IsometricSceneRenderer {
+    pub fn set_player_view(&mut self, player: rusterix::party::PlayerView) {
+        self.scene.player_view = player;
+    }
     /// Asset overviews preserve authored source colors, without live lighting,
     /// emission or shadows. Coverage, contacts and terrain still run on the GPU.
     pub fn prepare_unlit(

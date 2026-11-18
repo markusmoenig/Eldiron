@@ -1161,3 +1161,6 @@ fn common_player_animation_uses_local_game_ticks_across_fps_changes_pause_and_ca
         "animation scheduling must not initialize presentation"
     );
 }
+
+#[cfg(not(target_arch="wasm32"))]
+mod online;

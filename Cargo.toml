@@ -1,7 +1,7 @@
 [workspace]
 exclude = ["vendor/parley"]
 
-members = ["crates/presentation", "crates/runtime", "crates/renderkit", "crates/theframework-core", "creator", "run-wasm", "crates/ruleset", "crates/shared", "clients/client", "crates/player", "clients/client-terminal", "crates/rusterix", "crates/theframework", "crates/scenevm", "crates/scepter", "crates/icon_builder", "crates/character_generator", "crates/materialz"]
+members = ["crates/network", "servers/dedicated", "clients/online", "crates/presentation", "crates/runtime", "crates/renderkit", "crates/theframework-core", "creator", "run-wasm", "crates/ruleset", "crates/shared", "clients/client", "crates/player", "clients/client-terminal", "crates/rusterix", "crates/theframework", "crates/scenevm", "crates/scepter", "crates/icon_builder", "crates/character_generator", "crates/materialz"]
 resolver = "2"
 
 [workspace.dependencies]

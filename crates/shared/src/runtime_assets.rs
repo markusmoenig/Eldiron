@@ -1458,6 +1458,57 @@ pub fn start_server(
     project: &mut Project,
     debug: bool,
 ) -> Result<(), String> {
+    start_server_restored(server, assets, project, debug, None)
+}
+
+/// Restore bootstrap compiles content and builds services without spawning,
+/// grants, setup callbacks or Startup. State is installed before Running.
+pub fn start_server_restored(
+    server: &mut rusterix::Server, assets: &mut rusterix::Assets,
+    project: &mut Project, debug: bool,
+    restored: Option<&rusterix::server::persistence::WorldRecord>,
+) -> Result<(), String> {
+    if project.client_release.is_some() {return Err("Public client releases cannot start an authoritative world".into());}
+    server.clear();
+    server.debug_mode = debug;
+    server.set_restore_bootstrap(restored.is_some());
+    server.log_changed = true;
+    prepare_client_content(assets,project,debug)?;
+    let region_assets = rusterix::server::assets::RegionAssets::for_regions(assets);
+    // Create the regions without cloning textures and behavior graphs per map.
+    for region in &project.regions {
+        let region_config = crate::project::merge_config_toml(&project.config, &region.config);
+        server.create_region_instance_with_shared_assets(
+            region.name.clone(),
+            region.map.clone(),
+            &region_assets,
+            region_config,
+        );
+    }
+
+    server.set_restore_bootstrap(false);
+    if let Some(record) = restored {
+        let prepared = server.prepare_durable_world(record)?;
+        server.apply_durable_world(prepared);
+        server.set_state(rusterix::ServerState::Running);
+        return Ok(());
+    }
+    // Wait for the region to be created
+    #[cfg(not(target_arch = "wasm32"))]
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    // Set the time for each region to the project time
+    for region in &mut project.regions {
+        server.set_time(&region.map.id, project.time);
+    }
+
+    server.set_state(rusterix::ServerState::Running);
+    Ok(())
+}
+
+/// Prepare CPU display content without creating a world, compiling/running VM
+/// instances or granting starter items. Remote players consume server snapshots.
+pub fn prepare_client_content(assets:&mut rusterix::Assets,project:&mut Project,debug:bool)->Result<(),String> {
+    if project.client_release.is_some() {return crate::public_client::prepare(assets,project);}
     let iso_errors = crate::isometric::synchronize(project);
     if !iso_errors.is_empty() {
         return Err(iso_errors.join("; "));
@@ -1468,9 +1519,6 @@ pub fn start_server(
     }
     crate::entity_graph::synchronize(project)
         .map_err(|error| format!("Entity configuration: {error}"))?;
-    server.clear();
-    server.debug_mode = debug;
-    server.log_changed = true;
     // Change only behavior execution. Keep the established region/client startup,
     // screen configuration and character-selection registration path intact.
     assets.node_behaviors = Some(rusterix::server::nodes::region::BehaviorAssets {
@@ -1493,6 +1541,17 @@ pub fn start_server(
     });
 
     insert_content_into_maps_mode(project, debug);
+    let resource_rules = crate::rulesets::document::RulesDocument::parse(&rules_source)?;
+    let mut resource_owners = std::collections::BTreeMap::new();
+    for region in &project.regions {
+        let accesses = rusterix::server::region::resources::accesses(&region.map, resource_rules.table())
+            .map_err(|error|format!("World resources in '{}': {error}",region.name))?;
+        for access in accesses.values() {
+            if resource_owners.insert(access.source.clone(), access.profile.clone()).is_some_and(|old|old != access.profile) {
+                return Err(format!("Shared resource '{}' has conflicting policies",access.source));
+            }
+        }
+    }
     assets.config = project.config.clone();
     assets.rules = rules_source;
     assets.read_rules_metadata();
@@ -1553,26 +1612,5 @@ pub fn start_server(
         .iter()
         .map(|r| (r.name.clone(), r.map.clone()))
         .collect();
-    let region_assets = rusterix::server::assets::RegionAssets::for_regions(assets);
-    // Create the regions without cloning textures and behavior graphs per map.
-    for region in &project.regions {
-        let region_config = crate::project::merge_config_toml(&project.config, &region.config);
-        server.create_region_instance_with_shared_assets(
-            region.name.clone(),
-            region.map.clone(),
-            &region_assets,
-            region_config,
-        );
-    }
-
-    // Wait for the region to be created
-    #[cfg(not(target_arch = "wasm32"))]
-    std::thread::sleep(std::time::Duration::from_millis(10));
-    // Set the time for each region to the project time
-    for region in &mut project.regions {
-        server.set_time(&region.map.id, project.time);
-    }
-
-    server.set_state(rusterix::ServerState::Running);
     Ok(())
 }

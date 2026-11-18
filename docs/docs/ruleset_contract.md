@@ -17,6 +17,15 @@ records the current implementation status.
 
 ## Purpose
 
+One integrated default RPG ruleset must serve both small class-based adventures
+and open sandbox worlds. A small game can expose Fighter or Ranger; a sandbox
+can expose an unrestricted Human and use talents and learned skills. Creators
+build worlds from supplied content and choose starting options. Generic ruleset
+editing is internal maintenance tooling, hidden in standard Creator builds;
+ordinary authors do not enable or configure each equipment family. Both paths
+use the same project-owned rules document. Science-fiction RPG content fits this scope; supporting
+every gameplay genre, such as a general RTS framework, is not a product goal.
+
 Eldiron must support games that:
 
 - use the bundled Eldiron Official Ruleset unchanged
@@ -44,8 +53,8 @@ types.
 ### Rules Stay Authorable
 
 Rules are authored as structured data with stable definition identifiers and
-project-local assets. Creator provides a catalogue, property controls and
-specialized previews over the same document. Authors do not edit Rust types or
+project-local assets. Internal maintenance builds provide a catalogue, property
+controls and specialized previews over the same document. Maintainers do not edit Rust types or
 a compiled runtime representation.
 
 The official ruleset must be authored through the same public format and
@@ -66,6 +75,17 @@ Targeting, cost, cooldown, and effects must not be independently duplicated
 across an action and the spell or ability that exposes it. The ownership model
 below defines where each kind of information belongs.
 
+World materials must have authored origins. Resource profiles define registered
+outputs and extraction policies; map bindings identify access to independently
+owned or shared supplies. Vendors transfer or produce accounted goods rather
+than serving as unexplained material sources. Definition presence, availability
+for a particular use, world placement and saved instances are separate concerns;
+hiding content from a player choice must not delete its definitions or instances.
+
+Solo and online games share resource identity, validation and commitment
+semantics. Population-sensitive NPC production and trade are author-defined
+gameplay, not mandatory economic behavior in every ruleset.
+
 ### Documentation Is Part Of The Contract
 
 Schema reference and factual rulebook tables must be generated or verified from
@@ -74,7 +94,9 @@ its validation, tests, or applicable documentation are out of date.
 
 ## Authoring Modes
 
-Eldiron supports three conceptual authoring modes.
+The following three modes describe the target package model. Current Creator
+editing uses the complete project-owned document described above; it does not
+store inherited deltas or provide the package upgrade workflows below.
 
 ### Official With Project Overrides
 
@@ -89,8 +111,9 @@ source = "official"
 update_policy = "compatible"
 ```
 
-**Game / Rules** stores only project-specific differences. Table overrides merge
-onto the selected base ruleset.
+In this target mode, **Game / Rules** would store project-specific differences,
+with table overrides merging onto the selected base ruleset. Today it stores the
+complete project rules document.
 
 ### Derived Ruleset
 

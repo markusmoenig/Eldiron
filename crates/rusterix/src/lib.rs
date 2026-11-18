@@ -1,6 +1,7 @@
 //! Rusterix is a fast software renderer for 2D and 3D triangles and lines.
 //! Its goals are to provide an easy and portable alternative to hardware rasterization for retro and low-poly games.
 
+pub mod diagnostics;
 pub mod audio;
 pub mod avatar;
 #[cfg(feature = "graphics")]
@@ -14,8 +15,12 @@ pub mod client;
 #[cfg(feature = "graphics")]
 pub use client::text_command;
 pub mod collision_world;
+pub mod simulation;
+pub mod movement;
 pub mod command;
 pub mod edge;
+pub mod equipment_lifecycle;
+pub mod effective_values;
 pub mod editor_colors;
 #[cfg(feature = "graphics")]
 pub mod editor_view;

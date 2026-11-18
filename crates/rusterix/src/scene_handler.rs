@@ -516,6 +516,18 @@ mod tests {
         other.position.x += 1.0;
         assert!(SceneHandler::draws_entity_body_3d(&other, &camera));
         other.position = player.position;
+        player.id = 1;
+        other.id = 2;
+        assert!(SceneHandler::draws_entity_body_3d_for(
+            &other,
+            &camera,
+            crate::party::PlayerView::Controlled(1)
+        ));
+        assert!(!SceneHandler::draws_entity_body_3d_for(
+            &player,
+            &camera,
+            crate::party::PlayerView::Controlled(1)
+        ));
         other.set_attribute("player", Value::Bool(false));
         assert!(SceneHandler::draws_entity_body_3d(&other, &camera));
         let iso = crate::D3IsoCamera::new();
@@ -695,6 +707,7 @@ pub struct SceneHandler {
     pub settings: RenderSettings,
     pub base_settings: RenderSettings,
     pub runtime_render_state: RuntimeRenderState,
+    pub player_view: crate::party::PlayerView,
 
     // Billboards for dynamic doors/gates (indexed by GeoId for fast lookup)
     pub billboards: FxHashMap<GeoId, BillboardMetadata>,
@@ -2838,6 +2851,7 @@ impl SceneHandler {
             settings: RenderSettings::default(),
             base_settings: RenderSettings::default(),
             runtime_render_state: RuntimeRenderState::default(),
+            player_view: Default::default(),
 
             billboards: FxHashMap::default(),
             billboard_anim_states: FxHashMap::default(),
@@ -3153,10 +3167,24 @@ impl SceneHandler {
         hasher.finish()
     }
 
+    #[cfg(test)]
     fn draws_entity_body_3d(entity: &Entity, camera: &dyn D3Camera) -> bool {
+        Self::draws_entity_body_3d_for(entity, camera, crate::party::PlayerView::Legacy)
+    }
+
+    fn draws_entity_body_3d_for(
+        entity: &Entity,
+        camera: &dyn D3Camera,
+        view: crate::party::PlayerView,
+    ) -> bool {
         let camera_pos = camera.position();
         let camera_xz = Vec2::new(camera_pos.x, camera_pos.z);
-        !(entity.is_player()
+        let controlled = match view {
+            crate::party::PlayerView::Legacy => entity.is_player(),
+            crate::party::PlayerView::Controlled(id) => entity.id == id,
+            crate::party::PlayerView::Uncontrolled => false,
+        };
+        !(controlled
             && camera.id() == "firstp"
             && (entity.get_pos_xz() - camera_xz).magnitude_squared() <= 1e-8)
     }
@@ -4319,7 +4347,7 @@ impl SceneHandler {
 
                 // First-person body suppression is local to this view, independent of
                 // entity visibility. Keep the player's and carried items' lights above.
-                if !Self::draws_entity_body_3d(entity, camera) {
+                if !Self::draws_entity_body_3d_for(entity, camera, self.player_view) {
                     continue;
                 }
                 let size = entity.attributes.get_float_default("size", 2.0).max(0.01);
@@ -4466,7 +4494,9 @@ impl SceneHandler {
 
         // Items
         for (item_index, item) in map.items.iter().enumerate() {
-            if camera.id() == "iso" && crate::isometric::item_cutaway(map, item) {
+            if camera.id() == "iso"
+                && crate::isometric::item_cutaway_for(map, item, self.player_view)
+            {
                 continue;
             }
 

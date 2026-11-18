@@ -146,7 +146,7 @@ impl HudState {
         if let Some(frame) = self.catalog_frame(world, elements) {
             frames.push(frame);
         }
-        let Some(actor) = screen_model::resolve_party_entity(map, None) else {
+        let Some(actor) = world.party_entity(map, None) else {
             return frames;
         };
         if let Some(open) = &self.inventory {

@@ -44,12 +44,12 @@ encounter tools, localization, and balancing support.
 ## How To Read The Rules
 
 The official ruleset is a tabletop-style rulebook. This guide explains how the
-rules play. Edit project definitions through **Game / Rules**; see the
-[Ruleset Editor](./creator/docks/ruleset_nodes) for the authoring workflow.
+rules play. Game creators build worlds from the supplied content and choose
+starting options. Standard Creator builds do not expose ruleset definition editing.
 Creator, clients, runtime systems, and tools use the resolved project rules.
 
-TOML examples on this page describe fields for reference. In Creator, edit them
-through the catalogue and forms.
+TOML examples on this page describe underlying fields for reference; they are
+not configuration steps required to build a game.
 
 | Rulebook term | Compiled field | Used by |
 | --- | --- | --- |
@@ -437,11 +437,12 @@ requiring authored skill points.
 Crafted items use two numeric percentages:
 
 - `quality`: `1..100`, how well the item was made
-- `condition`: `1..100`, current wear or damage
+- `condition`: `0..100`, current wear or damage; zero is broken for equipment that declares this policy
 
 Crafted items start with `condition = 100`. Their `quality` is calculated from
 recipe difficulty, recommended skill, the crafter's matching skill, and the
-supporting attribute. Weapon damage scales by both quality and condition.
+supporting attribute, unless the recipe explicitly fixes output quality. The
+bone production recipes use quality 100. Weapon damage scales by both quality and condition.
 
 ### Recipes
 
@@ -485,6 +486,151 @@ custom wounded `HP = 1`, are preserved.
 Class starting loadouts are applied only when a character does not define its
 own startup item attributes. This keeps the official defaults useful while still
 allowing special templates.
+
+### World-to-bone armor production
+
+The supplied rules now include a complete bone armor chain. Creators place its
+sources and encounters; no armor-family enable switch or ruleset editing is
+required. Current default classes expose the recipes in the **Actions** catalogue.
+These beginner recipes are open from skill zero and need no paid lesson or
+vendor stock. Projects retain their own rules, so this content is included in
+new projects; opening an older project does not replace its rules automatically.
+
+An empty character can start by gathering loose flint, fallen branches and wild
+flax by hand. Twist fiber into cord and make a stone knife. Use the knife to
+carve a bowl and bone workbench; assemble a tanning frame from branches and cord.
+Place the frame and bench on the ground nearby before using them. A station in
+a backpack does not count.
+
+| Recipe | Consumes | Produces | Reusable requirement |
+| --- | --- | --- | --- |
+| Twist cord | 2 plant fiber | 2 cords | None |
+| Make stone knife | 1 flint, 1 branch, 1 cord | 1 knife | None |
+| Carve bowl | 2 branches | 1 four-unit bowl | Wood-carving tool |
+| Build tanning frame | 4 branches, 2 cords | 1 frame | None |
+| Build bone workbench | 6 branches, 4 cords | 1 bench | Wood-carving tool |
+| Tan hide | 1 raw hide, 2 bark, 4 fresh water | 2 leather | Deployed tanning frame |
+| Cut straps | 1 leather | 2 straps | Leather-cutting tool |
+| Shape bone | 1 raw bone, 1 fresh water | 1 plate | Bone-carving tool |
+
+The stone knife supplies pruning, skinning, wood-carving, bone-carving and
+leather-cutting capabilities. Successful tool-based harvesting or crafting
+costs one condition per operation. Water is consumed from owned vessels while
+preserving those vessels and their identities; recipes can draw from several
+vessels. Every input, tool cost, action cost and output commits together.
+
+| Armor piece | Slot | Base protection | Plates | Straps |
+| --- | --- | --- | --- | --- |
+| Bone Helm | head | 1 | 3 | 2 |
+| Bone Cuirass | torso | 4 | 8 | 4 |
+| Bone Greaves | legs | 3 | 6 | 3 |
+| Bone Gauntlets | hands | 1 | 2 | 2 |
+| Bone Boots | feet | 1 | 3 | 2 |
+
+Each piece also requires a bone-carving tool and a deployed bone workbench within
+2 world-space units. A full set consumes 22 plates and 13 straps, with base
+protection totaling 10 across the five equipped pieces.
+
+Starting empty, the complete set including its knife, bowl and stations needs
+world withdrawals of **1 flint, 13 branches, 8 fiber, 4 hides, 8 bark, 22 bones
+and 38 water units**. Four skeleton remains supply 24 bones, leaving 2. The
+other surpluses are 1 leather, 1 strap and 1 cord. With the current one-bark
+harvesting batch, the knife pays 48 condition across the whole chain and ends
+at 52. Nothing is supplied by an unexplained vendor restock.
+
+See [Bind world resources](creator/authoring#bind-world-resources) for source
+placement, bark access and death-linked remains. Enchantment attachments,
+charged enchantment effects and timed crafting remain separate future work.
+
+### Bone armor wear and repair
+
+Physical damage that actually reduces health costs the equipped bone cuirass
+one condition point per committed damage event. Absorbed damage, rejected
+attacks, other damage kinds and armor merely carried in inventory do not charge
+that wear. The default policy selects the torso piece; it does not damage every
+equipped piece together.
+
+A bone piece at zero condition remains the same item, but stops contributing
+its equipment bonuses. Restoring positive condition restores its full base
+protection. Protection does not scale down continuously with condition or
+quality under this policy. Combat and displayed equipment totals share this
+activation check; saved character attributes are not increased or reduced.
+
+To repair:
+
+1. Have **1 bone plate**, **1 leather strap** and a usable bone-carving tool,
+   such as the stone knife, in top-level inventory or equipment.
+2. Stand within **2 world-space units** of a deployed bone workbench.
+3. Choose **Repair Bone Armor** in the Actions catalogue, then select the exact
+   damaged piece in inventory or equipment.
+
+For text play, use `action repair_bone_armor Bone Cuirass`. If several owned
+items share that name, the feedback lists exact item numbers; select one with
+an address such as `action repair_bone_armor #41`. The command never silently
+substitutes a different piece.
+
+Repair restores up to **20 condition**, capped at **100**, and costs **1 tool
+condition**. A piece at 95 reaches 100 for the full cost; a piece already at 100
+consumes nothing. A broken piece reaches 20 and provides protection again.
+This recipe grants no additional repair practice.
+
+Repair changes that item's condition in place. Identity, equipment location,
+quality and other stored properties are preserved. It neither creates a second
+armor piece nor replenishes charges. Missing materials, an unusable tool,
+an inaccessible station or loss of ownership leaves the action effects unchanged.
+Another piece is never substituted for a missing target. Local and hosted play
+use the same operation, and committed request retries do not repeat the costs.
+
+The full-set example leaves enough raw bone and a strap for one repair: collect
+one more water unit and prepare a plate, then repair the chosen piece. The knife
+goes from 52 to 51 during preparation and to 50 during repair. That repair uses
+one additional world-sourced water unit and creates no replacement equipment.
+These policies are included in new projects; existing project rules retain
+their previous equipment behavior unless explicitly updated.
+
+### Passive equipment bonuses and enchantments
+
+The supplied **Bone Cuirass of Strength** is a bone-family variant with the same
+4 protection and a passive **+2 STR** enchantment. Creators can place it like any
+other supplied item or use it in authored starting equipment and loot. It does
+not add a free enchanting recipe or an unexplained reagent supply.
+
+Equipment, passive enchantments and conditions now feed one effective-value
+calculation. Saved character values remain separate. For a character with base
+STR 12 and ARMOR 5:
+
+| State | Effective STR | Effective ARMOR |
+| --- | --- | --- |
+| Cuirass carried | 12 | 5 |
+| Cuirass equipped | 14 | 9 |
+| Equipped, with Guard active | 14 | 11 |
+| Cuirass broken, with Guard still active | 12 | 7 |
+| Same piece repaired, with Guard still active | 14 | 11 |
+
+Derived stats read effective dependencies. Combat consumes the same result and
+does not add projected equipment a second time. Quality keeps its existing
+weapon behavior; it does not scale this armor or its Strength enchantment.
+
+Item tooltips describe enchantments and their broken-state activation. Text
+`stats` includes contribution explanations. Screen text can use an expression
+such as `{E:1.explain.STR}` (using the actual entity ID) to show
+the calculation's sources. Ordinary numeric attributes use the same evaluator.
+
+The bonus follows the actual item and attachment identities through ownership
+changes, inventory/equipment updates, reconnects and save/reload. Carrying the
+item grants no wearer bonus. Repair preserves the attachment; it does not add
+another copy. Enchanted item instances do not merge into stacks.
+
+This first implementation supports passive numeric additions, multipliers and
+bounds. Distinct item sources combine deterministically; one item cannot carry
+the same enchantment definition twice. Player enchanting/disenchanting recipes,
+charged triggers, temporary talent grants and advanced stacking policies remain
+separate work. New projects receive the supplied declarations; project-owned
+older rules keep their existing declarations until intentionally updated.
+
+The supplied materials, tools, stations and bone pieces also have editable
+native inventory icons bound to the project palette. Their appearance can be
+customized through the normal Appearance workspace.
 
 ## Intents
 
@@ -1017,11 +1163,12 @@ Already present or underway:
 - attack, take, and use intent rules
 - weapon and unarmed dice damage
 - physical, arcane, spell, and fire damage kinds
-- cloth, leather, chain, and shield armor families
+- cloth, leather, chain, shield and bone armor families
 - starter weapons, armor, clothing, abilities, and spells
 - editable MZ bodies, item artwork and project-palette defaults
 - stackable materials, reagents, ammunition, and first crafting recipes
 - skill-gated crafting with open profession growth
+- world-sourced bone armor production, condition wear and exact-item repair
 - first item container, `small_bag`, with text transfer commands
 - Creator integration and rules-aware tools
 
@@ -1037,7 +1184,7 @@ Expected v1 growth areas:
   existing periodic-effect, lifecycle-event, immunity, and particle vocabulary
 - armor proficiency, weapon proficiency, and class restrictions
 - encounter templates and automatic arena balance tests
-- rarity, value, repair rules, and deeper quality/condition effects
+- rarity, value, additional repair policies and deeper quality/condition effects
 - richer AI intent rules and disposition changes
 - localization-ready rule names, messages, and descriptions
 - illustrated guide pages and deeper examples

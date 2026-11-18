@@ -1,0 +1,111 @@
+# Native 32px resource/equipment icon. Editable stock MZ shapes; colors belong to the project palette.
+project 1
+result from material "icon"
+material "icon" called "Twisted Cord"
+  mode pbr
+  tiling raw
+  default roughness to 0.8
+  default metallic to 0
+  default opacity to 0
+  default emission strength to 0
+  row "part-0" called "twisted cord 1"
+    use "Rounded Rectangle" id "part-0-shape"
+      set "center" to 0 0
+      set "halfSize" to 0.025 0.32
+      set "radius" to 0.025
+    use "Color" id "part-0-color"
+    use "Transform" id "part-0-position"
+      set "offset" to -0.08 0
+      set "localScale" to 1 1
+      set "rot" to 20
+  row "part-1" called "twisted cord 2"
+    use "Rounded Rectangle" id "part-1-shape"
+      set "center" to 0 0
+      set "halfSize" to 0.025 0.32
+      set "radius" to 0.025
+    use "Color" id "part-1-color"
+    use "Transform" id "part-1-position"
+      set "offset" to 0 0
+      set "localScale" to 1 1
+      set "rot" to 20
+  row "part-2" called "twisted cord 3"
+    use "Rounded Rectangle" id "part-2-shape"
+      set "center" to 0 0
+      set "halfSize" to 0.025 0.32
+      set "radius" to 0.025
+    use "Color" id "part-2-color"
+    use "Transform" id "part-2-position"
+      set "offset" to 0.08 0
+      set "localScale" to 1 1
+      set "rot" to 20
+  row "part-3" called "twisted cord 4"
+    use "Rounded Rectangle" id "part-3-shape"
+      set "center" to 0 0
+      set "halfSize" to 0.14 0.018
+      set "radius" to 0.025
+    use "Color" id "part-3-color"
+    use "Transform" id "part-3-position"
+      set "offset" to 0 -0.2
+      set "localScale" to 1 1
+      set "rot" to 20
+  row "part-4" called "twisted cord 5"
+    use "Rounded Rectangle" id "part-4-shape"
+      set "center" to 0 0
+      set "halfSize" to 0.14 0.018
+      set "radius" to 0.025
+    use "Color" id "part-4-color"
+    use "Transform" id "part-4-position"
+      set "offset" to 0 -0.07
+      set "localScale" to 1 1
+      set "rot" to 20
+  row "part-5" called "twisted cord 6"
+    use "Rounded Rectangle" id "part-5-shape"
+      set "center" to 0 0
+      set "halfSize" to 0.14 0.018
+      set "radius" to 0.025
+    use "Color" id "part-5-color"
+    use "Transform" id "part-5-position"
+      set "offset" to 0 0.06
+      set "localScale" to 1 1
+      set "rot" to 20
+  row "part-6" called "twisted cord 7"
+    use "Rounded Rectangle" id "part-6-shape"
+      set "center" to 0 0
+      set "halfSize" to 0.14 0.018
+      set "radius" to 0.025
+    use "Color" id "part-6-color"
+    use "Transform" id "part-6-position"
+      set "offset" to 0 0.19
+      set "localScale" to 1 1
+      set "rot" to 20
+  row "layer-1" called "Composite layer 1"
+    use "Alpha Over" id "layer-1"
+      input from row "part-0" xyz
+      set "foreground" from row "part-1" xyzw
+  row "layer-2" called "Composite layer 2"
+    use "Alpha Over" id "layer-2"
+      input from row "layer-1" xyz
+      set "foreground" from row "part-2" xyzw
+  row "layer-3" called "Composite layer 3"
+    use "Alpha Over" id "layer-3"
+      input from row "layer-2" xyz
+      set "foreground" from row "part-3" xyzw
+  row "layer-4" called "Composite layer 4"
+    use "Alpha Over" id "layer-4"
+      input from row "layer-3" xyz
+      set "foreground" from row "part-4" xyzw
+  row "layer-5" called "Composite layer 5"
+    use "Alpha Over" id "layer-5"
+      input from row "layer-4" xyz
+      set "foreground" from row "part-5" xyzw
+  row "layer-6" called "Composite layer 6"
+    use "Alpha Over" id "layer-6"
+      input from row "layer-5" xyz
+      set "foreground" from row "part-6" xyzw
+  row "pixel-alpha" called "Crisp 32px silhouette"
+    use "Compare/Select" id "pixel-alpha"
+      input from row "layer-6" www
+      set "comparison" to 2
+      set "reference" to 0.5 0.5 0.5
+  output base color from row "layer-6" xyz
+  output opacity from row "pixel-alpha" x

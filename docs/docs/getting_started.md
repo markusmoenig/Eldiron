@@ -82,7 +82,7 @@ This is a good first path through Eldiron:
 3. Switch between 2D and 3D region views in the Creator.
 4. Press **Play** and walk around.
 5. Inspect one character template and one item template.
-6. Open **Game / Rules**, **Game / Locales**, and **Game / Authoring** to see the game-wide systems.
+6. Open **Game / Locales** and **Game / Authoring** to see the game-wide systems. Use the supplied RPG content to build your world; no ruleset editing is required.
 7. Open a character's **Appearance** entry and compare its 2D/3D outfit. Drag ruleset items onto an Equipment node to change it.
 8. Select a world tile and inspect **Make Proc** and the [procedural material editor](building_maps/procedural_materials). Its preview uses the minimap; map composition is edited with the Rect tool.
 

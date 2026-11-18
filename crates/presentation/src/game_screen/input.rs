@@ -88,6 +88,17 @@ fn text_specs<'a>(
     specs
 }
 impl GameScreenController {
+    /// Revoke all copies/editor history of a credential after handing it to the
+    /// connection. No credential binding is carried into the next screen.
+    pub fn clear_secret_input(&mut self,binding:&str,fonts:&mut GameFonts) {
+        let ids:Vec<_>=self.elements.text_input_widgets.iter().filter(|(_,w)|w.binding==binding).map(|(id,_)|*id).collect();
+        for id in ids {
+            if self.focused_input()==Some(id) {self.focus_text(fonts,None);}
+            self.inputs.remove(&ScreenTextTarget::Input(id));
+            self.elements.text_input_widgets.get_mut(&id).unwrap().text.clear();
+        }
+        self.elements.ui_state.remove(binding);
+    }
     pub fn focused_text(&self) -> Option<ScreenTextTarget> {
         if let Some(ScreenFocus::Text(target)) = self.focus {
             Some(target)

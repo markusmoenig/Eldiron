@@ -10,7 +10,8 @@ Attributes can be applied to characters, items, or both. Author initial values t
 This page covers individual attributes such as `tile_id`, `radius`, or `timeout`.
 Gameplay rules such as weapon damage, spell cooldowns, intent ranges, class
 permissions, armor categories, and progression belong in the effective ruleset:
-the official ruleset plus **Game / Rules** project overrides.
+the complete project-owned document initialized from the official ruleset.
+Standard Creator builds use these rules without exposing a definition editor.
 
 Player key bindings are configured through the **Input Binding** node. See [Input Mapping](/docs/characters_items/input_mapping) for command meanings.
 
@@ -321,8 +322,8 @@ set_attr("mode", "active")
 Spell gameplay is ruleset data.
 
 Define spell mode, costs, cooldowns, target rules, range, damage or healing,
-visuals, audio, reagents, and messages in the effective ruleset. Use
-**Game / Rules** when this project needs to change the official spell rules.
+visuals, audio, reagents, and messages in the effective ruleset. These definitions
+are supplied content maintained through internal ruleset tooling.
 Project item data should only carry concrete asset/state information for a
 materialized spell item.
 

@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Eldiron online connection demo</title>
+<style>body{font:16px system-ui;background:#171c26;color:#e7edf8;max-width:850px;margin:3em auto;padding:1em}input,button{font:inherit;padding:.6em;background:#263247;color:inherit;border:1px solid #50617b;border-radius:5px}canvas{background:#202a38;width:100%;border-radius:8px;margin-top:1em}#status{min-height:2em}</style>
+<h1>Eldiron online connection demo</h1>
+<p>Disposable shared world. No account or saved character. This connection viewer shows actors and movement; it does not render the game's GPU scene.</p>
+<form id="connect"><input id="server" aria-label="Server" value="wss://localhost:8443/play" size="34"><input id="name" aria-label="Name" value="Visitor" maxlength="32" size="12"><button>Join demo</button></form>
+<p id="status">WASD to walk, release to stop. Open a second window to see another player.</p>
+<canvas width="820" height="480"></canvas>
+<script type="module">
+import init,{DemoClient} from './pkg/eldiron_network.js';
+await init();let client,working=false,last=performance.now();const keys=new Set();
+const status=document.querySelector('#status'),canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');
+document.querySelector('#connect').onsubmit=e=>{e.preventDefault();if(working)return;client?.logout();client?.free();const endpoint=document.querySelector('#server').value;client=new DemoClient(endpoint,document.querySelector('#name').value,location.hostname==='localhost'||location.hostname==='127.0.0.1');};
+addEventListener('keydown',e=>{if(e.target.tagName!=='INPUT'&&'wasd'.includes(e.key.toLowerCase())){e.preventDefault();keys.add(e.key.toLowerCase());}});
+addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>keys.clear());
+addEventListener('pagehide',()=>{if(!working)client?.logout();});
+async function tick(){const now=performance.now(),elapsed=now-last;last=now;
+ if(client&&!working){working=true;try{client.intent([...keys].at(-1)||'x');await client.pump(elapsed);const state=JSON.parse(client.state());status.textContent=state.status;ctx.clearRect(0,0,canvas.width,canvas.height);const owned=state.actors.find(a=>a.owned)||{x:0,z:0};for(const a of state.actors){const x=410+(a.x-owned.x)*28,z=240+(a.z-owned.z)*28;ctx.fillStyle=a.owned?'#71e4b8':'#e7ba7f';ctx.beginPath();ctx.arc(x,z,7,0,Math.PI*2);ctx.fill();ctx.fillText(a.name,x+12,z+4);}}catch(e){status.textContent=String(e);client.free();client=undefined;}finally{working=false;}}
+ setTimeout(tick,20);
+}tick();
+</script>

@@ -45,8 +45,7 @@ impl GameScreenController {
                 .unwrap_or(false)
         });
         let player = world
-            .map
-            .and_then(|m| m.entities.iter().find(|e| e.is_player()))
+            .player_entity()
             .and_then(|e| match e.attributes.get("player_camera") {
                 Some(Value::PlayerCamera(camera)) => Some(camera.clone()),
                 _ => None,
@@ -80,7 +79,7 @@ impl GameScreenController {
                     && screen_model::resolved_widget_command(
                         widget,
                         world.assets,
-                        screen_model::resolve_party_entity(map, widget.party.as_deref()),
+                        world.party_entity(map, widget.party.as_deref()),
                         &self.elements.ui_state,
                     )
                     .as_deref()
@@ -91,7 +90,7 @@ impl GameScreenController {
         if let Some(id) = matched {
             return self.activate_button(world, id);
         }
-        let actor = screen_model::resolve_party_entity(map, None);
+        let actor = world.party_entity(map, None);
         if !rules_ui::command_state(world.assets, actor, &binding.command_string()).enabled {
             return Ok(ScreenActivation::default());
         }
@@ -140,7 +139,7 @@ impl GameScreenController {
             return Ok(ScreenActivation::default());
         }
         let map = world.map.unwrap_or(&self.empty_map);
-        let actor = screen_model::resolve_party_entity(map, widget.party.as_deref());
+        let actor = world.party_entity(map, widget.party.as_deref());
         let command = screen_model::contextual_open_close_command(
             screen_model::resolved_widget_command(
                 widget,

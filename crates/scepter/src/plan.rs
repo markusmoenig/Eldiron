@@ -162,6 +162,17 @@ mod request_tests {
                 .unwrap()
                 .implemented
         );
+        let preview = catalog
+            .describe_command("project.preview_transaction")
+            .unwrap();
+        assert!(preview.implemented && preview.previewable);
+        let example: ScepterRequest = serde_json::from_value(preview.examples[0].clone()).unwrap();
+        assert!(!example.command.is_mutation());
+        assert!(matches!(
+            example.command,
+            ScepterCommand::TransactionPreview(TransactionPreview { preview, .. })
+                if preview.view.as_deref() == Some("2d_iso")
+        ));
     }
 }
 

@@ -53,6 +53,7 @@ impl Editor {
             "Open" => "open_document",
             "Save" => "save_document",
             "Save As" => "save_document_as",
+            "Export Public Client" => "export_public_client",
             _ => return false,
         };
         if let Some(document) = self.documents.active_id() {
@@ -140,6 +141,27 @@ impl Editor {
         let bytes = shared::project_io::encode_project(&self.documents.project)?;
         self.documents.transfers.stage(document, bytes, source)
     }
+    pub(crate) fn prepare_public_client_export(
+        &mut self,
+        document: Uuid,
+        ctx: &mut TheContext,
+    ) -> Result<SaveInfo, String> {
+        self.require_document(document)?;
+        if self.documents.transfers.busy() {
+            return Err("A document transfer is already pending".into());
+        }
+        self.commit_authoring_views(ctx)?;
+        let bytes = eldiron_network::public_client::export(&self.documents.project).inspect_err(
+            |error| {
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    format!("Unable to export public client: {error}"),
+                ));
+                ctx.ui.invalidate_paint();
+            },
+        )?;
+        self.documents.transfers.stage_export(document, bytes)
+    }
     pub(crate) fn document_save_bytes(&self, ticket: u64) -> Option<&[u8]> {
         self.documents.transfers.bytes(ticket)
     }
@@ -157,6 +179,13 @@ impl Editor {
             .take(ticket)
             .ok_or("Document save is no longer pending")?;
         let document = save.info.document;
+        if save.public_export {
+            return Ok(SaveResult {
+                document,
+                saved: success,
+                clean: false,
+            });
+        }
         let index = self
             .documents
             .sessions
@@ -255,5 +284,91 @@ impl Editor {
         );
         assert_eq!(self.documents.project.name, edited);
         self.documents.project.name = name;
+    }
+}
+
+impl Editor {
+    pub(super) fn write_public_client(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+        if path.extension().is_none_or(|v| v != "eldiron-client") {
+            return Err(
+                "Public clients must use .eldiron-client; authored projects cannot be overwritten"
+                    .into(),
+            );
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use std::io::Write;
+            let parent = path
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(std::path::Path::new("."));
+            let mut file = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
+            file.write_all(bytes)
+                .and_then(|_| file.as_file().sync_all())
+                .map_err(|e| e.to_string())?;
+            file.persist(path).map_err(|e| e.to_string())?;
+            Ok(())
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = bytes;
+            Err("Use the browser export file service".into())
+        }
+    }
+}
+
+#[cfg(test)]
+mod public_export_tests {
+    use super::*;
+    #[test]
+    fn public_export_completion_preserves_document_path_and_unsaved_state() {
+        let mut editor = Editor::new();
+        editor.documents.project = Project::new();
+        editor.documents.project.config="[game]\nmode='multiplayer'\n[multiplayer]\nendpoint='wss://demo.example/play'\n[ruleset]\nsource='project'".into();
+        let path = PathBuf::from("author.eldiron");
+        editor.documents.project_path = Some(path.clone());
+        editor.documents.sessions[0].detached_dock_dirty = true;
+        let document = editor.documents.active_id().unwrap();
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(960, 540, 1.);
+        ui.init(&mut ctx);
+        editor.enable_host_document_io();
+        assert!(editor.queue_host_document_request("Export Public Client"));
+        assert_eq!(
+            editor.take_host_document_requests(),
+            vec![("export_public_client", document)]
+        );
+        let save = editor
+            .prepare_public_client_export(document, &mut ctx)
+            .unwrap();
+        assert!(
+            shared::public_client::decode(
+                editor.document_save_bytes(save.ticket).unwrap(),
+                eldiron_network::PROTOCOL_VERSION
+            )
+            .is_ok()
+        );
+        let before = source_bytes(&editor.documents.project).unwrap();
+        let result = editor
+            .complete_document_save(
+                save.ticket,
+                true,
+                Some("public.eldiron-client".into()),
+                &mut ui,
+                &mut ctx,
+            )
+            .unwrap();
+        assert!(result.saved && !result.clean);
+        assert_eq!(editor.documents.project_path, Some(path));
+        assert!(editor.active_session_has_changes());
+        assert_eq!(source_bytes(&editor.documents.project).unwrap(), before);
+        assert!(
+            editor
+                .complete_document_save(save.ticket, true, None, &mut ui, &mut ctx)
+                .is_err()
+        );
+        assert!(
+            Editor::write_public_client(std::path::Path::new("author.eldiron"), b"public").is_err()
+        );
     }
 }

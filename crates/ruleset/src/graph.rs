@@ -653,7 +653,37 @@ mod tests {
             .as_table_mut()
             .unwrap()
             .insert("presets".into(), compiled["fx"]["presets"].clone());
-        assert_eq!(compiled, expected);
+        fn differences(
+            path: &str,
+            actual: &toml::Value,
+            expected: &toml::Value,
+            result: &mut Vec<String>,
+        ) {
+            if let (Some(actual), Some(expected)) = (actual.as_table(), expected.as_table()) {
+                let keys: std::collections::BTreeSet<_> =
+                    actual.keys().chain(expected.keys()).collect();
+                for key in keys {
+                    match (actual.get(key), expected.get(key)) {
+                        (Some(a), Some(e)) => differences(&format!("{path}.{key}"), a, e, result),
+                        _ => result.push(format!("{path}.{key}: missing table entry")),
+                    }
+                }
+            } else if actual != expected {
+                result.push(format!("{path}: {actual:?} != {expected:?}"));
+            }
+        }
+        let mut differences_found = Vec::new();
+        differences(
+            "rules",
+            &toml::Value::Table(compiled.clone()),
+            &toml::Value::Table(expected),
+            &mut differences_found,
+        );
+        assert!(
+            differences_found.is_empty(),
+            "{}",
+            differences_found.join("\n")
+        );
         let saved = serde_json::to_string(&graph).unwrap();
         let loaded: RulesGraph = serde_json::from_str(&saved).unwrap();
         assert_eq!(loaded.compile().unwrap(), compiled);

@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "generated_utc": "2026-11-17T13:17:39.886603+00:00",
+  "machine": "macOS-27.0.1-arm64-arm-64bit",
+  "command": [
+    "cargo",
+    "test",
+    "--release",
+    "-p",
+    "eldiron-server",
+    "--test",
+    "release_network",
+    "--test",
+    "transport",
+    "--test",
+    "transport_lifecycle",
+    "--offline",
+    "--",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "scope": "Actual child server processes and loopback TCP/TLS, deterministic read jitter/fragmentation and connection cuts. Not WAN packet loss, production capacity or a long deployment soak.",
+  "runs": [
+    {
+      "passed": true,
+      "elapsed_seconds": 87.187,
+      "server_sha256": "eb0c31a7e2e2b5223d8933c95de2a6d9ac2dab8f8157e60eaf1bf3aba6f946c9",
+      "project_sha256": "3b620c412d038b1c8fc9233856a5bf6f4c2cea02595333c651e965daa0085059",
+      "scenarios": [
+        {
+          "transport": "end-to-end verified WSS through jittered fragmented TCP",
+          "accounts": 4,
+          "characters": 3,
+          "forced_process_restarts": 2,
+          "contested_item_copies": 1,
+          "lost_ack_retry": true,
+          "private_frames_checked": true,
+          "slow_peer_isolated": true,
+          "world_isolation": true,
+          "sigterm_checkpoint": true
+        }
+      ],
+      "tests": [
+        "test delayed_wss_contests_lost_replies_process_crashes_and_peer_isolation ... RELEASE_NETWORK {\"transport\":\"end-to-end verified WSS through jittered fragmented TCP\",\"accounts\":4,\"characters\":3,\"forced_process_restarts\":2,\"contested_item_copies\":1,\"lost_ack_retry\":true,\"private_frames_checked\":true,\"slow_peer_isolated\":true,\"world_isolation\":true,\"sigterm_checkpoint\":true}",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 52.32s",
+        "test real_wss_clients_share_private_snapshots_and_https_collision ... StartScene: Startup with 0 errors.",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.39s",
+        "test graceful_exit_and_cancelled_owner_close_all_socket_tasks ... Lifecycle: Startup with 0 errors.",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.90s"
+      ]
+    }
+  ]
+}

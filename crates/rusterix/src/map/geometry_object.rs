@@ -290,7 +290,7 @@ pub struct GeometrySurfaceSegment {
     pub curve_amount: f32,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct GeometryObject {
     pub id: Uuid,
     pub name: String,
@@ -312,6 +312,98 @@ pub struct GeometryObject {
     pub tags: Vec<String>,
     #[serde(default)]
     pub properties: ValueContainer,
+}
+
+// Keep standalone face decoding compatible; only an owning object can give
+// legacy missing IDs their deterministic namespace and ordinal.
+#[derive(Deserialize)]
+#[serde(remote = "GeometryFace")]
+struct OwnedGeometryFaceFields {
+    #[serde(default)]
+    id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    paint_surface_id: Option<Uuid>,
+    indices: Vec<usize>,
+    #[serde(default)]
+    uvs: Vec<Vec2<f32>>,
+    #[serde(default)]
+    paint_uvs: Vec<Vec2<f32>>,
+    #[serde(default = "default_auto_uv")]
+    auto_uv: bool,
+    #[serde(default = "default_texture_offset")]
+    texture_offset: Vec2<f32>,
+    #[serde(default = "default_texture_scale")]
+    texture_scale: Vec2<f32>,
+    #[serde(default)]
+    texture_rotation: f32,
+    #[serde(default)]
+    tile: Option<PixelSource>,
+    #[serde(default, with = "geometry_face_tiles")]
+    tiles: FxHashMap<(i32, i32), PixelSource>,
+    #[serde(default)]
+    surface_points: Vec<GeometrySurfacePoint>,
+    #[serde(default)]
+    surface_segments: Vec<GeometrySurfaceSegment>,
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    smoothing_group: u32,
+}
+fn deserialize_owned_faces<'de, D: serde::Deserializer<'de>>(
+    reader: D,
+) -> Result<Vec<GeometryFace>, D::Error> {
+    #[derive(Deserialize)]
+    struct OwnedFace(
+        #[serde(deserialize_with = "OwnedGeometryFaceFields::deserialize")] GeometryFace,
+    );
+    Vec::<OwnedFace>::deserialize(reader)
+        .map(|faces| faces.into_iter().map(|face| face.0).collect())
+}
+// Legacy faces omitted IDs. Assign them with their object/ordinal available,
+// rather than generating a different project/save identity on every load.
+#[derive(Deserialize)]
+#[serde(remote = "GeometryObject")]
+struct GeometryObjectFields {
+    id: Uuid,
+    name: String,
+    #[serde(default)]
+    kind: GeometryObjectKind,
+    #[serde(default)]
+    vertices: Vec<Vec3<f32>>,
+    #[serde(default, deserialize_with = "deserialize_owned_faces")]
+    faces: Vec<GeometryFace>,
+    #[serde(default = "identity_transform")]
+    transform: [[f32; 4]; 4],
+    #[serde(default = "default_geometry_object_visible")]
+    visible: bool,
+    #[serde(default = "default_geometry_object_solid")]
+    solid: bool,
+    #[serde(default)]
+    group: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    properties: ValueContainer,
+}
+impl<'de> Deserialize<'de> for GeometryObject {
+    fn deserialize<D: serde::Deserializer<'de>>(reader: D) -> Result<Self, D::Error> {
+        let mut object = GeometryObjectFields::deserialize(reader)?;
+        object.ensure_face_ids();
+        Ok(object)
+    }
+}
+fn legacy_face_id(owner: Uuid, ordinal: usize, attempt: u64) -> Uuid {
+    let (mut a, mut b) = (0xcbf29ce484222325u64, 0x84222325cbf29ce4u64);
+    for byte in owner
+        .as_bytes()
+        .iter()
+        .copied()
+        .chain(b"eldiron:legacy-geometry-face:v1".iter().copied())
+        .chain((ordinal as u64).to_be_bytes())
+        .chain(attempt.to_be_bytes())
+    {
+        a = (a ^ byte as u64).wrapping_mul(0x100000001b3);
+        b = (b ^ byte as u64).wrapping_mul(0x100000001b3).rotate_left(7);
+    }
+    Uuid::from_u128(((a as u128) << 64) | b as u128)
 }
 
 impl GeometryObject {
@@ -573,20 +665,42 @@ impl GeometryObject {
         )
     }
 
+    fn ensure_face_ids(&mut self) -> bool {
+        let reserved: HashSet<_> = self
+            .faces
+            .iter()
+            .map(|face| face.id)
+            .filter(|id| !id.is_nil())
+            .collect();
+        let mut seen = HashSet::with_capacity(self.faces.len());
+        let mut changed = false;
+        for (ordinal, face) in self.faces.iter_mut().enumerate() {
+            if face.id.is_nil() || !seen.insert(face.id) {
+                let mut attempt = 0;
+                loop {
+                    let candidate = legacy_face_id(self.id, ordinal, attempt);
+                    if !candidate.is_nil()
+                        && !reserved.contains(&candidate)
+                        && seen.insert(candidate)
+                    {
+                        face.id = candidate;
+                        break;
+                    }
+                    attempt += 1;
+                }
+                changed = true;
+            }
+        }
+        changed
+    }
     /// Ensure every face has persistent identity and object-local paint coordinates.
     ///
     /// This is intentionally explicit instead of being part of rendering: once a face can be
     /// painted, its coordinates must be serialized and remain unchanged by object transforms.
     pub fn ensure_face_paint_data(&mut self) -> bool {
+        let mut changed = self.ensure_face_ids();
         let vertices = &self.vertices;
-        let mut changed = false;
-        let mut face_ids = HashSet::with_capacity(self.faces.len());
         for face in &mut self.faces {
-            if face.id.is_nil() || !face_ids.insert(face.id) {
-                face.id = Uuid::new_v4();
-                face_ids.insert(face.id);
-                changed = true;
-            }
             if face.paint_uvs.len() != face.indices.len() {
                 let local_points = face
                     .indices
@@ -1093,5 +1207,39 @@ mod tests {
             .map(|face| face.id)
             .collect::<HashSet<_>>();
         assert_eq!(unique.len(), object.faces.len());
+    }
+    #[test]
+    fn legacy_face_ids_are_repeatable_and_preserve_authored_ids_and_paint_links() {
+        let object = GeometryObject::box_("Legacy", Vec3::zero(), Vec3::one());
+        let mut legacy = serde_json::to_value(&object).unwrap();
+        for face in legacy["faces"].as_array_mut().unwrap().iter_mut().skip(1) {
+            face.as_object_mut().unwrap().remove("id");
+        }
+        legacy["faces"][1]["paint_surface_id"] = serde_json::json!(object.faces[0].id);
+        let a: GeometryObject = serde_json::from_value(legacy.clone()).unwrap();
+        let b: GeometryObject = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(a, b);
+        assert_eq!(a.faces[0].id, object.faces[0].id);
+        assert_eq!(a.faces[1].paint_surface_id, Some(object.faces[0].id));
+        assert!(a.faces.iter().all(|f| !f.id.is_nil()));
+        assert_eq!(
+            a.faces.iter().map(|f| f.id).collect::<HashSet<_>>().len(),
+            a.faces.len()
+        );
+        let roundtrip: GeometryObject =
+            serde_json::from_value(serde_json::to_value(&a).unwrap()).unwrap();
+        assert_eq!(roundtrip, a);
+        legacy["id"] = serde_json::json!(Uuid::new_v4());
+        let other: GeometryObject = serde_json::from_value(legacy).unwrap();
+        assert_ne!(other.faces[1].id, a.faces[1].id);
+        let mut duplicate = serde_json::to_value(&a).unwrap();
+        duplicate["faces"][1]["id"] = duplicate["faces"][0]["id"].clone();
+        let repaired: GeometryObject = serde_json::from_value(duplicate.clone()).unwrap();
+        assert_eq!(
+            repaired,
+            serde_json::from_value::<GeometryObject>(duplicate).unwrap()
+        );
+        assert_eq!(repaired.faces[0].id, a.faces[0].id);
+        assert_ne!(repaired.faces[1].id, repaired.faces[0].id);
     }
 }

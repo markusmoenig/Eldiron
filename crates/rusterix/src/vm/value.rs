@@ -3,7 +3,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 use vek::Vec3;
 
 /// Numeric provenance used by host-value conversion, separate from real text.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(super) enum NumericType {
     Bool,
     Float,
@@ -11,7 +11,7 @@ pub(super) enum NumericType {
     Vec3,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct VMValue {
     pub x: f32,
     pub y: f32,

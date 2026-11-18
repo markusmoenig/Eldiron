@@ -27,6 +27,23 @@ cargo install eldiron-creator
 
 Licensed under the MIT License.
 
+## Internal ruleset maintenance
+
+Normal Creator builds use the supplied RPG content without exposing a ruleset
+editor. Build worlds with the character/item catalogue, placements, resource
+bindings and starting options. Project-owned rules still save and load normally.
+
+Maintainers can explicitly enable the existing editor:
+
+```bash
+cargo run --locked -p eldiron-creator --features internal-rules-editor -- [PROJECT.eldiron ...]
+```
+
+This opt-in build adds **Game / Rules** to the project tree and registers the
+Rules dock. The feature is off in all standard host configurations, including
+debug builds. The Apple launcher does not expose a Rules menu command; internal
+builds can use the project tree. See the [internal editor reference](../docs/docs/creator/docks/ruleset_nodes.md).
+
 The normal desktop launcher uses the shared native GPU host:
 
 ```bash

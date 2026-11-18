@@ -12,7 +12,12 @@ use wasm_bindgen_futures::JsFuture;
 type Application = UiApplicationAdapter<NativeCreatorApplication>;
 enum Completed {
     Open(Uuid, std::result::Result<(Vec<u8>, String), String>),
-    Save(Uuid, u64, std::result::Result<Option<SavedFile>, String>),
+    Save(
+        Uuid,
+        u64,
+        bool,
+        std::result::Result<Option<SavedFile>, String>,
+    ),
 }
 struct SavedFile {
     name: String,
@@ -129,28 +134,47 @@ impl Files {
         if self.pending_save.is_some() {
             return Err("A project save is already pending".into());
         }
-        let save = app
-            .application
-            .host_prepare_document_save(&mut app.session, document)?;
+        let public_export = kind == "export_public_client";
+        let save = if public_export {
+            app.application
+                .host_prepare_public_client_export(&mut app.session, document)?
+        } else {
+            app.application
+                .host_prepare_document_save(&mut app.session, document)?
+        };
         let bytes = app
             .application
             .host_document_save_bytes(save.ticket)
             .ok_or("Save snapshot was retired")?
             .to_vec();
-        let name = app
+        let mut name = app
             .application
             .host_document_info()
             .and_then(|info| info.path)
             .and_then(|path| path.file_name().map(|s| s.to_string_lossy().into_owned()))
             .unwrap_or_else(|| "Untitled.eldiron".into());
+        if public_export {
+            name = format!(
+                "{}.eldiron-client",
+                std::path::Path::new(&name)
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+            );
+        }
         let send = self.send.clone();
-        let handle = (kind == "save_document")
+        let handle = (!public_export && kind == "save_document")
             .then(|| self.handles.get(&document).cloned())
             .flatten();
         self.pending_save = Some(save.ticket);
         wasm_bindgen_futures::spawn_local(async move {
             let result = save_file(&bytes, &name, handle).await;
-            let _ = send.send(Completed::Save(document, save.ticket, result));
+            let _ = send.send(Completed::Save(
+                document,
+                save.ticket,
+                public_export,
+                result,
+            ));
         });
         Ok(())
     }
@@ -170,7 +194,7 @@ impl Files {
                         )
                         .map(|_| ())
                 }),
-                Completed::Save(document, ticket, result) => {
+                Completed::Save(document, ticket, public_export, result) => {
                     if self.pending_save == Some(ticket) {
                         self.pending_save = None;
                     }
@@ -183,13 +207,14 @@ impl Files {
                                 confirmed,
                                 saved.as_ref().map(|file| file.name.clone().into()),
                             );
-                            if completed.as_ref().is_ok_and(|result| result.saved)
+                            if !public_export
+                                && completed.as_ref().is_ok_and(|result| result.saved)
                                 && let Some(saved) = saved
                             {
                                 self.handles.insert(document, saved.handle);
                             }
                             if !confirmed {
-                                app.session.context.ui.send(TheEvent::SetStatusText(TheId::empty(), "Project download requested. This browser cannot confirm the file write; the tab keeps its unsaved state.".into()));
+                                app.session.context.ui.send(TheEvent::SetStatusText(TheId::empty(), "Download requested. This browser cannot confirm the file write; the document keeps its saved state.".into()));
                             }
                             completed.map(|_| ())
                         }
@@ -271,7 +296,14 @@ async fn save_file(
         let file_type = js_sys::Object::new();
         let accept = js_sys::Object::new();
         let extensions = js_sys::Array::new();
-        extensions.push(&".eldiron".into());
+        extensions.push(
+            &if name.ends_with(".eldiron-client") {
+                ".eldiron-client"
+            } else {
+                ".eldiron"
+            }
+            .into(),
+        );
         js_sys::Reflect::set(&accept, &"application/x-eldiron".into(), &extensions)
             .map_err(js_error)?;
         js_sys::Reflect::set(&file_type, &"description".into(), &"Eldiron project".into())
@@ -289,6 +321,16 @@ async fn save_file(
             )
             .await?
         };
+        let selected_name = js_sys::Reflect::get(&handle, &"name".into())
+            .map_err(js_error)?
+            .as_string()
+            .ok_or("Missing output filename")?;
+        if name.ends_with(".eldiron-client") && !selected_name.ends_with(".eldiron-client") {
+            return Err(
+                "Public clients must use .eldiron-client; authored projects cannot be overwritten"
+                    .into(),
+            );
+        }
         let writable = call(&handle, "createWritable", None).await?;
         if let Err(error) = call(&writable, "write", Some(bytes.as_ref())).await {
             let _ = call(&writable, "abort", None).await;

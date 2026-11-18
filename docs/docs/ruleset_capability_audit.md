@@ -9,6 +9,10 @@ for the [Ruleset Contract](./ruleset_contract).
 
 Audit date: **2026-07-26**
 
+Catalogue, internal editor visibility, world resources, bone production and repair status updated:
+**2026-11-18**. This is a scoped update; other sections retain their existing
+audit baseline.
+
 Bundled baseline: **`eldiron.official` 1.0.0, schema 1, draft**
 
 The bundled ruleset passes its current structural/reference validator with zero
@@ -88,7 +92,7 @@ The goal is reached when:
 | --- | --- | --- | --- |
 | Typed attack actions | The unique action bound with `intent = "attack"`—regardless of id—and custom/named attack actions share player execution, targeting/range/cooldown, weapon or rules-path damage, ammunition, item costs, follow-attack damage, client state/description, and icon fallback; resolved actions are cached per region and refreshed when rules change | Functional | Remove remaining raw-table helpers from non-attack branches |
 | Damage/healing spells | Known-spell checks and application work; target, range, arbitrary typed resource/item costs, effect source, cooldown, and FX consume the cached resolved action, while spell definitions own identity and roll data | Functional | Type spell identity/roll data and retire the raw spell adapter |
-| Gathering actions | Skill, target, range, item costs, output effect, and cooldown consume the resolved action; the resource branch owns node identity, depletion, respawn, inventory transfer, and messages | Complete | Remove duplicated action/resource output ownership in schema 2 |
+| Legacy resource-item gathering | Skill, target, range, item costs, output effect, and cooldown consume the resolved action; the resource branch owns node identity, depletion, respawn, inventory transfer, and messages | Complete for this path | Remove duplicated action/resource output ownership in schema 2; new map-bound resources use profile-owned outputs instead |
 | Craft actions | Typed kind, recipe reference, item costs, and cooldown select the existing recipe executor; recipe requirements, inputs, outputs, quality, and messages work | Functional | Consolidate action/recipe ownership and validate acquisition paths |
 | Classless sandbox actions | A project-owned standalone ruleset with no classes or progression executes skill-gated mining, item/world-position targeting, typed take, script events, lockpick-on-chest source/target actions, actor/target attribute predicates, and transactional actor/target state modifications | Functional | Add broader world-state effects |
 | Runtime action target | Tagged entity, item-with-optional-owner, and world-position targets flow from selected-action entity/item clicks, 2D terrain clicks, and text commands | Functional | Add 3D position picking, area/shape targets, and explicit multi-target collections |
@@ -112,7 +116,7 @@ The goal is reached when:
 | Weapon category range/cooldown | The ordered typed `equipment.weapon_slots` list selects the primary equipped weapon; category data drives attacks, host script source context, graphical UI, and terminal stats without `[game]` slot duplication or official slot-name guesses | Complete | Type the remaining weapon item/category data to reduce repeated table lookups |
 | Ammunition | Matching stack quantity is required and consumed | Complete | Add content-level acquisition/availability checks |
 | Armor aggregation | Equipped armor attributes contribute to reduction, graphical UI, and terminal stats through the same typed `equipment.armor_slots` policy used by equip validation | Functional | Type armor item/category attributes and add broader damage-kind scenarios |
-| Item quality/condition damage | Both scale weapon damage and crafted items receive quality/condition | Functional | Document exact curve and add repair/wear rules |
+| Item quality/condition damage | Both scale weapon damage and crafted items receive quality/condition; bone armor opts into broken-item activation and immediate targeted repair | Functional | Broaden maintenance content and document additional quality/condition policies |
 | Handedness and slot conflicts | Typed category policy expands two-handed weapons across weapon slots and supports category-owned `occupies_slots` such as shields occupying `off_hand` | Enforced transactionally at every production equip path, with conflict and inventory-preservation tests | Complete |
 | Damage formula ownership | Weapon and unarmed damage tables execute; an optional ruleset-mapped `weapon_damage` attribute and class progression damage remain additional fallback/data sources | Partial | Define canonical weapon/unarmed/spell formula precedence |
 
@@ -128,9 +132,14 @@ The goal is reached when:
 | Economy and currency pickup | Base currency, display conversion, starting wealth, and monetary items work | Unit/runtime coverage exists | Functional |
 | Shop price policy | Item worth exists; complete buy/sell/vendor modifiers are not part of the official ruleset | Limited | Partial |
 | Recipes, quality, and use-based skill gain | Requirements, skill, materials, output, quality calculation, deterministic success-based advancement, skill caps, and mastery margins work | End-to-end ritual-chain and skill-gain tests exist | Functional |
-| Crafting stations | Recipes declare stations, but full station targeting/availability enforcement is not established | Limited | Catalogue only |
+| Crafting stations and tools | Capability/range station records require a visible, usable deployed world item; owned tools pay declared condition only on successful crafting. Legacy station strings remain descriptive hints | Atomic crafting, inventory/range and full-chain tests | Functional for explicit requirements; legacy hint migration remains separate |
 | Durability | Torch demonstrates time-based condition drain and destruction | Durability tests exist | Functional |
-| General repair/wear | Roadmap only | None | Missing |
+| Shared passive item bonuses | One evaluator combines saved/derived baselines, explicit equipment projections, passive enchantments and conditions; combat, action availability and text/HUD values share it. Source explanations identify active/inactive items and attachments | Supplied Strength cuirass, break/repair, custom attributes, arithmetic, UI and ownership/persistence tests | Functional passive slice; advanced policy and trigger stages remain separate |
+| Equipment wear and repair | Opt-in category wear charges a declared slot after matching positive health damage; broken categories can disable equipment contributions. Targeted repair recipes preserve exact owned item identity and properties while staging materials/tool costs. Bone armor provides the default example | Wear/rollback tests, shared stats, full local/dedicated save/reload and encoded-host repair/ownership/retry coverage | Functional for immediate declared policies; universal contributions and broader maintenance content remain separate |
+| Map-bound world resources | Typed profiles, exposed placement overrides, independent logical sources and cross-region shared pools; trees, rivers, finite wells and remains | Definition, state, Authoring, local runtime and dedicated-host tests | Functional |
+| Resource extraction and lifecycle | Atomic stock/output/tool-wear/skill updates, vessel filling, running simulation clock, recovery, expiry and optional exploitation suspension; persisted source identity and public resource views | Save/reload, contention, retry and lifecycle tests | Functional |
+| Complete world-to-bone-armor production | Supplied hand-gathered bootstrap sources, knife/bowl/stations, hide and bone processing, liquid vessel debits and all five armor recipes/actions; no prepared starting materials required | Complete local/dedicated save/reload flow, wire-level host production with retries, rollback tests | Functional vertical slice |
+| Resource lifecycle visuals | Optional authored tile mappings and semantic phase/supply replication | Runtime replication coverage | Partial; mesh/collision replacement and reusable asset binding inheritance remain planned |
 | Resource regeneration | Arbitrarily named `[resource_regen.<attribute>]` entries run in real-time seconds and name their maximum attribute; the official rules use MP | Runtime tests cover configured resources, caps, and active-state gating | Complete |
 
 ## Conditions, Traits, And Creatures
@@ -161,7 +170,9 @@ The goal is reached when:
 
 | Capability | Current evidence | Status | Required next step |
 | --- | --- | --- | --- |
-| Rules authoring | **Game / Rules** edits project-owned definitions through a searchable catalogue, forms, nested list controls, icon selection, and particle previews | Functional | Improve domain-specific workflows, inherited deltas, and module-wide operations |
+| Internal rules authoring | Explicit `internal-rules-editor` builds expose **Game / Rules** and the Rules dock; standard builds omit their navigation and ignore legacy open commands. Shared catalogue/domain metadata, forms, validation and recovery are retained | Functional internal tooling | Complete supplied RPG content and acquisition paths; public generic editing is not a prerequisite |
+| Internal guided armor family | Maintainer **Armor Family** tool previews and atomically creates five bone-pattern pieces, recipes, actions, optional missing ingredient definitions and selected class grants; template UUIDs survive Undo/Redo and save/reload. Bone armor is already supplied | Functional internal tooling | Add further coherent supplied content; creators should not configure each family |
+| Resource binding | Authoring profile/pool selectors and **Bind Resource** for sectors, linedefs and Geometry Objects; validated TOML overrides and Undo/Redo | Functional | Add reusable asset inheritance and policy migration tooling |
 | Ruleset selection | **Game / Settings** exposes official/project fields | Functional | Add package browser and derived ruleset selection |
 | Inspectors | Console/terminal list, show, summarize, roll, class, item, recipe, XP, and validate commands exist | Functional | Make all inspectors consume `ResolvedRuleset` |
 | Item synchronization | Creator creates/refreshes ruleset-backed item templates | Functional | Generalize asset/package origin and conflict handling |
@@ -354,6 +365,21 @@ race-default trait materialization, race relations, trait-consuming target
 predicates, and trait-aware condition immunity are implemented. Creature
 templates, faction composition, deeper combat interactions, loot, localization,
 and final atlas art remain.
+
+## Maintenance and contribution verification (2026-11-18)
+
+The 2026-11-17 baseline reported 593 passing tests, six failures and one ignored test. Rechecking reproduced all six. The following corrections restore the intended checks:
+
+- Gate's compilation test checks its current Player/Guard catalogue instead of a stale count of five.
+- Hideout2D's advice test starts a new conversation instead of replacing an open stock choice session.
+- Hideout2D's Torch no longer retains the legacy script already replaced by its existing behavior graph. Other archive entries and graph identities are preserved.
+- The door look check expects the current private WorldText delivery.
+- The startup fixture supplies a message channel and a real startup behavior graph.
+- The character-default check expects the current Human hair index of 4.
+
+The full headless run with shared contributions passes **609 tests, with zero failures and one ignored test**. Final focused verification passes: the new action-UI requirement case, 12 crafting/contribution cases, the solo/dedicated transfer/reconnect/save scenario, and the encoded hosted production/repair/ownership/retry/resync scenario. Creator compilation also passes. The documentation build succeeds. These results establish the corrected workspace baseline; they do not claim the six failures predated all ongoing workspace work.
+
+The shared passive slice covers saved/derived bases, explicit category projections, enchantment instances, existing condition stacking arithmetic, source explanations, broken activation and exact repair. Ownership transfer, client state, reconnect and durable restoration are exercised in solo/dedicated sessions. Gameplay enchanting recipes, charged triggers, talent grants, item/action-local modifier stages and advanced stacking remain outside this implementation.
 
 ## Audit Sources
 

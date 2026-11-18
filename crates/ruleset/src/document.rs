@@ -128,6 +128,11 @@ impl RulesDocument {
         &self.table
     }
 
+    /// Shared identity and authoring view, without changing storage layout.
+    pub fn catalogue(&self) -> crate::catalogue::Catalogue {
+        crate::catalogue::Catalogue::from_table(&self.table)
+    }
+
     /// Apply an edit to a copy and commit it only when the operation succeeds.
     /// This supports additions, deletions and list reordering without exposing
     /// partially applied edits to another view.

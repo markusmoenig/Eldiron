@@ -6,11 +6,10 @@ use eldiron_ruleset::{
     ResolvedAction, ResolvedActionAttributePredicate, ResolvedActionEffect,
     ResolvedActionEffectRecipient, ResolvedActionEffectValue, ResolvedActionKind,
     ResolvedActionModification, ResolvedActionModificationField, ResolvedActionPredicateValue,
-    ResolvedActionRange, ResolvedActionRequirement, ResolvedCondition,
-    ResolvedConditionPeriodicEffect, ResolvedDerivedStat, evaluate_formula,
-    resolve_attribute_roles, resolve_condition, resolve_conditions, resolve_derived_stats,
+    ResolvedActionRange, ResolvedActionRequirement, ResolvedConditionPeriodicEffect,
+    resolve_attribute_roles, resolve_condition,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use toml::Table;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -171,6 +170,41 @@ pub fn describe_item(item: &Item, assets: &Assets) -> RulesDescription {
     if let Some(condition) = item_percent_attr(item, "condition") {
         lines.push(format!("Condition: {}%", condition));
     }
+    if let Some(rules) = assets.value_rules() {
+        match crate::effective_values::enchantments(item) {
+            Ok(instances) => {
+                for instance in instances {
+                    if let Some(enchantment) = rules.enchantments.get(&instance.definition) {
+                        let active = !enchantment.requires_positive_condition
+                            || crate::equipment_lifecycle::condition(item)
+                                .is_some_and(|value| value > 0.0);
+                        for modifier in &enchantment.modifiers {
+                            let mut detail = format!(
+                                "Enchantment — {}: {} {:+}",
+                                enchantment.name, modifier.attribute, modifier.add
+                            );
+                            if modifier.multiply != 1.0 {
+                                detail.push_str(&format!(" ×{}", modifier.multiply));
+                            }
+                            if let Some(min) = modifier.minimum {
+                                detail.push_str(&format!(" min {min}"));
+                            }
+                            if let Some(max) = modifier.maximum {
+                                detail.push_str(&format!(" max {max}"));
+                            }
+                            detail.push_str(if active {
+                                " while equipped"
+                            } else {
+                                " (inactive: broken)"
+                            });
+                            lines.push(detail);
+                        }
+                    }
+                }
+            }
+            Err(_) => lines.push("Invalid enchantment state".into()),
+        }
+    }
     if let Some(damage) = item_damage_line(item) {
         lines.push(damage);
     } else if let Some(dmg) = assets
@@ -185,7 +219,14 @@ pub fn describe_item(item: &Item, assets: &Assets) -> RulesDescription {
         .and_then(|attribute| item.attributes.get_float(&attribute))
         && armor > 0.0
     {
-        lines.push(format_number_line("Armor", armor));
+        let mut line = format_number_line("Armor", armor);
+        if assets
+            .value_rules()
+            .is_some_and(|rules| !crate::equipment_lifecycle::active(&rules.equipment, item))
+        {
+            line.push_str(" (inactive: broken)");
+        }
+        lines.push(line);
     }
     if let Some(kind) = item.attributes.get_str("damage_kind") {
         lines.push(format!("Damage kind: {}", title_case(kind)));
@@ -533,141 +574,11 @@ fn action_attribute_predicate_matches(
     }
 }
 
-fn condition_attribute_suffix(condition_id: &str) -> String {
-    let mut suffix = "condition_".to_string();
-    for ch in condition_id.trim().chars() {
-        if ch.is_ascii_alphanumeric() {
-            suffix.push(ch.to_ascii_lowercase());
-        } else {
-            suffix.push('_');
-        }
-    }
-    while suffix.contains("__") {
-        suffix = suffix.replace("__", "_");
-    }
-    suffix.trim_matches('_').to_string()
-}
-
 fn effective_rules_attribute(root: &Table, entity: &Entity, attribute: &str) -> f32 {
-    let conditions = resolve_conditions(root).unwrap_or_default();
-    let derived_stats = resolve_derived_stats(root).unwrap_or_default();
-    let level_attribute = resolve_attribute_roles(root)
-        .ok()
-        .and_then(|roles| roles.get("level").map(str::to_string));
-    effective_rules_attribute_inner(
-        entity,
-        attribute,
-        &conditions,
-        &derived_stats,
-        level_attribute.as_deref(),
-        &mut BTreeSet::new(),
-    )
-}
-
-fn effective_rules_attribute_inner(
-    entity: &Entity,
-    attribute: &str,
-    conditions: &BTreeMap<String, ResolvedCondition>,
-    derived_stats: &BTreeMap<String, ResolvedDerivedStat>,
-    level_attribute: Option<&str>,
-    visiting: &mut BTreeSet<String>,
-) -> f32 {
-    let raw = entity.attributes.get_float_default(attribute, 0.0);
-    let visit_key = attribute.to_ascii_lowercase();
-    if !visiting.insert(visit_key.clone()) {
-        return raw;
-    }
-    let derived = derived_stats.get(attribute).or_else(|| {
-        derived_stats
-            .values()
-            .find(|stat| stat.id.eq_ignore_ascii_case(attribute))
-    });
-    let mut resolved = derived
-        .and_then(|stat| {
-            evaluate_formula(&stat.formula, |name| match name {
-                "base" => raw,
-                "level" => level_attribute
-                    .map(|attribute| entity.attributes.get_float_default(attribute, 1.0))
-                    .unwrap_or(1.0),
-                dependency => effective_rules_attribute_inner(
-                    entity,
-                    dependency,
-                    conditions,
-                    derived_stats,
-                    level_attribute,
-                    visiting,
-                ),
-            })
-            .map(|mut value| {
-                if let Some(minimum) = stat.minimum {
-                    value = value.max(minimum);
-                }
-                if let Some(maximum) = stat.maximum {
-                    value = value.min(maximum);
-                }
-                value
-            })
-        })
-        .unwrap_or(raw);
-    visiting.remove(&visit_key);
-    resolved = apply_rules_condition_modifiers(entity, attribute, conditions, resolved);
-    resolved
-}
-
-fn apply_rules_condition_modifiers(
-    entity: &Entity,
-    attribute: &str,
-    conditions: &BTreeMap<String, ResolvedCondition>,
-    base: f32,
-) -> f32 {
-    let base = base as f64;
-    let active = match entity.attributes.get("conditions") {
-        Some(Value::StrArray(ids)) => ids.clone(),
-        Some(Value::Str(ids)) => ids
-            .split(',')
-            .map(str::trim)
-            .filter(|id| !id.is_empty())
-            .map(str::to_string)
-            .collect(),
-        _ => Vec::new(),
-    };
-    let mut add = 0.0f64;
-    let mut multiply = 1.0f64;
-    let mut minimum: Option<f64> = None;
-    let mut maximum: Option<f64> = None;
-    for condition_id in active {
-        let Some(condition) = conditions.get(&condition_id) else {
-            continue;
-        };
-        let suffix = condition_attribute_suffix(&condition_id);
-        let stacks = entity
-            .attributes
-            .get_float_default(&format!("{}_stacks", suffix), 1.0)
-            .round()
-            .max(1.0) as usize;
-        for modifier in condition
-            .modifiers
-            .iter()
-            .filter(|modifier| modifier.attribute.eq_ignore_ascii_case(attribute))
-        {
-            add += modifier.add as f64 * stacks as f64;
-            multiply *= (modifier.multiply as f64).powi(stacks.min(i32::MAX as usize) as i32);
-            if let Some(value) = modifier.minimum {
-                minimum = Some(minimum.map_or(value as f64, |current| current.max(value as f64)));
-            }
-            if let Some(value) = modifier.maximum {
-                maximum = Some(maximum.map_or(value as f64, |current| current.min(value as f64)));
-            }
-        }
-    }
-    let mut value = (base + add) * multiply;
-    if let Some(minimum) = minimum {
-        value = value.max(minimum);
-    }
-    if let Some(maximum) = maximum {
-        value = value.min(maximum);
-    }
-    value.clamp(f32::MIN as f64, f32::MAX as f64) as f32
+    crate::effective_values::ValueRules::resolve(root)
+        .and_then(|rules| rules.explain(entity, attribute, 0.0))
+        .map(|value| value.value)
+        .unwrap_or_else(|_| entity.attributes.get_float_default(attribute, 0.0))
 }
 
 fn action_entity_attribute_predicate_matches(
@@ -813,6 +724,37 @@ fn rules_action_state(assets: &Assets, actor: &Entity, action_id: &str) -> Comma
     state
 }
 
+fn capability_item_names(root: &Table, key: &str, capability: &str) -> String {
+    let names: BTreeSet<_> = root
+        .get("items")
+        .and_then(toml::Value::as_table)
+        .into_iter()
+        .flat_map(|groups| groups.values())
+        .filter_map(toml::Value::as_table)
+        .flat_map(|group| group.values())
+        .filter(|item| {
+            item.get("attributes")
+                .and_then(|attrs| attrs.get(key))
+                .and_then(toml::Value::as_array)
+                .is_some_and(|caps| caps.iter().any(|cap| cap.as_str() == Some(capability)))
+        })
+        .filter_map(|item| item.get("name").and_then(toml::Value::as_str))
+        .collect();
+    if names.is_empty() {
+        return title_case(&capability.replace('_', " "));
+    }
+    let mut label = names
+        .iter()
+        .take(3)
+        .copied()
+        .collect::<Vec<_>>()
+        .join(" or ");
+    if names.len() > 3 {
+        label.push_str(" or another suitable item");
+    }
+    label
+}
+
 fn describe_rules_action(
     root: &Table,
     action: &ResolvedAction,
@@ -828,6 +770,53 @@ fn describe_rules_action(
         && !description.trim().is_empty()
     {
         lines.push(description.trim().to_string());
+    }
+    if let Some(recipe) = action
+        .recipe
+        .as_deref()
+        .and_then(|id| table_at(root, &["recipes", id]))
+    {
+        for (key, label) in [("consumes", "Materials"), ("produces", "Produces")] {
+            if let Some(entries) = recipe.get(key).and_then(toml::Value::as_array) {
+                let values = entries
+                    .iter()
+                    .filter_map(|entry| {
+                        let id = entry.get("item")?.as_str()?;
+                        let quantity = entry
+                            .get("quantity")
+                            .and_then(toml::Value::as_integer)
+                            .unwrap_or(1);
+                        Some(format!(
+                            "{} {}",
+                            quantity,
+                            title_case(&id.replace('_', " "))
+                        ))
+                    })
+                    .collect::<Vec<_>>();
+                if !values.is_empty() {
+                    lines.push(format!("{label}: {}", values.join(", ")));
+                }
+            }
+        }
+        if let Ok(requirements) = eldiron_ruleset::crafting::requirements(recipe) {
+            if let Some(repair) = requirements.repair {
+                lines.push(format!("Repair the selected owned item: +{} condition, up to {}. Keeps quality and other properties.", repair.amount, repair.maximum));
+            }
+            if let Some(tool) = requirements.tool {
+                lines.push(format!(
+                    "Tool: {} ({} condition per craft)",
+                    capability_item_names(root, "tool_capabilities", &tool.capability),
+                    tool.condition_cost
+                ));
+            }
+            if let Some(station) = requirements.station {
+                lines.push(format!(
+                    "Station: {} (place nearby, within {} units)",
+                    capability_item_names(root, "station_capabilities", &station.capability),
+                    station.range
+                ));
+            }
+        }
     }
     lines.push("Activation: 1 Action".to_string());
     lines.push(format!(
@@ -1413,6 +1402,85 @@ fn current_weapon_range(root: &Table, entity: &Entity) -> Option<f32> {
 mod tests {
     use super::*;
     use crate::{Entity, Value};
+
+    #[test]
+    fn action_requirements_use_equipped_enchantment_and_disable_when_broken() {
+        let mut assets = Assets::new();
+        let mut root = eldiron_ruleset::document::RulesState::default()
+            .document()
+            .unwrap()
+            .table()
+            .clone();
+        root["actions"]["guard"]["requires"] =
+            toml::Value::Table("attributes=[{id='STR',at_least=14}]".parse().unwrap());
+        assets.rules = toml::to_string(&root).unwrap();
+        let mut actor = Entity::new();
+        actor.set_attribute("STR", Value::Int(12));
+        let mut armor = Item::new();
+        armor.set_attribute("category", Value::Str("bone_armor".into()));
+        armor.set_attribute("enchantments", Value::StrArray(vec!["strength".into()]));
+        actor.equipped.insert("torso".into(), armor);
+        assert!(command_state(&assets, Some(&actor), "rules.guard").enabled);
+        actor
+            .equipped
+            .get_mut("torso")
+            .unwrap()
+            .set_attribute("condition", Value::Int(0));
+        assert!(!command_state(&assets, Some(&actor), "rules.guard").enabled);
+    }
+
+    #[test]
+    fn supplied_crafting_actions_explain_inputs_tools_and_deployed_stations() {
+        let mut assets = Assets::new();
+        assets.rules = eldiron_ruleset::document::RulesState::default().current;
+        let entries = action_catalog(&assets, None)
+            .into_iter()
+            .flat_map(|group| group.entries)
+            .collect::<Vec<_>>();
+        for command in [
+            "rules.craft_make_stone_knife",
+            "rules.craft_shape_bone",
+            "rules.craft_bone_cuirass",
+            "rules.repair_bone_armor",
+        ] {
+            assert!(
+                entries.iter().any(|entry| entry.command == command),
+                "{command}"
+            );
+        }
+        let description = describe_command(&assets, None, "rules.craft_bone_cuirass");
+        assert!(
+            description
+                .lines
+                .iter()
+                .any(|line| line.contains("8 Bone Plate") && line.contains("4 Leather Strap"))
+        );
+        assert!(
+            description
+                .lines
+                .iter()
+                .any(|line| line.contains("Stone Knife") && line.contains("condition"))
+        );
+        assert!(
+            description
+                .lines
+                .iter()
+                .any(|line| line.contains("place nearby") && line.contains("Bone Workbench"))
+        );
+        let repair = describe_command(&assets, None, "rules.repair_bone_armor");
+        assert!(
+            repair
+                .lines
+                .iter()
+                .any(|line| line.contains("+20 condition, up to 100"))
+        );
+        assert!(
+            repair
+                .lines
+                .iter()
+                .any(|line| line.contains("1 Bone Plate") && line.contains("1 Leather Strap"))
+        );
+    }
 
     #[test]
     fn ui_command_description_uses_ruleset_presentation() {

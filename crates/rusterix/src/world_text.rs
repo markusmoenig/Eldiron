@@ -2,7 +2,7 @@
 use uuid::Uuid;
 use vek::Vec3;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub enum TextAnchor {
     Entity(u32),
     Item(u32),
@@ -10,7 +10,7 @@ pub enum TextAnchor {
     Position(Vec3<f32>),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct WorldText {
     pub anchor: TextAnchor,
     pub text: String,
@@ -19,7 +19,7 @@ pub struct WorldText {
 mod passages;
 mod policy;
 pub use passages::{WorldPassage, WorldTexts, lifetime};
-pub use policy::{anchor_position, carrier, resolve_for_player};
+pub use policy::{anchor_position, carrier, resolve_for_player, resolve_for_player_view};
 #[cfg(feature = "graphics")]
 mod projection;
 #[cfg(feature = "graphics")]

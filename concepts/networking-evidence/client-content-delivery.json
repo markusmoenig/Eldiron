@@ -1,0 +1,108 @@
+{
+  "recorded_on": "2026-11-17",
+  "platform": {
+    "system": "Darwin",
+    "machine": "arm64"
+  },
+  "head": "37054d324b56b5cb7c33b7e1053ad24ce93bf4f1",
+  "working_tree_dirty": true,
+  "source_sha256": {
+    "crates/network/Cargo.toml": "7e38dee2c8a32a93c12fdfed9baca50267b015aa56cd0540ce21797a70a68911",
+    "crates/network/src/lib.rs": "7a9aa962088881baddd2600bb2e6a3e6e6b6ec61a16f599a870525aee3a945ab",
+    "crates/network/src/content.rs": "2d471ee2fb9d770f4a960cdb332212423c6d3904ed496d571c830963ef07247a",
+    "crates/network/src/content_task.rs": "8e95163f9d91a13199b543ec476099fd520d54d307ed0cc1694c3fbde6f6df83",
+    "crates/network/src/content_stream.rs": "c021dfcb22e902b7727ae41ff34f0b39bdf920bae766c94243e99fa3f062d88e",
+    "crates/network/src/content_stream_tests.rs": "f9b890d2968796e9a0984759dde6e073da03dbd29085b6ad3ade0cec356a3e5c",
+    "crates/network/src/browser.rs": "4565df4b63b8a35c9f6c7da2ce199782fa18a33e1a02eea5841166af805d5c21",
+    "crates/player/src/native_player/online.rs": "55eeff4a2ab62a0c0c5a7e512bed9aa29f094693b4f0473921ed45ec5d7c5f75",
+    "crates/player/src/native_player/online_session.rs": "09c9b7f20a7dc16fd5e77894c479560e03cb635135a8f3f8090fa3fe00bb1ed0",
+    "crates/player/src/native_player/tests/online.rs": "ba2ff48defb5e22406b2e43f7b9eba79e6e28a01d5fcd95a66a0b06dacce9722",
+    "clients/online/src/main.rs": "f829b116b8a8539c1b27fb1ac52d4196c39a0c0559b2a521b403421f56e856bd",
+    "tools/verify_online_browser.mjs": "df17e552b7232daa62a3e931a1dc809edc345797b6c56747e9518d04256c6e80"
+  },
+  "source_set_sha256": "15f2468925b21533d9f92a0d4d64e6b9e7d9e0768b5eb7bd7b6df1e87410acd3",
+  "project_sha256": "3b620c412d038b1c8fc9233856a5bf6f4c2cea02595333c651e965daa0085059",
+  "browser_server_binary_sha256": "f39ff29e8949e0a9fb0ccf0f2d472f1edb6a41e8c63976e548e7f24dbc054ea8",
+  "browser_wasm_sha256": "24f4f48d374185ed174e200dfa34935eb3b2e24d1775803f6469436be1504378",
+  "native_soak": {
+    "content_delay_ms": 3000,
+    "demo_entity_ids": [
+      1,
+      1,
+      1
+    ],
+    "distinct_view_incarnations": 3,
+    "elapsed_seconds": 60.005306584,
+    "joins": 3,
+    "local_authority_ticks": 0,
+    "peak_bytes": 114027,
+    "peak_packets": 153
+  },
+  "browser": {
+    "transport": "WSS (temporary certificate pinned)",
+    "content": "HTTPS compiled physics",
+    "clients": 2,
+    "wasm": "spatial replicas, asynchronous content preloads, fixed inputs and sequenced requests",
+    "accounts": "none",
+    "saveStore": "none",
+    "high_refresh": {
+      "pumps": 1364,
+      "sent": 165,
+      "status": "Playing demo"
+    },
+    "reload": true,
+    "content_delay_ms": 3000,
+    "content_queues": [
+      {
+        "downloading": false,
+        "peak_bytes": 117677,
+        "peak_packets": 156,
+        "queued_bytes": 99757,
+        "queued_packets": 142,
+        "required_downloads": 1
+      },
+      {
+        "downloading": false,
+        "peak_bytes": 122156,
+        "peak_packets": 161,
+        "queued_bytes": 106862,
+        "queued_packets": 143,
+        "required_downloads": 1
+      }
+    ],
+    "canceled_content_requests": 2,
+    "delayed_requests": 8,
+    "soak": {
+      "elapsed_seconds": 60.041,
+      "checks": 24
+    }
+  },
+  "checks": {
+    "network_tests": 16,
+    "ui_backpressure_tests": 1,
+    "native_socket_tests": 3,
+    "embedded_project_mode_tests": 2,
+    "scheduling_tests": 2,
+    "native_player_creator_online_check": "passed",
+    "wasm_player_creator_check": "passed",
+    "renderer_boundaries": "passed",
+    "format_syntax_diff_checks": "passed"
+  },
+  "commands": [
+    "cargo test -p eldiron-network --lib --offline",
+    "cargo test -p eldiron-player --lib native_player::online::tests --offline",
+    "cargo test -p eldiron-player --lib multiplayer_project_ --offline -- --ignored --test-threads=1 --nocapture",
+    "ELDIRON_SERVER=target/release/eldiron-server node tools/verify_online_browser.mjs",
+    "cargo test -p eldiron-runtime --test project_mode --test scheduling --offline",
+    "cargo check -p eldiron-player -p eldiron-creator -p eldiron-online --offline",
+    "cargo check --target wasm32-unknown-unknown -p eldiron-player -p eldiron-creator --no-default-features --features eldiron-player/native-web,eldiron-creator/browser-host --offline",
+    "python3 tools/check_renderer_boundaries.py"
+  ],
+  "limits": [
+    "local socket/TLS tests, not WAN packet-loss simulation",
+    "native graphical application/lobby/presentation logic without a GPU window",
+    "browser uses the optimized host binary from the previous release gate, identified above",
+    "one-minute soaks, not multi-hour deployment or capacity guarantees",
+    "initial/reconnect content delays; heavy in-game geometry changes remain representative deployment work"
+  ]
+}

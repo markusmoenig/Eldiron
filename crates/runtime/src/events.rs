@@ -39,7 +39,7 @@ impl EventInterests {
         }
     }
 }
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RegionEvents {
     pub messages: Vec<Message>,
     pub says: Vec<Say>,
@@ -47,6 +47,9 @@ pub struct RegionEvents {
     pub audio: Vec<AudioCommand>,
     pub world_text: Vec<(u32, WorldText)>,
     pub containers: Vec<OpenContainerRequest>,
+    /// Collector-only addressing; never serialized or sent to a client.
+    #[serde(skip)]
+    pub container_recipients: Vec<(u32, OpenContainerRequest)>,
 }
 /// Cheap borrowed fan-out. A service which owns one output family can forward
 /// the remaining slices without cloning payloads or draining the session again.
@@ -71,6 +74,72 @@ impl<'a> RegionOutputs<'a> {
     }
 }
 impl RegionEvents {
+    pub fn count(&self) -> usize {
+        self.messages.len()
+            + self.says.len()
+            + self.choices.len()
+            + self.audio.len()
+            + self.world_text.len()
+            + self.containers.len()
+            + self
+                .choices
+                .iter()
+                .map(|choice| choice.choices.len())
+                .sum::<usize>()
+    }
+    pub(crate) fn append(&mut self, mut other: Self) {
+        self.messages.append(&mut other.messages);
+        self.says.append(&mut other.says);
+        self.choices.append(&mut other.choices);
+        self.audio.append(&mut other.audio);
+        self.world_text.append(&mut other.world_text);
+        self.containers.append(&mut other.containers);
+    }
+    pub(crate) fn for_player(&self, player: Option<u32>, interests: EventInterests) -> Self {
+        Self {
+            messages: self
+                .messages
+                .iter()
+                .filter(|m| interests.messages && Some(m.2) == player)
+                .cloned()
+                .collect(),
+            says: if interests.says {
+                self.says.clone()
+            } else {
+                vec![]
+            },
+            choices: self
+                .choices
+                .iter()
+                .filter(|c| {
+                    interests.choices
+                        && Some(c.to) == player
+                        && c.choices
+                            .iter()
+                            .all(|entry| Some(entry.session_meta().1) == player)
+                })
+                .cloned()
+                .collect(),
+            audio: if interests.audio {
+                self.audio.clone()
+            } else {
+                vec![]
+            },
+            world_text: self
+                .world_text
+                .iter()
+                .filter(|m| interests.world_text && Some(m.0) == player)
+                .cloned()
+                .collect(),
+            containers: self
+                .container_recipients
+                .iter()
+                .filter(|(to, _)| interests.containers && Some(*to) == player)
+                .map(|(_, request)| *request)
+                .collect(),
+            container_recipients: vec![],
+        }
+    }
     pub fn outputs(&self) -> RegionOutputs<'_> {
         RegionOutputs {
             messages: &self.messages,
@@ -107,9 +176,11 @@ impl RegionEvents {
         if interest.world_text {
             self.world_text.extend(text);
         }
+        let addressed = server.take_container_recipients(id);
         let containers = server.get_open_container_requests(id);
         if interest.containers {
             self.containers.extend(containers);
+            self.container_recipients.extend(addressed);
         }
     }
 }

@@ -3,6 +3,9 @@ use crate::prelude::*;
 use shared::rulesets::document::PathPart;
 use shared::rulesets::document::{RulesTable as Table, RulesValue as TomlValue};
 
+mod family;
+use family::{FamilyWizard, RulesUndo};
+
 const TREE: &str = "Rules Catalogue";
 const FORM: &str = "Rules Inspector";
 const ENTRY: &str = "Rules Entry ";
@@ -17,12 +20,13 @@ pub struct RulesEditor {
     nested_tables: Vec<Vec<PathPart>>,
     icons: Vec<(String, TheRGBABuffer)>,
     choices: std::collections::HashMap<usize, Vec<String>>,
+    family: Option<FamilyWizard>,
     selected: Option<Vec<String>>,
     form_path: Option<Vec<String>>,
     search: String,
     dirty: bool,
-    undo: Vec<shared::rulesets::document::RulesState>,
-    redo: Vec<shared::rulesets::document::RulesState>,
+    undo: Vec<RulesUndo>,
+    redo: Vec<RulesUndo>,
     #[cfg(feature = "native-ui")]
     native_preview: bool,
     #[cfg(feature = "native-ui")]
@@ -211,227 +215,17 @@ fn field_label(key: &str) -> String {
         .join(" ")
 }
 
-fn domain_field_order(domain: &str, key: &str) -> usize {
-    let leading = match domain {
-        "actions" => &[
-            "name",
-            "description",
-            "kind",
-            "target",
-            "range",
-            "cooldown",
-            "requires",
-            "cost",
-            "consumes",
-            "result",
-            "fx",
-            "ui",
-        ][..],
-        "items" => &[
-            "name",
-            "description",
-            "category",
-            "slot",
-            "rarity",
-            "damage",
-            "attributes",
-            "icon",
-            "visual_template",
-        ][..],
-        "classes" => &[
-            "name",
-            "description",
-            "role",
-            "primary_attributes",
-            "attributes",
-            "progression",
-            "unlocks",
-            "starting_loadout",
-            "allowed_weapons",
-            "allowed_armor",
-        ][..],
-        "races" => &[
-            "name",
-            "description",
-            "default_avatar",
-            "traits",
-            "languages",
-            "attributes",
-        ][..],
-        "recipes" => &[
-            "name",
-            "description",
-            "skill",
-            "required_skill",
-            "recommended_skill",
-            "difficulty",
-            "attribute",
-            "station",
-            "time",
-            "requires",
-            "consumes",
-            "produces",
-        ][..],
-        "conditions" => &[
-            "name",
-            "description",
-            "duration",
-            "stacking",
-            "max_stacks",
-            "tags",
-            "immune_traits",
-            "modifiers",
-            "periodic",
-            "fx",
-        ][..],
-        "spells" | "abilities" => {
-            &["name", "description", "kind", "school", "damage", "healing"][..]
-        }
-        _ => &["name", "description", "kind"][..],
-    };
-    leading
-        .iter()
-        .position(|field| *field == key)
-        .unwrap_or(leading.len())
-}
-
-fn domain_field_help(domain: &str, key: &str) -> &'static str {
-    match (domain, key) {
-        ("actions", "cooldown") => "Time in seconds before this action can be used again.",
-        ("actions", "target") => "Which target the action can affect.",
-        ("recipes", "time") => "Crafting time in seconds.",
-        ("recipes", "consumes") => "Ingredients consumed by the recipe.",
-        ("recipes", "produces") => "Items created by the recipe.",
-        ("conditions", "duration") => "Duration in seconds.",
-        ("conditions", "stacking") => "How repeated applications combine.",
-        ("classes", "unlocks") => "Abilities and spells learned at each level.",
-        ("classes", "starting_loadout") => "Equipment and inventory provided to new characters.",
-        ("races", "default_avatar") => {
-            "Avatar used when the character has no explicit visual override."
-        }
-        ("items", "slot") => "Equipment slot used by this item.",
-        _ => "Edit this value and press Return.",
-    }
-}
-
-/// Choices are derived from the active document, and the current value is
-/// always retained so custom rules never disappear from the editor.
-fn domain_choices(rules: &Table, path: &[String], key: &str, current: &str) -> Vec<String> {
-    let domain = path.first().map(String::as_str).unwrap_or("");
-    let section = match key {
-        "ability" | "abilities" => Some("abilities"),
-        "spell" | "spells" => Some("spells"),
-        "recipe" => Some("recipes"),
-        "apply_condition" | "condition" => Some("conditions"),
-        "class_hint" => Some("classes"),
-        "profession_hint" => Some("professions"),
-        "trait" | "traits" | "immune_traits" => Some("traits"),
-        "skill" => Some("skills"),
-        "race" => Some("races"),
-        "class" => Some("classes"),
-        "visual_template" => Some("visual_templates"),
-        _ => None,
-    };
-    let mut options: Vec<String> = if let Some(section) = section {
-        rules
-            .get(section)
-            .and_then(TomlValue::as_table)
-            .map(|t| t.keys().cloned().collect())
-            .unwrap_or_default()
-    } else if matches!(
-        key,
-        "attribute" | "bonus_attribute" | "maximum_attribute" | "primary_attributes"
-    ) {
-        rules
-            .get("attributes")
-            .and_then(|v| v.get("defaults"))
-            .and_then(TomlValue::as_table)
-            .map(|t| {
-                t.keys()
-                    .filter(|key| key.chars().all(|c| !c.is_alphabetic() || c.is_uppercase()))
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default()
-    } else if key == "item"
-        || (domain == "classes" && path.iter().any(|part| part == "starting_loadout"))
-    {
-        rules
-            .get("items")
-            .and_then(TomlValue::as_table)
-            .map(|groups| {
-                groups
-                    .values()
-                    .filter_map(TomlValue::as_table)
-                    .flat_map(|items| items.keys().cloned())
-                    .collect()
-            })
-            .unwrap_or_default()
-    } else if key == "damage_kind" {
-        rules
-            .get("combat")
-            .and_then(|v| v.get("kinds"))
-            .and_then(TomlValue::as_table)
-            .map(|t| t.keys().cloned().collect())
-            .unwrap_or_default()
-    } else if key == "default_avatar" {
-        rules
-            .get("assets")
-            .and_then(|v| v.get("avatars"))
-            .and_then(TomlValue::as_table)
-            .map(|t| t.keys().cloned().collect())
-            .unwrap_or_default()
-    } else if domain == "items" && key == "slot" {
-        rules
-            .get("equipment")
-            .and_then(TomlValue::as_table)
-            .map(|equipment| {
-                ["weapon_slots", "armor_slots"]
-                    .into_iter()
-                    .filter_map(|k| equipment.get(k).and_then(TomlValue::as_array))
-                    .flatten()
-                    .filter_map(TomlValue::as_str)
-                    .map(str::to_string)
-                    .collect()
-            })
-            .unwrap_or_default()
-    } else if (domain == "items" && key == "category")
-        || (domain == "classes" && matches!(key, "allowed_weapons" | "allowed_armor"))
-    {
-        let group = if key == "allowed_armor" || path.get(1).is_some_and(|part| part == "armor") {
-            "armor_categories"
-        } else {
-            "weapon_categories"
-        };
-        rules
-            .get("equipment")
-            .and_then(|v| v.get(group))
-            .and_then(TomlValue::as_table)
-            .map(|t| t.keys().cloned().collect())
-            .unwrap_or_default()
-    } else if domain == "conditions" && key == "stacking" {
-        ["replace", "refresh", "stack", "ignore"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect()
-    } else if domain == "items" && key == "rig_layer" {
-        ["front", "back"].iter().map(|s| s.to_string()).collect()
-    } else {
-        Vec::new()
-    };
-    options.sort();
-    options.dedup();
-    if !options.is_empty() && !options.iter().any(|option| option == current) {
-        options.push(current.into());
-    }
-    options
-}
+use shared::rulesets::domain_metadata::{
+    choices_with_catalogue as domain_choices, field_help as domain_field_help,
+    field_order as domain_field_order,
+};
 
 fn add_domain_choice(
     form: &mut dyn TheTextLayoutTrait,
     fields: &mut Vec<(Vec<String>, TomlValue, Option<usize>, Option<String>)>,
     choices: &mut std::collections::HashMap<usize, Vec<String>>,
     rules: &Table,
+    catalogue: &shared::rulesets::catalogue::Catalogue,
     path: &[String],
     value: &TomlValue,
     index: Option<usize>,
@@ -445,7 +239,7 @@ fn add_domain_choice(
         .as_deref()
         .or_else(|| path.last().map(String::as_str))
         .unwrap_or("");
-    let options = domain_choices(rules, path, field_key, raw);
+    let options = domain_choices(rules, catalogue, path, field_key, raw);
     if options.is_empty() {
         return false;
     }
@@ -590,61 +384,59 @@ impl RulesEditor {
         };
         let root = tree.get_root();
         root.clear();
-        for (category, value) in doc.table() {
-            let Some(table) = value.as_table() else {
+        let catalogue = shared::rulesets::catalogue::Catalogue::from_table(doc.table());
+        let mut domains: std::collections::BTreeMap<String, Vec<_>> = Default::default();
+        for entry in &catalogue.entries {
+            if !format!("{} {}", entry.path.join(" "), entry.name)
+                .to_lowercase()
+                .contains(&self.search)
+            {
                 continue;
-            };
-            let category_start = self.entries.len();
-            let mut group = TheTreeNode::new(TheId::named(category));
+            }
+            domains
+                .entry(entry.path[0].clone())
+                .or_default()
+                .push(entry);
+        }
+        for (category, entries) in domains {
+            let mut group = TheTreeNode::new(TheId::named(&category));
             group.set_open(!self.search.is_empty());
-            for (name, value) in table {
-                if (category == "items" || (category == "fx" && name == "presets"))
-                    && value.as_table().is_some()
-                {
-                    let mut sub = TheTreeNode::new(TheId::named(&format!("{category}/{name}")));
-                    sub.set_open(!self.search.is_empty());
-                    let sub_start = self.entries.len();
-                    for (id, _) in value.as_table().unwrap() {
-                        if !format!("{category} {name} {id}")
-                            .to_lowercase()
-                            .contains(&self.search)
-                        {
-                            continue;
-                        }
-                        let path = vec![category.clone(), name.clone(), id.clone()];
-                        let mut item = TheTreeItem::new(TheId::named(&format!(
-                            "{ENTRY}{}",
-                            self.entries.len()
-                        )));
-                        item.set_text(id.clone());
-                        sub.add_widget(Box::new(item));
-                        self.entries.push(path);
-                    }
-                    if self.search.is_empty() || self.entries.len() != sub_start {
-                        group.add_child(sub);
-                    }
+            let mut subgroups: std::collections::BTreeMap<String, Vec<_>> = Default::default();
+            for entry in entries {
+                if entry.path.len() == 3 {
+                    subgroups
+                        .entry(entry.path[1].clone())
+                        .or_default()
+                        .push(entry);
                 } else {
-                    if !format!("{category} {name}")
-                        .to_lowercase()
-                        .contains(&self.search)
-                    {
-                        continue;
-                    }
-                    let path = vec![category.clone(), name.clone()];
                     let mut item =
                         TheTreeItem::new(TheId::named(&format!("{ENTRY}{}", self.entries.len())));
-                    item.set_text(name.clone());
+                    item.set_text(entry.path.last().unwrap().clone());
                     group.add_widget(Box::new(item));
-                    self.entries.push(path);
+                    self.entries.push(entry.path.clone());
                 }
             }
-            if self.search.is_empty() || self.entries.len() != category_start {
-                root.add_child(group);
+            for (name, entries) in subgroups {
+                let mut sub = TheTreeNode::new(TheId::named(&format!("{category}/{name}")));
+                sub.set_open(!self.search.is_empty());
+                for entry in entries {
+                    let mut item =
+                        TheTreeItem::new(TheId::named(&format!("{ENTRY}{}", self.entries.len())));
+                    item.set_text(entry.path.last().unwrap().clone());
+                    sub.add_widget(Box::new(item));
+                    self.entries.push(entry.path.clone());
+                }
+                group.add_child(sub);
             }
+            root.add_child(group);
         }
     }
 
     fn form(&mut self, ui: &mut TheUI, project: &Project) {
+        if self.family.is_some() {
+            self.family_form(ui, project);
+            return;
+        }
         self.fields.clear();
         self.lists.clear();
         self.nested_fields.clear();
@@ -768,6 +560,7 @@ impl RulesEditor {
             icons: &[(String, TheRGBABuffer)],
             choices: &mut std::collections::HashMap<usize, Vec<String>>,
             rules: &Table,
+            catalogue: &shared::rulesets::catalogue::Catalogue,
             path: Vec<String>,
             value: &TomlValue,
             label: String,
@@ -784,12 +577,14 @@ impl RulesEditor {
                     let mut next = path.clone();
                     next.push(key.clone());
                     let label = if label.is_empty() {
-                        match (path.first().map(String::as_str), key.as_str()) {
-                            (Some("actions"), "cooldown") => "Cooldown (seconds)".into(),
-                            (Some("actions"), "range") => "Range (tiles or weapon)".into(),
-                            (Some("recipes"), "time") => "Time (seconds)".into(),
-                            (Some("conditions"), "duration") => "Duration (seconds)".into(),
-                            _ => field_label(key),
+                        let meta = shared::rulesets::domain_metadata::field(
+                            path.first().map(String::as_str).unwrap_or(""),
+                            key,
+                        );
+                        if let Some(unit) = meta.unit {
+                            format!("{} ({unit})", field_label(key))
+                        } else {
+                            field_label(key)
                         }
                     } else {
                         format!("{label} / {}", field_label(key))
@@ -804,6 +599,7 @@ impl RulesEditor {
                         icons,
                         choices,
                         rules,
+                        catalogue,
                         next,
                         child,
                         label,
@@ -836,6 +632,7 @@ impl RulesEditor {
                                 fields,
                                 choices,
                                 rules,
+                                catalogue,
                                 &path,
                                 value,
                                 Some(index),
@@ -897,6 +694,7 @@ impl RulesEditor {
                             fields,
                             choices,
                             rules,
+                            catalogue,
                             &path,
                             item,
                             Some(index),
@@ -1014,7 +812,7 @@ impl RulesEditor {
                         return;
                     }
                     if add_domain_choice(
-                        form, fields, choices, rules, &path, value, None, None, &label,
+                        form, fields, choices, rules, catalogue, &path, value, None, None, &label,
                     ) {
                         return;
                     }
@@ -1108,6 +906,7 @@ impl RulesEditor {
                 fields.push((path, value.clone(), None, None));
             }
         }
+        let catalogue = shared::rulesets::catalogue::Catalogue::from_table(doc.table());
         add(
             form,
             &mut self.fields,
@@ -1118,6 +917,7 @@ impl RulesEditor {
             &self.icons,
             &mut self.choices,
             doc.table(),
+            &catalogue,
             path,
             value,
             String::new(),
@@ -1136,6 +936,7 @@ impl Dock for RulesEditor {
             nested_tables: Vec::new(),
             icons: Vec::new(),
             choices: Default::default(),
+            family: None,
             selected: None,
             form_path: None,
             search: String::new(),
@@ -1185,6 +986,7 @@ impl Dock for RulesEditor {
         bar.set_padding(4);
         for (id, title) in [
             ("Rules New", "New"),
+            ("Rules Family Open", "Armor Family"),
             ("Rules Duplicate", "Duplicate"),
             ("Rules Delete", "Delete"),
             ("Rules Save Checkpoint", "Checkpoint"),
@@ -1229,6 +1031,7 @@ impl Dock for RulesEditor {
         {
             self.preview_sources = Default::default();
         }
+        self.family = None;
         self.selected = None;
         self.form_path = None;
         self.entries.clear();
@@ -1252,12 +1055,16 @@ impl Dock for RulesEditor {
         _server: &mut CreatorContext,
     ) {
         if let Some(previous) = self.undo.pop() {
-            self.redo.push(project.rules_document.clone());
-            project.rules_document = previous;
+            self.redo.push(previous.restore(project));
+            self.family = None;
             self.catalogue(ui, project);
             self.form(ui, project);
             self.dirty = true;
             self.set_undo_state_to_ui(ctx);
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Update Content List"),
+                TheValue::Empty,
+            ));
             if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
                 ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
             }
@@ -1271,12 +1078,16 @@ impl Dock for RulesEditor {
         _server: &mut CreatorContext,
     ) {
         if let Some(next) = self.redo.pop() {
-            self.undo.push(project.rules_document.clone());
-            project.rules_document = next;
+            self.undo.push(next.restore(project));
+            self.family = None;
             self.catalogue(ui, project);
             self.form(ui, project);
             self.dirty = true;
             self.set_undo_state_to_ui(ctx);
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Update Content List"),
+                TheValue::Empty,
+            ));
             if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
                 ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
             }
@@ -1378,6 +1189,9 @@ impl Dock for RulesEditor {
         project: &mut Project,
         _server: &mut CreatorContext,
     ) -> bool {
+        if let Some(handled) = self.family_event(event, ui, ctx, project, _server) {
+            return handled;
+        }
         match event {
             TheEvent::ValueChanged(id, value)
                 if id.name.starts_with("Rules Nested Value ")
@@ -1414,12 +1228,14 @@ impl Dock for RulesEditor {
                     return false;
                 }
                 if before != project.rules_document {
-                    self.undo.push(before);
+                    self.undo.push(before.into());
                     self.redo.clear();
                     self.dirty = true;
                     self.set_undo_state_to_ui(ctx);
                 }
-                if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
+                if let Err(error) =
+                    crate::docks::nodes::sync_live_rules(project, &_server.reference)
+                {
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 return true;
@@ -1446,13 +1262,15 @@ impl Dock for RulesEditor {
                     return false;
                 }
                 if before != project.rules_document {
-                    self.undo.push(before);
+                    self.undo.push(before.into());
                     self.redo.clear();
                     self.dirty = true;
                     self.set_undo_state_to_ui(ctx);
                 }
                 self.form(ui, project);
-                if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
+                if let Err(error) =
+                    crate::docks::nodes::sync_live_rules(project, &_server.reference)
+                {
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 return true;
@@ -1501,7 +1319,7 @@ impl Dock for RulesEditor {
                     return false;
                 }
                 if before != project.rules_document {
-                    self.undo.push(before);
+                    self.undo.push(before.into());
                     self.redo.clear();
                     self.dirty = true;
                     self.set_undo_state_to_ui(ctx);
@@ -1512,7 +1330,9 @@ impl Dock for RulesEditor {
                 if let Some(widget) = ui.get_widget(&format!("{FIELD}{index}")) {
                     widget.set_value(TheValue::Text(display_value));
                 }
-                if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
+                if let Err(error) =
+                    crate::docks::nodes::sync_live_rules(project, &_server.reference)
+                {
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 return true;
@@ -1538,12 +1358,14 @@ impl Dock for RulesEditor {
                     return false;
                 }
                 if before != project.rules_document {
-                    self.undo.push(before);
+                    self.undo.push(before.into());
                     self.redo.clear();
                     self.dirty = true;
                     self.set_undo_state_to_ui(ctx);
                 }
-                if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
+                if let Err(error) =
+                    crate::docks::nodes::sync_live_rules(project, &_server.reference)
+                {
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 return true;
@@ -1575,13 +1397,15 @@ impl Dock for RulesEditor {
                     return false;
                 }
                 if before != project.rules_document {
-                    self.undo.push(before);
+                    self.undo.push(before.into());
                     self.redo.clear();
                     self.dirty = true;
                     self.set_undo_state_to_ui(ctx);
                 }
                 self.form(ui, project);
-                if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
+                if let Err(error) =
+                    crate::docks::nodes::sync_live_rules(project, &_server.reference)
+                {
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 return true;
@@ -1597,6 +1421,7 @@ impl Dock for RulesEditor {
                     .strip_prefix(ENTRY)
                     .and_then(|s| s.parse::<usize>().ok())
                 {
+                    self.family = None;
                     self.selected = self.entries.get(index).cloned();
                     self.form(ui, project);
                     return true;
@@ -1635,7 +1460,7 @@ impl Dock for RulesEditor {
                     match result {
                         Ok(()) => {
                             if project.rules_document != before {
-                                self.undo.push(before);
+                                self.undo.push(before.into());
                                 self.redo.clear();
                                 self.set_undo_state_to_ui(ctx);
                             }
@@ -1651,7 +1476,9 @@ impl Dock for RulesEditor {
                             {
                                 self.form(ui, project);
                             }
-                            if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
+                            if let Err(error) =
+                                crate::docks::nodes::sync_live_rules(project, &_server.reference)
+                            {
                                 ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                             }
                             return true;
@@ -2074,12 +1901,14 @@ impl Dock for RulesEditor {
                 self.catalogue(ui, project);
                 self.form(ui, project);
                 if project.rules_document != before {
-                    self.undo.push(before);
+                    self.undo.push(before.into());
                     self.redo.clear();
                     self.set_undo_state_to_ui(ctx);
                 }
                 self.dirty = true;
-                if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
+                if let Err(error) =
+                    crate::docks::nodes::sync_live_rules(project, &_server.reference)
+                {
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 return true;

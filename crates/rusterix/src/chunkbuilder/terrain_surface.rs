@@ -10,12 +10,103 @@ pub struct TerrainSurface {
     pub bounds: BBox,
     pub subdivisions: u32,
     pub max_height: f32,
-    sampler: Arc<TerrainSampler>,
+    sampler: Option<Arc<TerrainSampler>>,
+    sampled: Option<SampledTerrain>,
     excluded: Vec<(BBox, Vec<[Vec2<f32>; 3]>)>,
 }
 type Cached = (uuid::Uuid, u32, bool, Option<Arc<TerrainSurface>>);
 thread_local! {static CACHE:std::cell::RefCell<Option<Cached>>=const {std::cell::RefCell::new(None)};}
+// Wire content contains sampled geometry only, never an authored Map or its
+// server properties/scripts. Sampling is exact at the grid corners used by
+// collision, picking and rendered triangles.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct SampledTerrain {
+    origin: [i32; 2],
+    width: usize,
+    height: usize,
+    values: Vec<f32>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+struct TerrainWire {
+    bounds: BBox,
+    subdivisions: u32,
+    max_height: f32,
+    excluded: Vec<(BBox, Vec<[Vec2<f32>; 3]>)>,
+    samples: SampledTerrain,
+}
+impl serde::Serialize for TerrainSurface {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let scale = self.subdivisions as f32;
+        let origin = [
+            (self.bounds.min.x * scale).floor() as i32 - 1,
+            (self.bounds.min.y * scale).floor() as i32 - 1,
+        ];
+        let width =
+            ((self.bounds.max.x * scale).ceil() as i64 - origin[0] as i64 + 2).max(0) as usize;
+        let height =
+            ((self.bounds.max.y * scale).ceil() as i64 - origin[1] as i64 + 2).max(0) as usize;
+        if width.checked_mul(height).is_none_or(|n| n > 1_000_000) {
+            return Err(serde::ser::Error::custom(
+                "Terrain content exceeds sample limit",
+            ));
+        }
+        let mut values = Vec::with_capacity(width * height);
+        for z in 0..height {
+            for x in 0..width {
+                values.push(self.sample(Vec2::new(
+                    (origin[0] as f32 + x as f32) / scale,
+                    (origin[1] as f32 + z as f32) / scale,
+                )));
+            }
+        }
+        TerrainWire {
+            bounds: self.bounds,
+            subdivisions: self.subdivisions,
+            max_height: self.max_height,
+            excluded: self.excluded.clone(),
+            samples: SampledTerrain {
+                origin,
+                width,
+                height,
+                values,
+            },
+        }
+        .serialize(serializer)
+    }
+}
+impl<'de> serde::Deserialize<'de> for TerrainSurface {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = TerrainWire::deserialize(deserializer)?;
+        let n = wire.samples.width.checked_mul(wire.samples.height);
+        if !(1..=8).contains(&wire.subdivisions)
+            || n.is_none_or(|n| n > 1_000_000 || n == 0 || n != wire.samples.values.len())
+            || wire.samples.values.iter().any(|h| !h.is_finite())
+        {
+            return Err(serde::de::Error::custom("Invalid sampled terrain"));
+        }
+        Ok(Self {
+            bounds: wire.bounds,
+            subdivisions: wire.subdivisions,
+            max_height: wire.max_height,
+            excluded: wire.excluded,
+            sampler: None,
+            sampled: Some(wire.samples),
+        })
+    }
+}
 impl TerrainSurface {
+    fn sample(&self, p: Vec2<f32>) -> f32 {
+        if let Some(sampler) = &self.sampler {
+            return sampler.sample(p);
+        }
+        let samples = self.sampled.as_ref().expect("terrain samples");
+        let x = ((p.x * self.subdivisions as f32).round() as i64 - samples.origin[0] as i64)
+            .clamp(0, samples.width as i64 - 1) as usize;
+        let z = ((p.y * self.subdivisions as f32).round() as i64 - samples.origin[1] as i64)
+            .clamp(0, samples.height as i64 - 1) as usize;
+        samples.values[z * samples.width + x]
+    }
+
     /// An immutable derived source can reuse authored IDs/revisions after undo
     /// or document replacement. Its CPU producer invalidates that map's local
     /// entry before rebuilding chunks; unrelated map entries are left alone.
@@ -135,7 +226,8 @@ impl TerrainSurface {
             bounds,
             subdivisions: config.subdivisions,
             max_height,
-            sampler: Arc::new(TerrainGenerator::new(config).sampler(map)),
+            sampler: Some(Arc::new(TerrainGenerator::new(config).sampler(map))),
+            sampled: None,
             excluded,
         })
     }
@@ -163,7 +255,7 @@ impl TerrainSurface {
     }
 
     pub fn grid_height(&self, p: Vec2<f32>) -> f32 {
-        self.sampler.sample(p)
+        self.sample(p)
     }
     pub fn raycast(
         &self,
@@ -199,7 +291,11 @@ impl TerrainSurface {
         if !self.contains(p) {
             return None;
         }
-        Some(self.sampler.height_on_grid(p, self.subdivisions))
+        Some(TerrainSampler::height_on_grid_with(
+            p,
+            self.subdivisions,
+            |corner| self.sample(corner),
+        ))
     }
 
     /// Reuse exact corner evaluations during one caller's sampling pass. The
@@ -212,17 +308,21 @@ impl TerrainSurface {
             if !self.contains(p) {
                 return None;
             }
-            Some(TerrainSampler::height_on_grid_with(p, self.subdivisions, |corner| {
-                let key = [corner.x.to_bits(), corner.y.to_bits()];
-                if let Some(&height) = corners.get(&key) {
-                    return height;
-                }
-                let height = self.sampler.sample(corner);
-                if corners.len() < MAX_CORNERS {
-                    corners.insert(key, height);
-                }
-                height
-            }))
+            Some(TerrainSampler::height_on_grid_with(
+                p,
+                self.subdivisions,
+                |corner| {
+                    let key = [corner.x.to_bits(), corner.y.to_bits()];
+                    if let Some(&height) = corners.get(&key) {
+                        return height;
+                    }
+                    let height = self.sample(corner);
+                    if corners.len() < MAX_CORNERS {
+                        corners.insert(key, height);
+                    }
+                    height
+                },
+            ))
         }
     }
     pub fn triangles(&self, clip: BBox, mut emit: impl FnMut([Vec3<f32>; 3])) {
@@ -321,6 +421,23 @@ pub(crate) mod tests {
         map
     }
     #[test]
+    fn public_terrain_roundtrip_preserves_collision_facets_without_authored_map() {
+        let map = hill();
+        let field = TerrainSurface::from_map(&map).unwrap();
+        let bytes = serde_json::to_vec(&field).unwrap();
+        let restored: TerrainSurface = serde_json::from_slice(&bytes).unwrap();
+        assert!(restored.sampler.is_none());
+        for x in -80..80 {
+            for z in -80..80 {
+                let p = Vec2::new(x as f32 / 10., z as f32 / 10.);
+                assert_eq!(
+                    field.height_at(p).map(f32::to_bits),
+                    restored.height_at(p).map(f32::to_bits)
+                );
+            }
+        }
+    }
+    #[test]
     fn local_corner_samples_preserve_exact_facets_and_source_independence() {
         let mut map = hill();
         map.vertices[0].x = -16.;
@@ -328,7 +445,8 @@ pub(crate) mod tests {
         map.vertices[1].x = 16.;
         map.vertices[1].y = 16.;
         for subdivisions in [1, 3, 4, 8] {
-            map.properties.set("terrain_subdivisions", Value::Int(subdivisions));
+            map.properties
+                .set("terrain_subdivisions", Value::Int(subdivisions));
             let field = TerrainSurface::from_map(&map).unwrap();
             let mut sample = field.height_sampler();
             let mut valid = 0;
@@ -345,8 +463,16 @@ pub(crate) mod tests {
                 }
             }
             assert!(valid > 10_000);
-            for p in [Vec2::new(-0., 0.), Vec2::zero(), Vec2::new(100., 100.), Vec2::new(f32::NAN, 0.)] {
-                assert_eq!(sample(p).map(f32::to_bits), field.height_at(p).map(f32::to_bits));
+            for p in [
+                Vec2::new(-0., 0.),
+                Vec2::zero(),
+                Vec2::new(100., 100.),
+                Vec2::new(f32::NAN, 0.),
+            ] {
+                assert_eq!(
+                    sample(p).map(f32::to_bits),
+                    field.height_at(p).map(f32::to_bits)
+                );
             }
         }
         let before = TerrainSurface::from_map(&map).unwrap();
@@ -357,7 +483,10 @@ pub(crate) mod tests {
         let after = TerrainSurface::from_map(&map).unwrap();
         let mut new = after.height_sampler();
         assert_eq!(old(p).unwrap().to_bits(), original.to_bits());
-        assert_eq!(new(p).map(f32::to_bits), after.height_at(p).map(f32::to_bits));
+        assert_eq!(
+            new(p).map(f32::to_bits),
+            after.height_at(p).map(f32::to_bits)
+        );
         assert_ne!(new(p).unwrap().to_bits(), original.to_bits());
     }
     #[test]

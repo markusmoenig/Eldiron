@@ -1,0 +1,1047 @@
+{
+  "schema": 1,
+  "generated_utc": "2026-11-17T09:17:48.902579+00:00",
+  "binary_sha256": "6f0a9429e0ac535ab3ff9307ebf281085186beacd20f8eb3012156a42578fc0e",
+  "scope": "Sequential saved in-process soak: 40 simulated seconds, actual file checkpoints, sequenced actions, graceful shutdown and verified fresh-host restoration. Not a real-time or real-socket soak.",
+  "rows": [
+    {
+      "action_groups_max": 8,
+      "arch": "aarch64",
+      "build": "optimized",
+      "content_revision": "82806f65273ecc69f8a294f817cf3eaa49390205c4300ae5b4d7b78ae56c47c9",
+      "crowd_region": "StartScene",
+      "diagnostics": {
+        "action_group": {
+          "calls": 4,
+          "last_us": 169552,
+          "max_us": 169552,
+          "p50_us": 49928,
+          "p95_us": 169552,
+          "p99_us": 169552,
+          "rolling_samples": 4,
+          "total_us": 317038
+        },
+        "backup": {
+          "calls": 0,
+          "last_us": 0,
+          "max_us": 0,
+          "p50_us": 0,
+          "p95_us": 0,
+          "p99_us": 0,
+          "rolling_samples": 0,
+          "total_us": 0
+        },
+        "backup_failures": 0,
+        "backups": 0,
+        "busy_rejections": 0,
+        "command": {
+          "calls": 8016,
+          "last_us": 0,
+          "max_us": 20050,
+          "p50_us": 0,
+          "p95_us": 2,
+          "p99_us": 6,
+          "rolling_samples": 256,
+          "total_us": 105433
+        },
+        "content_cache_bytes": 35248,
+        "content_misses": 0,
+        "encoding": {
+          "calls": 8192,
+          "last_us": 1,
+          "max_us": 5388,
+          "p50_us": 7,
+          "p95_us": 28,
+          "p99_us": 72,
+          "rolling_samples": 256,
+          "total_us": 81003
+        },
+        "entities": 1104,
+        "generated_unix_ms": 1794907096059,
+        "healthy": true,
+        "host_tick": {
+          "calls": 2000,
+          "last_us": 65456,
+          "max_us": 84611,
+          "p50_us": 8588,
+          "p95_us": 38088,
+          "p99_us": 65456,
+          "rolling_samples": 256,
+          "total_us": 13737623
+        },
+        "inactive_region_policy": "opt_in_pause_unoccupied; local_time_frozen; no_catchup",
+        "items": 0,
+        "loaded_regions": 2,
+        "maintenance": {
+          "calls": 0,
+          "last_us": 0,
+          "max_us": 0,
+          "p50_us": 0,
+          "p95_us": 0,
+          "p99_us": 0,
+          "rolling_samples": 0,
+          "total_us": 0
+        },
+        "messages_received": 8016,
+        "metrics_write_failures": 0,
+        "mode": "Persistent",
+        "packets_enqueued": 8192,
+        "payload_bytes_enqueued": 45836938,
+        "peak_socket_queue": 11,
+        "peers": 4,
+        "player_limit": 64,
+        "players": 4,
+        "protocol": 4,
+        "rate_rejections": 0,
+        "regions_without_players": 1,
+        "replica_disconnects": 0,
+        "runtime": {
+          "collection": {
+            "calls": 2044,
+            "last_us": 274,
+            "max_us": 27524,
+            "p50_us": 494,
+            "p95_us": 1871,
+            "p99_us": 5938,
+            "rolling_samples": 256,
+            "total_us": 1292791
+          },
+          "queues": {
+            "overflowed_streams": 0,
+            "peak_stream_frames": 8,
+            "pending_events": 0,
+            "projected_entities": 1520,
+            "projected_items": 0,
+            "queued_frames": 0,
+            "streams": 5,
+            "subscribed_streams": 4
+          },
+          "regions": [
+            {
+              "details": {
+                "behaviors": {
+                  "calls": 8044,
+                  "last_us": 2,
+                  "max_us": 184,
+                  "p50_us": 2,
+                  "p95_us": 9,
+                  "p99_us": 11,
+                  "rolling_samples": 256,
+                  "total_us": 15195
+                },
+                "dynamic_collision": {
+                  "calls": 202000,
+                  "last_us": 0,
+                  "max_us": 6956,
+                  "p50_us": 0,
+                  "p95_us": 3,
+                  "p99_us": 4,
+                  "rolling_samples": 256,
+                  "total_us": 289596
+                },
+                "entity_candidates": 48260056,
+                "entity_clone": {
+                  "calls": 8044,
+                  "last_us": 27,
+                  "max_us": 3962,
+                  "p50_us": 33,
+                  "p95_us": 134,
+                  "p99_us": 162,
+                  "rolling_samples": 256,
+                  "total_us": 295619
+                },
+                "entity_merge": {
+                  "calls": 8044,
+                  "last_us": 2,
+                  "max_us": 123,
+                  "p50_us": 3,
+                  "p95_us": 8,
+                  "p99_us": 13,
+                  "rolling_samples": 256,
+                  "total_us": 20389
+                },
+                "geometry_collision": {
+                  "calls": 202000,
+                  "last_us": 2,
+                  "max_us": 10308,
+                  "p50_us": 2,
+                  "p95_us": 6,
+                  "p99_us": 9,
+                  "rolling_samples": 256,
+                  "total_us": 847312
+                },
+                "item_candidates": 0,
+                "scripts": {
+                  "calls": 574,
+                  "last_us": 2,
+                  "max_us": 61,
+                  "p50_us": 4,
+                  "p95_us": 11,
+                  "p99_us": 12,
+                  "rolling_samples": 256,
+                  "total_us": 2588
+                }
+              },
+              "game": {
+                "calls": 160,
+                "last_us": 398,
+                "max_us": 457,
+                "p50_us": 118,
+                "p95_us": 389,
+                "p99_us": 442,
+                "rolling_samples": 160,
+                "total_us": 23886
+              },
+              "movement": {
+                "calls": 2000,
+                "last_us": 801,
+                "max_us": 20755,
+                "p50_us": 800,
+                "p95_us": 2608,
+                "p99_us": 3156,
+                "rolling_samples": 256,
+                "total_us": 1836030
+              },
+              "redraw": {
+                "calls": 6044,
+                "last_us": 72,
+                "max_us": 4158,
+                "p50_us": 82,
+                "p95_us": 331,
+                "p99_us": 383,
+                "rolling_samples": 256,
+                "total_us": 551766
+              },
+              "region": 0
+            },
+            {
+              "details": {
+                "behaviors": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                },
+                "dynamic_collision": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                },
+                "entity_candidates": 0,
+                "entity_clone": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                },
+                "entity_merge": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                },
+                "geometry_collision": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                },
+                "item_candidates": 0,
+                "scripts": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                }
+              },
+              "game": {
+                "calls": 160,
+                "last_us": 0,
+                "max_us": 1,
+                "p50_us": 0,
+                "p95_us": 0,
+                "p99_us": 1,
+                "rolling_samples": 160,
+                "total_us": 2
+              },
+              "movement": {
+                "calls": 2000,
+                "last_us": 0,
+                "max_us": 24,
+                "p50_us": 0,
+                "p95_us": 0,
+                "p99_us": 2,
+                "rolling_samples": 256,
+                "total_us": 39
+              },
+              "redraw": {
+                "calls": 6044,
+                "last_us": 0,
+                "max_us": 21,
+                "p50_us": 0,
+                "p95_us": 1,
+                "p99_us": 1,
+                "rolling_samples": 256,
+                "total_us": 270
+              },
+              "region": 1
+            }
+          ],
+          "replication": {
+            "calls": 2044,
+            "last_us": 1629,
+            "max_us": 61902,
+            "p50_us": 1952,
+            "p95_us": 5528,
+            "p99_us": 26388,
+            "rolling_samples": 256,
+            "total_us": 4379530
+          },
+          "simulation": {
+            "calls": 2000,
+            "last_us": 6443,
+            "max_us": 43002,
+            "p50_us": 4648,
+            "p95_us": 22263,
+            "p99_us": 34749,
+            "rolling_samples": 256,
+            "total_us": 6250573
+          }
+        },
+        "saves": {
+          "capture": {
+            "calls": 12,
+            "last_us": 6236,
+            "max_us": 9272,
+            "p50_us": 3053,
+            "p95_us": 9272,
+            "p99_us": 9272,
+            "rolling_samples": 12,
+            "total_us": 48034
+          },
+          "commit": {
+            "calls": 12,
+            "last_us": 33092,
+            "max_us": 41006,
+            "p50_us": 29136,
+            "p95_us": 41006,
+            "p99_us": 41006,
+            "rolling_samples": 12,
+            "total_us": 327477
+          },
+          "encoding": {
+            "calls": 12,
+            "last_us": 14289,
+            "max_us": 89541,
+            "p50_us": 13823,
+            "p95_us": 89541,
+            "p99_us": 89541,
+            "rolling_samples": 12,
+            "total_us": 242059
+          },
+          "failures": 0,
+          "grouped_actions": 16,
+          "groups": 4,
+          "poisoned": false,
+          "revision": 21,
+          "storage": {
+            "bytes_written": 11058741,
+            "checkpoints": 9,
+            "journal_bytes": 0,
+            "kind": "journal",
+            "records": 0,
+            "tails_discarded": 0,
+            "transactions": 12
+          }
+        },
+        "scheduling": [
+          {
+            "eligible": false,
+            "idle_ms": 0,
+            "region": 0,
+            "skipped_game": 0,
+            "skipped_movement": 0,
+            "sleeps": 0,
+            "suspended": false,
+            "wakes": 0
+          },
+          {
+            "eligible": true,
+            "idle_ms": 100,
+            "region": 1,
+            "skipped_game": 161,
+            "skipped_movement": 2016,
+            "sleeps": 1,
+            "suspended": true,
+            "wakes": 0
+          }
+        ],
+        "schema": 1,
+        "slow_disconnects": 0,
+        "socket_packets_queued": 0,
+        "stashed_entities": 0,
+        "ticks_over_budget": 122,
+        "transport": null,
+        "uptime_ms": 14575,
+        "wall_time_clamped_us": 0
+      },
+      "idle_entities": 1000,
+      "idle_unchanged_during_measurement": true,
+      "logical_cpus": 10,
+      "measured_wall_ms": 14289,
+      "moving_entities_requested": true,
+      "os": "macos",
+      "pause_idle": true,
+      "persistent": true,
+      "players": 4,
+      "players_in_crowd_region_at_end": 4,
+      "project": "3DStarter.eldiron",
+      "restart_verified": true,
+      "saved_actions_per_player": 4,
+      "schema": 1,
+      "scope": "in-process host with real projection/encoding; synthetic crowd, not full scripted AI or TLS/load-generator traffic",
+      "server_slice": {
+        "calls": 2000,
+        "last_us": 65461,
+        "max_us": 182767,
+        "p50_us": 8592,
+        "p95_us": 38091,
+        "p99_us": 65461,
+        "rolling_samples": 256,
+        "total_us": 14062648
+      },
+      "setup_ms": 11580,
+      "simulated_ms": 40000,
+      "snapshot_commits": false,
+      "storage_measured": {
+        "actions": 16,
+        "appends": 4,
+        "bytes_written": 10945851,
+        "checkpoints": 8,
+        "groups": 4
+      },
+      "synthetic_entities": 100,
+      "synthetic_entities_observed_moved": 56,
+      "ticks": 2000,
+      "ungrouped_actions": false,
+      "within_test_budget": false,
+      "command": [
+        "target/release/eldiron-server-bench",
+        "--project",
+        "test_projects/3DStarter.eldiron",
+        "--players",
+        "4",
+        "--entities",
+        "100",
+        "--moving-entities",
+        "--idle-entities",
+        "1000",
+        "--pause-idle",
+        "--persistent",
+        "--saved-actions",
+        "4",
+        "--ticks",
+        "2000",
+        "--verify-restart"
+      ]
+    },
+    {
+      "action_groups_max": 8,
+      "arch": "aarch64",
+      "build": "optimized",
+      "content_revision": "b9f666521290680416e182727a8e9eca06d629288fab8454cc4db38b1a3d525b",
+      "crowd_region": "Harbor",
+      "diagnostics": {
+        "action_group": {
+          "calls": 4,
+          "last_us": 175332,
+          "max_us": 221028,
+          "p50_us": 175332,
+          "p95_us": 221028,
+          "p99_us": 221028,
+          "rolling_samples": 4,
+          "total_us": 734379
+        },
+        "backup": {
+          "calls": 0,
+          "last_us": 0,
+          "max_us": 0,
+          "p50_us": 0,
+          "p95_us": 0,
+          "p99_us": 0,
+          "rolling_samples": 0,
+          "total_us": 0
+        },
+        "backup_failures": 0,
+        "backups": 0,
+        "busy_rejections": 0,
+        "command": {
+          "calls": 8016,
+          "last_us": 0,
+          "max_us": 25660,
+          "p50_us": 0,
+          "p95_us": 2,
+          "p99_us": 4,
+          "rolling_samples": 256,
+          "total_us": 184721
+        },
+        "content_cache_bytes": 3443161,
+        "content_misses": 0,
+        "encoding": {
+          "calls": 8192,
+          "last_us": 0,
+          "max_us": 4511,
+          "p50_us": 1,
+          "p95_us": 9,
+          "p99_us": 21,
+          "rolling_samples": 256,
+          "total_us": 31308
+        },
+        "entities": 1116,
+        "generated_unix_ms": 1794907148896,
+        "healthy": true,
+        "host_tick": {
+          "calls": 2000,
+          "last_us": 134574,
+          "max_us": 193460,
+          "p50_us": 8948,
+          "p95_us": 43439,
+          "p99_us": 87446,
+          "rolling_samples": 256,
+          "total_us": 27595585
+        },
+        "inactive_region_policy": "opt_in_pause_unoccupied; local_time_frozen; no_catchup",
+        "items": 26,
+        "loaded_regions": 3,
+        "maintenance": {
+          "calls": 0,
+          "last_us": 0,
+          "max_us": 0,
+          "p50_us": 0,
+          "p95_us": 0,
+          "p99_us": 0,
+          "rolling_samples": 0,
+          "total_us": 0
+        },
+        "messages_received": 8016,
+        "metrics_write_failures": 0,
+        "mode": "Persistent",
+        "packets_enqueued": 8192,
+        "payload_bytes_enqueued": 8216885,
+        "peak_socket_queue": 11,
+        "peers": 4,
+        "player_limit": 64,
+        "players": 4,
+        "protocol": 4,
+        "rate_rejections": 0,
+        "regions_without_players": 2,
+        "replica_disconnects": 0,
+        "runtime": {
+          "collection": {
+            "calls": 2044,
+            "last_us": 947,
+            "max_us": 34412,
+            "p50_us": 1182,
+            "p95_us": 4642,
+            "p99_us": 13668,
+            "rolling_samples": 256,
+            "total_us": 3807789
+          },
+          "queues": {
+            "overflowed_streams": 0,
+            "peak_stream_frames": 8,
+            "pending_events": 0,
+            "projected_entities": 1548,
+            "projected_items": 74,
+            "queued_frames": 0,
+            "streams": 5,
+            "subscribed_streams": 4
+          },
+          "regions": [
+            {
+              "details": {
+                "behaviors": {
+                  "calls": 8044,
+                  "last_us": 39,
+                  "max_us": 4612,
+                  "p50_us": 45,
+                  "p95_us": 122,
+                  "p99_us": 334,
+                  "rolling_samples": 256,
+                  "total_us": 389201
+                },
+                "dynamic_collision": {
+                  "calls": 6700,
+                  "last_us": 2,
+                  "max_us": 3555,
+                  "p50_us": 3,
+                  "p95_us": 9,
+                  "p99_us": 16,
+                  "rolling_samples": 256,
+                  "total_us": 25460
+                },
+                "entity_candidates": 1183464,
+                "entity_clone": {
+                  "calls": 8044,
+                  "last_us": 45,
+                  "max_us": 11481,
+                  "p50_us": 64,
+                  "p95_us": 203,
+                  "p99_us": 453,
+                  "rolling_samples": 256,
+                  "total_us": 767323
+                },
+                "entity_merge": {
+                  "calls": 8044,
+                  "last_us": 2,
+                  "max_us": 264,
+                  "p50_us": 3,
+                  "p95_us": 23,
+                  "p99_us": 26,
+                  "rolling_samples": 256,
+                  "total_us": 33797
+                },
+                "geometry_collision": {
+                  "calls": 6700,
+                  "last_us": 10,
+                  "max_us": 405,
+                  "p50_us": 10,
+                  "p95_us": 13,
+                  "p99_us": 20,
+                  "rolling_samples": 256,
+                  "total_us": 61529
+                },
+                "item_candidates": 103747,
+                "scripts": {
+                  "calls": 241,
+                  "last_us": 2,
+                  "max_us": 24,
+                  "p50_us": 3,
+                  "p95_us": 11,
+                  "p99_us": 18,
+                  "rolling_samples": 241,
+                  "total_us": 1136
+                }
+              },
+              "game": {
+                "calls": 160,
+                "last_us": 138,
+                "max_us": 966,
+                "p50_us": 1,
+                "p95_us": 394,
+                "p99_us": 896,
+                "rolling_samples": 160,
+                "total_us": 14367
+              },
+              "movement": {
+                "calls": 2000,
+                "last_us": 149,
+                "max_us": 48135,
+                "p50_us": 211,
+                "p95_us": 793,
+                "p99_us": 12530,
+                "rolling_samples": 256,
+                "total_us": 1483993
+              },
+              "redraw": {
+                "calls": 6044,
+                "last_us": 154,
+                "max_us": 11770,
+                "p50_us": 191,
+                "p95_us": 602,
+                "p99_us": 966,
+                "rolling_samples": 256,
+                "total_us": 1544075
+              },
+              "region": 0
+            },
+            {
+              "details": {
+                "behaviors": {
+                  "calls": 8044,
+                  "last_us": 13,
+                  "max_us": 2738,
+                  "p50_us": 21,
+                  "p95_us": 58,
+                  "p99_us": 118,
+                  "rolling_samples": 256,
+                  "total_us": 239395
+                },
+                "dynamic_collision": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                },
+                "entity_candidates": 0,
+                "entity_clone": {
+                  "calls": 8044,
+                  "last_us": 14,
+                  "max_us": 4628,
+                  "p50_us": 31,
+                  "p95_us": 91,
+                  "p99_us": 146,
+                  "rolling_samples": 256,
+                  "total_us": 406808
+                },
+                "entity_merge": {
+                  "calls": 8044,
+                  "last_us": 0,
+                  "max_us": 149,
+                  "p50_us": 0,
+                  "p95_us": 1,
+                  "p99_us": 2,
+                  "rolling_samples": 256,
+                  "total_us": 3134
+                },
+                "geometry_collision": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                },
+                "item_candidates": 0,
+                "scripts": {
+                  "calls": 135,
+                  "last_us": 5,
+                  "max_us": 41,
+                  "p50_us": 4,
+                  "p95_us": 11,
+                  "p99_us": 28,
+                  "rolling_samples": 135,
+                  "total_us": 712
+                }
+              },
+              "game": {
+                "calls": 160,
+                "last_us": 58,
+                "max_us": 104,
+                "p50_us": 0,
+                "p95_us": 63,
+                "p99_us": 92,
+                "rolling_samples": 160,
+                "total_us": 2524
+              },
+              "movement": {
+                "calls": 2000,
+                "last_us": 44,
+                "max_us": 2345,
+                "p50_us": 88,
+                "p95_us": 265,
+                "p99_us": 343,
+                "rolling_samples": 256,
+                "total_us": 313034
+              },
+              "redraw": {
+                "calls": 6044,
+                "last_us": 39,
+                "max_us": 4753,
+                "p50_us": 73,
+                "p95_us": 227,
+                "p99_us": 428,
+                "rolling_samples": 256,
+                "total_us": 684980
+              },
+              "region": 1
+            },
+            {
+              "details": {
+                "behaviors": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                },
+                "dynamic_collision": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                },
+                "entity_candidates": 0,
+                "entity_clone": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                },
+                "entity_merge": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                },
+                "geometry_collision": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                },
+                "item_candidates": 0,
+                "scripts": {
+                  "calls": 0,
+                  "last_us": 0,
+                  "max_us": 0,
+                  "p50_us": 0,
+                  "p95_us": 0,
+                  "p99_us": 0,
+                  "rolling_samples": 0,
+                  "total_us": 0
+                }
+              },
+              "game": {
+                "calls": 160,
+                "last_us": 0,
+                "max_us": 1,
+                "p50_us": 0,
+                "p95_us": 0,
+                "p99_us": 1,
+                "rolling_samples": 160,
+                "total_us": 3
+              },
+              "movement": {
+                "calls": 2000,
+                "last_us": 0,
+                "max_us": 68,
+                "p50_us": 0,
+                "p95_us": 0,
+                "p99_us": 0,
+                "rolling_samples": 256,
+                "total_us": 98
+              },
+              "redraw": {
+                "calls": 6044,
+                "last_us": 0,
+                "max_us": 31,
+                "p50_us": 0,
+                "p95_us": 1,
+                "p99_us": 1,
+                "rolling_samples": 256,
+                "total_us": 469
+              },
+              "region": 2
+            }
+          ],
+          "replication": {
+            "calls": 2044,
+            "last_us": 2218,
+            "max_us": 44588,
+            "p50_us": 2337,
+            "p95_us": 7267,
+            "p99_us": 20053,
+            "rolling_samples": 256,
+            "total_us": 6290834
+          },
+          "simulation": {
+            "calls": 2000,
+            "last_us": 3607,
+            "max_us": 75313,
+            "p50_us": 3607,
+            "p95_us": 24350,
+            "p99_us": 39897,
+            "rolling_samples": 256,
+            "total_us": 13753427
+          }
+        },
+        "saves": {
+          "capture": {
+            "calls": 12,
+            "last_us": 4477,
+            "max_us": 30623,
+            "p50_us": 4591,
+            "p95_us": 30623,
+            "p99_us": 30623,
+            "rolling_samples": 12,
+            "total_us": 108974
+          },
+          "commit": {
+            "calls": 12,
+            "last_us": 55104,
+            "max_us": 63054,
+            "p50_us": 45079,
+            "p95_us": 63054,
+            "p99_us": 63054,
+            "rolling_samples": 12,
+            "total_us": 540251
+          },
+          "encoding": {
+            "calls": 12,
+            "last_us": 60647,
+            "max_us": 129775,
+            "p50_us": 64741,
+            "p95_us": 129775,
+            "p99_us": 129775,
+            "rolling_samples": 12,
+            "total_us": 900997
+          },
+          "failures": 0,
+          "grouped_actions": 16,
+          "groups": 4,
+          "poisoned": false,
+          "revision": 21,
+          "storage": {
+            "bytes_written": 51628392,
+            "checkpoints": 9,
+            "journal_bytes": 0,
+            "kind": "journal",
+            "records": 0,
+            "tails_discarded": 0,
+            "transactions": 12
+          }
+        },
+        "scheduling": [
+          {
+            "eligible": false,
+            "idle_ms": 0,
+            "region": 0,
+            "skipped_game": 0,
+            "skipped_movement": 0,
+            "sleeps": 0,
+            "suspended": false,
+            "wakes": 0
+          },
+          {
+            "eligible": false,
+            "idle_ms": 0,
+            "region": 1,
+            "skipped_game": 0,
+            "skipped_movement": 0,
+            "sleeps": 0,
+            "suspended": false,
+            "wakes": 0
+          },
+          {
+            "eligible": true,
+            "idle_ms": 100,
+            "region": 2,
+            "skipped_game": 161,
+            "skipped_movement": 2016,
+            "sleeps": 1,
+            "suspended": true,
+            "wakes": 0
+          }
+        ],
+        "schema": 1,
+        "slow_disconnects": 0,
+        "socket_packets_queued": 0,
+        "stashed_entities": 0,
+        "ticks_over_budget": 344,
+        "transport": null,
+        "uptime_ms": 30660,
+        "wall_time_clamped_us": 0
+      },
+      "idle_entities": 1000,
+      "idle_unchanged_during_measurement": true,
+      "logical_cpus": 10,
+      "measured_wall_ms": 28419,
+      "moving_entities_requested": true,
+      "os": "macos",
+      "pause_idle": true,
+      "persistent": true,
+      "players": 4,
+      "players_in_crowd_region_at_end": 4,
+      "project": "Hideout2D.eldiron",
+      "restart_verified": true,
+      "saved_actions_per_player": 4,
+      "schema": 1,
+      "scope": "in-process host with real projection/encoding; synthetic crowd, not full scripted AI or TLS/load-generator traffic",
+      "server_slice": {
+        "calls": 2000,
+        "last_us": 134578,
+        "max_us": 241000,
+        "p50_us": 8957,
+        "p95_us": 43444,
+        "p99_us": 87457,
+        "rolling_samples": 256,
+        "total_us": 28339694
+      },
+      "setup_ms": 22009,
+      "simulated_ms": 40000,
+      "snapshot_commits": false,
+      "storage_measured": {
+        "actions": 16,
+        "appends": 4,
+        "bytes_written": 45277584,
+        "checkpoints": 8,
+        "groups": 4
+      },
+      "synthetic_entities": 100,
+      "synthetic_entities_observed_moved": 100,
+      "ticks": 2000,
+      "ungrouped_actions": false,
+      "within_test_budget": false,
+      "command": [
+        "target/release/eldiron-server-bench",
+        "--project",
+        "test_projects/Hideout2D.eldiron",
+        "--players",
+        "4",
+        "--entities",
+        "100",
+        "--moving-entities",
+        "--idle-entities",
+        "1000",
+        "--pause-idle",
+        "--persistent",
+        "--saved-actions",
+        "4",
+        "--ticks",
+        "2000",
+        "--verify-restart"
+      ]
+    }
+  ]
+}

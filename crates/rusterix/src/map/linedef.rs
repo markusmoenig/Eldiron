@@ -113,7 +113,7 @@ impl PartialEq for Linedef {
 impl Eq for Linedef {}
 
 /// A "compiled" version which is used in MapMini for lighting, navigation etc
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct CompiledLinedef {
     pub start: Vec2<f32>,
     pub end: Vec2<f32>,

@@ -2,6 +2,7 @@
 //! assignment as the interactive editor. Only this module commits remote edits.
 use super::*;
 use crate::procedural_material::{composition, image_source, map_composition, palette};
+use denrim_materials::geometry::Document;
 use denrim_materials::integration::EditableMaterialAsset;
 use eldiron_scepter::{EditOperation, ScepterCommand as Command, ScepterRequest, Transaction};
 use serde_json::{Value as Json, json};
@@ -57,7 +58,17 @@ impl Editor {
             ))
             .unwrap()
             .hash(&mut h);
-            if !self.documents.project.procedural_materials.contains_key(&tile.id) {
+            if !self
+                .documents
+                .project
+                .procedural_materials
+                .contains_key(&tile.id)
+                && !self
+                    .documents
+                    .project
+                    .isometric_bakes
+                    .contains_key(&tile.id)
+            {
                 // Bitmap docks have their own undo stacks. Include authored
                 // pixels while excluding MZ's asynchronously produced caches.
                 for texture in &tile.textures {
@@ -74,6 +85,7 @@ impl Editor {
             r.source.hash(&mut h);
             r.config.hash(&mut h);
         }
+        self.scepter_hash_sector_data(&mut h);
         for c in self.documents.project.characters.values() {
             c.id.hash(&mut h);
             c.data.hash(&mut h);
@@ -85,6 +97,15 @@ impl Editor {
             i.source.hash(&mut h);
         }
         format!("{:016x}", h.finish())
+    }
+    pub(super) fn scepter_hash_sector_data(&self, hash: &mut impl std::hash::Hasher) {
+        for region in &self.documents.project.regions {
+            for sector in &region.map.sectors {
+                if let Some(data) = sector.properties.get_str("data") {
+                    (region.id, sector.creator_id, data).hash(hash);
+                }
+            }
+        }
     }
     pub(super) fn scepter_execute(
         &mut self,
@@ -104,7 +125,18 @@ impl Editor {
             job.finish(json!({"ok":false,"http_status":409,"error":"Project session or revision changed; inspect before retrying","session":session,"revision":revision}));
             return;
         }
-        if let Command::RegionRenderPreview(command) = request.command {
+        let preview = match &request.command {
+            Command::RegionRenderPreview(command) => Some((command.clone(), None)),
+            Command::TransactionPreview(c) => Some((
+                c.preview.clone(),
+                Some(Transaction {
+                    operations: c.operations.clone(),
+                    dry_run: true,
+                }),
+            )),
+            _ => None,
+        };
+        if let Some((command, transaction)) = preview {
             let command = match self.scepter_preview_request(command, ui) {
                 Ok(c) => c,
                 Err(e) => {
@@ -130,6 +162,10 @@ impl Editor {
             let project = self.documents.project.clone();
             std::thread::spawn(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let project = match transaction {
+                        Some(transaction) => stage(&project, &transaction)?.0,
+                        None => project,
+                    };
                     preview.render(project, index, &command)
                 }))
                 .unwrap_or_else(|_| Err("Preview worker failed".into()))
@@ -196,6 +232,14 @@ impl Editor {
                     let asset = validate_material(&self.documents.project, &c.bundle)?;
                     json!({"valid":true,"bundle":asset.save().map_err(|e|e.to_string())?})
                 }
+                Command::MeshGet(c) => {
+                    let id = parse_id(&c.id)?;
+                    json!({
+                        "id": id,
+                        "recipe": self.documents.project.procedural_appearances.get(&id).ok_or("Mesh recipe not found")?,
+                        "isometric_bake": self.documents.project.isometric_bakes.get(&id),
+                    })
+                }
                 Command::SurfaceList(c) => {
                     let index = if let Some(region) = c.region {
                         self.scepter_resolve_region_index(&region)?
@@ -243,6 +287,7 @@ impl Editor {
                                 floor: None,
                                 ceiling: None,
                                 height: None,
+                                data: None,
                                 layer: c
                                     .layer
                                     .map(|s| s.parse::<u8>().map_err(|_| "Invalid layer"))
@@ -422,7 +467,9 @@ impl Editor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) -> Json {
-        let materials_changed = self.documents.project.procedural_materials != staged.procedural_materials
+        let materials_changed = self.documents.project.procedural_materials
+            != staged.procedural_materials
+            || self.documents.project.procedural_appearances != staged.procedural_appearances
             || self.documents.project.material_compositions != staged.material_compositions
             || self.documents.project.tiles.len() != staged.tiles.len();
         let old = std::mem::replace(&mut self.documents.project, staged);
@@ -540,6 +587,7 @@ pub(super) fn stage(
     let mut next = project.clone();
     let mut results = vec![];
     let mut total_cells = 0;
+    let mut meshes_changed = false;
     for (index, operation) in transaction.operations.iter().enumerate() {
         if let EditOperation::EraseCells(c) = operation {
             total_cells += c.cells.len();
@@ -551,6 +599,9 @@ pub(super) fn stage(
             Ok(match operation {
                 EditOperation::MaterialPut { id, bundle } => {
                     let id = parse_id(id)?;
+                    if next.procedural_appearances.contains_key(&id) {
+                        return Err("ID belongs to an MZ mesh recipe".into());
+                    }
                     if next.material_compositions.contains_key(&id) {
                         return Err("Use composition_put to edit a composition".into());
                     }
@@ -558,18 +609,85 @@ pub(super) fn stage(
                     if asset.root.id != id.to_string() {
                         return Err("Material document root ID must match its tile UUID".into());
                     }
+                    let label = asset
+                        .root
+                        .project
+                        .materials
+                        .iter()
+                        .find(|m| m.id == asset.selected_material)
+                        .map_or_else(|| asset.selected_material.clone(), |m| m.label.clone());
                     next.procedural_materials
                         .insert(id, asset.save().map_err(|e| e.to_string())?);
                     next.tiles.entry(id).or_insert_with(|| rusterix::Tile {
                         id,
-                        alias: asset.selected_material.clone(),
+                        alias: label,
                         ..Default::default()
                     });
                     next.procedural_material_cache_keys.shift_remove(&id);
                     json!({"id":id})
                 }
+                EditOperation::MeshPut {
+                    id,
+                    recipe,
+                    blocking,
+                } => {
+                    let id = parse_id(id)?;
+                    let document = Document::load(recipe).map_err(|error| error.to_string())?;
+                    if document.id != id.to_string() || document.label.trim().is_empty() {
+                        return Err(
+                            "Mesh recipe needs a label and a root ID matching its UUID".into()
+                        );
+                    }
+                    if document.has_states() {
+                        return Err(
+                            "mesh_put requires a standalone mesh recipe without item states".into(),
+                        );
+                    }
+                    if next.procedural_materials.contains_key(&id)
+                        || next.material_compositions.contains_key(&id)
+                        || next.block_props.contains_key(&id)
+                        || ((next.tiles.contains_key(&id)
+                            || next.procedural_appearances.contains_key(&id))
+                            && !next
+                                .isometric_bakes
+                                .get(&id)
+                                .is_some_and(|b| !b.ground && b.recipe == id))
+                    {
+                        return Err("Mesh UUID belongs to another asset or bake".into());
+                    }
+                    next.procedural_appearances
+                        .insert(id, document.save().map_err(|error| error.to_string())?);
+                    next.isometric_bakes
+                        .entry(id)
+                        .or_insert(shared::isometric::Bake {
+                            recipe: id,
+                            ground: false,
+                            yaw: 0.0,
+                            directions: 4,
+                            motion: None,
+                            frames: 16,
+                            signature: 0,
+                        });
+                    let new_tile = !next.tiles.contains_key(&id);
+                    let tile = next.tiles.entry(id).or_insert_with(|| rusterix::Tile {
+                        id,
+                        ..Default::default()
+                    });
+                    tile.alias = document.label;
+                    if let Some(blocking) = blocking {
+                        tile.blocking = *blocking;
+                    }
+                    if new_tile {
+                        next.place_tile_at_picker_selection(id, None);
+                    }
+                    meshes_changed = true;
+                    json!({"id":id,"tile":id})
+                }
                 EditOperation::CompositionPut { id, composition } => {
                     let id = parse_id(id)?;
+                    if next.procedural_appearances.contains_key(&id) {
+                        return Err("ID belongs to an MZ mesh recipe".into());
+                    }
                     let c: MaterialComposition =
                         serde_json::from_value(composition.clone()).map_err(|e| e.to_string())?;
                     validate_composition(&c)?;
@@ -734,6 +852,12 @@ pub(super) fn stage(
             if tile.textures.is_empty() {
                 tile.textures.push(rusterix::Texture::alloc(size, size));
             }
+        }
+    }
+    if meshes_changed {
+        let errors = shared::isometric::synchronize(&mut next);
+        if !errors.is_empty() {
+            return Err(errors.join("; "));
         }
     }
     Ok((next, results))
@@ -963,6 +1087,68 @@ material "surface" called "Test surface"
         .0;
         p
     }
+    #[test]
+    fn scepter_places_an_editable_mesh_and_preserves_the_sector_description() {
+        let mut project = Project::default();
+        project.regions[0].map.camera = rusterix::MapCamera::TwoDIso;
+        let region = json!({"id":project.regions[0].id});
+        let mesh = Uuid::new_v4();
+        let description = "description = \"A quiet stone courtyard.\"\n";
+        let recipe = json!({
+            "version":1,"id":mesh,"label":"Coping",
+            "rows":[{"id":"mesh","label":"Mesh","tiles":[
+                {"id":"box","op":{"type":"box","size":[1.0,0.65,0.4]}}
+            ]}],"output":"mesh"
+        });
+        let tx: Transaction = serde_json::from_value(json!({"operations":[
+            {"op":"sector_create","params":{"region":region,"name":"Courtyard",
+                "polygon":[[0.0,0.0],[3.0,0.0],[3.0,2.0],[0.0,2.0]],"data":description}},
+            {"op":"mesh_put","params":{"id":mesh,"recipe":recipe.to_string(),"blocking":true}},
+            {"op":"sector_create","params":{"region":region,
+                "polygon":[[1.,0.],[2.,0.],[2.,1.],[1.,1.]],"layer":2,"floor":{"id":mesh}}}
+        ]}))
+        .unwrap();
+        let (staged, results) = stage(&project, &tx).unwrap();
+        assert_eq!(
+            staged.procedural_appearances[&mesh],
+            Document::load(&recipe.to_string()).unwrap().save().unwrap()
+        );
+        let tile = &staged.tiles[&mesh];
+        assert!(tile.blocking && !tile.isometric.as_ref().unwrap().ground);
+        assert_eq!(staged.isometric_bakes[&mesh].recipe, mesh);
+        let sector = &staged.regions[0].map.sectors[0];
+        assert_eq!(sector.properties.get_str("data"), Some(description));
+        assert_eq!(results[0]["creator_id"], json!(sector.creator_id));
+        assert_eq!(
+            staged.regions[0].map.sectors[1].properties.get_default_source(),
+            Some(&rusterix::PixelSource::TileId(mesh)),
+        );
+        assert!(staged.regions[0].map.sectors[1].name.is_empty());
+        assert!(!project.procedural_appearances.contains_key(&mesh));
+
+        let clear: Transaction = serde_json::from_value(json!({"operations":[
+            {"op":"sector_update","params":{"region":region,"id":sector.id,"name":""}}
+        ]}))
+        .unwrap();
+        let (cleared, _) = stage(&staged, &clear).unwrap();
+        assert!(cleared.regions[0].map.sectors[0].name.is_empty());
+        assert_eq!(
+            cleared.regions[0].map.sectors[0].properties.get_str("data"),
+            Some(description),
+        );
+
+        let mut editor = Editor::new();
+        editor.documents.project = staged;
+        let revision = editor.scepter_revision();
+        editor.documents.project.regions[0].map.sectors[0]
+            .properties
+            .set(
+                "data",
+                Value::Str("description = \"Change the wall.\"".into()),
+            );
+        assert_ne!(editor.scepter_revision(), revision);
+    }
+
     #[test]
     fn failed_transaction_leaves_all_live_assets_and_geometry_untouched() {
         let p = Project::default();

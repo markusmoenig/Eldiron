@@ -1,3 +1,9 @@
+#[path = "region_resources.rs"]
+pub mod resources;
+#[path = "region_crafting.rs"]
+pub mod crafting;
+#[path = "region_requests.rs"]
+pub mod requests;
 #[path = "node_combat.rs"]
 mod node_combat;
 use crate::server::message::{DialogChoice, NodeChoice};
@@ -17,7 +23,7 @@ use eldiron_ruleset::{
     ResolvedActionTarget, ResolvedActionValueSource, ResolvedCondition,
     ResolvedConditionPeriodicEffect, ResolvedConditionStacking, evaluate_formula,
 };
-use instant::{Duration, Instant};
+use std::time::Duration;
 pub(crate) use node_combat::{node_engage_start, node_engage_tick, node_lookout};
 use pathfinding::prelude::astar;
 use rand::seq::SliceRandom;
@@ -28,15 +34,15 @@ use std::sync::{Arc, Mutex};
 use theframework_core::prelude::*;
 
 use vek::{Vec2, Vec3};
-
-fn dynamic_collision_height(container: &ValueContainer) -> f32 {
-    container
-        .get_float("collision_height")
-        .or_else(|| container.get_float("entity_height"))
-        .or_else(|| container.get_float("height"))
-        .unwrap_or(2.0)
-        .max(0.1)
-}
+use crate::movement::{dynamic_collision_height, vertical_collision_ranges_overlap};
+#[path = "region_motion.rs"]
+mod motion;
+#[path = "region_persistence.rs"]
+mod persistence;
+pub use persistence::PreparedRegion;
+#[cfg(test)]
+#[path = "region_movement_tests.rs"]
+mod fixed_movement_tests;
 
 fn entity_ruleset_fx_position(entity: &Entity) -> Vec3<f32> {
     let height = entity
@@ -2295,6 +2301,8 @@ mod ruleset_progression_tests {
     #[test]
     fn spawned_grid_player_startup_ignores_previous_item_context() {
         let mut ctx = RegionCtx::default();
+        let (sender, _messages) = unbounded();
+        ctx.from_sender.set(sender).unwrap();
         ctx.current_script_scope = ScriptScope::Item;
         ctx.curr_item_id = Some(999);
         ctx.entity_player_classes.insert("Player".into());
@@ -2304,7 +2312,19 @@ mod ruleset_progression_tests {
         );
         ctx.entity_programs
             .insert("Player".into(), Arc::new(crate::vm::Program::new()));
-        ctx.assets.node_behaviors = Some(Default::default());
+        let template = Uuid::new_v4();
+        ctx.assets.node_behaviors = Some(crate::server::nodes::region::BehaviorAssets {
+            characters: std::collections::HashMap::from([("Player".into(), template)]),
+            graphs: std::collections::HashMap::from([(
+                format!("behavior/character/{template}"),
+                serde_json::json!({"version":1,"nodes":[{
+                    "id":Uuid::new_v4(),"definition":"event",
+                    "rows":[{"key":"event","value":{"Custom":{"kind":"event","data":"startup"}}}],
+                    "ports":[]
+                }],"connections":[]}),
+            )]),
+            ..Default::default()
+        });
         let ctx = Arc::new(Mutex::new(ctx));
         let mut instance = RegionInstance::with_context(9919, ctx.clone());
         let mut player = Entity::new();
@@ -4317,8 +4337,8 @@ mod ruleset_progression_tests {
 
         ctx.simulation_mode = crate::server::regionctx::SimulationMode::Realtime;
         ctx.delta_time = 1.0 / 30.0;
-        assert_eq!(RegionInstance::realtime_seconds_to_ticks(&ctx, 2.0), 60);
-        assert_eq!(RegionInstance::ticks_to_realtime_seconds(&ctx, 60), 2.0);
+        assert_eq!(RegionInstance::realtime_seconds_to_ticks(&ctx, 2.0), 8);
+        assert_eq!(RegionInstance::ticks_to_realtime_seconds(&ctx, 8), 2.0);
 
         ctx.simulation_mode = crate::server::regionctx::SimulationMode::TurnBased;
         assert_eq!(RegionInstance::realtime_seconds_to_ticks(&ctx, 2.0), 8);
@@ -4463,8 +4483,8 @@ mod ruleset_progression_tests {
         );
         assert!(matches!(
             from_receiver.try_recv(),
-            Ok(RegionMessage::Message(_, _, _, 1, message, _))
-                if message == "A heavy oak door."
+            Ok(RegionMessage::WorldText(_, 1, message))
+                if message.text == "A heavy oak door."
         ));
 
         assert!(RegionInstance::apply_block_prop_authoring_interaction(
@@ -4695,15 +4715,6 @@ mod ruleset_progression_tests {
     }
 }
 
-fn vertical_collision_ranges_overlap(a_y: f32, a_height: f32, b_y: f32, b_height: f32) -> bool {
-    const VERTICAL_COLLISION_TOLERANCE: f32 = 0.25;
-    let a_min = a_y;
-    let a_max = a_y + a_height;
-    let b_min = b_y;
-    let b_max = b_y + b_height;
-    a_min <= b_max + VERTICAL_COLLISION_TOLERANCE && b_min <= a_max + VERTICAL_COLLISION_TOLERANCE
-}
-
 /// Borrow an explicitly owned context for one region transaction.
 fn with_regionctx<F, R>(context: Option<Arc<Mutex<RegionCtx>>>, f: F) -> Option<R>
 where
@@ -4865,16 +4876,7 @@ use super::{AudioCommand, RegionMessage};
 use crate::server::regionctx::{ChoiceSession, ScriptScope};
 use RegionMessage::*;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum CollisionMode {
-    Tile,
-    Mesh,
-}
-
-struct MovementResult {
-    geometry_blocked: bool,
-    dynamic_collision: bool,
-}
+use crate::movement::{CollisionMode, MovementResult};
 
 struct DynamicCollisionProbe {
     blocking_collision: bool,
@@ -4913,6 +4915,7 @@ enum DragItemSource {
 }
 
 pub struct RegionInstance {
+    pub(super) idle: super::scheduling::RegionIdle,
     context: Option<Arc<Mutex<RegionCtx>>>,
     world: Arc<super::world::SimulationWorld>,
     pub id: u32,
@@ -4935,14 +4938,16 @@ pub struct RegionInstance {
     /// Entity block mode
     entity_block_mode: i32,
     collision_mode: CollisionMode,
-    last_redraw_at: Instant,
-    last_simulation_advance_at: Instant,
-    last_external_step_request_at: Option<Instant>,
+    simulation_time: Duration,
+    last_simulation_advance_at: Duration,
+    last_external_step_request_at: Option<Duration>,
     current_frame_has_turn_step: bool,
     simulation_step_pending: bool,
     pending_system_steps: u32,
     pending_redraw_steps: u32,
     movement_units_per_sec: f32,
+    frame_motion: FxHashMap<u32, motion::FrameDriver>,
+    pub(crate) restoring: bool,
 }
 
 impl RegionInstance {
@@ -5624,8 +5629,10 @@ impl RegionInstance {
             .filter_map(|item| {
                 let item_name = item.attributes.get_str("name").unwrap_or_default();
                 let class_name = item.attributes.get_str("class_name").unwrap_or_default();
-                if !item_name.eq_ignore_ascii_case(needle)
-                    && !class_name.eq_ignore_ascii_case(needle)
+                let exact_id = needle.strip_prefix('#').and_then(|id| id.parse::<u32>().ok());
+                if !exact_id.map_or_else(|| item_name.eq_ignore_ascii_case(needle)
+                    || class_name.eq_ignore_ascii_case(needle)
+                    || item.attributes.get_str("ruleset_id").is_some_and(|id| id.eq_ignore_ascii_case(needle)), |id| item.id == id)
                 {
                     return None;
                 }
@@ -6012,6 +6019,33 @@ impl RegionInstance {
         }
 
         None
+    }
+
+    fn can_inspect_container(ctx: &RegionCtx, actor_id: u32, item_id: u32, owner: Option<u32>) -> bool {
+        let Some(actor) = ctx.map.entities.iter().find(|e| e.id == actor_id && e.get_mode() != "dead") else { return false; };
+        match owner {
+            None => ctx.map.items.iter().any(|item| item.id == item_id && Self::item_is_container(item))
+                && world_item_in_drag_reach(ctx, actor_id, item_id),
+            Some(owner) => ctx.map.entities.iter().find(|entity| entity.id == owner).is_some_and(|entity| {
+                let permitted = owner == actor_id || entity.attributes.get_uint("party_leader_id") == Some(actor_id)
+                    || (entity.get_mode() == "dead" && actor.get_pos_xz().distance(entity.get_pos_xz()) <= drag_interaction_range_limit(ctx, actor_id));
+                permitted && Self::find_drag_container_location(ctx, item_id, Some(owner)).is_some()
+            }),
+        }
+    }
+
+    pub fn active_container_for(&self, actor: u32) -> Option<(u32, Option<u32>)> {
+        with_regionctx(self.context.clone(), |ctx| {
+            let (item, owner) = *ctx.active_container_sessions.get(&actor)?;
+            Self::can_inspect_container(ctx, actor, item, owner).then_some((item, owner))
+        }).flatten()
+    }
+
+    pub fn choice_is_active(&self, actor: u32, choice: &Choice) -> bool {
+        let (from, to, expires, distance) = choice.session_meta();
+        to == actor && with_regionctx(self.context.clone(), |ctx| {
+            choice_session_is_valid(ctx, from, to, expires, distance)
+        }).unwrap_or(false)
     }
 
     fn drag_container_mut<'a>(
@@ -6519,6 +6553,23 @@ impl RegionInstance {
             }
         }
 
+        if let Ok(Ok(explanations)) = ctx.with_value_rules(|rules| {
+            let mut lines = Vec::new();
+            for (_, keys) in Self::text_command_ruleset_stat_groups(ctx) {
+                for key in keys {
+                    let value = rules.explain_with_conditions(entity, &key, 0.0, &|id| {
+                        active_condition_stacks(ctx, entity.id, id)
+                    })?;
+                    if !value.contributions.is_empty() {
+                        lines.push(value.summary());
+                    }
+                }
+            }
+            Ok::<_, String>(lines)
+        }) {
+            lines.extend(explanations);
+        }
+
         if lines.is_empty() {
             "No ruleset stats.".to_string()
         } else {
@@ -6586,6 +6637,9 @@ impl RegionInstance {
     }
 
     fn text_command_stat_value(ctx: &RegionCtx, entity: &Entity, key: &str) -> Option<String> {
+        if eldiron_ruleset::contributions::declared_attribute(&ctx.rules, key) {
+            return Some(effective_entity_attribute(ctx, entity, key, 0.0).to_string());
+        }
         entity
             .attributes
             .get(key)
@@ -6867,9 +6921,64 @@ impl RegionInstance {
                     owner_entity_id: None,
                 })
             }
-            ResolvedActionTarget::GroundItem
-            | ResolvedActionTarget::InventoryItem
-            | ResolvedActionTarget::AnyItem => target.and_then(|target| {
+            ResolvedActionTarget::InventoryItem | ResolvedActionTarget::AnyItem => {
+                let name = target?.trim();
+                let requested_id = name.strip_prefix('#').and_then(|id| id.parse::<u32>().ok());
+                let matches: Vec<_> = ctx
+                    .map
+                    .entities
+                    .iter()
+                    .find(|e| e.id == entity_id)?
+                    .iter_inventory()
+                    .map(|(_, item)| item)
+                    .chain(ctx.find_entity(entity_id)?.equipped.values())
+                    .filter(|item| {
+                        requested_id.map_or_else(
+                            || {
+                                ["name", "class_name", "ruleset_id"].iter().any(|key| {
+                                    item.attributes
+                                        .get_str(key)
+                                        .is_some_and(|v| v.eq_ignore_ascii_case(name))
+                                })
+                            },
+                            |id| item.id == id,
+                        )
+                    })
+                    .map(|item| item.id)
+                    .collect();
+                match matches.as_slice() {
+                    [item_id] => Some(RulesetActionTarget::Item {
+                        item_id: *item_id,
+                        owner_entity_id: Some(entity_id),
+                    }),
+                    [] if action.target == ResolvedActionTarget::AnyItem => {
+                        Self::resolve_named_item_target(ctx, entity_id, name).map(
+                            |(item_id, owner_entity_id, _)| RulesetActionTarget::Item {
+                                item_id,
+                                owner_entity_id,
+                            },
+                        )
+                    }
+                    [] => None,
+                    _ => {
+                        send_message(
+                            ctx,
+                            entity_id,
+                            format!(
+                                "Several owned items match. Choose {}.",
+                                matches
+                                    .iter()
+                                    .map(|id| format!("#{id}"))
+                                    .collect::<Vec<_>>()
+                                    .join(" or ")
+                            ),
+                            "warning",
+                        );
+                        None
+                    }
+                }
+            }
+            ResolvedActionTarget::GroundItem => target.and_then(|target| {
                 Self::resolve_named_item_target(ctx, entity_id, target).map(
                     |(item_id, owner_entity_id, _)| RulesetActionTarget::Item {
                         item_id,
@@ -7174,9 +7283,11 @@ impl RegionInstance {
                             );
                             return;
                         };
+                        ctx.active_container_sessions.insert(entity_id, (item_id, Some(entity_id)));
                         if let Some(sender) = ctx.from_sender.get() {
                             let _ = sender.send(RegionMessage::OpenContainer(
                                 ctx.region_id,
+                                entity_id,
                                 item_id,
                                 Some(entity_id),
                             ));
@@ -7199,9 +7310,11 @@ impl RegionInstance {
                             );
                             return;
                         };
+                        ctx.active_container_sessions.insert(entity_id, (item_id, Some(entity_id)));
                         if let Some(sender) = ctx.from_sender.get() {
                             let _ = sender.send(RegionMessage::OpenContainer(
                                 ctx.region_id,
+                                entity_id,
                                 item_id,
                                 Some(entity_id),
                             ));
@@ -7221,9 +7334,11 @@ impl RegionInstance {
                             send_drag_too_far_message(ctx, entity_id);
                             return;
                         }
+                        ctx.active_container_sessions.insert(entity_id, (item_id, None));
                         if let Some(sender) = ctx.from_sender.get() {
                             let _ = sender.send(RegionMessage::OpenContainer(
                                 ctx.region_id,
+                                entity_id,
                                 item_id,
                                 None,
                             ));
@@ -7434,7 +7549,8 @@ impl RegionInstance {
     fn is_click_like_step_action(action: &EntityAction) -> bool {
         matches!(
             action,
-            EntityAction::EntityClicked(_, _, _)
+            EntityAction::ResourceInteract(_)
+                | EntityAction::EntityClicked(_, _, _)
                 | EntityAction::ItemClicked(_, _, _, _)
                 | EntityAction::BlockPropInteract { .. }
                 | EntityAction::TerrainClicked(_)
@@ -7453,7 +7569,7 @@ impl RegionInstance {
         if Self::is_click_like_step_action(action)
             && self
                 .last_external_step_request_at
-                .is_some_and(|last| last.elapsed() < Duration::from_millis(150))
+                .is_some_and(|last| self.simulation_time.saturating_sub(last) < Duration::from_millis(150))
         {
             return false;
         }
@@ -7542,29 +7658,13 @@ impl RegionInstance {
         if seconds <= 0.0 {
             return 0;
         }
-        let tick_seconds = if matches!(
-            ctx.simulation_mode,
-            crate::server::regionctx::SimulationMode::Realtime
-        ) && ctx.delta_time > 0.0
-        {
-            ctx.delta_time
-        } else {
-            get_config_i32_default(ctx, "game", "game_tick_ms", 250).max(1) as f32 / 1000.0
-        };
+        let tick_seconds = Self::non_realtime_turn_dt(ctx);
         (seconds / tick_seconds).round().max(1.0) as i64
     }
 
     pub(crate) fn ticks_to_realtime_seconds(ctx: &RegionCtx, ticks: i64) -> f32 {
         let ticks = ticks.max(0);
-        let tick_seconds = if matches!(
-            ctx.simulation_mode,
-            crate::server::regionctx::SimulationMode::Realtime
-        ) && ctx.delta_time > 0.0
-        {
-            ctx.delta_time
-        } else {
-            get_config_i32_default(ctx, "game", "game_tick_ms", 250).max(1) as f32 / 1000.0
-        };
+        let tick_seconds = Self::non_realtime_turn_dt(ctx);
         ticks as f32 * tick_seconds
     }
 
@@ -7579,10 +7679,13 @@ impl RegionInstance {
     fn queue_simulation_step(&mut self) {
         self.pending_system_steps = self.pending_system_steps.saturating_add(1);
         self.pending_redraw_steps = self.pending_redraw_steps.saturating_add(1);
-        self.last_simulation_advance_at = Instant::now();
+        self.last_simulation_advance_at = self.simulation_time;
     }
 
     fn grant_simulation_steps_if_due(&mut self, ctx: &RegionCtx) {
+        // Coalesce requests until the previous turn has been consumed by both
+        // clocks. Input frequency cannot build an unbounded turn backlog.
+        if self.pending_system_steps > 0 || self.pending_redraw_steps > 0 { return; }
         match ctx.simulation_mode {
             crate::server::regionctx::SimulationMode::Realtime => {}
             crate::server::regionctx::SimulationMode::TurnBased => {
@@ -7592,7 +7695,7 @@ impl RegionInstance {
                 }
             }
             crate::server::regionctx::SimulationMode::Hybrid => {
-                let timeout_elapsed = self.last_simulation_advance_at.elapsed()
+                let timeout_elapsed = self.simulation_time.saturating_sub(self.last_simulation_advance_at)
                     >= Duration::from_millis(ctx.turn_timeout_ms.max(1) as u64);
                 if self.simulation_step_pending || timeout_elapsed {
                     self.simulation_step_pending = false;
@@ -7661,10 +7764,14 @@ impl RegionInstance {
     }
 
     fn simulation_dt_for_frame(&mut self, ctx: &RegionCtx, redraw_dt: f32) -> f32 {
+        if redraw_dt <= 0.0 {
+            self.current_frame_has_turn_step = false;
+            return 0.0;
+        }
         match ctx.simulation_mode {
             crate::server::regionctx::SimulationMode::Realtime => {
                 self.current_frame_has_turn_step = true;
-                self.last_simulation_advance_at = Instant::now();
+                self.last_simulation_advance_at = self.simulation_time;
                 redraw_dt
             }
             crate::server::regionctx::SimulationMode::TurnBased => {
@@ -8097,6 +8204,7 @@ impl RegionInstance {
         if let Some(entity) = ctx.map.entities.iter_mut().find(|e| e.id == entity_id) {
             // An old StepTo contains its previous start/target. It must not run
             // after a teleport and snap the entity back across the map.
+            crate::movement::mark_discontinuity(entity);
             entity.action = EntityAction::Off;
             Self::update_grid_input_state(entity, &EntityAction::Off);
             Self::clear_grid_blocked_action(entity);
@@ -8164,280 +8272,17 @@ impl RegionInstance {
     }
 
     fn move_entity_by_vector_with_result_in_ctx(
-        &self,
-        ctx: &mut RegionCtx,
-        entity: &mut Entity,
-        move_vector: Vec2<f32>,
-        entity_block_mode: i32,
+        &self, ctx: &mut RegionCtx, entity: &mut Entity,
+        move_vector: Vec2<f32>, entity_block_mode: i32,
     ) -> MovementResult {
-        let position = entity.get_pos_xz();
-        let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
-        let entity_height = dynamic_collision_height(&entity.attributes);
-
-        let mut new_position = position + move_vector;
-        let mut dynamic_collision = false;
-
-        const MAX_ITERATIONS: usize = 5;
-
-        for _attempt in 0..MAX_ITERATIONS {
-            let mut pushed = false;
-
-            for other in ctx.map.entities.iter() {
-                if other.id == entity.id || other.get_mode() == "dead" {
-                    continue;
-                }
-
-                let other_pos = other.get_pos_xz();
-                let other_radius = other.attributes.get_float_default("radius", 0.5) - 0.01;
-                let other_height = dynamic_collision_height(&other.attributes);
-                let combined_radius = radius + other_radius;
-                let combined_radius_sq = combined_radius * combined_radius;
-
-                let dist_vec = new_position - other_pos;
-                let dist_sq = dist_vec.magnitude_squared();
-                let vertical_overlap = vertical_collision_ranges_overlap(
-                    entity.position.y,
-                    entity_height,
-                    other.position.y,
-                    other_height,
-                );
-                if dist_sq < combined_radius_sq && !vertical_overlap {
-                    continue;
-                }
-                if dist_sq < combined_radius_sq {
-                    dynamic_collision = true;
-                    if let Some(_class_name) = ctx.entity_classes.get(&entity.id) {
-                        ctx.to_execute_entity.push((
-                            entity.id,
-                            "bumped_into_entity".into(),
-                            VMValue::broadcast(other.id as f32),
-                        ));
-                    }
-                    if let Some(_class_name) = ctx.entity_classes.get(&other.id) {
-                        ctx.to_execute_entity.push((
-                            other.id,
-                            "bumped_by_entity".into(),
-                            VMValue::broadcast(entity.id as f32),
-                        ));
-                    }
-
-                    if entity_block_mode > 0 {
-                        let normal = dist_vec.normalized();
-                        let total_move = new_position - position;
-                        let slide = total_move - normal * total_move.dot(normal);
-                        let slide_pos = position + slide;
-                        let slide_dist_sq = (slide_pos - other_pos).magnitude_squared();
-
-                        if slide_dist_sq >= combined_radius_sq {
-                            new_position = slide_pos;
-                        } else {
-                            let actual_dist = (slide_pos - other_pos).magnitude();
-                            if actual_dist < combined_radius {
-                                let push_amount = combined_radius - actual_dist;
-                                new_position = slide_pos + normal * push_amount;
-                            }
-                        }
-                        pushed = true;
-                    }
-                }
-            }
-
-            for other in ctx.map.items.iter() {
-                if !other.attributes.get_bool_default("visible", false) {
-                    continue;
-                }
-
-                if let Some(hit) = crate::item_state::intersects(
-                    other,
-                    &ctx.assets,
-                    new_position,
-                    entity.position.y,
-                    entity_height,
-                    radius,
-                ) {
-                    if hit && other.attributes.get_bool_default("blocking", false) {
-                        // Try each movement axis before stopping. The same footprint is
-                        // used for mesh and tile movement; opening never leaves a circle behind.
-                        let slide_x = Vec2::new(new_position.x, position.y);
-                        let slide_z = Vec2::new(position.x, new_position.y);
-                        new_position = [slide_x, slide_z]
-                            .into_iter()
-                            .find(|p| {
-                                crate::item_state::intersects(
-                                    other,
-                                    &ctx.assets,
-                                    *p,
-                                    entity.position.y,
-                                    entity_height,
-                                    radius,
-                                ) == Some(false)
-                            })
-                            .unwrap_or(position);
-                        dynamic_collision = true;
-                        pushed = true;
-                    }
-                    continue;
-                }
-
-                let other_pos = other.get_pos_xz();
-                let other_radius = other.attributes.get_float_default("radius", 0.5) - 0.01;
-                let combined_radius = radius + other_radius;
-                let combined_radius_sq = combined_radius * combined_radius;
-
-                let dist_vec = new_position - other_pos;
-                let dist_sq = dist_vec.magnitude_squared();
-                if dist_sq < combined_radius_sq {
-                    dynamic_collision = true;
-                    if let Some(_class_name) = ctx.entity_classes.get(&entity.id) {
-                        ctx.to_execute_entity.push((
-                            entity.id,
-                            "bumped_into_item".into(),
-                            VMValue::broadcast(other.id as f32),
-                        ));
-                    }
-                    if let Some(_class_name) = ctx.item_classes.get(&other.id) {
-                        ctx.to_execute_item.push((
-                            other.id,
-                            "bumped_by_entity".into(),
-                            VMValue::broadcast(entity.id as f32),
-                        ));
-                    }
-
-                    if other.attributes.get_bool_default("blocking", false) {
-                        let normal = dist_vec.normalized();
-                        let total_move = new_position - position;
-                        let slide = total_move - normal * total_move.dot(normal);
-                        let slide_pos = position + slide;
-                        let slide_dist_sq = (slide_pos - other_pos).magnitude_squared();
-
-                        if slide_dist_sq >= combined_radius_sq {
-                            new_position = slide_pos;
-                        } else {
-                            let actual_dist = (slide_pos - other_pos).magnitude();
-                            if actual_dist < combined_radius {
-                                let push_amount = combined_radius - actual_dist;
-                                new_position = slide_pos + normal * push_amount;
-                            }
-                        }
-                        pushed = true;
-                    }
-                }
-            }
-
-            if !pushed {
-                break;
-            }
-        }
-
-        entity.set_pos_xz(new_position);
-
-        let blocked = match self.collision_mode {
-            CollisionMode::Tile => {
-                let (end_position, geometry_blocked) =
-                    ctx.mapmini
-                        .move_distance(position, new_position - position, radius);
-                if !ctx.mapmini.elevation.is_empty() {
-                    let (end, height_blocked) = ctx.mapmini.elevation.move_distance(
-                        Vec3::new(position.x, entity.position.y, position.y),
-                        end_position - position,
-                        radius.max(0.),
-                        entity.attributes.get_float_default(
-                            "max_step_height",
-                            crate::isometric::elevation::STEP_UP,
-                        ),
-                        entity.attributes.get_float_default(
-                            "max_drop_height",
-                            crate::isometric::elevation::STEP_DOWN,
-                        ),
-                    );
-                    entity.position = end;
-                    geometry_blocked || height_blocked
-                } else {
-                    entity.set_pos_xz(end_position);
-                    geometry_blocked
-                }
-            }
-            CollisionMode::Mesh => {
-                if ctx.collision_world.has_collision_data() {
-                    let max_step_height = entity
-                        .attributes
-                        .get_float_default("max_step_height", 1.0)
-                        .max(0.01);
-                    let move_vec = new_position - position;
-                    let desired_dist = move_vec.magnitude();
-                    if desired_dist > 1e-6 {
-                        if let Some((end_pos, arrived)) =
-                            ctx.collision_world.move_towards_on_floors_direct(
-                                position,
-                                new_position,
-                                desired_dist,
-                                radius,
-                                max_step_height,
-                                entity.position.y,
-                            )
-                        {
-                            entity.set_pos_xz(vek::Vec2::new(end_pos.x, end_pos.z));
-                            entity.position.y = end_pos.y;
-                            !arrived
-                        } else {
-                            entity.set_pos_xz(position);
-                            true
-                        }
-                    } else {
-                        false
-                    }
-                } else {
-                    let (end_position, geometry_blocked) =
-                        ctx.mapmini
-                            .move_distance(position, new_position - position, radius);
-                    entity.set_pos_xz(end_position);
-                    geometry_blocked
-                }
-            }
-        };
-
-        let final_pos = entity.get_pos_xz();
-        let base_y = if !ctx.mapmini.elevation.is_empty() {
-            Some(ctx.mapmini.elevation.height_at(final_pos))
-        } else if self.collision_mode == CollisionMode::Mesh
-            && ctx.collision_world.has_collision_data()
-        {
-            let max_step_height = entity
-                .attributes
-                .get_float_default("max_step_height", 1.0)
-                .max(0.01);
-            ctx.collision_world
-                .sample_reachable_floor_height(
-                    final_pos,
-                    radius * 0.5,
-                    entity.position.y,
-                    max_step_height,
-                )
-                .or_else(|| {
-                    ctx.collision_world.get_floor_height_reachable(
-                        final_pos,
-                        entity.position.y,
-                        max_step_height,
-                    )
-                })
-        } else {
-            let config = crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(&ctx.map);
-            Some(
-                crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
-                    &ctx.map, final_pos, &config,
-                ),
-            )
-        };
-
-        if let Some(y) = base_y {
-            entity.position.y = y;
-        }
-
+        let result = crate::movement::move_by(&crate::movement::MovementWorld {
+            diagnostics: ctx.diagnostics.as_ref(),
+            map: &ctx.map, mapmini: &ctx.mapmini, collision_world: &ctx.collision_world,
+            assets: &ctx.assets, mode: self.collision_mode,
+        }, entity, move_vector, entity_block_mode);
+        dispatch_motion_contacts(ctx, entity.id, &result.contacts);
         ctx.check_player_for_section_change(entity);
-        MovementResult {
-            geometry_blocked: blocked,
-            dynamic_collision,
-        }
+        result
     }
 
     fn run_instance_setup_program(
@@ -8572,6 +8417,9 @@ impl RegionInstance {
         instance.context = Some(context);
         instance
     }
+    #[cfg(test)]
+    pub(super) fn test_from_sender(&self) -> Sender<RegionMessage> { self.from_sender.clone() }
+    pub(super) fn has_pending_input(&self) -> bool { !self.to_receiver.is_empty() }
     pub fn context(&self) -> Option<Arc<Mutex<RegionCtx>>> {
         self.context.clone()
     }
@@ -8580,6 +8428,7 @@ impl RegionInstance {
         let (from_sender, from_receiver) = unbounded::<RegionMessage>();
 
         Self {
+            idle: Default::default(),
             id: region_id,
             context: None,
             world,
@@ -8596,14 +8445,16 @@ impl RegionInstance {
 
             entity_block_mode: 0,
             collision_mode: CollisionMode::Tile,
-            last_redraw_at: Instant::now(),
-            last_simulation_advance_at: Instant::now(),
+            simulation_time: Duration::ZERO,
+            last_simulation_advance_at: Duration::ZERO,
             last_external_step_request_at: None,
             current_frame_has_turn_step: false,
             simulation_step_pending: false,
             pending_system_steps: 0,
             pending_redraw_steps: 0,
             movement_units_per_sec: 4.0,
+            frame_motion: Default::default(),
+            restoring: false,
         }
     }
 
@@ -8659,6 +8510,7 @@ impl RegionInstance {
         }
 
         ctx.map = map;
+        if let Err(error) = resources::initialize(&mut ctx, self.restoring) { ctx.startup_errors.push(format!("World resources: {error}")); }
         remove_transient_ruleset_fx_items(&mut ctx);
         ctx.blocking_tiles = assets.blocking_tiles();
         ctx.assets = assets.clone();
@@ -8823,167 +8675,170 @@ impl RegionInstance {
             }
         }
 
-        // Remove player based entities, these only get created on demand from a client
-        let player_classes = ctx.entity_player_classes.clone();
-        ctx.map
-            .entities
-            .retain(|entity| match entity.get_attr_string("class_name") {
-                Some(class_name) => !player_classes.contains(&class_name),
-                None => true,
-            });
+        if !self.restoring {
+            // Remove player based entities, these only get created on demand from a client
+            let player_classes = ctx.entity_player_classes.clone();
+            ctx.map
+                .entities
+                .retain(|entity| match entity.get_attr_string("class_name") {
+                    Some(class_name) => !player_classes.contains(&class_name),
+                    None => true,
+                });
 
-        // Set an entity id and mark all fields dirty for the first transmission to the server.
-        for e in ctx.map.entities.iter_mut() {
-            e.id = self.world.next_id();
-            // By default we set the sequence to idle.
-            e.set_attribute(
-                "_source_seq",
-                Value::Source(PixelSource::Sequence("idle".into())),
-            );
-            e.set_attribute("mode", Value::Str("active".into()));
-            e.mark_all_dirty();
-        }
+            // Set an entity id and mark all fields dirty for the first transmission to the server.
+            for e in ctx.map.entities.iter_mut() {
+                e.id = self.world.next_id();
+                // By default we set the sequence to idle.
+                e.set_attribute(
+                    "_source_seq",
+                    Value::Source(PixelSource::Sequence("idle".into())),
+                );
+                e.set_attribute("mode", Value::Str("active".into()));
+                e.mark_all_dirty();
+            }
 
-        // Set an item id and mark all fields dirty for the first transmission to the server.
-        for i in ctx.map.items.iter_mut() {
-            i.id = self.world.next_id();
-            // By default we set the sequence to idle.
-            i.attributes.set(
-                "_source_seq",
-                Value::Source(PixelSource::Sequence("_".into())),
-            );
-            i.mark_all_dirty();
-        }
+            // Set an item id and mark all fields dirty for the first transmission to the server.
+            for i in ctx.map.items.iter_mut() {
+                i.id = self.world.next_id();
+                // By default we set the sequence to idle.
+                i.attributes.set(
+                    "_source_seq",
+                    Value::Source(PixelSource::Sequence("_".into())),
+                );
+                i.mark_all_dirty();
+            }
 
-        // Create Items for Sectors
-        let mut created_door_groups = std::collections::HashSet::new();
-        for s in &ctx.map.sectors {
-            if let Some(item_name) = s.properties.get_str("item") {
-                if item_name.is_empty() {
-                    continue;
-                }
-                if let Some(group_id) = s.properties.get_id("door_group_id")
-                    && !created_door_groups.insert(group_id)
-                {
-                    continue;
-                }
-                if ctx.item_programs.contains_key(item_name) {
-                    let mut item = Item::default();
-                    item.id = self.world.next_id();
-                    item.attributes.set("name", Value::Str(s.name.to_string()));
-                    item.attributes
-                        .set("class_name", Value::Str(item_name.to_string()));
-                    item.attributes.set("static", Value::Bool(true));
-                    item.attributes.set("sector_id", Value::UInt(s.id));
-                    if let Some(group_id) = s.properties.get_id("door_group_id") {
-                        item.attributes.set("door_group_id", Value::Id(group_id));
+            // Create Items for Sectors
+            let mut created_door_groups = std::collections::HashSet::new();
+            for s in &ctx.map.sectors {
+                if let Some(item_name) = s.properties.get_str("item") {
+                    if item_name.is_empty() {
+                        continue;
                     }
-                    item.attributes.set(
-                        "blocking",
-                        Value::Bool(s.properties.get_bool_default("blocking", true)),
-                    );
-                    if let Some(center) = s.center(&ctx.map) {
-                        let world_y = s
-                            .vertices_world(&ctx.map)
-                            .map(|verts| {
-                                verts.iter().map(|v| v.y).sum::<f32>() / verts.len() as f32
-                            })
-                            .unwrap_or(0.0);
-                        item.set_position(Vec3::new(center.x, world_y, center.y));
+                    if let Some(group_id) = s.properties.get_id("door_group_id")
+                        && !created_door_groups.insert(group_id)
+                    {
+                        continue;
                     }
-                    item.mark_all_dirty();
-                    ctx.map.items.push(item);
-                } else {
-                    ctx.startup_errors.push(format!(
-                        "[error] {}: Sector Item '{}': Item does not exist '{}'",
-                        self.name, name, item_name
-                    ));
+                    if ctx.item_programs.contains_key(item_name) {
+                        let mut item = Item::default();
+                        item.id = self.world.next_id();
+                        item.attributes.set("name", Value::Str(s.name.to_string()));
+                        item.attributes
+                            .set("class_name", Value::Str(item_name.to_string()));
+                        item.attributes.set("static", Value::Bool(true));
+                        item.attributes.set("sector_id", Value::UInt(s.id));
+                        if let Some(group_id) = s.properties.get_id("door_group_id") {
+                            item.attributes.set("door_group_id", Value::Id(group_id));
+                        }
+                        item.attributes.set(
+                            "blocking",
+                            Value::Bool(s.properties.get_bool_default("blocking", true)),
+                        );
+                        if let Some(center) = s.center(&ctx.map) {
+                            let world_y = s
+                                .vertices_world(&ctx.map)
+                                .map(|verts| {
+                                    verts.iter().map(|v| v.y).sum::<f32>() / verts.len() as f32
+                                })
+                                .unwrap_or(0.0);
+                            item.set_position(Vec3::new(center.x, world_y, center.y));
+                        }
+                        item.mark_all_dirty();
+                        ctx.map.items.push(item);
+                    } else {
+                        ctx.startup_errors.push(format!(
+                            "[error] {}: Sector Item '{}': Item does not exist '{}'",
+                            self.name, name, item_name
+                        ));
+                    }
                 }
             }
-        }
 
-        // Create Items for 3D Geometry Object areas
-        for object in &ctx.map.geometry_objects {
-            if let Some(item_name) = object.properties.get_str("item") {
-                if item_name.is_empty() {
-                    continue;
-                }
-                if ctx.item_programs.contains_key(item_name) {
-                    let mut item = Item::default();
-                    item.id = self.world.next_id();
-                    item.attributes.set("name", Value::Str(object.name.clone()));
-                    item.attributes
-                        .set("class_name", Value::Str(item_name.to_string()));
-                    item.attributes.set("static", Value::Bool(true));
-                    item.attributes
-                        .set("geometry_object_id", Value::Id(object.id));
-                    item.attributes.set("visible", Value::Bool(object.visible));
-                    item.attributes.set("blocking", Value::Bool(object.solid));
-                    if let Some(center) = object.bbox().map(|bbox| bbox.center()) {
-                        let (sum_y, count) = object
-                            .vertices
-                            .iter()
-                            .map(|vertex| object.transform_point(*vertex).y)
-                            .fold((0.0f32, 0usize), |(sum, count), y| (sum + y, count + 1));
-                        let world_y = if count == 0 {
-                            0.0
-                        } else {
-                            sum_y / count as f32
-                        };
-                        item.set_position(Vec3::new(center.x, world_y, center.y));
+            // Create Items for 3D Geometry Object areas
+            for object in &ctx.map.geometry_objects {
+                if let Some(item_name) = object.properties.get_str("item") {
+                    if item_name.is_empty() {
+                        continue;
                     }
-                    item.mark_all_dirty();
-                    ctx.map.items.push(item);
-                } else {
-                    ctx.startup_errors.push(format!(
-                        "[error] {}: Geometry Object Item '{}': Item does not exist '{}'",
-                        self.name, object.name, item_name
-                    ));
-                }
-            }
-        }
-
-        // Create Items for Profile Sectors (Doors, Gates)
-        for (_, surface) in ctx.map.surfaces.iter_mut() {
-            if let Some(profile_id) = surface.profile {
-                if let Some(map) = ctx.map.profiles.get_mut(&profile_id) {
-                    for s in &map.sectors {
-                        if let Some(item_name) = s.properties.get_str("item") {
-                            if item_name.is_empty() {
-                                continue;
-                            }
-
-                            // Check if the given class name exists
-                            if ctx.item_programs.contains_key(item_name) {
-                                let mut item = Item::default();
-                                item.id = self.world.next_id();
-                                item.attributes.set("name", Value::Str(s.name.to_string()));
-                                item.attributes
-                                    .set("class_name", Value::Str(item_name.to_string()));
-                                item.attributes.set("static", Value::Bool(true));
-                                item.attributes
-                                    .set("profile_host_sector_id", Value::UInt(surface.sector_id));
-                                item.attributes.set("profile_sector_id", Value::UInt(s.id));
-                                if let Some(pos) = s.center(map) {
-                                    // Profile space uses -Y up; flip to UV and map onto the surface.
-                                    let uv = Vec2::new(pos.x, -pos.y);
-                                    let world_pos = surface.uv_to_world(uv);
-                                    item.set_position(world_pos);
-                                }
-                                item.mark_all_dirty();
-                                ctx.map.items.push(item);
+                    if ctx.item_programs.contains_key(item_name) {
+                        let mut item = Item::default();
+                        item.id = self.world.next_id();
+                        item.attributes.set("name", Value::Str(object.name.clone()));
+                        item.attributes
+                            .set("class_name", Value::Str(item_name.to_string()));
+                        item.attributes.set("static", Value::Bool(true));
+                        item.attributes
+                            .set("geometry_object_id", Value::Id(object.id));
+                        item.attributes.set("visible", Value::Bool(object.visible));
+                        item.attributes.set("blocking", Value::Bool(object.solid));
+                        if let Some(center) = object.bbox().map(|bbox| bbox.center()) {
+                            let (sum_y, count) = object
+                                .vertices
+                                .iter()
+                                .map(|vertex| object.transform_point(*vertex).y)
+                                .fold((0.0f32, 0usize), |(sum, count), y| (sum + y, count + 1));
+                            let world_y = if count == 0 {
+                                0.0
                             } else {
-                                ctx.startup_errors.push(format!(
-                                    "[error] {}: Profile Sector Item '{}': Item does not exist '{}'",
-                                    self.name,
-                                    name,
-                                    item_name
-                                ));
+                                sum_y / count as f32
+                            };
+                            item.set_position(Vec3::new(center.x, world_y, center.y));
+                        }
+                        item.mark_all_dirty();
+                        ctx.map.items.push(item);
+                    } else {
+                        ctx.startup_errors.push(format!(
+                            "[error] {}: Geometry Object Item '{}': Item does not exist '{}'",
+                            self.name, object.name, item_name
+                        ));
+                    }
+                }
+            }
+
+            // Create Items for Profile Sectors (Doors, Gates)
+            for (_, surface) in ctx.map.surfaces.iter_mut() {
+                if let Some(profile_id) = surface.profile {
+                    if let Some(map) = ctx.map.profiles.get_mut(&profile_id) {
+                        for s in &map.sectors {
+                            if let Some(item_name) = s.properties.get_str("item") {
+                                if item_name.is_empty() {
+                                    continue;
+                                }
+
+                                // Check if the given class name exists
+                                if ctx.item_programs.contains_key(item_name) {
+                                    let mut item = Item::default();
+                                    item.id = self.world.next_id();
+                                    item.attributes.set("name", Value::Str(s.name.to_string()));
+                                    item.attributes
+                                        .set("class_name", Value::Str(item_name.to_string()));
+                                    item.attributes.set("static", Value::Bool(true));
+                                    item.attributes
+                                        .set("profile_host_sector_id", Value::UInt(surface.sector_id));
+                                    item.attributes.set("profile_sector_id", Value::UInt(s.id));
+                                    if let Some(pos) = s.center(map) {
+                                        // Profile space uses -Y up; flip to UV and map onto the surface.
+                                        let uv = Vec2::new(pos.x, -pos.y);
+                                        let world_pos = surface.uv_to_world(uv);
+                                        item.set_position(world_pos);
+                                    }
+                                    item.mark_all_dirty();
+                                    ctx.map.items.push(item);
+                                } else {
+                                    ctx.startup_errors.push(format!(
+                                        "[error] {}: Profile Sector Item '{}': Item does not exist '{}'",
+                                        self.name,
+                                        name,
+                                        item_name
+                                    ));
+                                }
                             }
                         }
                     }
                 }
             }
+
         }
 
         // --- Startup
@@ -9033,6 +8888,11 @@ impl RegionInstance {
         };
         self.movement_units_per_sec =
             get_config_i32_default(&ctx, "game", "movement_units_per_sec", 4).max(1) as f32;
+
+        if self.restoring {
+            self.context = Some(Arc::new(Mutex::new(ctx)));
+            return;
+        }
 
         let entities: Vec<Entity> = ctx.map.entities.clone();
 
@@ -9092,7 +8952,9 @@ impl RegionInstance {
 
         let mut entities = vec![];
         with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
+            let started = ctx.diagnostics.as_ref().map(|_| instant::Instant::now());
             entities = ctx.map.entities.clone();
+            if let (Some(started), Some(d)) = (started, &ctx.diagnostics) { d.borrow_mut().entity_clone.record(started.elapsed()); }
         });
 
         with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
@@ -9301,6 +9163,10 @@ impl RegionInstance {
 
     /// System tick
     pub fn system_tick(&mut self) {
+        if self.idle.suspended && self.to_receiver.is_empty() {
+            self.idle.skipped_game = self.idle.skipped_game.saturating_add(1); return;
+        }
+        if !self.to_receiver.is_empty() { self.idle.wake(); }
         let mut ticks = 0;
         let mut should_advance = true;
 
@@ -9616,8 +9482,19 @@ impl RegionInstance {
         });
     }
 
-    /// Redraw tick
-    pub fn redraw_tick(&mut self) {
+    /// Poll commands/live edits and publish results without granting time.
+    pub fn redraw_tick(&mut self) { self.advance_simulation(Duration::ZERO); }
+
+    /// One host-authorized fixed movement/timer step.
+    pub fn movement_tick(&mut self) {
+        if self.idle.suspended && self.to_receiver.is_empty() {
+            self.idle.skipped_movement = self.idle.skipped_movement.saturating_add(1); return;
+        }
+        self.advance_simulation(crate::simulation::MOVEMENT_STEP);
+    }
+
+    fn advance_simulation(&mut self, elapsed: Duration) {
+        if !self.to_receiver.is_empty() { self.idle.wake(); }
         // Catch up with the server messages
         while let Ok(msg) = self.to_receiver.try_recv() {
             match msg {
@@ -9730,7 +9607,7 @@ impl RegionInstance {
                                     && Self::entity_has_active_continuous_motion(entity))
                             {
                                 if Self::is_click_like_step_action(&action) {
-                                    self.last_external_step_request_at = Some(Instant::now());
+                                    self.last_external_step_request_at = Some(self.simulation_time);
                                 }
                                 self.note_simulation_step_request();
                             }
@@ -10095,6 +9972,9 @@ impl RegionInstance {
                             owner_entity_id,
                         ) => {
                             with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
+                                let resource_intent = explicit_intent.as_deref().or_else(||ctx.map.entities.iter().find(|e|e.id==entity_id).and_then(|e|e.attributes.get_str("intent"))).unwrap_or("").to_string();
+                                if resources::item_click(ctx, entity_id, clicked_item_id, &resource_intent) { return; }
+
                                 if ctx.entity_classes.get(&entity_id).is_none() {
                                     return;
                                 }
@@ -10473,8 +10353,14 @@ impl RegionInstance {
                                 }
                             });
                         }
+                        ResourceInteract(request) => {
+                            with_regionctx(self.context.clone(), |ctx| resources::report(ctx, entity_id, &request));
+                        }
                         TerrainClicked(position) => {
                             with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
+                                let intent = ctx.map.entities.iter().find(|e|e.id==entity_id).map(|e|e.attributes.get_str_default("intent",String::new())).unwrap_or_default();
+                                if resources::click(ctx, entity_id, position, &intent) { return; }
+
                                 let Some(snapshot) = ctx
                                     .map
                                     .entities
@@ -10642,7 +10528,7 @@ impl RegionInstance {
                                     owner_entity_id,
                                 )
                                 .is_some();
-                                if !container_exists {
+                                if !container_exists || !Self::can_inspect_container(ctx, entity_id, item_id, owner_entity_id) {
                                     return;
                                 }
                                 ctx.active_container_sessions
@@ -10650,6 +10536,7 @@ impl RegionInstance {
                                 if let Some(sender) = ctx.from_sender.get() {
                                     let _ = sender.send(RegionMessage::OpenContainer(
                                         ctx.region_id,
+                                        entity_id,
                                         item_id,
                                         owner_entity_id,
                                     ));
@@ -10764,14 +10651,15 @@ impl RegionInstance {
                                 max_distance,
                             ) => {
                                 with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
-                                    clear_choice_session(ctx, *seller_id, *buyer_id);
-                                    if !choice_session_is_valid(
+                                    let valid = choice_session_is_valid(
                                         ctx,
                                         *seller_id,
                                         *buyer_id,
                                         *expires_at_tick,
                                         *max_distance,
-                                    ) {
+                                    );
+                                    clear_choice_session(ctx, *seller_id, *buyer_id);
+                                    if !valid {
                                         if let Some(_class_name) = ctx.entity_classes.get(seller_id)
                                         {
                                             ctx.to_execute_entity.push((
@@ -10783,54 +10671,46 @@ impl RegionInstance {
                                         return;
                                     }
 
-                                    let mut msg_to_buyer: Option<String> = None;
+                                    let msg_to_buyer: Option<String>;
                                     let mut msg_role = "system";
 
-                                    // Get the price of the item.
-                                    let mut price = 0;
-                                    let mut can_afford = false;
-                                    if let Some(entity) = get_entity_mut(&mut ctx.map, *seller_id) {
-                                        if let Some(item) = entity.get_item(*item_id) {
-                                            if let Some(w) = item.get_attribute("worth") {
-                                                if let Some(worth) = w.to_i32() {
-                                                    price = worth as i64;
-                                                }
-                                            }
+                                    // Stage both actors: add_item can partially merge a stack
+                                    // before reporting a full inventory. Publish neither side
+                                    // unless ownership, capacity and both wallets succeed.
+                                    let purchase = (|| -> Result<(), String> {
+                                        if seller_id == buyer_id {
+                                            return Err("Invalid purchase".into());
                                         }
-                                    }
-
-                                    // Check if the buyer can afford
-                                    if let Some(entity) = get_entity_mut(&mut ctx.map, *buyer_id) {
-                                        can_afford =
-                                            entity.wallet.can_afford(price, &ctx.currencies);
-                                    }
-
-                                    if can_afford {
-                                        let mut item_to_sell: Option<Item> = None;
-                                        if let Some(entity) =
-                                            get_entity_mut(&mut ctx.map, *seller_id)
-                                        {
-                                            if let Some(item) = entity.remove_item(*item_id) {
-                                                item_to_sell = Some(item);
-                                                _ = entity
-                                                    .add_base_currency(price, &ctx.currencies);
-                                            }
+                                        let seller_index = ctx.map.entities.iter()
+                                            .position(|e| e.id == *seller_id).ok_or("Seller unavailable")?;
+                                        let buyer_index = ctx.map.entities.iter()
+                                            .position(|e| e.id == *buyer_id).ok_or("Buyer unavailable")?;
+                                        let mut seller = ctx.map.entities[seller_index].clone();
+                                        let mut buyer = ctx.map.entities[buyer_index].clone();
+                                        let item = seller.remove_item(*item_id).ok_or("Item unavailable")?;
+                                        let price = item.get_attribute("worth")
+                                            .and_then(|value| value.to_i32()).unwrap_or(0) as i64;
+                                        if price < 0 {
+                                            return Err("Invalid item price".into());
                                         }
-                                        if let Some(item) = item_to_sell {
-                                            if let Some(entity) =
-                                                get_entity_mut(&mut ctx.map, *buyer_id)
-                                            {
-                                                msg_to_buyer = Some(format!(
-                                                    "{{system.you_bought}} {{I:{}.name, article=indef, case=lower}}",
-                                                    item.id
-                                                ));
-                                                _ = entity.add_item(item);
-                                                _ = entity.spend_currency(price, &ctx.currencies);
-                                            }
+                                        if !buyer.wallet.can_afford(price, &ctx.currencies) {
+                                            return Err("{system.cant_afford}".into());
                                         }
-                                    } else {
-                                        msg_to_buyer = Some("{system.cant_afford}".into());
-                                        msg_role = "warning";
+                                        buyer.add_item(item)?;
+                                        buyer.spend_currency(price, &ctx.currencies)?;
+                                        seller.add_base_currency(price, &ctx.currencies)?;
+                                        ctx.map.entities[seller_index] = seller;
+                                        ctx.map.entities[buyer_index] = buyer;
+                                        Ok(())
+                                    })();
+                                    match purchase {
+                                        Ok(()) => msg_to_buyer = Some(format!(
+                                            "{{system.you_bought}} {{I:{}.name, article=indef, case=lower}}", item_id
+                                        )),
+                                        Err(error) => {
+                                            msg_to_buyer = Some(error);
+                                            msg_role = "warning";
+                                        }
                                     }
 
                                     if let Some(msg_to_buyer) = msg_to_buyer {
@@ -11052,6 +10932,9 @@ impl RegionInstance {
                     }
                 }
                 CreateEntity(_id, entity) => self.create_entity_instance(entity),
+                CreateConnectedPlayer(connection, entity) => {
+                    self.create_entity_instance_for_connection(entity, Some(connection));
+                }
                 ShowStartupSectorDescription(entity_id) => {
                     with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                         if let Some(entity) =
@@ -11118,23 +11001,16 @@ impl RegionInstance {
             }
         }
 
+        // A host-suspended region still consumes addressed commands above.
+        // Autonomous scripts, movement and region timers receive no hidden time.
+        if self.idle.suspended { return; }
         // Consume live edits while paused, but preserve the world snapshot.
         // Continuing with an empty local entity list would erase paused bodies.
         let mut paused = false;
         with_regionctx(self.context.clone(), |ctx| paused = ctx.paused);
-        if paused {
-            self.last_redraw_at = Instant::now();
-            return;
-        }
-
-        // ---
-
-        let now = Instant::now();
-        let redraw_dt = now
-            .saturating_duration_since(self.last_redraw_at)
-            .as_secs_f32()
-            .clamp(1.0 / 240.0, 0.1);
-        self.last_redraw_at = now;
+        if paused { return; }
+        self.simulation_time = self.simulation_time.saturating_add(elapsed);
+        let redraw_dt = elapsed.as_secs_f32();
         let mut turn_step_deg: f32 = 4.0;
         let mut click_intents_2d = false;
         let mut sim_dt = redraw_dt;
@@ -11190,7 +11066,9 @@ impl RegionInstance {
                 }
                 ctx.procedural_spawn_guard = ctx.procedural_spawn_guard.saturating_sub(1);
             }
+            let started = ctx.diagnostics.as_ref().map(|_| instant::Instant::now());
             entities = ctx.map.entities.clone();
+            if let (Some(started), Some(d)) = (started, &ctx.diagnostics) { d.borrow_mut().entity_clone.record(started.elapsed()); }
             let turn_speed_deg_per_sec =
                 get_config_i32_default(ctx, "game", "turn_speed_deg_per_sec", 120).max(1) as f32;
             turn_step_deg = turn_speed_deg_per_sec * sim_dt;
@@ -11203,6 +11081,16 @@ impl RegionInstance {
             // Avatar presentation is real-time state. It must advance even when
             // hybrid/turn-based simulation does not grant this entity a movement step.
             advance_avatar_attack_timer(entity, redraw_dt);
+            if entity.attributes.get_bool_default("__frame_motion", false)
+                && matches!(entity.action, EntityAction::Off)
+            {
+                if redraw_dt > 0. {
+                    let moved = entity.attributes.get_bool_default("__frame_moved", false);
+                    sync_avatar_animation(entity, moved);
+                    entity.set_attribute("__frame_moved", Value::Bool(false));
+                }
+                continue;
+            }
             if crate::furniture::is_resting(entity) {
                 if entity.get_mode() == "dead" || !matches!(entity.action, EntityAction::Off) {
                     let action = entity.action.clone();
@@ -13273,7 +13161,9 @@ impl RegionInstance {
         }
 
         with_regionctx(self.context.clone(), |ctx| {
+            let started = ctx.diagnostics.as_ref().map(|_| instant::Instant::now());
             Self::merge_runtime_entity_side_effects(&mut entities, &ctx.map.entities);
+            if let (Some(started), Some(d)) = (started, &ctx.diagnostics) { d.borrow_mut().entity_merge.record(started.elapsed()); }
             // Combat can kill inside the movement loop, where `entities` is a
             // pre-move clone. A body that death has already stashed must not be
             // merged back into the world, or it would be present and stashed at
@@ -13283,7 +13173,9 @@ impl RegionInstance {
             update_entity_respawns(ctx);
             update_ruleset_item_durability(ctx);
             update_spell_items(ctx);
+            let started = ctx.diagnostics.as_ref().map(|_| instant::Instant::now());
             crate::server::nodes::region::tick(ctx);
+            if let (Some(started), Some(d)) = (started, &ctx.diagnostics) { d.borrow_mut().behaviors.record(started.elapsed()); }
         });
 
         // Execute delayed scripts for entities
@@ -13630,7 +13522,15 @@ impl RegionInstance {
     }
 
     /// Create a new entity instance.
-    pub fn create_entity_instance(&mut self, mut entity: Entity) {
+    pub fn create_entity_instance(&mut self, entity: Entity) {
+        self.create_entity_instance_for_connection(entity, None);
+    }
+
+    fn create_entity_instance_for_connection(
+        &mut self,
+        mut entity: Entity,
+        connection: Option<super::connection::PlayerConnectionId>,
+    ) {
         entity.id = self.world.next_id();
         entity.set_attribute(
             "_source_seq",
@@ -13747,9 +13647,13 @@ impl RegionInstance {
                         }
                     }
 
-                    self.from_sender
-                        .send(RegisterPlayer(self.id, ctx.curr_entity_id))
-                        .unwrap();
+                    let registration = match connection {
+                        Some(connection) => {
+                            RegisterConnectedPlayer(connection, self.id, ctx.curr_entity_id)
+                        }
+                        None => RegisterPlayer(self.id, ctx.curr_entity_id),
+                    };
+                    self.from_sender.send(registration).unwrap();
                 }
 
                 // Register the class for the entity
@@ -14133,8 +14037,12 @@ impl RegionInstance {
     }
 
     fn merge_runtime_entity_side_effects(entities: &mut [Entity], runtime_entities: &[Entity]) {
+        // Side effects can change ownership during movement. Match by stable
+        // identity once, retaining the first match and the original merge order.
+        let mut by_id = FxHashMap::default();
+        for (index, entity) in entities.iter().enumerate() { by_id.entry(entity.id).or_insert(index); }
         for runtime in runtime_entities {
-            let Some(local) = entities.iter_mut().find(|entity| entity.id == runtime.id) else {
+            let Some(local) = by_id.get(&runtime.id).and_then(|index| entities.get_mut(*index)) else {
                 continue;
             };
 
@@ -14359,6 +14267,17 @@ fn validate_equipment_change(
         .find(|entity| entity.id == entity_id)
         .ok_or_else(|| "Equipment target entity does not exist.".to_string())?;
     let policy = ctx.resolved_equipment_policy()?;
+    ctx.with_value_rules(|rules| {
+        rules.validate_item(item)?;
+        let mut candidate = entity.clone();
+        candidate.equipped.insert(target_slot.clone(), item.clone());
+        for attribute in rules.affected_attributes(&candidate)? {
+            rules.explain_with_conditions(&candidate, &attribute, 0.0, &|id| {
+                active_condition_stacks(ctx, entity_id, id)
+            })?;
+        }
+        Ok::<_, String>(())
+    })??;
     let kind = equipment_item_kind(&policy, item);
     let category = item.attributes.get_str("category");
     policy.check_item(
@@ -15767,58 +15686,15 @@ fn effective_entity_attribute(
     attribute: &str,
     default: f32,
 ) -> f32 {
-    effective_entity_attribute_inner(ctx, entity, attribute, default, &mut BTreeSet::new())
-}
-
-fn effective_entity_attribute_inner(
-    ctx: &RegionCtx,
-    entity: &Entity,
-    attribute: &str,
-    default: f32,
-    visiting: &mut BTreeSet<String>,
-) -> f32 {
-    let raw = entity.attributes.get_float_default(attribute, default);
-    let visit_key = attribute.to_ascii_lowercase();
-    if !visiting.insert(visit_key.clone()) {
-        return raw;
-    }
-    let derived = ctx
-        .with_resolved_derived_stats(|stats| {
-            stats
-                .get(attribute)
-                .or_else(|| {
-                    stats
-                        .values()
-                        .find(|stat| stat.id.eq_ignore_ascii_case(attribute))
-                })
-                .cloned()
+    ctx.with_value_rules(|rules| {
+        rules.explain_with_conditions(entity, attribute, default, &|id| {
+            active_condition_stacks(ctx, entity.id, id)
         })
-        .ok()
-        .flatten();
-    let mut value = derived
-        .as_ref()
-        .and_then(|stat| {
-            evaluate_formula(&stat.formula, |name| match name {
-                "base" => raw,
-                "level" => entity.attributes.get_float_default(&ctx.level_attr, 1.0),
-                dependency => {
-                    effective_entity_attribute_inner(ctx, entity, dependency, 0.0, visiting)
-                }
-            })
-            .map(|mut value| {
-                if let Some(minimum) = stat.minimum {
-                    value = value.max(minimum);
-                }
-                if let Some(maximum) = stat.maximum {
-                    value = value.min(maximum);
-                }
-                value
-            })
-        })
-        .unwrap_or(raw);
-    visiting.remove(&visit_key);
-    value = apply_entity_condition_modifiers(ctx, entity.id, attribute, value);
-    value
+    })
+    .ok()
+    .and_then(Result::ok)
+    .map(|value| value.value)
+    .unwrap_or_else(|| entity.attributes.get_float_default(attribute, default))
 }
 
 fn entity_has_effective_attribute(ctx: &RegionCtx, entity: &Entity, attribute: &str) -> bool {
@@ -15849,58 +15725,6 @@ fn effective_entity_maximum(
         return effective_entity_attribute(ctx, entity, fallback_attribute, default);
     }
     default
-}
-
-fn apply_entity_condition_modifiers(
-    ctx: &RegionCtx,
-    entity_id: u32,
-    attribute: &str,
-    base: f32,
-) -> f32 {
-    let base = base as f64;
-    let Some((add, multiply, minimum, maximum)) = ctx
-        .with_resolved_conditions(|conditions| {
-            let mut add = 0.0f64;
-            let mut multiply = 1.0f64;
-            let mut minimum: Option<f64> = None;
-            let mut maximum: Option<f64> = None;
-            for condition in conditions.values() {
-                let stacks = active_condition_stacks(ctx, entity_id, &condition.id);
-                if stacks == 0 {
-                    continue;
-                }
-                for modifier in condition
-                    .modifiers
-                    .iter()
-                    .filter(|modifier| modifier.attribute.eq_ignore_ascii_case(attribute))
-                {
-                    add += modifier.add as f64 * stacks as f64;
-                    multiply *=
-                        (modifier.multiply as f64).powi(stacks.min(i32::MAX as usize) as i32);
-                    if let Some(value) = modifier.minimum {
-                        minimum =
-                            Some(minimum.map_or(value as f64, |current| current.max(value as f64)));
-                    }
-                    if let Some(value) = modifier.maximum {
-                        maximum =
-                            Some(maximum.map_or(value as f64, |current| current.min(value as f64)));
-                    }
-                }
-            }
-            (add, multiply, minimum, maximum)
-        })
-        .ok()
-    else {
-        return base as f32;
-    };
-    let mut value = (base + add) * multiply;
-    if let Some(minimum) = minimum {
-        value = value.max(minimum);
-    }
-    if let Some(maximum) = maximum {
-        value = value.min(maximum);
-    }
-    value.clamp(f32::MIN as f64, f32::MAX as f64) as f32
 }
 
 fn cooldown_attr_names_from_state_key(key: &str) -> Option<(String, String)> {
@@ -16970,6 +16794,8 @@ fn ruleset_item_from_table(
         "visual_template",
         "rig_layer",
         "currency",
+        "appearance_icon",
+        "appearance_icon_off",
     ] {
         if let Some(value) = rule_string(item_table, key) {
             item.set_attribute(key, Value::Str(value.to_string()));
@@ -17057,6 +16883,9 @@ fn ruleset_item_from_table(
         crate::server::data::read_light(&mut light, light_table);
         item.set_attribute("light", Value::Light(light));
     }
+    if let Some(value) = item_table.get("enchantments").and_then(toml_value_to_attr) {
+        item.set_attribute("enchantments", value);
+    }
     copy_ruleset_item_damage_attrs(&mut item, item_table);
     copy_ruleset_item_durability_attrs(&mut item, item_table);
     item.apply_container_attributes();
@@ -17085,6 +16914,7 @@ fn ruleset_item_from_table(
         }
     }
     item.set_stack_quantity(quantity.max(1) as i32);
+    crate::effective_values::initialize_presets(&mut item).ok()?;
     Some(item)
 }
 
@@ -17164,6 +16994,11 @@ fn clamp_ruleset_percent(value: f32) -> i32 {
 }
 
 fn recipe_output_quality(entity: &Entity, recipe: &toml::value::Table) -> i32 {
+    if let Ok(requirements) = eldiron_ruleset::crafting::requirements(recipe) {
+        if let Some(quality) = requirements.fixed_quality {
+            return quality;
+        }
+    }
     let Some(skill_id) = rule_string(recipe, "skill") else {
         return 100;
     };
@@ -17255,49 +17090,7 @@ fn apply_recipe_skill_gain(
 }
 
 pub(crate) fn craft_ruleset_recipe(ctx: &mut RegionCtx, crafter_id: u32, recipe_id: &str) -> bool {
-    let Some(recipe) = ruleset_recipe_table(ctx, recipe_id) else {
-        return false;
-    };
-    let consumes = item_quantity_entries(recipe, "consumes");
-    let produces = item_quantity_entries(recipe, "produces");
-    let mut output_items = produces
-        .iter()
-        .filter_map(|(item_id, quantity)| {
-            ruleset_item_from_table(&ctx.rules, item_id, *quantity, &ctx.world)
-        })
-        .collect::<Vec<_>>();
-    if output_items.len() != produces.len() {
-        return false;
-    }
-
-    let Some(entity_index) = ctx
-        .map
-        .entities
-        .iter()
-        .position(|entity| entity.id == crafter_id)
-    else {
-        return false;
-    };
-    if !entity_meets_recipe_requirements(ctx, &ctx.map.entities[entity_index], recipe) {
-        return false;
-    }
-    if entity_has_action_consumes(&ctx.map.entities[entity_index], &consumes).is_some() {
-        return false;
-    }
-
-    let mut entity = ctx.map.entities[entity_index].clone();
-    for item in &mut output_items {
-        apply_recipe_output_state(&entity, recipe, item);
-    }
-    consume_entity_items(&mut entity, &consumes);
-    for item in output_items {
-        if entity.add_item(item).is_err() {
-            return false;
-        }
-    }
-    apply_recipe_skill_gain(&ctx.rules, &mut entity, recipe);
-    ctx.map.entities[entity_index] = entity;
-    true
+    crafting::execute(ctx, crafter_id, recipe_id, &[]).is_ok()
 }
 
 struct AttackAmmunition {
@@ -17779,6 +17572,8 @@ fn execute_ruleset_resource_action(
     };
 
     let target = &ctx.map.items[item_index];
+    if target.attributes.contains("resource_binding") { return false; }
+
     if !target.attributes.get_bool_default("visible", true)
         || target
             .attributes
@@ -19398,7 +19193,9 @@ pub(crate) fn execute_ruleset_action_with_source_and_target(
         .iter()
         .map(|cost| (cost.item.clone(), cost.quantity))
         .collect::<Vec<_>>();
-    if let Some(missing_item) = entity_has_action_consumes(actor, &consumes) {
+    if let Some(missing_item) = entity_has_action_consumes(actor, &consumes).filter(|_| {
+        resolved_action.kind != ResolvedActionKind::Craft && resolved_action.recipe.is_none()
+    }) {
         send_ruleset_message(
             ctx,
             actor_id,
@@ -19483,41 +19280,65 @@ pub(crate) fn execute_ruleset_action_with_source_and_target(
             );
             return false;
         };
-        let mut combined_costs = consumes.clone();
-        if let Some(recipe) = ruleset_recipe_table(ctx, &recipe_id) {
-            for (item, quantity) in item_quantity_entries(recipe, "consumes") {
-                if let Some((_, total)) = combined_costs
-                    .iter_mut()
-                    .find(|(existing, _)| existing.eq_ignore_ascii_case(&item))
-                {
-                    *total = total.saturating_add(quantity);
-                } else {
-                    combined_costs.push((item, quantity));
-                }
-            }
-        }
-        if entity_has_action_consumes(actor, &combined_costs).is_some() {
-            return false;
-        }
         let recipe_name = ruleset_recipe_display_name(ctx, &recipe_id);
-        if craft_ruleset_recipe(ctx, actor_id, &recipe_id) {
-            consume_action_items(ctx, actor_id, &consumes);
+        let repairing =
+            ruleset_recipe_table(ctx, &recipe_id).is_some_and(|r| r.contains_key("repair"));
+        let target_name = target
+            .as_ref()
+            .and_then(RulesetActionTarget::item_id)
+            .and_then(|id| entity_item_by_id(actor, id))
+            .and_then(|i| i.attributes.get_str("name"))
+            .unwrap_or(&recipe_name)
+            .to_string();
+        let outcome = crafting::execute_action(
+            ctx,
+            actor_id,
+            &recipe_id,
+            &consumes,
+            &resolved_action,
+            target.as_ref(),
+        );
+        if outcome.is_ok() {
             set_action_cooldown(
                 ctx,
                 actor_id,
                 action_id,
                 resolved_action.cooldown_seconds.max(0.0),
             );
+            if repairing {
+                send_ruleset_message(
+                    ctx,
+                    actor_id,
+                    "recipes",
+                    "repaired",
+                    "recipes.repaired",
+                    &[("item", target_name)],
+                    "success",
+                );
+            } else {
+                send_ruleset_message(
+                    ctx,
+                    actor_id,
+                    "recipes",
+                    "crafted",
+                    "recipes.crafted",
+                    &[("recipe", recipe_name)],
+                    "success",
+                );
+            }
+            return true;
+        }
+        if repairing {
             send_ruleset_message(
                 ctx,
                 actor_id,
                 "recipes",
-                "crafted",
-                "recipes.crafted",
-                &[("recipe", recipe_name)],
-                "success",
+                "could_not_repair",
+                "recipes.could_not_repair",
+                &[("item", target_name), ("reason", outcome.unwrap_err())],
+                "warning",
             );
-            return true;
+            return false;
         }
         send_ruleset_message(
             ctx,
@@ -20403,12 +20224,17 @@ pub(crate) fn apply_damage_direct(
         return false;
     }
 
+    let equipment_policy = ctx.resolved_equipment_policy().unwrap_or_default();
     if let Some(entity) = ctx.map.entities.iter_mut().find(|e| e.id == target_id)
         && let Some(mut health) = entity.attributes.get_int(&health_attr)
     {
+        let previous_health = health;
         health -= amount;
         health = health.max(0);
         entity.set_attribute(&health_attr, Value::Int(health));
+        if health < previous_health {
+            crate::equipment_lifecycle::damage_wear(&equipment_policy, entity, kind);
+        }
         applied = true;
 
         let mode = entity.attributes.get_str_default("mode", "".into());
@@ -22505,6 +22331,7 @@ fn equipped_attr(ctx: &RegionCtx, entity: &Entity, attr: &str) -> f32 {
     entity
         .equipped
         .iter()
+        .filter(|(_, item)| crate::equipment_lifecycle::active(&policy, item))
         .filter(|(slot, item)| {
             policy
                 .weapon_slots
@@ -22516,10 +22343,12 @@ fn equipped_attr(ctx: &RegionCtx, entity: &Entity, attr: &str) -> f32 {
         .sum()
 }
 
-fn all_equipped_attr(entity: &Entity, attr: &str) -> f32 {
+fn all_equipped_attr(ctx: &RegionCtx, entity: &Entity, attr: &str) -> f32 {
+    let policy = ctx.resolved_equipment_policy().unwrap_or_default();
     entity
         .equipped
         .values()
+        .filter(|item| crate::equipment_lifecycle::active(&policy, item))
         .map(|item| item.attributes.get_float_default(attr, 0.0))
         .sum()
 }
@@ -22529,6 +22358,7 @@ fn armor_equipped_attr(ctx: &RegionCtx, entity: &Entity, attr: &str) -> f32 {
     entity
         .equipped
         .iter()
+        .filter(|(_, item)| crate::equipment_lifecycle::active(&policy, item))
         .filter(|(slot, item)| {
             policy
                 .armor_slots
@@ -22561,13 +22391,13 @@ fn resolve_combat_var(
         return source_item.map_or(0.0, |item| item.attributes.get_float_default(attr, 0.0));
     }
     if let Some(attr) = name.strip_prefix("attacker.equipped.") {
-        return attacker.map_or(0.0, |entity| all_equipped_attr(entity, attr));
+        return attacker.map_or(0.0, |entity| all_equipped_attr(ctx, entity, attr));
     }
     if let Some(attr) = name.strip_prefix("defender.equipped.") {
-        return defender.map_or(0.0, |entity| all_equipped_attr(entity, attr));
+        return defender.map_or(0.0, |entity| all_equipped_attr(ctx, entity, attr));
     }
     if let Some(attr) = name.strip_prefix("equipped.") {
-        return attacker.map_or(0.0, |entity| all_equipped_attr(entity, attr));
+        return attacker.map_or(0.0, |entity| all_equipped_attr(ctx, entity, attr));
     }
     if let Some(attr) = name.strip_prefix("attacker.armor.") {
         return attacker.map_or(0.0, |entity| armor_equipped_attr(ctx, entity, attr));
@@ -22693,7 +22523,23 @@ fn apply_structured_combat_table(
         let damage = kind_table.get("damage").and_then(toml::Value::as_table)?;
         let mut value = amount + rule_number(damage, "bonus", 0.0);
         if let Some(attr) = rule_string(damage, "source_bonus_attribute") {
-            value += source_item.map_or(0.0, |item| item.attributes.get_float_default(attr, 0.0));
+            value += source_item.map_or(0.0, |item| {
+                let already_projected = attacker.is_some_and(|actor| {
+                    actor
+                        .equipped
+                        .values()
+                        .any(|equipped| equipped.id == item.id && equipped.creator_id == item.creator_id)
+                }) && rule_string(damage, "attacker_bonus_attribute")
+                    == Some(attr)
+                    && ctx
+                        .with_value_rules(|rules| rules.projects(item, attr))
+                        .unwrap_or(false);
+                if already_projected {
+                    0.0
+                } else {
+                    item.attributes.get_float_default(attr, 0.0)
+                }
+            });
         }
         if let Some(attr) = rule_string(damage, "attacker_bonus_attribute") {
             value += attacker.map_or(0.0, |entity| {
@@ -22715,7 +22561,33 @@ fn apply_structured_combat_table(
             });
         }
         if let Some(attr) = rule_string(reduction, "equipped_armor_attribute") {
-            value -= defender.map_or(0.0, |entity| armor_equipped_attr(ctx, entity, attr));
+            value -= defender.map_or(0.0, |entity| {
+                entity
+                    .equipped
+                    .iter()
+                    .filter(|(slot, item)| {
+                        ctx.with_value_rules(|rules| {
+                            let armor = rules
+                                .equipment
+                                .armor_slots
+                                .iter()
+                                .any(|s| s.eq_ignore_ascii_case(slot))
+                                || matches!(
+                                    equipment_item_kind(&rules.equipment, item).as_str(),
+                                    "armor" | "clothing"
+                                );
+                            let already_projected = rule_string(reduction, "attribute")
+                                == Some(attr)
+                                && rules.projects(item, attr);
+                            armor
+                                && crate::equipment_lifecycle::active(&rules.equipment, item)
+                                && !already_projected
+                        })
+                        .unwrap_or(false)
+                    })
+                    .map(|(_, item)| item.attributes.get_float_default(attr, 0.0))
+                    .sum::<f32>()
+            });
         }
         value -= structured_attribute_bonus(ctx, defender, reduction);
         return Some(value.max(0.0));
@@ -23407,6 +23279,7 @@ pub(crate) fn apply_damage_rules(
 }
 
 pub(crate) fn drop_all_items_for_entity(ctx: &mut RegionCtx, entity_id: u32) {
+    if let Err(error) = resources::create_remains(ctx, entity_id) { ctx.startup_errors.push(error); }
     if drop_items_into_ruleset_loot_container(ctx, entity_id, "") {
         return;
     }
@@ -23657,6 +23530,13 @@ fn drop_items_into_ruleset_loot_container_inner(
     };
 
     if removed_items.is_empty() && !create_empty {
+        return true;
+    }
+
+    if let Some(existing)=ctx.map.items.iter_mut().find(|item|item.attributes.get_uint("corpse_entity_id")==Some(entity_id) && item.attributes.contains("resource_binding")) {
+        existing.set_attribute("container",Value::Bool(true));
+        existing.container.get_or_insert_with(Vec::new).append(&mut removed_items);
+        existing.mark_all_dirty();
         return true;
     }
 
@@ -23915,7 +23795,8 @@ pub(crate) fn return_entity_to_spawn(ctx: &mut RegionCtx, entity_id: u32) -> boo
     entity.action = EntityAction::Off;
     entity.active_sequence = None;
     entity.paused_sequence = None;
-    entity.snap_position_update = true;
+    crate::movement::mark_discontinuity(entity);
+        entity.snap_position_update = true;
     entity.mark_all_dirty();
 
     ctx.check_player_for_section_change_id(entity_id);
@@ -24517,6 +24398,8 @@ fn respawn_npc_entity(ctx: &mut RegionCtx, entity_id: u32) {
         entity.set_attribute("attack_target", Value::Str(String::new()));
         entity.set_position(Vec3::new(spawn_x, spawn_y, spawn_z));
         entity.set_orientation(Vec2::new(orient_x, orient_z));
+        entity.attributes.remove("__resource_death_id");
+        crate::movement::mark_discontinuity(entity);
         entity.snap_position_update = true;
         entity.mark_all_dirty();
     }
@@ -24554,6 +24437,7 @@ pub(crate) fn update_entity_respawns(ctx: &mut RegionCtx) {
     let mut ready_to_respawn = Vec::new();
 
     for entity_id in candidates {
+        if let Err(error) = resources::create_remains(ctx, entity_id) { ctx.startup_errors.push(error); }
         let Some(entity) = ctx.find_entity(entity_id) else {
             continue;
         };
@@ -25357,6 +25241,15 @@ fn move_item_for_entity(
             && source_index == target_index
         {
             return true;
+        }
+
+        // A displaced inventory item would occupy the source equipment slot.
+        // Validate that reverse leg before removing either item.
+        if let Source::Equipped(source_slot) = &source
+            && let Some(displaced) = target_entity.inventory[target_index].as_ref()
+            && validate_equipment_change(ctx, source_entity_id, displaced, source_slot).is_err()
+        {
+            return false;
         }
 
         if from_world
@@ -26919,3 +26812,22 @@ fn set_debug_loc(event: String, x: u32, y: u32, vm: &VirtualMachine) {
 }
 
 */
+
+fn dispatch_motion_contacts(ctx: &mut RegionCtx, actor: u32, contacts: &[crate::movement::Contact]) {
+        for contact in contacts {
+            let (other, event, is_item) = match *contact {
+                crate::movement::Contact::Entity(id) => (id, "bumped_into_entity", false),
+                crate::movement::Contact::Item(id) => (id, "bumped_into_item", true),
+            };
+            if ctx.entity_classes.contains_key(&actor) {
+                ctx.to_execute_entity.push((actor, event.into(), VMValue::broadcast(other as f32)));
+            }
+            if is_item {
+                if ctx.item_classes.contains_key(&other) {
+                    ctx.to_execute_item.push((other, "bumped_by_entity".into(), VMValue::broadcast(actor as f32)));
+                }
+            } else if ctx.entity_classes.contains_key(&other) {
+                ctx.to_execute_entity.push((other, "bumped_by_entity".into(), VMValue::broadcast(actor as f32)));
+            }
+        }
+}

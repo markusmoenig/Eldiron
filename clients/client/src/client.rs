@@ -93,7 +93,6 @@ pub struct Client {
     name: String,
     project: Project,
 
-    update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
 
     rusterix: Rusterix,
@@ -251,7 +250,6 @@ impl TheTrait for Client {
             name: game_name.into(),
             project,
 
-            update_tracker: UpdateTracker::new(),
             event_receiver: None,
 
             rusterix,
@@ -390,7 +388,7 @@ impl TheTrait for Client {
         let frame_started = Instant::now();
         let game_tick_ms = self.rusterix.client.game_tick_ms.max(1) as u64;
         let tick_period = Duration::from_millis(game_tick_ms);
-        let tick_update = self.update_tracker.update(tick_period);
+
         let redraw = true;
 
         // Read the newest pointer state before potentially expensive server and
@@ -400,12 +398,8 @@ impl TheTrait for Client {
         let input_time = input_started.elapsed();
 
         let server_started = Instant::now();
-        if tick_update {
-            self.rusterix.client.inc_animation_frame();
-            self.rusterix.server.system_tick();
-        }
-
-        self.rusterix.server.redraw_tick();
+        let ticks = self.rusterix.server.advance_wall_clock(tick_period);
+        for _ in 0..ticks { self.rusterix.client.inc_animation_frame(); }
         let server_time = server_started.elapsed();
 
         let update_started = Instant::now();

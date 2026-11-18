@@ -132,6 +132,9 @@ struct VariantPlan {
     profile: weapon::Profile,
 }
 impl Appearance {
+    /// Public visual attachment bindings, excluding behavior/gameplay assets.
+    pub fn public_equipment_bindings(&self) -> &[(String,String,String)] {&self.equipment}
+
     /// Whether the exact requested outfit is ready, without compiling it.
     pub fn equipment_is_prepared(&self, entity: &Entity, assets: &Assets) -> bool {
         self.compiled

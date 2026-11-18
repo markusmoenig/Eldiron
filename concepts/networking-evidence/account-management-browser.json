@@ -1,0 +1,62 @@
+{
+  "account_management": {
+    "registration": true,
+    "password_changed": true,
+    "new_password_login": true,
+    "global_logout": true
+  },
+  "streaming": {
+    "version": 1,
+    "global_packs": 0,
+    "regional_packs": 0,
+    "requested_regions": 0,
+    "peak_fetches": 0,
+    "frame_gate_observed": false
+  },
+  "public_package": true,
+  "transport": "explicit loopback WS",
+  "game_documents_served": [
+    "/game.eldiron-client"
+  ],
+  "gpu": {
+    "eldironState": "playing",
+    "eldironCodecWorkers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+    "eldironReadbackBytes": "0",
+    "eldironGpuGeneration": "1",
+    "eldironPresentations": "261",
+    "eldironSession": "46f179b0-f7e4-4a1f-bd3c-b56202b31826",
+    "eldironOnlineAccount": "false",
+    "eldironOnlineStatus": "All sessions signed out. Log in again to continue.",
+    "eldironTicks": "0"
+  },
+  "host": {
+    "mode": "Persistent",
+    "players": 1,
+    "entities": 1
+  },
+  "transport_metrics": {
+    "accepted": 3,
+    "refused": 0,
+    "active": 1,
+    "websocket_payload_bytes_received": 4655,
+    "websocket_payload_bytes_sent": 26377,
+    "http_payload_bytes_sent": 8812,
+    "command_queue_peak": 2,
+    "hash_busy": 0,
+    "malformed": 0,
+    "socket_write": {
+      "calls": 43,
+      "total_us": 6303,
+      "last_us": 50,
+      "max_us": 3066,
+      "rolling_samples": 43,
+      "p50_us": 62,
+      "p95_us": 172,
+      "p99_us": 3066
+    }
+  },
+  "exceptions": 0,
+  "initial_gpu_state": "playing",
+  "verified_on": "2026-11-18",
+  "fixture": "Minimal normalized project archive with authored player spawn and empty project rules"
+}

@@ -1,5 +1,10 @@
 # Eldiron Scepter
 
+For the current API and AI quick start, see the
+[Scepter guide](docs/docs/creator/scepter_remote_editing.md) and the
+[live Lorebook](http://127.0.0.1:37687/scepter/lorebook) served by desktop
+Creator. The sections below preserve the design and implementation history.
+
 ## Implemented foundation and material workflow — 2026-11-07
 
 Scepter now has bounded complete HTTP framing, concurrent connections, uniform

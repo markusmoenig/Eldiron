@@ -20,6 +20,7 @@ pub struct PlayerSettings {
     pub start_screen: String,
     pub play_screen: String,
     pub auto_create_player: bool,
+    pub play: shared::project_play::ProjectPlaySettings,
 }
 impl PlayerSettings {
     pub fn parse(source: &str) -> Result<Self, String> {
@@ -68,6 +69,7 @@ impl PlayerSettings {
             return Err("Scaled window exceeds supported dimensions".into());
         }
         Ok(Self {
+            play: shared::project_play::ProjectPlaySettings::parse(source)?,
             viewport,
             grid_size: grid as f32,
             window_scale: window_scale.max(0.1) as f32,
@@ -109,26 +111,185 @@ pub struct PlayerSession {
     pub runtime: GameSession,
     pub settings: PlayerSettings,
     input: PlayerInput,
+    remote_mode: bool,
+    remote: Option<crate::MotionClient>,
+    remote_actions: VecDeque<EntityAction>,
 }
 impl PlayerSession {
     pub fn new(project: Project, debug: bool) -> Result<Self, String> {
-        let settings = PlayerSettings::parse(&project.config)?;
-        let mut runtime = GameSession::new(project);
-        // The application decides whether a start menu defers registration.
-        // Server/assets/clock orchestration itself is the same as the terminal.
-        runtime.start(SessionOptions {
+        Self::new_for(project, debug, shared::project_play::LaunchPurpose::Player)
+    }
+    pub fn new_local_test(project: Project, debug: bool) -> Result<Self, String> {
+        Self::new_for(
+            project,
             debug,
-            create_local_player: false,
-            ..Default::default()
-        })?;
+            shared::project_play::LaunchPurpose::CreatorTest,
+        )
+    }
+    fn new_for(
+        project: Project,
+        debug: bool,
+        purpose: shared::project_play::LaunchPurpose,
+    ) -> Result<Self, String> {
+        if project.client_release.is_some() && purpose==shared::project_play::LaunchPurpose::CreatorTest {return Err("Public client releases cannot run Creator/local tests".into());}
+        let settings = PlayerSettings::parse(&project.config)?;
+        let remote_mode = matches!(
+            settings.play.launch(purpose)?,
+            shared::project_play::LaunchPlan::Remote(_)
+        );
+        let mut runtime = GameSession::new(project);
+        if remote_mode {
+            shared::runtime_assets::prepare_client_content(
+                &mut runtime.assets,
+                &mut runtime.project,
+                debug,
+            )?;
+        } else {
+            runtime.start(SessionOptions {
+                debug,
+                create_local_player: false,
+                ..Default::default()
+            })?;
+        }
+        let mut input = PlayerInput::default();
+        if remote_mode
+            && let Some(map) = runtime
+                .project
+                .regions
+                .iter()
+                .find(|r| r.map.name == runtime.current_map)
+            && let Ok(prepared) = rusterix::player_start::prepare_player_start(
+                &runtime.assets,
+                &map.map,
+                PlayerStartOptions::default(),
+            )
+        {
+            input.controls.configure(&prepared.info, &runtime.assets);
+        }
         Ok(Self {
             runtime,
             settings,
-            input: PlayerInput::default(),
+            input,
+            remote_mode,
+            remote: None,
+            remote_actions: VecDeque::new(),
         })
     }
+    pub fn is_remote(&self) -> bool {
+        self.remote_mode
+    }
+    pub fn remote(&self) -> Option<&crate::MotionClient> {
+        self.remote.as_ref()
+    }
+    pub fn remote_mut(&mut self) -> Option<&mut crate::MotionClient> {
+        self.remote.as_mut()
+    }
+    pub fn attach_remote(&mut self, client: crate::MotionClient) -> Result<(), String> {
+        if !self.remote_mode {
+            return Err("Cannot attach a remote client to a local world".into());
+        }
+        self.remote = Some(client);
+        Ok(())
+    }
+    pub fn take_remote_actions(&mut self) -> Vec<EntityAction> {
+        self.remote_actions.drain(..).collect()
+    }
+    pub fn reset_remote(&mut self) {
+        if self.remote_mode {
+            self.remote = None;
+            self.remote_actions.clear();
+        }
+    }
+    pub fn install_remote_content(
+        &mut self,
+        reference: crate::replication::RegionContentRef,
+    ) -> Result<(), String> {
+        let map = &self
+            .runtime
+            .project
+            .regions
+            .iter()
+            .find(|r| r.map.id == reference.map)
+            .ok_or("Missing project region")?
+            .map;
+        self.remote
+            .as_mut()
+            .ok_or("No remote client")?
+            .install_content(reference, map)
+            .map_err(|e| e.to_string())
+    }
+    pub fn receive_remote_frame(&mut self, frame: &crate::ClientFrame) -> Result<(), String> {
+        self.remote
+            .as_mut()
+            .ok_or("No remote client")?
+            .receive(frame, &self.runtime.assets)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+    pub fn view(&self) -> crate::RuntimeView<'_> {
+        if !self.remote_mode {
+            return self.runtime.view();
+        }
+        if let Some(client) = &self.remote
+            && let Some(view) = client.view(&self.runtime.project, &self.runtime.assets, None)
+        {
+            return view;
+        }
+        crate::RuntimeView::from_replica(
+            self.runtime.driver().session_id(),
+            None,
+            &self.runtime.project,
+            &self.runtime.assets,
+            None,
+            self.runtime.project.time,
+            rusterix::ServerState::Off,
+            Default::default(),
+        )
+    }
+    pub fn view_region(&self, id: &theframework_core::Uuid) -> Option<crate::RuntimeView<'_>> {
+        if !self.remote_mode {
+            return self.runtime.view_region(id);
+        }
+        self.remote
+            .as_ref()?
+            .view(&self.runtime.project, &self.runtime.assets, Some(*id))
+    }
+    pub fn take_events(&mut self, id: &theframework_core::Uuid) -> crate::RegionEvents {
+        if self.remote_mode {
+            self.remote
+                .as_mut()
+                .map(|c| c.take_events(*id))
+                .unwrap_or_default()
+        } else {
+            self.runtime.take_events(id)
+        }
+    }
+    pub fn client_maps(&self) -> impl Iterator<Item = &rusterix::Map> + Clone {
+        let local = self
+            .runtime
+            .client_world(self.runtime.server.local_connection());
+        self.runtime
+            .project
+            .regions
+            .iter()
+            .filter_map(move |region| {
+                if self.remote_mode {
+                    self.remote.as_ref()?.authority().map(region.map.id)
+                } else if let Some(client) = local {
+                    client.map(region.map.id)
+                } else {
+                    Some(&region.map)
+                }
+            })
+    }
+    pub fn tick_sequence(&self) -> u64 {
+        self.remote
+            .as_ref()
+            .map_or_else(|| self.runtime.tick_sequence(), |c| c.authority().tick())
+    }
     pub fn auto_start(&mut self, showing_game: bool) -> Result<PlayerTransition, String> {
-        if self.settings.auto_create_player
+        if !self.remote_mode
+            && self.settings.auto_create_player
             && (self.settings.start_screen.is_empty() || showing_game)
         {
             let player = self.register(PlayerStartOptions::default())?;
@@ -157,6 +318,9 @@ impl PlayerSession {
         command: &str,
         bindings: &mut FxHashMap<String, String>,
     ) -> Result<PlayerTransition, String> {
+        if self.remote_mode {
+            return Err("Online startup commands belong to the connection owner".into());
+        }
         let command = command.trim();
         let class = if command == "start" {
             bindings
@@ -196,6 +360,12 @@ impl PlayerSession {
             .ok_or_else(|| format!("Unknown screen command '{command}'"))
     }
     pub fn advance(&mut self, elapsed: Duration) -> SessionUpdate {
+        if self.remote_mode {
+            if let Some(client) = &mut self.remote {
+                client.advance(elapsed, &self.runtime.assets);
+            }
+            return SessionUpdate::default();
+        }
         let update = self.runtime.advance(elapsed);
         self.input.flush(&mut self.runtime.server);
         update
@@ -204,6 +374,21 @@ impl PlayerSession {
     /// Consecutive movement states collapse so a release during startup cannot
     /// later replay stale held movement. One-shot commands retain order.
     pub fn submit_action(&mut self, action: EntityAction) -> Result<(), String> {
+        if self.remote_mode {
+            if let Some(client) = &mut self.remote {
+                if let Some(intent) = rusterix::movement::MovementIntent::from_action(&action) {
+                    client.set_intent(intent);
+                } else if let EntityAction::LookYaw(yaw) = action {
+                    client.look(yaw);
+                } else {
+                    if self.remote_actions.len() >= 64 {
+                        return Err("Online action queue is busy".into());
+                    }
+                    self.remote_actions.push_back(action);
+                }
+            }
+            return Ok(());
+        }
         let requested = self.runtime.has_started_player();
         self.input
             .submit_action(&mut self.runtime.server, requested, action)
@@ -235,6 +420,7 @@ impl PlayerSession {
 /// Renderers borrow this owner; hiding/recreating a view cannot replace it.
 #[derive(Default)]
 pub struct PlayerInput {
+    connection: Option<crate::PlayerConnectionId>,
     pub controls: PlayerControls,
     pending_actions: VecDeque<EntityAction>,
     // One bounded stop slot remains available when ordered startup commands
@@ -243,6 +429,18 @@ pub struct PlayerInput {
     submitted_actions: u64,
 }
 impl PlayerInput {
+    /// One input owner per player connection. Explicit owners never fall back
+    /// to the implicit local character after disconnect or world replacement.
+    pub fn for_connection(connection: crate::PlayerConnectionId) -> Self {
+        Self {
+            connection: Some(connection),
+            ..Default::default()
+        }
+    }
+
+    fn connection(&self, server: &rusterix::Server) -> crate::PlayerConnectionId {
+        self.connection.unwrap_or_else(|| server.local_connection())
+    }
     pub fn from_controls(controls: ClientAction) -> Self {
         Self {
             controls: controls.into(),
@@ -250,12 +448,13 @@ impl PlayerInput {
         }
     }
     pub fn flush(&mut self, server: &mut rusterix::Server) {
-        if server.has_local_player() {
+        let connection = self.connection(server);
+        if server.player_control(connection).is_some() {
             for action in self.pending_actions.drain(..) {
-                server.local_player_action(action);
+                let _ = server.player_action(connection, action);
             }
             if std::mem::take(&mut self.pending_stop) {
-                server.local_player_action(EntityAction::Off);
+                let _ = server.player_action(connection, EntityAction::Off);
             }
         }
     }
@@ -268,9 +467,13 @@ impl PlayerInput {
         if !requested {
             return Ok(());
         }
-        if server.has_local_player() {
+        let connection = self.connection(server);
+        if server.connection_state(connection).is_none() {
+            return Err("Unknown or expired player connection".into());
+        }
+        if server.player_control(connection).is_some() {
             self.flush(server);
-            server.local_player_action(action);
+            server.player_action(connection, action)?;
             self.submitted_actions = self.submitted_actions.saturating_add(1);
             return Ok(());
         }
@@ -442,6 +645,9 @@ fn control_focus_release_keeps_bindings_and_does_not_emit_ui_or_intent_commands(
     let mut state = PlayerSession {
         runtime: GameSession::new(Project::new()),
         settings: PlayerSettings::parse("").unwrap(),
+        remote_mode: false,
+        remote: None,
+        remote_actions: VecDeque::new(),
         input: PlayerInput::default(),
     };
     state.input.controls.set_input_data(
@@ -619,6 +825,9 @@ fn physical_control_aliases_keep_other_sources_held_and_restore_remaining_press_
     let mut state = PlayerSession {
         runtime: GameSession::new(Project::new()),
         settings: PlayerSettings::parse("").unwrap(),
+        remote_mode: false,
+        remote: None,
+        remote_actions: VecDeque::new(),
         input: PlayerInput::default(),
     };
     state

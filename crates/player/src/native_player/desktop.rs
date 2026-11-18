@@ -55,7 +55,7 @@ impl DesktopCommand {
                 }
             }
             if path.replace(PathBuf::from(argument)).is_some() {
-                return Err("Supply one .eldiron project path".into());
+                return Err("Supply one .eldiron or .eldiron-client path".into());
             }
         }
         Ok(Self::Run(DesktopOptions {
@@ -162,7 +162,7 @@ pub fn run(
     let options = match DesktopCommand::parse(args)? {
         DesktopCommand::Help => {
             println!(
-                "Eldiron Player\nUsage: eldiron-client [OPTIONS] [PROJECT.eldiron]\n\nDefaults to ./game.eldiron.\n  --debug         Run authored debug behavior sources\n  --render-debug  Report preparation/transfers and surface presentations\n  --smoke         Present three frames and exit, or fail after 10 seconds\n  --help          Show this help\n  --version       Show the version\n  --              Treat the following argument as a literal project path"
+                "Eldiron Player\nUsage: eldiron-client [OPTIONS] [GAME.eldiron | GAME.eldiron-client]\n\nDefaults to ./game.eldiron.\n  --debug         Run authored debug behavior sources\n  --render-debug  Report preparation/transfers and surface presentations\n  --smoke         Present three frames and exit, or fail after 10 seconds\n  --help          Show this help\n  --version       Show the version\n  --              Treat the following argument as a literal project path"
             );
             return Ok(());
         }
@@ -181,12 +181,12 @@ pub fn run(
             std::env::set_var("ELDIRON_RENDER_DEBUG", "1");
         }
     }
-    let bytes = std::fs::read(&options.path)
-        .map_err(|e| format!("Cannot read {}: {e}", options.path.display()))?;
-    let mut project = shared::project_io::decode_project(&bytes)
+    let mut project = eldiron_network::public_assets::load_path(&options.path)
         .map_err(|e| format!("Cannot load {}: {e}", options.path.display()))?;
     project.migrate_default_ruleset();
-    let _ = project.sync_ruleset_items();
+    if shared::project_play::ProjectPlaySettings::parse(&project.config)?.mode==shared::project_play::ProjectMode::SinglePlayer {
+        let _ = project.sync_ruleset_items();
+    }
     let player = PlayerApplication::new(
         project,
         options.debug,

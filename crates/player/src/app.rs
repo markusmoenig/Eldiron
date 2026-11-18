@@ -248,14 +248,8 @@ impl EldironPlayerApp {
     fn update_game_state(&mut self) {
         let game_tick_ms = self.rusterix.client.game_tick_ms.max(1) as u64;
         let tick_period = Duration::from_millis(game_tick_ms);
-        let tick_update = self.update_tracker.update(tick_period);
-
-        if tick_update {
-            self.rusterix.client.inc_animation_frame();
-            self.rusterix.server.system_tick();
-        }
-
-        self.rusterix.server.redraw_tick();
+        let ticks = self.rusterix.server.advance_wall_clock(tick_period);
+        for _ in 0..ticks { self.rusterix.client.inc_animation_frame(); }
 
         if let Some(new_region_name) = self.rusterix.update_server() {
             self.rusterix.client.current_map = new_region_name;

@@ -9,54 +9,64 @@ shield = "off_hand"
 tool = "off_hand"
 
 [equipment.weapon_categories.sword]
+contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
 handed = "one_handed"
 damage_kind = "physical"
 base_cooldown = 1.0
 
 [equipment.weapon_categories.axe]
+contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
 handed = "one_handed"
 damage_kind = "physical"
 base_cooldown = 1.2
 
 [equipment.weapon_categories.mace]
+contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
 handed = "one_handed"
 damage_kind = "physical"
 base_cooldown = 1.15
 
 [equipment.weapon_categories.spear]
+contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
 handed = "two_handed"
 damage_kind = "physical"
 base_cooldown = 1.25
 range = 2
 
 [equipment.weapon_categories.bow]
+contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
 handed = "two_handed"
 damage_kind = "physical"
 base_cooldown = 1.5
 range = 6
 
 [equipment.armor_categories.cloth]
+contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
 crafting_family = "tailoring"
 armor_bonus = 0
 dex_penalty = 0
 
 [equipment.armor_categories.leather]
+contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
 crafting_family = "leatherworking"
 armor_bonus = 1
 dex_penalty = 0
 
 [equipment.armor_categories.chain]
+contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
 crafting_family = "armorsmithing"
 armor_bonus = 2
 dex_penalty = 1
 
 [equipment.armor_categories.shield]
+contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
 crafting_family = "armorsmithing"
 armor_bonus = 1
 dex_penalty = 1
 occupies_slots = ["off_hand"]
 
 [equipment.armor_categories.focus]
+contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
 crafting_family = "ritualism"
 armor_bonus = 0
 dex_penalty = 0

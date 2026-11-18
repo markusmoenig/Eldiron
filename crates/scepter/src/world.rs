@@ -45,6 +45,7 @@ pub struct EraseCells {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SectorCreate {
     pub region: RegionRef,
+    #[serde(default)]
     pub name: String,
     pub polygon: Vec<[f32; 2]>,
     #[serde(default)]
@@ -55,6 +56,9 @@ pub struct SectorCreate {
     pub height: Option<f32>,
     #[serde(default)]
     pub layer: Option<u8>,
+    /// Sector authoring TOML, including the title and description.
+    #[serde(default)]
+    pub data: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GeometryCreate {
@@ -153,4 +157,7 @@ pub struct SectorUpdate {
     pub height: Option<f32>,
     #[serde(default)]
     pub layer: Option<u8>,
+    /// When supplied, replaces the sector's authoring TOML.
+    #[serde(default)]
+    pub data: Option<String>,
 }

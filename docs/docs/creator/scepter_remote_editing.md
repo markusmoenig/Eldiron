@@ -21,6 +21,33 @@ Scepter is meant for:
 - testing and automation
 - future scripting, plugin, or platform automation adapters
 
+## Start an AI editing session
+
+Open the project in desktop Creator, then give an AI with local HTTP access the
+[live Scepter Lorebook](http://127.0.0.1:37687/scepter/lorebook) and your task.
+
+> Use Scepter at http://127.0.0.1:37687/scepter/lorebook. Read the selected
+> sector's description and build it in 2D Iso. Show me a staged preview first.
+
+The Lorebook is a JSON command catalog served by the running Creator build. An
+AI can use it with a local terminal or HTTP tool. A hosted chat can read this
+guide, and it needs a local tool or bridge to reach Creator and send commands.
+Start the task in chat. Creator keeps the open project, previews, and undo
+history.
+
+1. Fetch the Lorebook and use commands marked `implemented: true`.
+2. Read `GET /scepter/project` for the project path, `session`, and `revision`.
+   Send `editor.context` to `POST /scepter/command` for the active map and
+   selection.
+3. Read the selected sector with `region.snapshot`. Its existing Authoring
+   `description` can be the whole build brief. Read `material.list` and
+   `tile.list` for existing assets and the project palette.
+4. Send `project.preview_transaction` with the proposed operations and
+   `preview.view: "2d_iso"` for sprite isometric maps. Apply the same operations
+   through `project.transaction` using the preview's `session` and `revision`.
+   Check job status on HTTP 202. On HTTP 409, reread the open project and
+   affected content before revising the proposal.
+
 ## Local API
 
 The first Scepter adapter is a local JSON API exposed by Creator:
@@ -46,6 +73,14 @@ GET  /scepter/job?request_id=...
 DELETE /scepter/job?request_id=...
 ```
 
+A local terminal can read the editor context with this command.
+
+```bash
+curl -sS http://127.0.0.1:37687/scepter/command \
+  -H 'Content-Type: application/json' \
+  --data '{"command":"editor.context"}'
+```
+
 `/scepter/command` accepts the stable Scepter command shape:
 
 ```json
@@ -66,16 +101,27 @@ fields plus a unique `request_id` at the top level:
 
 ```json
 {
-  "request_id": "road-edit-001",
+  "request_id": "courtyard-edit-001",
   "session": "<session from project.describe>",
   "revision": "<revision from project.describe>",
   "command": "project.transaction",
-  "params": { "operations": [] }
+  "params": {
+    "operations": [
+      {
+        "op": "sector_update",
+        "params": {
+          "region": { "id": "<region UUID from editor.context>" },
+          "id": 12,
+          "name": "Courtyard"
+        }
+      }
+    ]
+  }
 }
 ```
 
-The empty operation list above is a placeholder; a transaction needs 1–128
-operations. The other command examples below show command/parameter bodies;
+A transaction accepts 1–128 operations. Use a sector ID from the live map in
+place of the example's `12`. The other examples show command/parameter bodies;
 add the three envelope fields when sending a mutation. Missing context returns
 HTTP 428. A changed revision or another active tab returns HTTP 409 without
 applying the edit. Responses include the resulting session and revision.
@@ -89,8 +135,8 @@ seconds. Long requests return HTTP 202 (`queued` or `running`), rather than
 reporting failure while an edit is still pending:
 
 ```text
-GET /scepter/job?request_id=road-edit-001
-DELETE /scepter/job?request_id=road-edit-001
+GET /scepter/job?request_id=courtyard-edit-001
+DELETE /scepter/job?request_id=courtyard-edit-001
 ```
 
 DELETE returns HTTP 200 when it cancels queued work; cancelled requests subsequently report HTTP 409 with
@@ -113,13 +159,14 @@ capacity errors are explicit. Restarting Creator begins new session IDs.
   against the project palette and return the normalized bundle.
 - `composition.get`, with `{ "id": "UUID" }`: editable layer stack and binding.
 - `surface.list`, with `{ "region": { "id": "UUID" } }`: sectors, linedefs,
-  geometry objects/faces, walls, lights and composition bindings.
+  geometry objects and faces, lights, and composition bindings.
 
 Edits use `project.transaction` with `operations: [{ "op": "...", "params": {} }]`:
 
 | Operation | Parameters |
 | --- | --- |
 | `material_put` | `id`, `bundle`; root document ID must match the tile UUID |
+| `mesh_put` | `id`, `recipe` (MZ geometry document as a JSON string), optional `blocking`; root document ID must match the supplied UUID |
 | `composition_put` | `id`, `composition`; creates or replaces a layer stack |
 | `composition_copy` | new `id`, existing `source`; copies the editable stack |
 | `surface_apply` | `region`, `surface`, `material`; returns the placement material ID |
@@ -130,6 +177,11 @@ Material bundles are the same versioned documents used by the procedural
 editor. Color parameters persist project palette-index bindings, and linked
 Image / Tile Sources refresh through the existing editor service. The supported
 outputs are Color, Roughness, Metallic, Opacity and Emission; BSDF is excluded.
+
+`mesh_put` saves a standalone editable MZ mesh and registers its 2D isometric
+tile at the same UUID. In the same transaction, use `floor: {id: UUID}` in
+`sector_create` to place the mesh in its own footprint over existing paving.
+`mesh.get` returns the saved recipe and its isometric bake settings.
 
 A composition contains `base` (material/tile UUID), `layers` and
 `tiling: { "mode": "raw", "period": [1,1], "blend": 0.15 }`. `raw` uses
@@ -201,15 +253,16 @@ running a contextual action such as `face.extrude`.
   "command": "editor.focus",
   "params": {
     "region": { "name": "Harbor" },
-    "view": "iso",
+    "view": "2d_iso",
     "center": [8, 0, 6],
     "scale": 12
   }
 }
 ```
 
-Focus views are `2d`, `iso`, `orbit` and `firstp`; optional `position` sets the
-3D camera anchor. This uses Creator's normal view switching. For a preview of
+Focus views are `2d`, `2d_iso` (sprite isometric), `iso` (3D isometric),
+`orbit`, and `firstp`. The optional `position` sets the 3D camera anchor.
+This uses Creator's normal view switching. For a preview of
 the shared camera, send `region.render_preview` with `editor_view: true` and
 optional `size`. It requires the active region map and captures the actual
 viewport camera, including fractional 2D zoom, isometric angles and perspective
@@ -247,13 +300,13 @@ tree rows.
 All 3D points are `[x,y,z]`, with Y up. 2D polygons/cells use `[x,z]`. Angles are
 degrees. Region references use `{ "id": "UUID" }` or `{ "name": "unique name" }`.
 Material selectors use a unique tile `id`, `alias`, or matching role/metadata.
-New geometry, wall and entity operations require a caller-generated UUID in
-`id`; results return generated face/span/sector IDs for subsequent edits.
+New geometry objects and entity instances require a caller-generated UUID in
+`id`. Results return generated face and sector IDs for subsequent edits.
 
 | Operation | Parameters |
 | --- | --- |
-| `sector_create` | `region`, `name`, `polygon: [[x,z],…]`; optional `floor`, `ceiling`, `height`, `layer` |
-| `sector_update` | `region`, integer `id`; optional `name`, `floor_height`, `height`, `layer` |
+| `sector_create` | `region`, `polygon: [[x,z],…]`, optional `name`, `floor`, `ceiling`, `height`, `layer`, `data` |
+| `sector_update` | `region`, integer `id`, optional `name`, `floor_height`, `height`, `layer`, `data` |
 | `erase_cells` | `region`, `cells: [[x,z],…]`; optional integer `layer` |
 | `map_transform` | `region`, `targets`; optional `translation`, `pivot`, `rotation_y`, `scale` |
 | `map_copy` | same transform fields; returns fresh IDs for the copies |
@@ -261,6 +314,19 @@ New geometry, wall and entity operations require a caller-generated UUID in
 | `geometry_create` | `region`, `id`, `name`, `shape` (`box`, `cylinder`, `floor`, `ceiling`), `min`, `max`; optional `material`, cylinder `segments` |
 | `entity_place` | `region`, `id`, `kind` (`character`/`item`), `template`, `position`; optional `name`, instance TOML `data`, `active` |
 | `entity_update` | `region`, `id`, `kind`; optional `name`, `position`, character `orientation: [x,z]`, instance TOML `data`, `active` |
+
+Sector `data` is the full TOML shown in the Authoring dock. Use the existing
+`description` for the sector brief and read it from `region.snapshot`.
+Sector creation and update return both the map's integer ID and the sector's
+`creator_id` UUID.
+Leave generated prop and tile sectors unnamed to keep them out of the project's
+area list. Set `name: ""` in `sector_update` to clear an existing name.
+
+To inspect the staged result, call `project.preview_transaction` with
+`operations` from the proposed transaction and `preview` containing the
+ordinary `region.render_preview` parameters. This renders a private project
+snapshot. Apply the same operations with the session and revision returned by
+the preview.
 
 Erasing part of a larger floor stores per-cell overrides and preserves the rest
 of the floor and other layers. Sector moves detach shared boundaries instead of
@@ -325,11 +391,10 @@ cargo test -p eldiron-creator --lib scepter_world_workflow_in_hideout_and_3d_sta
 
 ## Lorebook
 
-The catalog reports `implemented` for every command. Planned commands return
-HTTP 501. MZ material and composition editing, atomic transactions and engine
-previews are implemented. Map selection/cameras, primitives, sectors,
-transforms and ruleset entity placement are implemented. Direct appearance/rig
-and arbitrary node-graph authoring remain follow-up work.
+The catalog reports an `implemented` boolean for each command. Planned commands
+return HTTP 501. Supported commands include MZ mesh, material and composition
+editing, staged previews, atomic transactions, map selection and cameras,
+sectors, primitives, transforms, and entity placement.
 
 Scepter includes a live command reference called the **Scepter Lorebook**. It is
 intended to be readable by humans and by automation clients.
@@ -357,12 +422,10 @@ Or ask for a command list:
 }
 ```
 
-The Lorebook is the source of truth for the Scepter protocol: command names,
-parameter schemas, capabilities, and examples. It is not a frozen copy of every
-action or tool installed in Creator. Use `action.list` and `tool.list` for that
-live runtime catalog, including contextual availability. The hand-written
-documentation explains concepts and workflows; automation clients should
-discover details from these machine-readable sources.
+Use the live Lorebook to discover command availability in the running build.
+This guide documents transaction operations, asset formats, and workflows.
+Use `action.list` and `tool.list` for the registered actions and tools and their
+availability in the current editor context.
 
 ## Creator Actions And Tools
 
@@ -490,11 +553,14 @@ vertices, linedefs, sectors, tile sources, placed characters, and placed items:
 }
 ```
 
-2D coordinate notes:
+Read the sector selected in `editor.context.selection.sectors` by matching its
+integer `id` in `region.snapshot`. Read `properties.data.Str` on that sector as
+TOML to get `description`. The snapshot also returns `creator_id`, the sector UUID.
+Use the sector's `bbox` and `polygon` to scope edits.
 
-- x increases to the right
-- negative y is up
-- positive y is down
+- Map commands use `[x, z]` for grid cells and footprint points.
+- The snapshot's raw vertex and sector polygon tuples are `[x, z, height]`.
+  Geometry and camera commands use `[x, y, z]` with Y up.
 - `source` is the current primary sector tile/material source
 - `ceiling_source` is legacy for screen/button selected-state usage and should
   not drive 2D map authoring
@@ -504,7 +570,7 @@ vertices, linedefs, sectors, tile sources, placed characters, and placed items:
 Remote editing should usually follow this loop:
 
 ```text
-read -> plan -> apply small change -> render preview -> inspect -> revise
+read -> stage and render -> inspect -> apply -> verify
 ```
 
 Scepter can render a compressed PNG preview of a region:
@@ -527,7 +593,8 @@ project palette and global pixelization. They render an owned project snapshot
 without changing the user's map selection or camera. The offscreen renderer and
 bounded material cache are reused between requests.
 
-Use `view: "2d"`, `"iso"` or `"3d"`; `size: [768, 512]` sets output dimensions
+Use `view: "2d"`, `"2d_iso"` (sprite isometric), `"iso"` (3D isometric), or `"3d"`
+(perspective). `size: [768, 512]` sets output dimensions
 (each axis 64–1024). Bounds use `[x, z, width, depth]`, with positive extents up
 to 256 units. Optional `camera` contains `center: [x,y,z]`, `position: [x,y,z]`
 (for perspective), `scale`, `azimuth`, `elevation` (for isometric), and `fov`,
@@ -678,9 +745,9 @@ Patch a script:
 }
 ```
 
-The first executable version of `script.patch` replaces the full source and
-records the change in Creator's undo stack. Parser-backed source diagnostics
-are planned for a later pass.
+`script.patch` replaces the full source and records one undo step.
+`script.validate` reports structural command validity. Eldrin parser diagnostics
+are planned.
 
 ## Attributes
 
@@ -757,7 +824,7 @@ Remote clients should follow these rules:
 - use `region.summary` before `region.snapshot` when possible
 - apply small batches instead of huge blind edits
 - render previews after visual changes
-- use `replace_existing: true` for 2D map painting unless layering is intended
+- use `replace_existing: true` when the task calls for replacing existing paint
 - patch scripts and attributes only after reading the current value
 - use undo instead of saving test edits
 

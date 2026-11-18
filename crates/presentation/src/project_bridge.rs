@@ -78,9 +78,12 @@ pub fn sync_live_rules(rusterix: &mut Rusterix, project: &Project) -> Result<boo
 }
 
 pub fn warmup_runtime(rusterix: &mut Rusterix, project: &mut Project, ticks: usize) {
+    let milliseconds = project.config.parse::<toml::Table>().ok()
+        .and_then(|table| table.get("game")?.get("game_tick_ms")?.as_integer())
+        .unwrap_or(250).max(1) as u64;
+    let step = std::time::Duration::from_millis(milliseconds);
     for _ in 0..ticks {
-        rusterix.server.system_tick();
-        rusterix.server.redraw_tick();
+        rusterix.server.advance_elapsed(step, step);
 
         if let Some(new_region_name) = rusterix.update_server() {
             rusterix.client.current_map = new_region_name;
@@ -104,6 +107,27 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
 
 /// CPU presentation/start-menu setup, without allocating an audio device.
 pub fn setup_client_sources(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Command> {
+    if project.client_release.is_some() {
+        // The runtime has already validated and installed the frozen release.
+        // Do not resolve installed rulesets or regenerate authoring projections.
+        rusterix.assets.screens.clear();
+        rusterix.assets.screen_settings.clear();
+        for screen in project.screens.values() {
+            rusterix.assets.screens.insert(screen.map.name.clone(), screen.map.clone());
+            rusterix.assets.screen_settings.insert(screen.map.name.clone(), screen.settings.clone());
+        }
+        rusterix.assets.fonts.clear();
+        for asset in project.assets.values() {
+            if let AssetBuffer::Font(bytes) = &asset.buffer {
+                if let Ok(font) = fontdue::Font::from_bytes(bytes.clone(), fontdue::FontSettings::default()) {
+                    rusterix.assets.fonts.insert(asset.name.clone(), font);
+                }
+            }
+        }
+        rusterix.scene_handler.mark_dynamics_dirty();
+        return rusterix.client.setup(&mut rusterix.assets, &mut rusterix.scene_handler);
+    }
+
     rusterix.assets.terrain_paint.clear();
     rusterix.assets.surface_paint.clear();
     rusterix.assets.stamp_paint.clear();

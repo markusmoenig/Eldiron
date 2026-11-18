@@ -15,7 +15,6 @@ Other game-level documents are edited separately:
 
 - **Game -> Authoring**: [Authoring Configuration](./authoring)
 - **Game -> World / Behavior Nodes**: global event-driven behavior
-- **Game -> Rules**: [Rules](../rules)
 - **Game -> Locales**: [Localization](../localization)
 - **Game -> Audio FX**: [Audio](../audio)
 
@@ -215,10 +214,10 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
 Selects bundled asset and locale lookup information for the project.
 
 New projects receive a complete document initialized from the bundled
-`eldiron.official` ruleset. **Game / Rules** edits the project-owned document.
+`eldiron.official` ruleset. The document remains project-owned and is used in
+local and hosted play. Standard Creator builds hide the internal ruleset editor.
 Changing these selection fields does not replace the document or its preserved
-original, and `update_policy` does not automatically upgrade it. See the
-[Ruleset Editor](../creator/docks/ruleset_nodes) for editing and recovery.
+original, and `update_policy` does not automatically upgrade it.
 Gameplay definitions such as formulas, classes, spells, intent ranges, and
 equipment policies belong in the rules document. Entity Nodes select definitions
 and configure individual characters or items.

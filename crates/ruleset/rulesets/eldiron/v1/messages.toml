@@ -17,6 +17,8 @@ gathered_key = "actions.gathered"
 pickup_money_key = "economy.pickup_money"
 
 [messages.recipes]
+repaired_key = "recipes.repaired"
+could_not_repair_key = "recipes.could_not_repair"
 unknown_key = "recipes.unknown"
 could_not_craft_key = "recipes.could_not_craft"
 crafted_key = "recipes.crafted"

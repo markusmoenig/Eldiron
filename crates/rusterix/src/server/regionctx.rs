@@ -68,6 +68,7 @@ pub(crate) struct ResolvedRulesCache {
     conditions: BTreeMap<String, ResolvedCondition>,
     derived_stats: BTreeMap<String, ResolvedDerivedStat>,
     equipment: ResolvedEquipmentPolicy,
+    values: crate::effective_values::ValueRules,
     error: Option<String>,
 }
 
@@ -86,6 +87,7 @@ fn resolve_rules_state(
         BTreeMap<String, ResolvedCondition>,
         BTreeMap<String, ResolvedDerivedStat>,
         ResolvedEquipmentPolicy,
+        crate::effective_values::ValueRules,
     ),
     String,
 > {
@@ -108,11 +110,12 @@ fn resolve_rules_state(
             }
         }
     }
-    Ok((catalogue, conditions, derived_stats, equipment))
+    Ok((catalogue, conditions, derived_stats, equipment, crate::effective_values::ValueRules::resolve(rules)?))
 }
 
 #[derive(Default)]
 pub struct RegionCtx {
+    pub diagnostics: Option<std::cell::RefCell<crate::diagnostics::RegionDetail>>,
     /// Shared only by regions of the owning simulation session.
     pub world: Arc<super::world::SimulationWorld>,
     pub node_behaviors: Option<super::nodes::region::Behaviors>,
@@ -189,6 +192,7 @@ pub struct RegionCtx {
     /// the answer pointed instead of restarting.
     pub talk_resumes: FxHashMap<u32, String>,
     pub region_state: ValueContainer,
+    pub resource_access: BTreeMap<Uuid, super::region::resources::Access>,
     pub procedural_spawn_guard: u8,
 
     pub to_execute_entity: Vec<(u32, String, VMValue)>,
@@ -265,11 +269,12 @@ impl RegionCtx {
         if !cache.initialized {
             cache.initialized = true;
             match resolved {
-                Ok((catalogue, conditions, derived_stats, equipment)) => {
+                Ok((catalogue, conditions, derived_stats, equipment, values)) => {
                     cache.catalogue = catalogue;
                     cache.conditions = conditions;
                     cache.derived_stats = derived_stats;
                     cache.equipment = equipment;
+                    cache.values = values;
                 }
                 Err(err) => cache.error = Some(err),
             }
@@ -320,6 +325,15 @@ impl RegionCtx {
     }
 
     pub fn set_rules(&mut self, rules: Table) -> Result<(), String> {
+        if !self.resource_access.is_empty() {
+            let next=super::region::resources::accesses(&self.map,&rules)?;
+            for (id,access) in &self.resource_access {
+                if access.item.is_some_and(|item|!self.map.items.iter().any(|i|i.id==item)) {continue;}
+                let next=next.get(id).ok_or("Resource definition changed; explicit live-state migration is required")?;
+                eldiron_ruleset::world_resources::ResourceState::new(access.profile.clone(),0)?.reconcile_policy(&next.profile)?;
+            }
+            self.resource_access=next;
+        }
         self.rules = rules;
         self.sync_attribute_roles();
         let resolved = resolve_rules_state(&self.rules);
@@ -331,20 +345,21 @@ impl RegionCtx {
             initialized: true,
             catalogue: resolved
                 .as_ref()
-                .map(|(catalogue, _, _, _)| catalogue.clone())
+                .map(|(catalogue, _, _, _, _)| catalogue.clone())
                 .unwrap_or_default(),
             conditions: resolved
                 .as_ref()
-                .map(|(_, conditions, _, _)| conditions.clone())
+                .map(|(_, conditions, _, _, _)| conditions.clone())
                 .unwrap_or_default(),
             derived_stats: resolved
                 .as_ref()
-                .map(|(_, _, derived_stats, _)| derived_stats.clone())
+                .map(|(_, _, derived_stats, _, _)| derived_stats.clone())
                 .unwrap_or_default(),
             equipment: resolved
                 .as_ref()
-                .map(|(_, _, _, equipment)| equipment.clone())
+                .map(|(_, _, _, equipment, _)| equipment.clone())
                 .unwrap_or_default(),
+            values: resolved.as_ref().map(|(_, _, _, _, values)| values.clone()).unwrap_or_default(),
             error: resolved.err(),
         };
         cache.error.clone().map_or(Ok(()), Err)
@@ -419,6 +434,12 @@ impl RegionCtx {
             .read()
             .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
         Ok(read(&cache.derived_stats))
+    }
+
+    pub(crate) fn with_value_rules<T>(&self, read: impl FnOnce(&crate::effective_values::ValueRules) -> T) -> Result<T, String> {
+        self.initialize_resolved_rules()?;
+        let cache = self.resolved_rules.read().map_err(|_| "Resolved rules cache is unavailable".to_string())?;
+        Ok(read(&cache.values))
     }
 
     pub(crate) fn resolved_equipment_policy(&self) -> Result<ResolvedEquipmentPolicy, String> {

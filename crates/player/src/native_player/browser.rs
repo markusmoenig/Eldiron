@@ -78,10 +78,13 @@ async fn load() -> std::result::Result<(), String> {
         .await
         .map_err(js_error)?;
     let bytes = js_sys::Uint8Array::new(&buffer).to_vec();
-    let mut project = shared::project_io::decode_project(&bytes)
+    let source=web_sys::Url::new_with_base(&path,&window.location().href().map_err(js_error)?).map_err(js_error)?.href();
+    let mut project = eldiron_network::public_assets::load_browser(&bytes,&source,|done,total|status("loading",Some(&format!("Loading game assets ({done}/{total})…")))).await
         .map_err(|error| format!("Cannot load {path}: {error}"))?;
     project.migrate_default_ruleset();
-    let _ = project.sync_ruleset_items();
+    if shared::project_play::ProjectPlaySettings::parse(&project.config)?.mode==shared::project_play::ProjectMode::SinglePlayer {
+        let _ = project.sync_ruleset_items();
+    }
     let debug = query
         .get("debug")
         .is_some_and(|value| matches!(value.as_str(), "1" | "true"));
@@ -205,11 +208,13 @@ impl GpuApplication for BrowserApplication {
             );
             let _ = root.set_attribute(
                 "data-eldiron-session",
-                &self.player.player.runtime.view().session_id.to_string(),
+                &self.player.player.view().session_id.to_string(),
             );
+            let _=root.set_attribute("data-eldiron-online-account",if self.player.online.as_ref().is_some_and(|o|o.account){"true"}else{"false"});
+            if let Some(online)=&self.player.online {let _=root.set_attribute("data-eldiron-online-status",&online.status);}
             let _ = root.set_attribute(
                 "data-eldiron-ticks",
-                &self.player.player.runtime.tick_sequence().to_string(),
+                &self.player.player.tick_sequence().to_string(),
             );
         }
     }

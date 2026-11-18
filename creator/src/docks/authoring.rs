@@ -110,7 +110,24 @@ impl Dock for AuthoringDock {
         let mut title = TheText::new(TheId::named("Authoring Dock Title"));
         title.set_text(fl!("authoring_select_prompt"));
         title.set_text_size(12.0);
+        title.limiter_mut().set_max_width(140);
         toolbar_hlayout.add_widget(Box::new(title));
+        let mut profiles = TheDropdownMenu::new(TheId::named("Authoring Resource Profile"));
+        profiles.limiter_mut().set_max_width(170);
+        profiles.add_option("No resource profiles".into());
+        profiles.set_status_text("Select a ruleset resource profile for this map placement.");
+        toolbar_hlayout.add_widget(Box::new(profiles));
+        let mut pools = TheDropdownMenu::new(TheId::named("Authoring Resource Pool"));
+        pools.limiter_mut().set_max_width(140);
+        pools.add_option("Independent".into());
+        pools.set_status_text(
+            "An optional shared pool owns stock across access points and regions.",
+        );
+        toolbar_hlayout.add_widget(Box::new(pools));
+        let mut bind = TheTraybarButton::new(TheId::named("Authoring Bind Resource"));
+        bind.set_text("Bind Resource".into());
+        bind.set_fixed_size(false);
+        toolbar_hlayout.add_widget(Box::new(bind));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
         center.set_top(toolbar_canvas);
@@ -159,6 +176,60 @@ impl Dock for AuthoringDock {
         server_ctx: &mut CreatorContext,
     ) -> bool {
         match event {
+            TheEvent::StateChanged(id, TheWidgetState::Clicked)
+                if id.name == "Authoring Bind Resource" =>
+            {
+                if !self.current_target(project, server_ctx).is_some_and(|t| {
+                    matches!(
+                        t,
+                        AuthoringTarget::Sector(..)
+                            | AuthoringTarget::Linedef(..)
+                            | AuthoringTarget::GeometryObject(..)
+                    )
+                }) {
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        "Select a map tile, edge or 3D object to bind a resource".into(),
+                    ));
+                    return true;
+                }
+                let profile = ui
+                    .get_drop_down_menu("Authoring Resource Profile")
+                    .map(|m| m.selected_text())
+                    .unwrap_or_default();
+                let pool = ui
+                    .get_drop_down_menu("Authoring Resource Pool")
+                    .and_then(|m| (m.selected_index() > 0).then(|| m.selected_text()));
+                let source = self
+                    .current_target(project, server_ctx)
+                    .and_then(|t| self.read_target_text(project, t))
+                    .unwrap_or_default();
+                let result = project.rules_document.document().and_then(|doc| {
+                    shared::rulesets::world_resources::bind_source(
+                        doc.table(),
+                        &source,
+                        shared::rulesets::world_resources::ResourceBinding {
+                            profile,
+                            pool,
+                            ..Default::default()
+                        },
+                    )
+                });
+                match result {
+                    Ok(source) => {
+                        if let Some(edit) = ui.get_text_area_edit("DockAuthoringEditor") {
+                            let before = edit.get_state();
+                            edit.set_value(TheValue::Text(source.clone()));
+                            let after = edit.get_state();
+                            self.prev_state = Some(after.clone());
+                            self.add_undo(CodeUndoAtom::TextEdit(before, after), ctx);
+                        }
+                        self.write_current(project, server_ctx, source);
+                    }
+                    Err(error) => ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error)),
+                }
+                true
+            }
             TheEvent::ValueChanged(id, value) if id.name == "DockAuthoringEditor" => {
                 if let Some(edit) = ui.get_text_area_edit("DockAuthoringEditor")
                     && let Some(prev) = &self.prev_state
@@ -716,6 +787,32 @@ impl AuthoringDock {
         ctx: &mut TheContext,
         project: &Project,
     ) {
+        if let Ok(doc) = project.rules_document.document() {
+            let catalogue = doc.catalogue();
+            for (id, domain, independent) in [
+                ("Authoring Resource Profile", "resource_profiles", false),
+                ("Authoring Resource Pool", "resource_pools", true),
+            ] {
+                if let Some(menu) = ui.get_drop_down_menu(id) {
+                    let previous = menu.selected_text();
+                    menu.clear_options();
+                    let mut choices = Vec::new();
+                    if independent {
+                        choices.push("Independent".to_string());
+                    }
+                    choices.extend(catalogue.ids(domain));
+                    if choices.is_empty() {
+                        choices.push("No resource profiles".into());
+                    }
+                    for choice in &choices {
+                        menu.add_option(choice.clone());
+                    }
+                    menu.set_selected_index(
+                        choices.iter().position(|s| s == &previous).unwrap_or(0) as i32,
+                    );
+                }
+            }
+        }
         let text = target
             .and_then(|target| self.read_target_text(project, target))
             .unwrap_or_default();
@@ -775,6 +872,103 @@ mod tests {
         server_ctx.shared.curr_region = region_id;
         server_ctx.shared.pc = ProjectContext::Region(region_id);
         (project, server_ctx, object_id)
+    }
+
+    #[test]
+    fn resource_binding_uses_catalogue_and_survives_undo_redo_and_archive_reload() {
+        let (mut project, mut server, object) = project_with_selected_geometry_object();
+        let mut dock = AuthoringDock::new();
+        let mut ctx = TheContext::new(1000, 700, 1.0);
+        let mut ui = TheUI::new();
+        if std::env::var_os("ELDIRON_RESOURCE_BINDING_SNAPSHOT").is_some() {
+            ui.init(&mut ctx);
+        }
+        ui.canvas = dock.setup(&mut ctx);
+        dock.activate(&mut ui, &mut ctx, &project, &mut server);
+        let before = ui.get_text_area_edit("DockAuthoringEditor").unwrap().text();
+        let profiles = project
+            .rules_document
+            .document()
+            .unwrap()
+            .catalogue()
+            .ids("resource_profiles");
+        let tree = profiles.iter().position(|s| s == "mature_tree").unwrap();
+        ui.get_drop_down_menu("Authoring Resource Profile")
+            .unwrap()
+            .set_selected_index(tree as i32);
+        assert!(dock.handle_event(
+            &TheEvent::StateChanged(
+                TheId::named("Authoring Bind Resource"),
+                TheWidgetState::Clicked
+            ),
+            &mut ui,
+            &mut ctx,
+            &mut project,
+            &mut server
+        ));
+        if let Ok(path) = std::env::var("ELDIRON_RESOURCE_BINDING_SNAPSHOT") {
+            let mut pixels = vec![0; 1000 * 700 * 4];
+            ui.draw(&mut pixels, &mut ctx);
+            for id in [
+                "Authoring Resource Profile",
+                "Authoring Resource Pool",
+                "Authoring Bind Resource",
+            ] {
+                let dim = *ui.get_widget(id).unwrap().dim();
+                assert!(
+                    dim.width > 50 && dim.height > 10,
+                    "{id} is clipped: {dim:?}"
+                );
+            }
+            std::fs::write(
+                path,
+                TheRGBABuffer::from(pixels, 1000, 700).to_png().unwrap(),
+            )
+            .unwrap();
+        }
+        let source = project.regions[0]
+            .map
+            .geometry_objects
+            .iter()
+            .find(|o| o.id == object)
+            .unwrap()
+            .properties
+            .get_str("data")
+            .unwrap()
+            .to_string();
+        assert_eq!(
+            shared::rulesets::world_resources::binding(&source)
+                .unwrap()
+                .unwrap()
+                .profile,
+            "mature_tree"
+        );
+        dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
+        assert_eq!(
+            project.regions[0]
+                .map
+                .geometry_objects
+                .iter()
+                .find(|o| o.id == object)
+                .unwrap()
+                .properties
+                .get_str("data"),
+            Some(before.as_str())
+        );
+        dock.redo(&mut ui, &mut ctx, &mut project, &mut server);
+        let bytes = shared::project_io::encode_project(&project).unwrap();
+        let restored = shared::project_io::decode_project(&bytes).unwrap();
+        assert_eq!(
+            restored.regions[0]
+                .map
+                .geometry_objects
+                .iter()
+                .find(|o| o.id == object)
+                .unwrap()
+                .properties
+                .get_str("data"),
+            Some(source.as_str())
+        );
     }
 
     #[test]

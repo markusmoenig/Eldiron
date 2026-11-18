@@ -1147,6 +1147,11 @@ pub fn set_project_context(
     server_ctx: &mut CreatorContext,
     pc: ProjectContext,
 ) {
+    // Ignore stale/native navigation commands in normal builds. The rules
+    // document remains loaded and used by every gameplay path.
+    if pc == ProjectContext::GameRules && !cfg!(feature = "internal-rules-editor") {
+        return;
+    }
     // println!("set_project_context {:?}", pc);
     let mut old_project_id = None;
     if let Some(old_id) = server_ctx.shared.pc.id() {

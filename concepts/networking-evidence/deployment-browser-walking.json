@@ -1,0 +1,5533 @@
+{
+  "recorded_on": "2026-11-17",
+  "platform": "macOS-27.0.1-arm64-arm-64bit",
+  "head": "37054d324b56b5cb7c33b7e1053ad24ce93bf4f1",
+  "working_tree_dirty": true,
+  "command": "ELDIRON_SERVER=target/release/eldiron-server ELDIRON_WAN=1 ELDIRON_SOAK_SECONDS=300 node tools/verify_online_browser.mjs",
+  "passed": true,
+  "scope": "Two real WASM/Chrome tabs, movement and sequenced requests over local pipelined TCP/TLS emulation; not geographic WAN or IP packet loss.",
+  "sha256": {
+    "crates/network/src/browser.rs": "7c75de6f6bdc715ea9698558300ff731be074607744a0d5e885f5b7d2a3a958a",
+    "tools/verify_online_browser.mjs": "c765fda823e485a1d5b7bf8150a68324eff9210aa9ad1ebf4f22563b14e72332",
+    "tools/network_relay.mjs": "7714bd5db91959180e953f87933216ed5a1d0bf3bfcade6de627f1aec2cfd78b",
+    "tools/network_relay.test.mjs": "c40f5d960ec42d3b75799e35a623ffaed2f0d520a409280a8baf9f6ddf05ec73",
+    "tools/verify_online_browser_cancel.mjs": "3a3d21b3a069a701f8f3871d3a1513d2f60c83f398fa1da8331b077e08dc71f1",
+    "test_projects/3DStarter.eldiron": "3b620c412d038b1c8fc9233856a5bf6f4c2cea02595333c651e965daa0085059",
+    "target/release/eldiron-server": "eb0c31a7e2e2b5223d8933c95de2a6d9ac2dab8f8157e60eaf1bf3aba6f946c9",
+    "/tmp/eldiron-online-web/pkg/eldiron_network_bg.wasm": "23472b7cf269907854788d569308a7b10313776fb0fa1c9e65d1f4495a8bfab6",
+    "/tmp/eldiron-online-web/pkg/eldiron_network.js": "682f39f467eca22d5c3b6dcc8f8b473b7ca877de83165521089bd3d2523ef99b"
+  },
+  "result": {
+    "transport": "WSS (temporary certificate pinned)",
+    "content": "HTTPS compiled physics",
+    "clients": 2,
+    "wasm": "spatial replicas, asynchronous content preloads, fixed inputs and sequenced requests",
+    "accounts": "none",
+    "saveStore": "none",
+    "high_refresh": {
+      "pumps": 1368,
+      "sent": 164,
+      "status": "Playing demo"
+    },
+    "reload": true,
+    "content_delay_ms": 3000,
+    "content_queues": [
+      {
+        "downloading": false,
+        "peak_bytes": 143029,
+        "peak_packets": 192,
+        "queued_bytes": 121605,
+        "queued_packets": 173,
+        "required_downloads": 1
+      },
+      {
+        "downloading": false,
+        "peak_bytes": 149854,
+        "peak_packets": 200,
+        "queued_bytes": 129026,
+        "queued_packets": 182,
+        "required_downloads": 1
+      }
+    ],
+    "canceled_content_requests": 1,
+    "delayed_requests": 9,
+    "soak": {
+      "elapsed_seconds": 303.104,
+      "checks": 90,
+      "incidents": [
+        {
+          "kind": "increased-latency-and-pacing",
+          "at_seconds": 32.182
+        },
+        {
+          "kind": "two-second-blackout",
+          "at_seconds": 63.09
+        },
+        {
+          "kind": "35-second-blackout-and-explicit-reconnect",
+          "at_seconds": 157.565,
+          "healthy_peer_retained": true,
+          "runaway_motion": false
+        }
+      ],
+      "walks": [
+        {
+          "seconds": 3.023,
+          "displacement": 2.6275997161865234,
+          "settled_error": 0,
+          "motion": {
+            "corrections": 0,
+            "hard_resets": 1,
+            "last_correction_distance": 0,
+            "max_correction_distance": 0,
+            "pending_frames": 11,
+            "pose_snaps": 0,
+            "predicted_steps": 152,
+            "queued_edges": 0,
+            "replayed_steps": 4399,
+            "total_correction_distance": 0
+          },
+          "snapshot": {
+            "controller": {
+              "blocked": null,
+              "grid": null,
+              "held": "Stop",
+              "turn_left": 0
+            },
+            "generation": 5,
+            "parameters": {
+              "camera": "D2",
+              "collision_mode": "Mesh",
+              "entity_block_mode": 1,
+              "turn_degrees_per_second": 180,
+              "turn_period": 0,
+              "units_per_second": 4
+            },
+            "predictable": true,
+            "processed_sequence": 141,
+            "revision": 0
+          },
+          "mode": "active"
+        },
+        {
+          "seconds": 21.821,
+          "displacement": 1.6211605072021484,
+          "settled_error": 0,
+          "motion": {
+            "corrections": 0,
+            "hard_resets": 1,
+            "last_correction_distance": 0,
+            "max_correction_distance": 0,
+            "pending_frames": 12,
+            "pose_snaps": 0,
+            "predicted_steps": 1092,
+            "queued_edges": 0,
+            "replayed_steps": 14686,
+            "total_correction_distance": 0
+          },
+          "snapshot": {
+            "controller": {
+              "blocked": null,
+              "grid": null,
+              "held": "Stop",
+              "turn_left": 0
+            },
+            "generation": 5,
+            "parameters": {
+              "camera": "D2",
+              "collision_mode": "Mesh",
+              "entity_block_mode": 1,
+              "turn_degrees_per_second": 180,
+              "turn_period": 0,
+              "units_per_second": 4
+            },
+            "predictable": true,
+            "processed_sequence": 1080,
+            "revision": 0
+          },
+          "mode": "active"
+        },
+        {
+          "seconds": 46.85,
+          "displacement": 1.6125354170799255,
+          "settled_error": 0,
+          "motion": {
+            "corrections": 0,
+            "hard_resets": 1,
+            "last_correction_distance": 0,
+            "max_correction_distance": 0,
+            "pending_frames": 23,
+            "pose_snaps": 0,
+            "predicted_steps": 2344,
+            "queued_edges": 0,
+            "replayed_steps": 35580,
+            "total_correction_distance": 0
+          },
+          "snapshot": {
+            "controller": {
+              "blocked": null,
+              "grid": null,
+              "held": "Stop",
+              "turn_left": 0
+            },
+            "generation": 5,
+            "parameters": {
+              "camera": "D2",
+              "collision_mode": "Mesh",
+              "entity_block_mode": 1,
+              "turn_degrees_per_second": 180,
+              "turn_period": 0,
+              "units_per_second": 4
+            },
+            "predictable": true,
+            "processed_sequence": 2321,
+            "revision": 0
+          },
+          "mode": "active"
+        },
+        {
+          "seconds": 77.079,
+          "displacement": 1.6230005025863647,
+          "settled_error": 0,
+          "motion": {
+            "corrections": 0,
+            "hard_resets": 3,
+            "last_correction_distance": 0,
+            "max_correction_distance": 0,
+            "pending_frames": 24,
+            "pose_snaps": 0,
+            "predicted_steps": 3783,
+            "queued_edges": 0,
+            "replayed_steps": 68568,
+            "total_correction_distance": 0
+          },
+          "snapshot": {
+            "controller": {
+              "blocked": null,
+              "grid": null,
+              "held": "Stop",
+              "turn_left": 0
+            },
+            "generation": 6,
+            "parameters": {
+              "camera": "D2",
+              "collision_mode": "Mesh",
+              "entity_block_mode": 1,
+              "turn_degrees_per_second": 180,
+              "turn_period": 0,
+              "units_per_second": 4
+            },
+            "predictable": true,
+            "processed_sequence": 482,
+            "revision": 0
+          },
+          "mode": "active"
+        },
+        {
+          "seconds": 102.281,
+          "displacement": 1.6372001767158508,
+          "settled_error": 0,
+          "motion": {
+            "corrections": 0,
+            "hard_resets": 3,
+            "last_correction_distance": 0,
+            "max_correction_distance": 0,
+            "pending_frames": 22,
+            "pose_snaps": 0,
+            "predicted_steps": 5043,
+            "queued_edges": 0,
+            "replayed_steps": 95593,
+            "total_correction_distance": 0
+          },
+          "snapshot": {
+            "controller": {
+              "blocked": null,
+              "grid": null,
+              "held": "Stop",
+              "turn_left": 0
+            },
+            "generation": 6,
+            "parameters": {
+              "camera": "D2",
+              "collision_mode": "Mesh",
+              "entity_block_mode": 1,
+              "turn_degrees_per_second": 180,
+              "turn_period": 0,
+              "units_per_second": 4
+            },
+            "predictable": true,
+            "processed_sequence": 1744,
+            "revision": 0
+          },
+          "mode": "active"
+        },
+        {
+          "seconds": 127.416,
+          "displacement": 1.6800001859664917,
+          "settled_error": 0,
+          "motion": {
+            "corrections": 0,
+            "hard_resets": 3,
+            "last_correction_distance": 0,
+            "max_correction_distance": 0,
+            "pending_frames": 24,
+            "pose_snaps": 0,
+            "predicted_steps": 6300,
+            "queued_edges": 0,
+            "replayed_steps": 123179,
+            "total_correction_distance": 0
+          },
+          "snapshot": {
+            "controller": {
+              "blocked": null,
+              "grid": null,
+              "held": "Stop",
+              "turn_left": 0
+            },
+            "generation": 6,
+            "parameters": {
+              "camera": "D2",
+              "collision_mode": "Mesh",
+              "entity_block_mode": 1,
+              "turn_degrees_per_second": 180,
+              "turn_period": 0,
+              "units_per_second": 4
+            },
+            "predictable": true,
+            "processed_sequence": 2999,
+            "revision": 0
+          },
+          "mode": "active"
+        },
+        {
+          "seconds": 152.564,
+          "displacement": 1.6384001970291138,
+          "settled_error": 0,
+          "motion": {
+            "corrections": 0,
+            "hard_resets": 3,
+            "last_correction_distance": 0,
+            "max_correction_distance": 0,
+            "pending_frames": 24,
+            "pose_snaps": 0,
+            "predicted_steps": 7557,
+            "queued_edges": 0,
+            "replayed_steps": 151305,
+            "total_correction_distance": 0
+          },
+          "snapshot": {
+            "controller": {
+              "blocked": null,
+              "grid": null,
+              "held": "Stop",
+              "turn_left": 0
+            },
+            "generation": 6,
+            "parameters": {
+              "camera": "D2",
+              "collision_mode": "Mesh",
+              "entity_block_mode": 1,
+              "turn_degrees_per_second": 180,
+              "turn_period": 0,
+              "units_per_second": 4
+            },
+            "predictable": true,
+            "processed_sequence": 4256,
+            "revision": 0
+          },
+          "mode": "active"
+        },
+        {
+          "seconds": 206.997,
+          "displacement": 2.6527997255325317,
+          "settled_error": 0,
+          "motion": {
+            "corrections": 0,
+            "hard_resets": 1,
+            "last_correction_distance": 0,
+            "max_correction_distance": 0,
+            "pending_frames": 12,
+            "pose_snaps": 0,
+            "predicted_steps": 436,
+            "queued_edges": 0,
+            "replayed_steps": 7074,
+            "total_correction_distance": 0
+          },
+          "snapshot": {
+            "controller": {
+              "blocked": null,
+              "grid": null,
+              "held": "Stop",
+              "turn_left": 0
+            },
+            "generation": 5,
+            "parameters": {
+              "camera": "D2",
+              "collision_mode": "Mesh",
+              "entity_block_mode": 1,
+              "turn_degrees_per_second": 180,
+              "turn_period": 0,
+              "units_per_second": 4
+            },
+            "predictable": true,
+            "processed_sequence": 424,
+            "revision": 0
+          },
+          "mode": "active"
+        },
+        {
+          "seconds": 231.196,
+          "displacement": 1.6230005025863647,
+          "settled_error": 0,
+          "motion": {
+            "corrections": 0,
+            "hard_resets": 1,
+            "last_correction_distance": 0,
+            "max_correction_distance": 0,
+            "pending_frames": 25,
+            "pose_snaps": 0,
+            "predicted_steps": 1646,
+            "queued_edges": 0,
+            "replayed_steps": 28748,
+            "total_correction_distance": 0
+          },
+          "snapshot": {
+            "controller": {
+              "blocked": null,
+              "grid": null,
+              "held": "Stop",
+              "turn_left": 0
+            },
+            "generation": 5,
+            "parameters": {
+              "camera": "D2",
+              "collision_mode": "Mesh",
+              "entity_block_mode": 1,
+              "turn_degrees_per_second": 180,
+              "turn_period": 0,
+              "units_per_second": 4
+            },
+            "predictable": true,
+            "processed_sequence": 1621,
+            "revision": 0
+          },
+          "mode": "active"
+        },
+        {
+          "seconds": 255.489,
+          "displacement": 1.6800001859664917,
+          "settled_error": 0,
+          "motion": {
+            "corrections": 0,
+            "hard_resets": 1,
+            "last_correction_distance": 0,
+            "max_correction_distance": 0,
+            "pending_frames": 24,
+            "pose_snaps": 0,
+            "predicted_steps": 2861,
+            "queued_edges": 0,
+            "replayed_steps": 57988,
+            "total_correction_distance": 0
+          },
+          "snapshot": {
+            "controller": {
+              "blocked": null,
+              "grid": null,
+              "held": "Stop",
+              "turn_left": 0
+            },
+            "generation": 5,
+            "parameters": {
+              "camera": "D2",
+              "collision_mode": "Mesh",
+              "entity_block_mode": 1,
+              "turn_degrees_per_second": 180,
+              "turn_period": 0,
+              "units_per_second": 4
+            },
+            "predictable": true,
+            "processed_sequence": 2837,
+            "revision": 0
+          },
+          "mode": "active"
+        },
+        {
+          "seconds": 279.678,
+          "displacement": 1.6800001859664917,
+          "settled_error": 0,
+          "motion": {
+            "corrections": 0,
+            "hard_resets": 1,
+            "last_correction_distance": 0,
+            "max_correction_distance": 0,
+            "pending_frames": 25,
+            "pose_snaps": 0,
+            "predicted_steps": 4070,
+            "queued_edges": 0,
+            "replayed_steps": 86986,
+            "total_correction_distance": 0
+          },
+          "snapshot": {
+            "controller": {
+              "blocked": null,
+              "grid": null,
+              "held": "Stop",
+              "turn_left": 0
+            },
+            "generation": 5,
+            "parameters": {
+              "camera": "D2",
+              "collision_mode": "Mesh",
+              "entity_block_mode": 1,
+              "turn_degrees_per_second": 180,
+              "turn_period": 0,
+              "units_per_second": 4
+            },
+            "predictable": true,
+            "processed_sequence": 4045,
+            "revision": 0
+          },
+          "mode": "active"
+        },
+        {
+          "seconds": 303.103,
+          "displacement": 1.6784001588821411,
+          "settled_error": 0,
+          "motion": {
+            "corrections": 0,
+            "hard_resets": 1,
+            "last_correction_distance": 0,
+            "max_correction_distance": 0,
+            "pending_frames": 25,
+            "pose_snaps": 0,
+            "predicted_steps": 5242,
+            "queued_edges": 0,
+            "replayed_steps": 115183,
+            "total_correction_distance": 0
+          },
+          "snapshot": {
+            "controller": {
+              "blocked": null,
+              "grid": null,
+              "held": "Stop",
+              "turn_left": 0
+            },
+            "generation": 5,
+            "parameters": {
+              "camera": "D2",
+              "collision_mode": "Mesh",
+              "entity_block_mode": 1,
+              "turn_degrees_per_second": 180,
+              "turn_period": 0,
+              "units_per_second": 4
+            },
+            "predictable": true,
+            "processed_sequence": 5217,
+            "revision": 0
+          },
+          "mode": "active"
+        }
+      ],
+      "action_rtt_ms": {
+        "p50": 425,
+        "p95": 513,
+        "max": 602
+      },
+      "samples": [
+        {
+          "seconds": 8.054,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 12,
+              "pose_snaps": 0,
+              "predicted_steps": 404,
+              "queued_edges": 0,
+              "replayed_steps": 7021,
+              "total_correction_distance": 0
+            },
+            "sequence": 562,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 392,
+              "revision": 0
+            },
+            "tick": 83
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 8.088,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 16,
+              "pose_snaps": 0,
+              "predicted_steps": 828,
+              "queued_edges": 0,
+              "replayed_steps": 16902,
+              "total_correction_distance": 0
+            },
+            "sequence": 1036,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 812,
+              "revision": 0
+            },
+            "tick": 83
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 13.414,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 12,
+              "pose_snaps": 0,
+              "predicted_steps": 672,
+              "queued_edges": 0,
+              "replayed_steps": 9837,
+              "total_correction_distance": 0
+            },
+            "sequence": 831,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 660,
+              "revision": 0
+            },
+            "tick": 104
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 13.471,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 16,
+              "pose_snaps": 0,
+              "predicted_steps": 1097,
+              "queued_edges": 0,
+              "replayed_steps": 21045,
+              "total_correction_distance": 0
+            },
+            "sequence": 1306,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1081,
+              "revision": 0
+            },
+            "tick": 104
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 18.787,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 12,
+              "pose_snaps": 0,
+              "predicted_steps": 940,
+              "queued_edges": 0,
+              "replayed_steps": 12911,
+              "total_correction_distance": 0
+            },
+            "sequence": 1101,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 928,
+              "revision": 0
+            },
+            "tick": 126
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 18.835,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 17,
+              "pose_snaps": 0,
+              "predicted_steps": 1366,
+              "queued_edges": 0,
+              "replayed_steps": 25179,
+              "total_correction_distance": 0
+            },
+            "sequence": 1575,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1349,
+              "revision": 0
+            },
+            "tick": 126
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 26.866,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 13,
+              "pose_snaps": 0,
+              "predicted_steps": 1344,
+              "queued_edges": 0,
+              "replayed_steps": 17543,
+              "total_correction_distance": 0
+            },
+            "sequence": 1506,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1331,
+              "revision": 0
+            },
+            "tick": 158
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 26.907,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 16,
+              "pose_snaps": 0,
+              "predicted_steps": 1769,
+              "queued_edges": 0,
+              "replayed_steps": 31404,
+              "total_correction_distance": 0
+            },
+            "sequence": 1981,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1753,
+              "revision": 0
+            },
+            "tick": 158
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 32.22,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 12,
+              "pose_snaps": 0,
+              "predicted_steps": 1612,
+              "queued_edges": 0,
+              "replayed_steps": 20648,
+              "total_correction_distance": 0
+            },
+            "sequence": 1776,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1600,
+              "revision": 0
+            },
+            "tick": 179
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 32.255,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 16,
+              "pose_snaps": 0,
+              "predicted_steps": 2037,
+              "queued_edges": 0,
+              "replayed_steps": 35539,
+              "total_correction_distance": 0
+            },
+            "sequence": 2250,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2021,
+              "revision": 0
+            },
+            "tick": 180
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 37.811,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 1892,
+              "queued_edges": 0,
+              "replayed_steps": 26184,
+              "total_correction_distance": 0
+            },
+            "sequence": 2051,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1870,
+              "revision": 0
+            },
+            "tick": 201
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 37.842,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 21,
+              "pose_snaps": 0,
+              "predicted_steps": 2316,
+              "queued_edges": 0,
+              "replayed_steps": 41107,
+              "total_correction_distance": 0
+            },
+            "sequence": 2525,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2295,
+              "revision": 0
+            },
+            "tick": 202
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 43.392,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 21,
+              "pose_snaps": 0,
+              "predicted_steps": 2171,
+              "queued_edges": 0,
+              "replayed_steps": 31927,
+              "total_correction_distance": 0
+            },
+            "sequence": 2332,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2150,
+              "revision": 0
+            },
+            "tick": 224
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 43.424,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 2595,
+              "queued_edges": 0,
+              "replayed_steps": 46796,
+              "total_correction_distance": 0
+            },
+            "sequence": 2804,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2573,
+              "revision": 0
+            },
+            "tick": 224
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 51.905,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 2596,
+              "queued_edges": 0,
+              "replayed_steps": 40748,
+              "total_correction_distance": 0
+            },
+            "sequence": 2758,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2574,
+              "revision": 0
+            },
+            "tick": 258
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 51.956,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 3022,
+              "queued_edges": 0,
+              "replayed_steps": 55832,
+              "total_correction_distance": 0
+            },
+            "sequence": 3233,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2999,
+              "revision": 0
+            },
+            "tick": 258
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 57.55,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 2879,
+              "queued_edges": 0,
+              "replayed_steps": 46800,
+              "total_correction_distance": 0
+            },
+            "sequence": 3042,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2856,
+              "revision": 0
+            },
+            "tick": 280
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 57.596,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 3304,
+              "queued_edges": 0,
+              "replayed_steps": 61922,
+              "total_correction_distance": 0
+            },
+            "sequence": 3515,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 3280,
+              "revision": 0
+            },
+            "tick": 280
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 68.14,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 3336,
+              "queued_edges": 0,
+              "replayed_steps": 58940,
+              "total_correction_distance": 0
+            },
+            "sequence": 66,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 36,
+              "revision": 0
+            },
+            "tick": 323
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 68.189,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 3833,
+              "queued_edges": 0,
+              "replayed_steps": 73322,
+              "total_correction_distance": 0
+            },
+            "sequence": 4048,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 3811,
+              "revision": 0
+            },
+            "tick": 323
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 73.662,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 3612,
+              "queued_edges": 0,
+              "replayed_steps": 64808,
+              "total_correction_distance": 0
+            },
+            "sequence": 343,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 312,
+              "revision": 0
+            },
+            "tick": 345
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 73.714,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 4110,
+              "queued_edges": 0,
+              "replayed_steps": 79194,
+              "total_correction_distance": 0
+            },
+            "sequence": 4324,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 4086,
+              "revision": 0
+            },
+            "tick": 345
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 82.127,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 21,
+              "pose_snaps": 0,
+              "predicted_steps": 4035,
+              "queued_edges": 0,
+              "replayed_steps": 73967,
+              "total_correction_distance": 0
+            },
+            "sequence": 770,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 737,
+              "revision": 0
+            },
+            "tick": 379
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 82.173,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 4533,
+              "queued_edges": 0,
+              "replayed_steps": 88300,
+              "total_correction_distance": 0
+            },
+            "sequence": 4751,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 4511,
+              "revision": 0
+            },
+            "tick": 379
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 87.704,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 4314,
+              "queued_edges": 0,
+              "replayed_steps": 79868,
+              "total_correction_distance": 0
+            },
+            "sequence": 1049,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1015,
+              "revision": 0
+            },
+            "tick": 401
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 87.745,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 4811,
+              "queued_edges": 0,
+              "replayed_steps": 94267,
+              "total_correction_distance": 0
+            },
+            "sequence": 5030,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 4789,
+              "revision": 0
+            },
+            "tick": 401
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 93.296,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 4594,
+              "queued_edges": 0,
+              "replayed_steps": 85862,
+              "total_correction_distance": 0
+            },
+            "sequence": 1330,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1295,
+              "revision": 0
+            },
+            "tick": 423
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 93.351,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 5091,
+              "queued_edges": 0,
+              "replayed_steps": 100253,
+              "total_correction_distance": 0
+            },
+            "sequence": 5310,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 5068,
+              "revision": 0
+            },
+            "tick": 423
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 98.862,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 4872,
+              "queued_edges": 0,
+              "replayed_steps": 91758,
+              "total_correction_distance": 0
+            },
+            "sequence": 1608,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1572,
+              "revision": 0
+            },
+            "tick": 446
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 98.901,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 5369,
+              "queued_edges": 0,
+              "replayed_steps": 106243,
+              "total_correction_distance": 0
+            },
+            "sequence": 5590,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 5347,
+              "revision": 0
+            },
+            "tick": 446
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 107.338,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 5296,
+              "queued_edges": 0,
+              "replayed_steps": 100956,
+              "total_correction_distance": 0
+            },
+            "sequence": 2035,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1997,
+              "revision": 0
+            },
+            "tick": 480
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 107.374,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 5793,
+              "queued_edges": 0,
+              "replayed_steps": 115325,
+              "total_correction_distance": 0
+            },
+            "sequence": 6016,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 5771,
+              "revision": 0
+            },
+            "tick": 480
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 112.861,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 5572,
+              "queued_edges": 0,
+              "replayed_steps": 106892,
+              "total_correction_distance": 0
+            },
+            "sequence": 2312,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2273,
+              "revision": 0
+            },
+            "tick": 502
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 112.891,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 6068,
+              "queued_edges": 0,
+              "replayed_steps": 121226,
+              "total_correction_distance": 0
+            },
+            "sequence": 6291,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 6045,
+              "revision": 0
+            },
+            "tick": 502
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 118.434,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 5850,
+              "queued_edges": 0,
+              "replayed_steps": 113098,
+              "total_correction_distance": 0
+            },
+            "sequence": 2592,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2551,
+              "revision": 0
+            },
+            "tick": 524
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 118.488,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 6348,
+              "queued_edges": 0,
+              "replayed_steps": 127225,
+              "total_correction_distance": 0
+            },
+            "sequence": 6572,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 6325,
+              "revision": 0
+            },
+            "tick": 524
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 123.958,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 6127,
+              "queued_edges": 0,
+              "replayed_steps": 119228,
+              "total_correction_distance": 0
+            },
+            "sequence": 2868,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2826,
+              "revision": 0
+            },
+            "tick": 546
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 123.987,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 6623,
+              "queued_edges": 0,
+              "replayed_steps": 133140,
+              "total_correction_distance": 0
+            },
+            "sequence": 6849,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 6601,
+              "revision": 0
+            },
+            "tick": 546
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 132.47,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 6552,
+              "queued_edges": 0,
+              "replayed_steps": 128805,
+              "total_correction_distance": 0
+            },
+            "sequence": 3297,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 3253,
+              "revision": 0
+            },
+            "tick": 580
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 132.522,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 7050,
+              "queued_edges": 0,
+              "replayed_steps": 142311,
+              "total_correction_distance": 0
+            },
+            "sequence": 7278,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 7028,
+              "revision": 0
+            },
+            "tick": 580
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 138.058,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 6832,
+              "queued_edges": 0,
+              "replayed_steps": 135048,
+              "total_correction_distance": 0
+            },
+            "sequence": 3577,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 3532,
+              "revision": 0
+            },
+            "tick": 602
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 138.091,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 7329,
+              "queued_edges": 0,
+              "replayed_steps": 148270,
+              "total_correction_distance": 0
+            },
+            "sequence": 7557,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 7306,
+              "revision": 0
+            },
+            "tick": 602
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 143.58,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 7108,
+              "queued_edges": 0,
+              "replayed_steps": 141146,
+              "total_correction_distance": 0
+            },
+            "sequence": 3853,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 3807,
+              "revision": 0
+            },
+            "tick": 624
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 143.62,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 7605,
+              "queued_edges": 0,
+              "replayed_steps": 154228,
+              "total_correction_distance": 0
+            },
+            "sequence": 7835,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 7583,
+              "revision": 0
+            },
+            "tick": 625
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 149.102,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 7384,
+              "queued_edges": 0,
+              "replayed_steps": 147321,
+              "total_correction_distance": 0
+            },
+            "sequence": 4131,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 6,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 4084,
+              "revision": 0
+            },
+            "tick": 647
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 120080,
+            "peak_packets": 159,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 149.156,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 7882,
+              "queued_edges": 0,
+              "replayed_steps": 160085,
+              "total_correction_distance": 0
+            },
+            "sequence": 8110,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 7857,
+              "revision": 0
+            },
+            "tick": 647
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 157.605,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 8304,
+              "queued_edges": 0,
+              "replayed_steps": 169203,
+              "total_correction_distance": 0
+            },
+            "sequence": 8535,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 8280,
+              "revision": 0
+            },
+            "tick": 680
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 164.172,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 8633,
+              "queued_edges": 0,
+              "replayed_steps": 176281,
+              "total_correction_distance": 0
+            },
+            "sequence": 8867,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 8611,
+              "revision": 0
+            },
+            "tick": 707
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 169.226,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 8885,
+              "queued_edges": 0,
+              "replayed_steps": 181658,
+              "total_correction_distance": 0
+            },
+            "sequence": 9119,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 8863,
+              "revision": 0
+            },
+            "tick": 727
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 174.279,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 9138,
+              "queued_edges": 0,
+              "replayed_steps": 187050,
+              "total_correction_distance": 0
+            },
+            "sequence": 9371,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 9115,
+              "revision": 0
+            },
+            "tick": 747
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 179.316,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 9390,
+              "queued_edges": 0,
+              "replayed_steps": 192483,
+              "total_correction_distance": 0
+            },
+            "sequence": 9624,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 9368,
+              "revision": 0
+            },
+            "tick": 767
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 184.358,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 9642,
+              "queued_edges": 0,
+              "replayed_steps": 197826,
+              "total_correction_distance": 0
+            },
+            "sequence": 9875,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 9619,
+              "revision": 0
+            },
+            "tick": 788
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 189.415,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 9895,
+              "queued_edges": 0,
+              "replayed_steps": 203250,
+              "total_correction_distance": 0
+            },
+            "sequence": 10129,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 9873,
+              "revision": 0
+            },
+            "tick": 808
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 194.471,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 10147,
+              "queued_edges": 0,
+              "replayed_steps": 208616,
+              "total_correction_distance": 0
+            },
+            "sequence": 10381,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 10125,
+              "revision": 0
+            },
+            "tick": 828
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 198.32,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 2,
+              "pose_snaps": 0,
+              "predicted_steps": 2,
+              "queued_edges": 0,
+              "replayed_steps": 8,
+              "total_correction_distance": 0
+            },
+            "sequence": 15,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 0,
+              "revision": 0
+            },
+            "tick": 832
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 102403,
+            "queued_packets": 145,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 198.355,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 17,
+              "pose_snaps": 0,
+              "predicted_steps": 10342,
+              "queued_edges": 0,
+              "replayed_steps": 212059,
+              "total_correction_distance": 0
+            },
+            "sequence": 10587,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 10325,
+              "revision": 0
+            },
+            "tick": 844
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 203.952,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 11,
+              "pose_snaps": 0,
+              "predicted_steps": 284,
+              "queued_edges": 0,
+              "replayed_steps": 5451,
+              "total_correction_distance": 0
+            },
+            "sequence": 442,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 273,
+              "revision": 0
+            },
+            "tick": 866
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 204.008,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 17,
+              "pose_snaps": 0,
+              "predicted_steps": 10624,
+              "queued_edges": 0,
+              "replayed_steps": 216669,
+              "total_correction_distance": 0
+            },
+            "sequence": 10870,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 10607,
+              "revision": 0
+            },
+            "tick": 867
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 212.087,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 13,
+              "pose_snaps": 0,
+              "predicted_steps": 689,
+              "queued_edges": 0,
+              "replayed_steps": 9807,
+              "total_correction_distance": 0
+            },
+            "sequence": 848,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 676,
+              "revision": 0
+            },
+            "tick": 899
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 212.167,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 18,
+              "pose_snaps": 0,
+              "predicted_steps": 11032,
+              "queued_edges": 0,
+              "replayed_steps": 223358,
+              "total_correction_distance": 0
+            },
+            "sequence": 11279,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 11014,
+              "revision": 0
+            },
+            "tick": 899
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 217.467,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 15,
+              "pose_snaps": 0,
+              "predicted_steps": 960,
+              "queued_edges": 0,
+              "replayed_steps": 13501,
+              "total_correction_distance": 0
+            },
+            "sequence": 1112,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 945,
+              "revision": 0
+            },
+            "tick": 920
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 217.507,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 18,
+              "pose_snaps": 0,
+              "predicted_steps": 11299,
+              "queued_edges": 0,
+              "replayed_steps": 227681,
+              "total_correction_distance": 0
+            },
+            "sequence": 11538,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 11281,
+              "revision": 0
+            },
+            "tick": 921
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 222.843,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 1229,
+              "queued_edges": 0,
+              "replayed_steps": 18696,
+              "total_correction_distance": 0
+            },
+            "sequence": 1361,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1204,
+              "revision": 0
+            },
+            "tick": 942
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 222.889,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 11567,
+              "queued_edges": 0,
+              "replayed_steps": 232645,
+              "total_correction_distance": 0
+            },
+            "sequence": 11788,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 11545,
+              "revision": 0
+            },
+            "tick": 942
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 228.197,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.190000534057617
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 1496,
+              "queued_edges": 0,
+              "replayed_steps": 25098,
+              "total_correction_distance": 0
+            },
+            "sequence": 1629,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1471,
+              "revision": 0
+            },
+            "tick": 963
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 228.253,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 11835,
+              "queued_edges": 0,
+              "replayed_steps": 238319,
+              "total_correction_distance": 0
+            },
+            "sequence": 12057,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 11813,
+              "revision": 0
+            },
+            "tick": 964
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 236.251,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 26,
+              "pose_snaps": 0,
+              "predicted_steps": 1899,
+              "queued_edges": 0,
+              "replayed_steps": 34788,
+              "total_correction_distance": 0
+            },
+            "sequence": 2033,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 1873,
+              "revision": 0
+            },
+            "tick": 995
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 236.283,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 12237,
+              "queued_edges": 0,
+              "replayed_steps": 246826,
+              "total_correction_distance": 0
+            },
+            "sequence": 12461,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 12215,
+              "revision": 0
+            },
+            "tick": 996
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 241.625,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 2168,
+              "queued_edges": 0,
+              "replayed_steps": 41270,
+              "total_correction_distance": 0
+            },
+            "sequence": 2304,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2143,
+              "revision": 0
+            },
+            "tick": 1017
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 241.675,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 21,
+              "pose_snaps": 0,
+              "predicted_steps": 12506,
+              "queued_edges": 0,
+              "replayed_steps": 252521,
+              "total_correction_distance": 0
+            },
+            "sequence": 12732,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 12485,
+              "revision": 0
+            },
+            "tick": 1017
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 247.047,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 2439,
+              "queued_edges": 0,
+              "replayed_steps": 47756,
+              "total_correction_distance": 0
+            },
+            "sequence": 2576,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2414,
+              "revision": 0
+            },
+            "tick": 1039
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 247.092,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 21,
+              "pose_snaps": 0,
+              "predicted_steps": 12777,
+              "queued_edges": 0,
+              "replayed_steps": 258248,
+              "total_correction_distance": 0
+            },
+            "sequence": 13004,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 12756,
+              "revision": 0
+            },
+            "tick": 1039
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 252.385,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 26,
+              "pose_snaps": 0,
+              "predicted_steps": 2706,
+              "queued_edges": 0,
+              "replayed_steps": 54156,
+              "total_correction_distance": 0
+            },
+            "sequence": 2843,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 2680,
+              "revision": 0
+            },
+            "tick": 1060
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 252.438,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 13045,
+              "queued_edges": 0,
+              "replayed_steps": 263863,
+              "total_correction_distance": 0
+            },
+            "sequence": 13271,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 13022,
+              "revision": 0
+            },
+            "tick": 1060
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 260.542,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 26,
+              "pose_snaps": 0,
+              "predicted_steps": 3114,
+              "queued_edges": 0,
+              "replayed_steps": 63983,
+              "total_correction_distance": 0
+            },
+            "sequence": 3253,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 3088,
+              "revision": 0
+            },
+            "tick": 1093
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 260.574,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 13451,
+              "queued_edges": 0,
+              "replayed_steps": 272509,
+              "total_correction_distance": 0
+            },
+            "sequence": 13680,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 13429,
+              "revision": 0
+            },
+            "tick": 1093
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 265.889,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 26,
+              "pose_snaps": 0,
+              "predicted_steps": 3381,
+              "queued_edges": 0,
+              "replayed_steps": 70386,
+              "total_correction_distance": 0
+            },
+            "sequence": 3521,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 3355,
+              "revision": 0
+            },
+            "tick": 1114
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 265.931,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 13719,
+              "queued_edges": 0,
+              "replayed_steps": 278171,
+              "total_correction_distance": 0
+            },
+            "sequence": 13949,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 13697,
+              "revision": 0
+            },
+            "tick": 1114
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 271.294,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 3651,
+              "queued_edges": 0,
+              "replayed_steps": 76905,
+              "total_correction_distance": 0
+            },
+            "sequence": 3793,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 3626,
+              "revision": 0
+            },
+            "tick": 1136
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 271.332,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 13989,
+              "queued_edges": 0,
+              "replayed_steps": 283868,
+              "total_correction_distance": 0
+            },
+            "sequence": 14220,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 13967,
+              "revision": 0
+            },
+            "tick": 1136
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 276.643,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 3919,
+              "queued_edges": 0,
+              "replayed_steps": 83331,
+              "total_correction_distance": 0
+            },
+            "sequence": 4062,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 3894,
+              "revision": 0
+            },
+            "tick": 1157
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 276.673,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 14256,
+              "queued_edges": 0,
+              "replayed_steps": 289516,
+              "total_correction_distance": 0
+            },
+            "sequence": 14488,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 14234,
+              "revision": 0
+            },
+            "tick": 1157
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 284.71,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 4322,
+              "queued_edges": 0,
+              "replayed_steps": 93014,
+              "total_correction_distance": 0
+            },
+            "sequence": 4467,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 4297,
+              "revision": 0
+            },
+            "tick": 1189
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 284.761,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 14661,
+              "queued_edges": 0,
+              "replayed_steps": 298078,
+              "total_correction_distance": 0
+            },
+            "sequence": 14894,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 14638,
+              "revision": 0
+            },
+            "tick": 1190
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 290.072,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 4590,
+              "queued_edges": 0,
+              "replayed_steps": 99486,
+              "total_correction_distance": 0
+            },
+            "sequence": 4737,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 4566,
+              "revision": 0
+            },
+            "tick": 1211
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 290.125,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 14929,
+              "queued_edges": 0,
+              "replayed_steps": 303726,
+              "total_correction_distance": 0
+            },
+            "sequence": 15163,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 14906,
+              "revision": 0
+            },
+            "tick": 1211
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 295.428,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 4858,
+              "queued_edges": 0,
+              "replayed_steps": 105896,
+              "total_correction_distance": 0
+            },
+            "sequence": 5005,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 4833,
+              "revision": 0
+            },
+            "tick": 1232
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 295.481,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 15197,
+              "queued_edges": 0,
+              "replayed_steps": 309404,
+              "total_correction_distance": 0
+            },
+            "sequence": 15432,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 15174,
+              "revision": 0
+            },
+            "tick": 1232
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 300.036,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              2.247000217437744
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 5088,
+              "queued_edges": 0,
+              "replayed_steps": 111442,
+              "total_correction_distance": 0
+            },
+            "sequence": 5237,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D2",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 5064,
+              "revision": 0
+            },
+            "tick": 1251
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 118984,
+            "peak_packets": 157,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 300.081,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "authority_position": [
+              1.5,
+              0.5,
+              3.25
+            ],
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 15427,
+              "queued_edges": 0,
+              "replayed_steps": 314290,
+              "total_correction_distance": 0
+            },
+            "sequence": 15664,
+            "snapshot": {
+              "controller": {
+                "blocked": null,
+                "grid": null,
+                "held": "Stop",
+                "turn_left": 0
+              },
+              "generation": 5,
+              "parameters": {
+                "camera": "D3FirstP",
+                "collision_mode": "Mesh",
+                "entity_block_mode": 1,
+                "turn_degrees_per_second": 180,
+                "turn_period": 0,
+                "units_per_second": 4
+              },
+              "predictable": true,
+              "processed_sequence": 15405,
+              "revision": 0
+            },
+            "tick": 1251
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149854,
+            "peak_packets": 200,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        }
+      ]
+    },
+    "browser": "Chrome/152.0.7977.84",
+    "wan_emulation": [
+      {
+        "connections": 6,
+        "active": 0,
+        "peakActive": 3,
+        "bytes": 20561942,
+        "fragments": 85214,
+        "peakWritableBytes": 0,
+        "cuts": 2
+      },
+      {
+        "connections": 3,
+        "active": 0,
+        "peakActive": 3,
+        "bytes": 23331892,
+        "fragments": 96510,
+        "peakWritableBytes": 0,
+        "cuts": 1
+      }
+    ]
+  },
+  "cancellation": {
+    "canceled": true,
+    "signal": "SIGTERM",
+    "owned_children": 2,
+    "children_exited": true,
+    "temporary_files_removed": true
+  },
+  "checks": {
+    "network_library": "passed",
+    "native_graphical_socket_tests": "passed",
+    "embedded_mode_and_scheduling": "passed",
+    "native_player_creator_online_check": "passed",
+    "wasm_player_creator_check": "passed",
+    "renderer_boundaries": "passed",
+    "relay_integrity_lifetime_and_pacing": "passed"
+  },
+  "limits": [
+    "one starter project using server-reported D2 controls with mesh collision",
+    "bounded forward/backward probes, not all graphical cameras or collision/AI load",
+    "WASM linear memory is not browser RSS",
+    "no geographic WAN, mobile/background-tab or multi-hour validation"
+  ]
+}

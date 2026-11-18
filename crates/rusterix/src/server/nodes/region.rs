@@ -27,6 +27,61 @@ struct GraphBehavior {
     plans: HashMap<String, Arc<Plan>>,
 }
 
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct SavedBehaviors {
+    graphs: Vec<(
+        String,
+        Vec<(Uuid, EventOwner)>,
+        super::persistence::SavedRuntime,
+    )>,
+}
+impl Behaviors {
+    pub fn save(&self) -> SavedBehaviors {
+        SavedBehaviors {
+            graphs: self
+                .graphs
+                .iter()
+                .map(|(key, graph)| {
+                    (
+                        key.clone(),
+                        graph
+                            .owners
+                            .iter()
+                            .map(|(id, owner)| (*id, owner.clone()))
+                            .collect(),
+                        graph.runtime.save(),
+                    )
+                })
+                .collect(),
+        }
+    }
+    pub fn restore(
+        saved: &SavedBehaviors,
+        assets: Option<&BehaviorAssets>,
+    ) -> Result<Self, String> {
+        let mut result = Self::default();
+        for (key, owners, runtime) in &saved.graphs {
+            let plan = assets
+                .and_then(|a| a.graphs.get(key))
+                .map(|document| Registry::shared().compile(document).map(Arc::new))
+                .transpose()?;
+            let plans = plan
+                .as_ref()
+                .map(|p| HashMap::from([(key.clone(), p.clone())]))
+                .unwrap_or_default();
+            result.graphs.insert(
+                key.clone(),
+                GraphBehavior {
+                    runtime: Runtime::restore(runtime, plan)?,
+                    owners: owners.iter().cloned().collect(),
+                    plans,
+                },
+            );
+        }
+        Ok(result)
+    }
+}
+
 impl BehaviorAssets {
     /// Authored Intent branches take precedence over native item defaults.
     pub(crate) fn owns_item_intent(&self, ctx: &RegionCtx, item: &crate::Item) -> bool {

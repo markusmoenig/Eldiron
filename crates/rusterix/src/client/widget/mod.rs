@@ -129,6 +129,7 @@ pub struct Widget {
 }
 
 pub struct TextInputWidget {
+    pub secret: bool,
     pub name: String,
     pub id: u32,
     pub rect: Rect,
@@ -199,11 +200,8 @@ impl TextInputWidget {
         }
 
         if let Some(font) = self.resolved_font(assets) {
-            let display_text = if focused {
-                format!("{}_", self.text)
-            } else {
-                self.text.clone()
-            };
+            let text=if self.secret {"•".repeat(self.text.chars().count())}else{self.text.clone()};
+            let display_text=if focused {format!("{text}_")}else{text};
             draw2d.text_rect_blend_safe(
                 buffer.pixels_mut(),
                 &(

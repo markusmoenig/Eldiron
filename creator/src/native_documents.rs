@@ -65,6 +65,14 @@ impl NativeCreatorApplication {
         self.editor
             .prepare_document_save(document, &mut session.context)
     }
+    pub(crate) fn host_prepare_public_client_export(
+        &mut self,
+        session: &mut UiSession,
+        document: Uuid,
+    ) -> std::result::Result<SaveInfo, String> {
+        self.editor
+            .prepare_public_client_export(document, &mut session.context)
+    }
     pub(crate) fn host_document_save_bytes(&self, ticket: u64) -> Option<&[u8]> {
         self.editor.document_save_bytes(ticket)
     }

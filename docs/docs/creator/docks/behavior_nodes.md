@@ -15,5 +15,5 @@ Start with [Behavior Nodes](../../characters_items/behavior_nodes), the [node re
 
 See [Entity Nodes](../../characters_items/entity_nodes) for identity, appearance, input bindings, and template/instance configuration.
 
-Select **Game / Rules** for the [Ruleset Editor](./ruleset_nodes) to edit
-project-wide gameplay definitions in forms. Behavior nodes remain separate.
+Behavior nodes use the project's supplied gameplay rules. The generic ruleset
+editor is internal maintenance tooling and is hidden in standard Creator builds.

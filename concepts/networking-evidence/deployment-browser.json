@@ -1,0 +1,3176 @@
+{
+  "recorded_on": "2026-11-17",
+  "platform": "macOS-27.0.1-arm64-arm-64bit",
+  "head": "37054d324b56b5cb7c33b7e1053ad24ce93bf4f1",
+  "working_tree_dirty": true,
+  "command": "ELDIRON_SERVER=target/release/eldiron-server ELDIRON_WAN=1 ELDIRON_SOAK_SECONDS=300 node tools/verify_online_browser.mjs",
+  "passed": true,
+  "scope": "Actual two-tab WASM/Chrome WebSocket and HTTPS over bounded local pipelined TCP/TLS emulation, not geographic WAN or IP packet loss.",
+  "sha256": {
+    "crates/network/src/browser.rs": "81e184e629fe9fe506e3198f3303afa41ea3d3a9198ebd7746312b279eaa6792",
+    "tools/verify_online_browser.mjs": "b78cf9b58767fc974c8418d03d52ef3d6c7989a047f0bd38ac2f83f5766d4ed1",
+    "tools/network_relay.mjs": "7714bd5db91959180e953f87933216ed5a1d0bf3bfcade6de627f1aec2cfd78b",
+    "tools/network_relay.test.mjs": "c40f5d960ec42d3b75799e35a623ffaed2f0d520a409280a8baf9f6ddf05ec73",
+    "tools/verify_online_browser_cancel.mjs": "3a3d21b3a069a701f8f3871d3a1513d2f60c83f398fa1da8331b077e08dc71f1",
+    "test_projects/3DStarter.eldiron": "3b620c412d038b1c8fc9233856a5bf6f4c2cea02595333c651e965daa0085059",
+    "target/release/eldiron-server": "eb0c31a7e2e2b5223d8933c95de2a6d9ac2dab8f8157e60eaf1bf3aba6f946c9",
+    "/tmp/eldiron-online-web/pkg/eldiron_network_bg.wasm": "2e45d4cdbdaa79be390bfc46d4c86ed64afe88299280cbe04d0a860c714a68fa",
+    "/tmp/eldiron-online-web/pkg/eldiron_network.js": "682f39f467eca22d5c3b6dcc8f8b473b7ca877de83165521089bd3d2523ef99b"
+  },
+  "result": {
+    "transport": "WSS (temporary certificate pinned)",
+    "content": "HTTPS compiled physics",
+    "clients": 2,
+    "wasm": "spatial replicas, asynchronous content preloads, fixed inputs and sequenced requests",
+    "accounts": "none",
+    "saveStore": "none",
+    "high_refresh": {
+      "pumps": 1368,
+      "sent": 164,
+      "status": "Playing demo"
+    },
+    "reload": true,
+    "content_delay_ms": 3000,
+    "content_queues": [
+      {
+        "downloading": false,
+        "peak_bytes": 141620,
+        "peak_packets": 190,
+        "queued_bytes": 128612,
+        "queued_packets": 183,
+        "required_downloads": 1
+      },
+      {
+        "downloading": false,
+        "peak_bytes": 149143,
+        "peak_packets": 199,
+        "queued_bytes": 136093,
+        "queued_packets": 192,
+        "required_downloads": 1
+      }
+    ],
+    "canceled_content_requests": 1,
+    "delayed_requests": 9,
+    "soak": {
+      "elapsed_seconds": 300.431,
+      "checks": 102,
+      "incidents": [
+        {
+          "kind": "increased-latency-and-pacing",
+          "at_seconds": 31.763
+        },
+        {
+          "kind": "two-second-blackout",
+          "at_seconds": 64.99
+        },
+        {
+          "kind": "35-second-blackout-and-explicit-reconnect",
+          "at_seconds": 153.362,
+          "healthy_peer_retained": true
+        }
+      ],
+      "action_rtt_ms": {
+        "p50": 334,
+        "p95": 503,
+        "max": 510
+      },
+      "samples": [
+        {
+          "seconds": 5.045,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 12,
+              "pose_snaps": 0,
+              "predicted_steps": 254,
+              "queued_edges": 0,
+              "replayed_steps": 5001,
+              "total_correction_distance": 0
+            },
+            "sequence": 410,
+            "tick": 71
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 5.089,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 19,
+              "pose_snaps": 0,
+              "predicted_steps": 683,
+              "queued_edges": 0,
+              "replayed_steps": 17031,
+              "total_correction_distance": 0
+            },
+            "sequence": 888,
+            "tick": 71
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 10.389,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 12,
+              "pose_snaps": 0,
+              "predicted_steps": 521,
+              "queued_edges": 0,
+              "replayed_steps": 7662,
+              "total_correction_distance": 0
+            },
+            "sequence": 678,
+            "tick": 92
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 10.426,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 21,
+              "pose_snaps": 0,
+              "predicted_steps": 950,
+              "queued_edges": 0,
+              "replayed_steps": 21903,
+              "total_correction_distance": 0
+            },
+            "sequence": 1154,
+            "tick": 92
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 15.75,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 13,
+              "pose_snaps": 0,
+              "predicted_steps": 789,
+              "queued_edges": 0,
+              "replayed_steps": 10591,
+              "total_correction_distance": 0
+            },
+            "sequence": 947,
+            "tick": 114
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 15.783,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 19,
+              "pose_snaps": 0,
+              "predicted_steps": 1218,
+              "queued_edges": 0,
+              "replayed_steps": 26861,
+              "total_correction_distance": 0
+            },
+            "sequence": 1425,
+            "tick": 114
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 21.107,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 12,
+              "pose_snaps": 0,
+              "predicted_steps": 1057,
+              "queued_edges": 0,
+              "replayed_steps": 13563,
+              "total_correction_distance": 0
+            },
+            "sequence": 1217,
+            "tick": 135
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 21.144,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 20,
+              "pose_snaps": 0,
+              "predicted_steps": 1486,
+              "queued_edges": 0,
+              "replayed_steps": 31777,
+              "total_correction_distance": 0
+            },
+            "sequence": 1693,
+            "tick": 135
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 26.453,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 11,
+              "pose_snaps": 0,
+              "predicted_steps": 1324,
+              "queued_edges": 0,
+              "replayed_steps": 16519,
+              "total_correction_distance": 0
+            },
+            "sequence": 1486,
+            "tick": 157
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 26.507,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 20,
+              "pose_snaps": 0,
+              "predicted_steps": 1754,
+              "queued_edges": 0,
+              "replayed_steps": 36713,
+              "total_correction_distance": 0
+            },
+            "sequence": 1962,
+            "tick": 157
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 31.807,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 12,
+              "pose_snaps": 0,
+              "predicted_steps": 1592,
+              "queued_edges": 0,
+              "replayed_steps": 19448,
+              "total_correction_distance": 0
+            },
+            "sequence": 1754,
+            "tick": 178
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 31.853,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 20,
+              "pose_snaps": 0,
+              "predicted_steps": 2021,
+              "queued_edges": 0,
+              "replayed_steps": 41634,
+              "total_correction_distance": 0
+            },
+            "sequence": 2230,
+            "tick": 178
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 37.333,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 1868,
+              "queued_edges": 0,
+              "replayed_steps": 25028,
+              "total_correction_distance": 0
+            },
+            "sequence": 2026,
+            "tick": 200
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 37.378,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 26,
+              "pose_snaps": 0,
+              "predicted_steps": 2298,
+              "queued_edges": 0,
+              "replayed_steps": 48025,
+              "total_correction_distance": 0
+            },
+            "sequence": 2502,
+            "tick": 200
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 42.869,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 21,
+              "pose_snaps": 0,
+              "predicted_steps": 2145,
+              "queued_edges": 0,
+              "replayed_steps": 30874,
+              "total_correction_distance": 0
+            },
+            "sequence": 2305,
+            "tick": 222
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 42.911,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 2574,
+              "queued_edges": 0,
+              "replayed_steps": 54598,
+              "total_correction_distance": 0
+            },
+            "sequence": 2781,
+            "tick": 222
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 48.39,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 2421,
+              "queued_edges": 0,
+              "replayed_steps": 36679,
+              "total_correction_distance": 0
+            },
+            "sequence": 2580,
+            "tick": 244
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 48.43,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 2850,
+              "queued_edges": 0,
+              "replayed_steps": 61086,
+              "total_correction_distance": 0
+            },
+            "sequence": 3057,
+            "tick": 244
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 53.921,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 2697,
+              "queued_edges": 0,
+              "replayed_steps": 42531,
+              "total_correction_distance": 0
+            },
+            "sequence": 2858,
+            "tick": 266
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 53.97,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 3127,
+              "queued_edges": 0,
+              "replayed_steps": 67607,
+              "total_correction_distance": 0
+            },
+            "sequence": 3335,
+            "tick": 266
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 59.448,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 2974,
+              "queued_edges": 0,
+              "replayed_steps": 48356,
+              "total_correction_distance": 0
+            },
+            "sequence": 3135,
+            "tick": 288
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 59.497,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 3404,
+              "queued_edges": 0,
+              "replayed_steps": 74125,
+              "total_correction_distance": 0
+            },
+            "sequence": 3613,
+            "tick": 288
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 70.026,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 3431,
+              "queued_edges": 0,
+              "replayed_steps": 59262,
+              "total_correction_distance": 0
+            },
+            "sequence": 67,
+            "tick": 330
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 70.063,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 26,
+              "pose_snaps": 0,
+              "predicted_steps": 3932,
+              "queued_edges": 0,
+              "replayed_steps": 86615,
+              "total_correction_distance": 0
+            },
+            "sequence": 4142,
+            "tick": 330
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 75.539,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 3706,
+              "queued_edges": 0,
+              "replayed_steps": 65114,
+              "total_correction_distance": 0
+            },
+            "sequence": 344,
+            "tick": 352
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 75.581,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 4208,
+              "queued_edges": 0,
+              "replayed_steps": 93175,
+              "total_correction_distance": 0
+            },
+            "sequence": 4421,
+            "tick": 353
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 81.057,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 3982,
+              "queued_edges": 0,
+              "replayed_steps": 70962,
+              "total_correction_distance": 0
+            },
+            "sequence": 621,
+            "tick": 375
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 81.102,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 4484,
+              "queued_edges": 0,
+              "replayed_steps": 99673,
+              "total_correction_distance": 0
+            },
+            "sequence": 4698,
+            "tick": 375
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 86.588,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 21,
+              "pose_snaps": 0,
+              "predicted_steps": 4259,
+              "queued_edges": 0,
+              "replayed_steps": 76822,
+              "total_correction_distance": 0
+            },
+            "sequence": 900,
+            "tick": 397
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 86.621,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 4760,
+              "queued_edges": 0,
+              "replayed_steps": 106175,
+              "total_correction_distance": 0
+            },
+            "sequence": 4974,
+            "tick": 397
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 92.157,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 4537,
+              "queued_edges": 0,
+              "replayed_steps": 82669,
+              "total_correction_distance": 0
+            },
+            "sequence": 1178,
+            "tick": 419
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 92.193,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 5039,
+              "queued_edges": 0,
+              "replayed_steps": 112704,
+              "total_correction_distance": 0
+            },
+            "sequence": 5254,
+            "tick": 419
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 97.727,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 4816,
+              "queued_edges": 0,
+              "replayed_steps": 88534,
+              "total_correction_distance": 0
+            },
+            "sequence": 1457,
+            "tick": 441
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 97.756,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 5317,
+              "queued_edges": 0,
+              "replayed_steps": 119250,
+              "total_correction_distance": 0
+            },
+            "sequence": 5534,
+            "tick": 441
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 103.31,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 5095,
+              "queued_edges": 0,
+              "replayed_steps": 94737,
+              "total_correction_distance": 0
+            },
+            "sequence": 1738,
+            "tick": 464
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 103.362,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 5597,
+              "queued_edges": 0,
+              "replayed_steps": 125804,
+              "total_correction_distance": 0
+            },
+            "sequence": 5814,
+            "tick": 464
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 108.884,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 5374,
+              "queued_edges": 0,
+              "replayed_steps": 100938,
+              "total_correction_distance": 0
+            },
+            "sequence": 2018,
+            "tick": 486
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 108.914,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 26,
+              "pose_snaps": 0,
+              "predicted_steps": 5875,
+              "queued_edges": 0,
+              "replayed_steps": 132301,
+              "total_correction_distance": 0
+            },
+            "sequence": 6092,
+            "tick": 486
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 114.454,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 5652,
+              "queued_edges": 0,
+              "replayed_steps": 107054,
+              "total_correction_distance": 0
+            },
+            "sequence": 2296,
+            "tick": 508
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 114.49,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 6153,
+              "queued_edges": 0,
+              "replayed_steps": 138873,
+              "total_correction_distance": 0
+            },
+            "sequence": 6373,
+            "tick": 508
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 119.971,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 5928,
+              "queued_edges": 0,
+              "replayed_steps": 113182,
+              "total_correction_distance": 0
+            },
+            "sequence": 2574,
+            "tick": 530
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 120.003,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 6429,
+              "queued_edges": 0,
+              "replayed_steps": 145336,
+              "total_correction_distance": 0
+            },
+            "sequence": 6650,
+            "tick": 530
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 125.496,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 6204,
+              "queued_edges": 0,
+              "replayed_steps": 119265,
+              "total_correction_distance": 0
+            },
+            "sequence": 2851,
+            "tick": 552
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 125.535,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 25,
+              "pose_snaps": 0,
+              "predicted_steps": 6706,
+              "queued_edges": 0,
+              "replayed_steps": 151804,
+              "total_correction_distance": 0
+            },
+            "sequence": 6927,
+            "tick": 552
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 131.061,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 23,
+              "pose_snaps": 0,
+              "predicted_steps": 6482,
+              "queued_edges": 0,
+              "replayed_steps": 125414,
+              "total_correction_distance": 0
+            },
+            "sequence": 3130,
+            "tick": 575
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 131.102,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 6984,
+              "queued_edges": 0,
+              "replayed_steps": 158363,
+              "total_correction_distance": 0
+            },
+            "sequence": 7207,
+            "tick": 575
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 136.653,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 22,
+              "pose_snaps": 0,
+              "predicted_steps": 6762,
+              "queued_edges": 0,
+              "replayed_steps": 131634,
+              "total_correction_distance": 0
+            },
+            "sequence": 3412,
+            "tick": 597
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 136.696,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 24,
+              "pose_snaps": 0,
+              "predicted_steps": 7264,
+              "queued_edges": 0,
+              "replayed_steps": 164981,
+              "total_correction_distance": 0
+            },
+            "sequence": 7488,
+            "tick": 597
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 142.267,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 26,
+              "pose_snaps": 0,
+              "predicted_steps": 7043,
+              "queued_edges": 0,
+              "replayed_steps": 137768,
+              "total_correction_distance": 0
+            },
+            "sequence": 3687,
+            "tick": 619
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 142.318,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 26,
+              "pose_snaps": 0,
+              "predicted_steps": 7544,
+              "queued_edges": 0,
+              "replayed_steps": 171550,
+              "total_correction_distance": 0
+            },
+            "sequence": 7763,
+            "tick": 619
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 147.818,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 3,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 29,
+              "pose_snaps": 0,
+              "predicted_steps": 7320,
+              "queued_edges": 0,
+              "replayed_steps": 144969,
+              "total_correction_distance": 0
+            },
+            "sequence": 3960,
+            "tick": 641
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119375,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 147.861,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 28,
+              "pose_snaps": 0,
+              "predicted_steps": 7822,
+              "queued_edges": 0,
+              "replayed_steps": 178267,
+              "total_correction_distance": 0
+            },
+            "sequence": 8035,
+            "tick": 642
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 153.432,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 27,
+              "pose_snaps": 0,
+              "predicted_steps": 8100,
+              "queued_edges": 0,
+              "replayed_steps": 185479,
+              "total_correction_distance": 0
+            },
+            "sequence": 8311,
+            "tick": 664
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 158.49,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 26,
+              "pose_snaps": 0,
+              "predicted_steps": 8353,
+              "queued_edges": 0,
+              "replayed_steps": 191653,
+              "total_correction_distance": 0
+            },
+            "sequence": 8548,
+            "tick": 684
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 163.54,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 26,
+              "pose_snaps": 0,
+              "predicted_steps": 8606,
+              "queued_edges": 0,
+              "replayed_steps": 198154,
+              "total_correction_distance": 0
+            },
+            "sequence": 8797,
+            "tick": 705
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 168.599,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 33,
+              "pose_snaps": 0,
+              "predicted_steps": 8859,
+              "queued_edges": 0,
+              "replayed_steps": 205220,
+              "total_correction_distance": 0
+            },
+            "sequence": 9035,
+            "tick": 725
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 173.628,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 33,
+              "pose_snaps": 0,
+              "predicted_steps": 9110,
+              "queued_edges": 0,
+              "replayed_steps": 213106,
+              "total_correction_distance": 0
+            },
+            "sequence": 9286,
+            "tick": 745
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 178.659,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 33,
+              "pose_snaps": 0,
+              "predicted_steps": 9362,
+              "queued_edges": 0,
+              "replayed_steps": 221029,
+              "total_correction_distance": 0
+            },
+            "sequence": 9538,
+            "tick": 765
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 183.696,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 33,
+              "pose_snaps": 0,
+              "predicted_steps": 9613,
+              "queued_edges": 0,
+              "replayed_steps": 228894,
+              "total_correction_distance": 0
+            },
+            "sequence": 9789,
+            "tick": 785
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 188.741,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 34,
+              "pose_snaps": 0,
+              "predicted_steps": 9866,
+              "queued_edges": 0,
+              "replayed_steps": 236796,
+              "total_correction_distance": 0
+            },
+            "sequence": 10041,
+            "tick": 805
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 192.661,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 5,
+              "pose_snaps": 0,
+              "predicted_steps": 5,
+              "queued_edges": 0,
+              "replayed_steps": 56,
+              "total_correction_distance": 0
+            },
+            "sequence": 31,
+            "tick": 811
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 92521,
+            "queued_packets": 131,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 192.702,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 27,
+              "pose_snaps": 0,
+              "predicted_steps": 10064,
+              "queued_edges": 0,
+              "replayed_steps": 242465,
+              "total_correction_distance": 0
+            },
+            "sequence": 10252,
+            "tick": 822
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 198.25,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 12,
+              "pose_snaps": 0,
+              "predicted_steps": 285,
+              "queued_edges": 0,
+              "replayed_steps": 5495,
+              "total_correction_distance": 0
+            },
+            "sequence": 442,
+            "tick": 844
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 198.286,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 28,
+              "pose_snaps": 0,
+              "predicted_steps": 10343,
+              "queued_edges": 0,
+              "replayed_steps": 249824,
+              "total_correction_distance": 0
+            },
+            "sequence": 10531,
+            "tick": 844
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 203.666,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 11,
+              "pose_snaps": 0,
+              "predicted_steps": 555,
+              "queued_edges": 0,
+              "replayed_steps": 8427,
+              "total_correction_distance": 0
+            },
+            "sequence": 715,
+            "tick": 865
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 203.722,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 29,
+              "pose_snaps": 0,
+              "predicted_steps": 10615,
+              "queued_edges": 0,
+              "replayed_steps": 257010,
+              "total_correction_distance": 0
+            },
+            "sequence": 10803,
+            "tick": 865
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 209.01,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 12,
+              "pose_snaps": 0,
+              "predicted_steps": 823,
+              "queued_edges": 0,
+              "replayed_steps": 11317,
+              "total_correction_distance": 0
+            },
+            "sequence": 983,
+            "tick": 887
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 209.042,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 28,
+              "pose_snaps": 0,
+              "predicted_steps": 10881,
+              "queued_edges": 0,
+              "replayed_steps": 264088,
+              "total_correction_distance": 0
+            },
+            "sequence": 11071,
+            "tick": 887
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 214.433,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 12,
+              "pose_snaps": 0,
+              "predicted_steps": 1094,
+              "queued_edges": 0,
+              "replayed_steps": 14256,
+              "total_correction_distance": 0
+            },
+            "sequence": 1255,
+            "tick": 908
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 214.482,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 28,
+              "pose_snaps": 0,
+              "predicted_steps": 11153,
+              "queued_edges": 0,
+              "replayed_steps": 271295,
+              "total_correction_distance": 0
+            },
+            "sequence": 11344,
+            "tick": 909
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 219.798,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 17,
+              "pose_snaps": 0,
+              "predicted_steps": 1362,
+              "queued_edges": 0,
+              "replayed_steps": 17482,
+              "total_correction_distance": 0
+            },
+            "sequence": 1512,
+            "tick": 930
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 219.857,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 29,
+              "pose_snaps": 0,
+              "predicted_steps": 11421,
+              "queued_edges": 0,
+              "replayed_steps": 278133,
+              "total_correction_distance": 0
+            },
+            "sequence": 11600,
+            "tick": 930
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 225.287,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 34,
+              "pose_snaps": 0,
+              "predicted_steps": 1637,
+              "queued_edges": 0,
+              "replayed_steps": 23971,
+              "total_correction_distance": 0
+            },
+            "sequence": 1739,
+            "tick": 952
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 225.332,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 37,
+              "pose_snaps": 0,
+              "predicted_steps": 11694,
+              "queued_edges": 0,
+              "replayed_steps": 285757,
+              "total_correction_distance": 0
+            },
+            "sequence": 11828,
+            "tick": 952
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 230.633,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 33,
+              "pose_snaps": 0,
+              "predicted_steps": 1904,
+              "queued_edges": 0,
+              "replayed_steps": 32396,
+              "total_correction_distance": 0
+            },
+            "sequence": 2002,
+            "tick": 973
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 230.675,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 35,
+              "pose_snaps": 0,
+              "predicted_steps": 11961,
+              "queued_edges": 0,
+              "replayed_steps": 295109,
+              "total_correction_distance": 0
+            },
+            "sequence": 12092,
+            "tick": 973
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 235.996,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 33,
+              "pose_snaps": 0,
+              "predicted_steps": 2172,
+              "queued_edges": 0,
+              "replayed_steps": 40237,
+              "total_correction_distance": 0
+            },
+            "sequence": 2247,
+            "tick": 995
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 236.044,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 36,
+              "pose_snaps": 0,
+              "predicted_steps": 12230,
+              "queued_edges": 0,
+              "replayed_steps": 303813,
+              "total_correction_distance": 0
+            },
+            "sequence": 12337,
+            "tick": 995
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 241.374,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 32,
+              "pose_snaps": 0,
+              "predicted_steps": 2440,
+              "queued_edges": 0,
+              "replayed_steps": 48701,
+              "total_correction_distance": 0
+            },
+            "sequence": 2513,
+            "tick": 1016
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 241.429,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 5,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 1,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 36,
+              "pose_snaps": 0,
+              "predicted_steps": 12499,
+              "queued_edges": 0,
+              "replayed_steps": 313255,
+              "total_correction_distance": 0
+            },
+            "sequence": 12604,
+            "tick": 1016
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 246.74,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 16,
+              "pose_snaps": 0,
+              "predicted_steps": 2709,
+              "queued_edges": 0,
+              "replayed_steps": 52805,
+              "total_correction_distance": 0
+            },
+            "sequence": 210,
+            "tick": 1038
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 246.795,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 16,
+              "pose_snaps": 0,
+              "predicted_steps": 12767,
+              "queued_edges": 0,
+              "replayed_steps": 319604,
+              "total_correction_distance": 0
+            },
+            "sequence": 116,
+            "tick": 1038
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 252.106,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 17,
+              "pose_snaps": 0,
+              "predicted_steps": 2977,
+              "queued_edges": 0,
+              "replayed_steps": 56863,
+              "total_correction_distance": 0
+            },
+            "sequence": 475,
+            "tick": 1059
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 252.152,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 17,
+              "pose_snaps": 0,
+              "predicted_steps": 13035,
+              "queued_edges": 0,
+              "replayed_steps": 323557,
+              "total_correction_distance": 0
+            },
+            "sequence": 381,
+            "tick": 1059
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 257.465,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 18,
+              "pose_snaps": 0,
+              "predicted_steps": 3245,
+              "queued_edges": 0,
+              "replayed_steps": 60898,
+              "total_correction_distance": 0
+            },
+            "sequence": 738,
+            "tick": 1080
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 257.544,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 16,
+              "pose_snaps": 0,
+              "predicted_steps": 13303,
+              "queued_edges": 0,
+              "replayed_steps": 327517,
+              "total_correction_distance": 0
+            },
+            "sequence": 645,
+            "tick": 1081
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 262.853,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 18,
+              "pose_snaps": 0,
+              "predicted_steps": 3514,
+              "queued_edges": 0,
+              "replayed_steps": 65456,
+              "total_correction_distance": 0
+            },
+            "sequence": 1004,
+            "tick": 1102
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 262.884,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 18,
+              "pose_snaps": 0,
+              "predicted_steps": 13572,
+              "queued_edges": 0,
+              "replayed_steps": 331704,
+              "total_correction_distance": 0
+            },
+            "sequence": 909,
+            "tick": 1102
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 268.208,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 19,
+              "pose_snaps": 0,
+              "predicted_steps": 3782,
+              "queued_edges": 0,
+              "replayed_steps": 70075,
+              "total_correction_distance": 0
+            },
+            "sequence": 1272,
+            "tick": 1123
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 268.266,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 17,
+              "pose_snaps": 0,
+              "predicted_steps": 13841,
+              "queued_edges": 0,
+              "replayed_steps": 336009,
+              "total_correction_distance": 0
+            },
+            "sequence": 1179,
+            "tick": 1124
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 273.59,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 20,
+              "pose_snaps": 0,
+              "predicted_steps": 4051,
+              "queued_edges": 0,
+              "replayed_steps": 74657,
+              "total_correction_distance": 0
+            },
+            "sequence": 1535,
+            "tick": 1145
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 273.641,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 17,
+              "pose_snaps": 0,
+              "predicted_steps": 14109,
+              "queued_edges": 0,
+              "replayed_steps": 340207,
+              "total_correction_distance": 0
+            },
+            "sequence": 1442,
+            "tick": 1145
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 278.963,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 19,
+              "pose_snaps": 0,
+              "predicted_steps": 4320,
+              "queued_edges": 0,
+              "replayed_steps": 79080,
+              "total_correction_distance": 0
+            },
+            "sequence": 1789,
+            "tick": 1167
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 279.012,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 18,
+              "pose_snaps": 0,
+              "predicted_steps": 14378,
+              "queued_edges": 0,
+              "replayed_steps": 344263,
+              "total_correction_distance": 0
+            },
+            "sequence": 1695,
+            "tick": 1167
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 284.404,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 18,
+              "pose_snaps": 0,
+              "predicted_steps": 4591,
+              "queued_edges": 0,
+              "replayed_steps": 83629,
+              "total_correction_distance": 0
+            },
+            "sequence": 2047,
+            "tick": 1188
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 284.447,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 17,
+              "pose_snaps": 0,
+              "predicted_steps": 14649,
+              "queued_edges": 0,
+              "replayed_steps": 348457,
+              "total_correction_distance": 0
+            },
+            "sequence": 1953,
+            "tick": 1188
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 289.769,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 19,
+              "pose_snaps": 0,
+              "predicted_steps": 4860,
+              "queued_edges": 0,
+              "replayed_steps": 88095,
+              "total_correction_distance": 0
+            },
+            "sequence": 2301,
+            "tick": 1210
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 289.836,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 19,
+              "pose_snaps": 0,
+              "predicted_steps": 14919,
+              "queued_edges": 0,
+              "replayed_steps": 352655,
+              "total_correction_distance": 0
+            },
+            "sequence": 2209,
+            "tick": 1210
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 295.18,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 19,
+              "pose_snaps": 0,
+              "predicted_steps": 5130,
+              "queued_edges": 0,
+              "replayed_steps": 92803,
+              "total_correction_distance": 0
+            },
+            "sequence": 2572,
+            "tick": 1231
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 295.238,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 18,
+              "pose_snaps": 0,
+              "predicted_steps": 15189,
+              "queued_edges": 0,
+              "replayed_steps": 357311,
+              "total_correction_distance": 0
+            },
+            "sequence": 2480,
+            "tick": 1232
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 300.06,
+          "client": 0,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 19,
+              "pose_snaps": 0,
+              "predicted_steps": 5374,
+              "queued_edges": 0,
+              "replayed_steps": 97023,
+              "total_correction_distance": 0
+            },
+            "sequence": 2816,
+            "tick": 1251
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 119691,
+            "peak_packets": 158,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        },
+        {
+          "seconds": 300.139,
+          "client": 1,
+          "memory_bytes": 23199744,
+          "replica": {
+            "generation": 6,
+            "motion": {
+              "corrections": 0,
+              "hard_resets": 2,
+              "last_correction_distance": 0,
+              "max_correction_distance": 0,
+              "pending_frames": 18,
+              "pose_snaps": 0,
+              "predicted_steps": 15433,
+              "queued_edges": 0,
+              "replayed_steps": 361456,
+              "total_correction_distance": 0
+            },
+            "sequence": 2724,
+            "tick": 1251
+          },
+          "content": {
+            "downloading": false,
+            "peak_bytes": 149143,
+            "peak_packets": 199,
+            "queued_bytes": 0,
+            "queued_packets": 0,
+            "required_downloads": 1
+          }
+        }
+      ]
+    },
+    "browser": "Chrome/152.0.7977.84",
+    "wan_emulation": [
+      {
+        "connections": 6,
+        "active": 0,
+        "peakActive": 3,
+        "bytes": 19376061,
+        "fragments": 79906,
+        "peakWritableBytes": 0,
+        "cuts": 2
+      },
+      {
+        "connections": 3,
+        "active": 0,
+        "peakActive": 3,
+        "bytes": 24101729,
+        "fragments": 97651,
+        "peakWritableBytes": 0,
+        "cuts": 1
+      }
+    ]
+  },
+  "cancellation": {
+    "canceled": true,
+    "signal": "SIGTERM",
+    "owned_children": 2,
+    "children_exited": true,
+    "temporary_files_removed": true
+  },
+  "relay_tests": "3 passed",
+  "limits": [
+    "single starter demo project",
+    "initial movement plus continuous fixed input/prediction and request checks; not heavy scripted combat or continuous collision stress",
+    "linear WASM memory is not browser RSS",
+    "one browser/OS tested; other targets compilation checked"
+  ]
+}

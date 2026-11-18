@@ -1,0 +1,61 @@
+{
+  "streaming": {
+    "version": 2,
+    "global_packs": 14,
+    "regional_packs": 2,
+    "requested_regions": 1,
+    "peak_fetches": 1,
+    "frame_gate_observed": true
+  },
+  "public_package": true,
+  "transport": "explicit loopback WS",
+  "game_documents_served": [
+    "/game.eldiron-client"
+  ],
+  "gpu": {
+    "eldironState": "playing",
+    "eldironCodecWorkers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+    "eldironReadbackBytes": "0",
+    "eldironGpuGeneration": "1",
+    "eldironPresentations": "155",
+    "eldironSession": "5438a1fe-107c-421c-8f0e-c1fe9de00272",
+    "eldironTicks": "49"
+  },
+  "host": {
+    "mode": "Demo",
+    "players": 1,
+    "entities": 1
+  },
+  "transport_metrics": {
+    "accepted": 2,
+    "refused": 0,
+    "active": 1,
+    "websocket_payload_bytes_received": 65,
+    "websocket_payload_bytes_sent": 43551,
+    "http_payload_bytes_sent": 8817,
+    "command_queue_peak": 1,
+    "hash_busy": 0,
+    "malformed": 0,
+    "socket_write": {
+      "calls": 56,
+      "total_us": 2685,
+      "last_us": 50,
+      "max_us": 190,
+      "rolling_samples": 56,
+      "p50_us": 45,
+      "p95_us": 62,
+      "p99_us": 190
+    }
+  },
+  "exceptions": 0,
+  "initial_gpu_state": "playing",
+  "date": "2026-11-18",
+  "release": {
+    "bootstrap_bytes": 61738,
+    "bootstrap_decoded_bytes": 298415,
+    "global_decoded_bytes": 51874239,
+    "region_decoded_bytes": 12248,
+    "content_revision": "11f083d65784c0e919807b1fb9204db5f0e6327dd6cc7029761c8e38b2910942",
+    "protocol": 4
+  }
+}

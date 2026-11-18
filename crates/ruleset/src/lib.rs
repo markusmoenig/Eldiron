@@ -1,3 +1,10 @@
+pub mod catalogue;
+pub mod contributions;
+pub mod crafting;
+pub mod domain_metadata;
+pub mod equipment_family;
+pub mod equipment_lifecycle;
+pub mod world_resources;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::LazyLock,
@@ -92,6 +99,8 @@ static OFFICIAL_TOML_REFERENCE: LazyLock<String> = LazyLock::new(|| {
         OFFICIAL_ELDIRON_V1_ECONOMY,
         OFFICIAL_ELDIRON_V1_MESSAGES,
         OFFICIAL_ELDIRON_V1_EQUIPMENT,
+        include_str!("../rulesets/eldiron/v1/world_resources.toml"),
+        include_str!("../rulesets/eldiron/v1/bone_production.toml"),
         OFFICIAL_ELDIRON_V1_FX,
         OFFICIAL_ELDIRON_V1_ICONS,
         OFFICIAL_ELDIRON_V1_INVOCATIONS,
@@ -517,6 +526,31 @@ pub fn bundled_icon_material_assets_for_ruleset(
         icon!("copper_coin", "icon"),
         icon!("silver_coin", "icon"),
         icon!("gold_coin", "icon"),
+        icon!("wood_branch", "icon"),
+        icon!("wood_log", "icon"),
+        icon!("tree_bark", "icon"),
+        icon!("tree_resin", "icon"),
+        icon!("raw_bone", "icon"),
+        icon!("flint_stone", "icon"),
+        icon!("plant_fiber", "icon"),
+        icon!("twisted_cord", "icon"),
+        icon!("raw_hide", "icon"),
+        icon!("leather", "icon"),
+        icon!("leather_strap", "icon"),
+        icon!("bone_plate", "icon"),
+        icon!("fresh_water", "icon"),
+        icon!("wooden_bowl", "icon"),
+        icon!("stone_knife", "icon"),
+        icon!("pruning_knife", "icon"),
+        icon!("woodcutting_axe", "icon"),
+        icon!("bone_helm", "icon"),
+        icon!("bone_cuirass", "icon"),
+        icon!("strength_bone_cuirass", "icon"),
+        icon!("bone_greaves", "icon"),
+        icon!("bone_gauntlets", "icon"),
+        icon!("bone_boots", "icon"),
+        icon!("tanning_frame", "icon"),
+        icon!("bone_workbench", "icon"),
         icon!("torch", "icon"),
         icon!("torch", "off", "off.material", "off.palette.json", "icon"),
     ]
@@ -3950,6 +3984,9 @@ pub struct ResolvedEquipmentCategory {
     pub id: String,
     pub handedness: Option<ResolvedWeaponHandedness>,
     pub occupies_slots: BTreeSet<String>,
+    pub requires_positive_condition: bool,
+    pub contributions: Vec<contributions::Projection>,
+    pub wear: Option<equipment_lifecycle::Wear>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -4061,6 +4098,10 @@ fn resolve_equipment_categories(
                 id: normalized_id,
                 handedness,
                 occupies_slots,
+                requires_positive_condition: table.get("requires_positive_condition").map(|v| v.as_bool()
+                    .ok_or_else(|| format!("{path}.requires_positive_condition must be boolean"))).transpose()?.unwrap_or(false),
+                wear: equipment_lifecycle::wear(root, table)?,
+                contributions: contributions::projections(root, table)?,
             },
         );
     }
@@ -4435,13 +4476,12 @@ fn sorted_table_keys(root: &Table, path: &[&str]) -> Vec<String> {
 
 pub fn ruleset_catalog(root: &Table) -> RulesetCatalog {
     let metadata = root.get("ruleset").and_then(Value::as_table);
-    let mut item_templates = ruleset_item_group_names(root)
-        .into_iter()
-        .flat_map(|group| {
-            sorted_table_keys(root, &["items", &group])
-                .into_iter()
-                .map(move |id| format!("items.{}.{}", group, id))
-        })
+    let catalogue = catalogue::Catalogue::from_table(root);
+    let mut item_templates = catalogue
+        .entries
+        .iter()
+        .filter(|entry| entry.key.as_ref().is_some_and(|key| key.domain == "items"))
+        .map(|entry| entry.path.join("."))
         .collect::<Vec<_>>();
     item_templates.sort();
 
@@ -4462,20 +4502,20 @@ pub fn ruleset_catalog(root: &Table) -> RulesetCatalog {
             .and_then(|ruleset| ruleset.get("source"))
             .and_then(Value::as_str)
             .map(str::to_string),
-        races: sorted_table_keys(root, &["races"]),
-        classes: sorted_table_keys(root, &["classes"]),
-        professions: sorted_table_keys(root, &["professions"]),
-        skills: sorted_table_keys(root, &["skills"]),
-        resources: sorted_table_keys(root, &["resources"]),
-        recipes: sorted_table_keys(root, &["recipes"]),
+        races: catalogue.ids("races"),
+        classes: catalogue.ids("classes"),
+        professions: catalogue.ids("professions"),
+        skills: catalogue.ids("skills"),
+        resources: catalogue.ids("resources"),
+        recipes: catalogue.ids("recipes"),
         weapons: sorted_table_keys(root, &["items", "weapons"]),
         armor: sorted_table_keys(root, &["items", "armor"]),
         clothing: sorted_table_keys(root, &["items", "clothing"]),
-        spells: sorted_table_keys(root, &["spells"]),
-        abilities: sorted_table_keys(root, &["abilities"]),
-        actions: sorted_table_keys(root, &["actions"]),
-        conditions: sorted_table_keys(root, &["conditions"]),
-        invocation_schemes: sorted_table_keys(root, &["invocation_schemes"]),
+        spells: catalogue.ids("spells"),
+        abilities: catalogue.ids("abilities"),
+        actions: catalogue.ids("actions"),
+        conditions: catalogue.ids("conditions"),
+        invocation_schemes: catalogue.ids("invocation_schemes"),
         fx_presets: sorted_table_keys(root, &["fx", "presets"]),
         item_templates,
     }
@@ -5356,6 +5396,7 @@ fn validate_item_quantity_list(
 }
 
 fn validate_recipe_rules(report: &mut RulesetValidationReport, root: &Table) {
+    crafting::validate(root, report);
     if let Some(crafting_value) = root.get("crafting") {
         let Some(crafting) = crafting_value.as_table() else {
             report.error("crafting", "Crafting configuration must be a table.");
@@ -5977,7 +6018,11 @@ fn validate_relation_and_intent_rules(report: &mut RulesetValidationReport, root
         }
     }
 
-    let allowed_target_kinds = BTreeSet::from(["entity".to_string(), "item".to_string(), "prefab".to_string()]);
+    let allowed_target_kinds = BTreeSet::from([
+        "entity".to_string(),
+        "item".to_string(),
+        "prefab".to_string(),
+    ]);
     if let Some(intents) = ruleset_table_at_path(root, &["intents"]) {
         for (intent, value) in intents {
             let Some(table) = value.as_table() else {
@@ -6147,6 +6192,12 @@ pub fn validate_ruleset(root: &Table) -> RulesetValidationReport {
     let mut report = RulesetValidationReport::default();
     let damage_kinds = table_key_set(root, &["combat", "kinds"]);
 
+    for key in catalogue::Catalogue::from_table(root).conflicts() {
+        report.error(
+            format!("{}.{}", key.domain, key.id),
+            "Definition ID is duplicated across storage groups.",
+        );
+    }
     validate_attribute_roles(&mut report, root);
     validate_identity_rules(&mut report, root);
     validate_relation_and_intent_rules(&mut report, root);
@@ -6158,6 +6209,9 @@ pub fn validate_ruleset(root: &Table) -> RulesetValidationReport {
     validate_xp_table(&mut report, root);
     validate_roll_path(&mut report, root, &["combat", "unarmed_damage"]);
     validate_item_rules(&mut report, root, &damage_kinds);
+    equipment_family::validate_families(root, &mut report);
+    contributions::validate(root, &mut report);
+    world_resources::validate(root, &mut report);
     validate_condition_rules(&mut report, root, &damage_kinds);
     validate_derived_stat_rules(&mut report, root);
     validate_ability_and_spell_rules(&mut report, root, &damage_kinds);
@@ -6305,6 +6359,7 @@ fn ruleset_item_template_data(
         "highlight_color_index",
         "max_stack",
         "ammunition_quantity",
+        "enchantments",
     ] {
         if let Some(value) = item.get(key) {
             attributes.insert(key.to_string(), value.clone());
@@ -6572,7 +6627,7 @@ mod tests {
         assert!(resolved.table().get("items").is_some());
 
         let actions = resolved.actions().unwrap();
-        assert_eq!(actions.len(), 37);
+        assert_eq!(actions.len(), 51);
         let basic_attack = actions.get("basic_attack").unwrap();
         assert_eq!(basic_attack.kind, ResolvedActionKind::Attack);
         assert_eq!(

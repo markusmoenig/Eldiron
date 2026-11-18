@@ -46,6 +46,10 @@ impl SceneViews {
             view.isometric_renderer = Some(IsometricSceneRenderer::new(self.context.clone())?);
         }
         let lighting = Lighting::new(&Default::default(), std::iter::empty(), 0);
+        view.isometric_renderer
+            .as_mut()
+            .unwrap()
+            .set_player_view(rusterix::party::PlayerView::Uncontrolled);
         let frame = view.isometric_renderer.as_mut().unwrap().prepare_unlit(
             size,
             &IsometricSceneInput {
@@ -133,7 +137,7 @@ impl SceneViews {
         let reduction = widget.upscale.max(1.);
         projection.origin /= reduction;
         projection.unit /= reduction;
-        self.prepare_isometric_scene(id, projection, input)
+        self.prepare_isometric_scene(id, projection, input, widget.player_view)
     }
     /// Sprite-isometric authoring uses its logical construction-plane projection
     /// and the same injected source producer as player views.
@@ -154,13 +158,14 @@ impl SceneViews {
             input.map,
             scenevm::prelude::Vec2::new(size.0 as f32, size.1 as f32),
         );
-        self.prepare_isometric_scene(id, projection, input)
+        self.prepare_isometric_scene(id, projection, input, rusterix::party::PlayerView::Legacy)
     }
     fn prepare_isometric_scene(
         &mut self,
         id: ViewId,
         projection: rusterix::isometric::Projection,
         input: &GameSceneInput<'_>,
+        player_view: rusterix::party::PlayerView,
     ) -> Result<()> {
         let view = self
             .views
@@ -185,6 +190,10 @@ impl SceneViews {
         if view.isometric_renderer.is_none() {
             view.isometric_renderer = Some(IsometricSceneRenderer::new(self.context.clone())?);
         }
+        view.isometric_renderer
+            .as_mut()
+            .unwrap()
+            .set_player_view(player_view);
         let frame = view.isometric_renderer.as_mut().unwrap().prepare(
             view.size,
             &IsometricSceneInput {

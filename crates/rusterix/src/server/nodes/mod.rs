@@ -9,6 +9,7 @@ use theframework_core::prelude::Uuid;
 
 mod builtins;
 mod lifecycle;
+pub mod persistence;
 mod party;
 pub use builtins::time_range_contains;
 pub mod conversation;
@@ -17,12 +18,12 @@ pub mod region;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ActorHandle {
     pub identity: Uuid,
     pub incarnation: Uuid,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Activity {
     Awake,
     Sleeping,
@@ -75,7 +76,7 @@ pub enum EventAttribute {
 }
 /// What happened to an open Dialogue node: the player picked a choice, or the
 /// dialogue was dismissed (walked away, timed out, or explicitly closed).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DialogChoiceMade {
     Index(u32),
     Dismissed,

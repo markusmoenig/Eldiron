@@ -4805,7 +4805,7 @@ mod tests {
         assert!(arena.has_str_array_attr(1, "start_equipped_items", "padded_armor"));
         assert_eq!(
             arena.entity(1).attributes.get_int_default("hair_index", 0),
-            7
+            4
         );
         assert!(!arena.has_str_array_attr(1, "start_items", "linen_shirt"));
         assert!(arena.has_str_array_attr(1, "abilities", "basic_attack"));
@@ -6820,6 +6820,12 @@ pub fn run_server_named_fn(
     program: &crate::vm::Program,
     region_ctx: &mut RegionCtx,
 ) -> bool {
+    let started = region_ctx.diagnostics.as_ref().map(|_| instant::Instant::now());
+    let result = run_server_named_fn_inner(exec, name, args, program, region_ctx);
+    if let (Some(started), Some(d)) = (started, &region_ctx.diagnostics) { d.borrow_mut().scripts.record(started.elapsed()); }
+    result
+}
+fn run_server_named_fn_inner(exec: &mut Execution, name: &str, args: &[VMValue], program: &crate::vm::Program, region_ctx: &mut RegionCtx) -> bool {
     if name == "event" && region_ctx.assets.node_behaviors.is_some() {
         if let Some(event) = args.first().and_then(VMValue::as_string) {
             let value = args.get(1).cloned().unwrap_or_else(VMValue::zero);

@@ -1,4 +1,5 @@
 [game]
+mode = "single_player" # Project execution: "single_player" or "multiplayer".
 locale = "en"
 
 target_fps = 30      # The target frames per second for the game.
@@ -233,3 +234,9 @@ pixels_per_tile = 16
 sprite_pixels_2d = 0
 # Character and map-item screen-pixel block size in 3D: 1 = native, 2..16 = chunky.
 pixel_size_3d = 1
+
+[multiplayer]
+# Used by exported multiplayer players. Creator Play stays local.
+endpoint = "" # WSS URL, for example wss://game.example.com/play
+deployment_id = "" # Optional public hosting deployment identity.
+allow_insecure_loopback = false # Explicit localhost-only transport testing.

@@ -1,6 +1,9 @@
 //! Common graphical player application for native windows, foreign layers and
 //! Creator Play. Runtime, CPU screen state and GPU resources have distinct owners.
 mod audio;
+mod online;
+mod lobby;
+mod online_session;
 #[cfg(all(feature = "native-window", target_arch = "wasm32"))]
 pub mod browser;
 #[cfg(all(feature = "native-window", not(target_arch = "wasm32")))]
@@ -86,6 +89,7 @@ pub struct PlayerApplication {
     pub fonts: GameFonts,
     services: Box<dyn PlayerServices>,
     gpu: Option<PlayerGpu>,
+    online: Option<online_session::OnlineSession>,
     retired_views: Vec<ViewId>,
     viewport: ScreenViewport,
     input_metrics: Option<((u32, u32), u32)>,
@@ -109,7 +113,12 @@ impl PlayerApplication {
         debug: bool,
         services: Box<dyn PlayerServices>,
     ) -> std::result::Result<Self, String> {
+        let online=online_session::OnlineSession::for_project(&project)?;
         let mut player = PlayerSession::new(project, debug)?;
+        if online.is_some() {
+            lobby::install(&mut player.runtime.project);
+            player.settings.start_screen=lobby::NAME.into();
+        }
         let size = player.settings.viewport;
         let layout = ScreenLayout {
             screen_responsive: true,
@@ -123,7 +132,7 @@ impl PlayerApplication {
             ),
             grid_size: player.settings.grid_size,
         };
-        let world = player.runtime.view();
+        let world = player.view();
         for name in [&player.settings.start_screen, &player.settings.play_screen]
             .into_iter()
             .filter(|s| !s.is_empty())
@@ -151,6 +160,7 @@ impl PlayerApplication {
             fonts,
             services,
             gpu: None,
+            online,
             retired_views: Vec::new(),
             viewport: ScreenViewport::fit(
                 [size.0 as f32, size.1 as f32],
@@ -190,17 +200,17 @@ impl PlayerApplication {
     pub fn command(&mut self, binding: ClientCommandBinding) -> std::result::Result<(), String> {
         let activation = self
             .screen
-            .activate_binding(&self.player.runtime.view(), binding)?;
+            .activate_binding(&self.player.view(), binding)?;
         self.apply(activation.effects)
     }
     pub fn navigate(&mut self, name: &str) -> std::result::Result<(), String> {
-        let world = self.player.runtime.view();
-        let mut next = GameScreenController::from_screen_with_state(
-            name,
-            &world,
-            self.screen.elements.layout,
-            self.screen.elements.ui_state.clone(),
-        )?;
+        if self.online.is_some() {
+            self.clear_account_secrets();
+        }
+        let world = self.player.view();
+        let mut next = if name.is_empty() {
+            GameScreenController::region_fallback(&world,self.screen.elements.layout,self.screen.elements.ui_state.clone())?
+        } else {GameScreenController::from_screen_with_state(name,&world,self.screen.elements.layout,self.screen.elements.ui_state.clone())?};
         next.retain_session_presentation_from(&mut self.screen, &mut self.fonts);
         if let Err(error) = next.prepare(
             &world,
@@ -232,7 +242,7 @@ impl PlayerApplication {
             self.screen.suspend_scene_sources();
             if let Some(gpu) = &mut self.gpu { gpu.views.cancel_surface_paint_uploads(); }
         }
-        if self.screen.runtime_session() != self.player.runtime.view().session_id {
+        if self.screen.runtime_session() != self.player.view().session_id {
             self.pending_clipboard = None;
             self.modifiers = Modifiers::default();
             self.control_capture = None;
@@ -251,14 +261,14 @@ impl PlayerApplication {
         self.screen.resize(logical);
         let animation_frame = self.animation_frame();
         self.screen.prepare(
-            &self.player.runtime.view(),
+            &self.player.view(),
             &mut self.fonts,
             self.revision,
             animation_frame,
         )?;
         let shortcuts = self
             .screen
-            .tooltip_commands(&self.player.runtime.view())
+            .tooltip_commands(&self.player.view())
             .into_iter()
             .filter_map(|command| {
                 let binding = rusterix::client::command::parse_client_command(&command)?;
@@ -295,7 +305,7 @@ impl PlayerApplication {
         Ok(())
     }
     fn animation_frame(&self) -> usize {
-        usize::try_from(self.player.runtime.tick_sequence()).unwrap_or(usize::MAX)
+        usize::try_from(self.player.tick_sequence()).unwrap_or(usize::MAX)
     }
     fn clipboard(&mut self, response: &ScreenTextResponse, host: &mut HostContext) {
         if let (Some(widget), Some(clipboard)) = (response.target, &response.editor.clipboard) {
@@ -321,13 +331,21 @@ impl PlayerApplication {
         for effect in effects {
             if self
                 .screen
-                .handle_hud_effect(&self.player.runtime.view(), &effect)
+                .handle_hud_effect(&self.player.view(), &effect)
             {
                 continue;
             }
             match effect {
-                ScreenEffect::Action(action) => self.player.submit_action(action)?,
+                ScreenEffect::Action(action) => {
+                    if let Err(error)=self.player.submit_action(action) {
+                        if let Some(online)=&mut self.online {online.set_status(error);} else {return Err(error);}
+                    }
+                },
                 ScreenEffect::Command(ClientCommandBinding::Game(command)) => {
+                    if self.online.is_some() {
+                        self.online_command(&command)?;
+                        continue;
+                    }
                     let transition = self
                         .player
                         .game_command(&command, &mut self.screen.elements.ui_state)?;
@@ -341,7 +359,7 @@ impl PlayerApplication {
                 }
                 other => self
                     .services
-                    .screen_effect(&self.player.runtime.view(), &other)?,
+                    .screen_effect(&self.player.view(), &other)?,
             }
         }
         Ok(())
@@ -354,7 +372,7 @@ impl PlayerApplication {
         if self.suspended && !matches!(event, InputEvent::Focus(false)) {
             return Ok(InputResponse::default());
         }
-        if self.screen.runtime_session() != self.player.runtime.view().session_id {
+        if self.screen.runtime_session() != self.player.view().session_id {
             self.sync_host(host)?;
         }
         if matches!(
@@ -366,7 +384,11 @@ impl PlayerApplication {
             } | InputEvent::PointerButton { pressed: true, .. }
         ) {
             self.services
-                .user_gesture(&self.player.runtime.view(), self.revision.0);
+                .user_gesture(&self.player.view(), self.revision.0);
+        }
+        if matches!(event,InputEvent::Key{physical:PhysicalKey::Function(10),pressed:true,repeat:false,..})
+            && self.online.as_ref().is_some_and(|o|o.account&&o.supports_account_management()) {
+            self.online_command("account")?;return Ok(InputResponse{consumed:true,redraw:true});
         }
         if let InputEvent::Clipboard { request, result } = event {
             let Some((widget, pending)) = self.pending_clipboard else {
@@ -398,11 +420,11 @@ impl PlayerApplication {
             Default::default()
         } else {
             self.screen
-                .input(&self.player.runtime.view(), &mut self.fonts, &event)?
+                .input(&self.player.view(), &mut self.fonts, &event)?
         };
         let blocked = result.input.consumed || self.screen.captures_world_input();
         let world = self.screen.world_input(
-            &self.player.runtime.view(),
+            &self.player.view(),
             self.gpu.as_ref().map(|gpu| &gpu.views),
             &event,
             blocked,
@@ -466,7 +488,7 @@ impl PlayerApplication {
                             } else {
                                 let activation = self
                                     .screen
-                                    .activate_binding(&self.player.runtime.view(), binding)?;
+                                    .activate_binding(&self.player.view(), binding)?;
                                 self.apply(activation.effects)?;
                             }
                             response.redraw = true;
@@ -483,24 +505,21 @@ impl PlayerApplication {
         elapsed: Duration,
         host: &mut HostContext,
     ) -> std::result::Result<(), String> {
-        if self.suspended {
-            return Ok(());
-        }
+        self.poll_online()?;
+        if self.suspended {return Ok(());}
         self.visual_elapsed = self.visual_elapsed.saturating_add(elapsed);
         self.screen.world_texts.advance(elapsed);
         self.player.advance(elapsed);
-        self.appearances.prepare(
-            self.player.runtime.server.entities.values().flatten(),
-            &self.player.runtime.assets,
-        );
-        let isometric=self.player.runtime.view().map.and_then(|map|map.entities.iter().find(|e|e.is_player()))
+        self.send_online_inputs(elapsed)?;
+        self.appearances.prepare(self.player.client_maps().flat_map(|map| &map.entities),&self.player.runtime.assets);
+        let isometric=self.player.view().player_entity()
             .is_some_and(|e|matches!(e.attributes.get("player_camera"),Some(rusterix::Value::PlayerCamera(camera)) if camera.is_isometric_2d()));
         if let Some(action) = self.player.set_isometric_controls(isometric) {
             self.player.submit_action(action)?;
         }
-        let current = self.player.runtime.view().map.map(|m| m.id);
+        let current = self.player.view().map.map(|m| m.id);
         self.services
-            .update(&self.player.runtime.view(), self.revision.0, elapsed);
+            .update(&self.player.view(), self.revision.0, elapsed);
         // Every addressed region batch is drained once, including off-screen
         // regions. Services can decide which audio/world-text outputs to retain.
         let ids = self
@@ -512,12 +531,11 @@ impl PlayerApplication {
             .map(|r| r.map.id)
             .collect::<Vec<_>>();
         for id in ids {
-            let events = self.player.runtime.take_events(&id);
-            let world = self
-                .player
-                .runtime
-                .view_region(&id)
-                .ok_or("Event region is no longer in the session")?;
+            let events = self.player.take_events(&id);
+            let Some(world)=self.player.view_region(&id) else {
+                if self.player.is_remote() {continue;}
+                return Err("Event region is no longer in the session".into());
+            };
             if current == Some(id) {
                 self.screen.receive(&world, &events);
             }
@@ -623,6 +641,7 @@ impl GpuApplication for PlayerApplication {
                 .wake_after()
                 .into_iter()
                 .chain(self.screen.presentation_wake_after())
+                .chain(self.online.as_ref().map(|_|Duration::from_millis(20)))
                 .min();
             let mut request =
                 self.frames
@@ -652,7 +671,7 @@ impl GpuApplication for PlayerApplication {
         for id in self.retired_views.drain(..) {
             gpu.views.remove(id, images)?;
         }
-        let world = self.player.runtime.view();
+        let world = self.player.view();
         self.screen
             .prepare_game_views(&world, &mut gpu.views, images)
             .map_err(RenderError)?;
@@ -689,7 +708,8 @@ impl GpuApplication for PlayerApplication {
                 self.fail(host, error);
                 InputResponse::default()
             });
-        self.resume_simulation = self.player.runtime.server.state == ServerState::Running;
+        if let Some(client)=self.player.remote_mut() {client.suspend();}
+        self.resume_simulation = !self.player.is_remote() && self.player.runtime.server.state == ServerState::Running;
         if self.resume_simulation {
             self.player.runtime.server.pause();
         }
@@ -706,13 +726,15 @@ impl GpuApplication for PlayerApplication {
             self.resume_simulation = false;
         }
         self.player.runtime.clock.reset_elapsed();
+        if let Some(client)=self.player.remote_mut() {client.resume();}
+        if let Some(online)=&mut self.online {online.request_baseline();}
         if let Err(error) = self.sync_host(host) {
             self.fail(host, error);
         }
     }
     fn presented(&mut self, _host: &mut HostContext) {
         self.screen.acknowledge_world_frame(
-            &self.player.runtime.view(),
+            &self.player.view(),
             self.gpu.as_ref().map(|gpu| &gpu.views),
         );
     }

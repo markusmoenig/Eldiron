@@ -325,10 +325,14 @@ mod tests {
             eldiron_ruleset::latest_official_ruleset(),
         )
         .unwrap();
-        for def in eldiron_ruleset::bundled_icon_material_assets_for_ruleset(
+        let definitions = eldiron_ruleset::bundled_icon_material_assets_for_ruleset(
             eldiron_ruleset::OFFICIAL_RULESET_ID,
             eldiron_ruleset::OFFICIAL_RULESET_VERSION,
-        ) {
+        );
+        let capture = std::env::var("ELDIRON_NATIVE_ICON_ATLAS").ok();
+        let (width, height) = (720, definitions.len().div_ceil(10) * 72);
+        let mut atlas = capture.as_ref().map(|_| [30,32,40,255].repeat(width * height));
+        for (index, def) in definitions.iter().enumerate() {
             let started = std::time::Instant::now();
             let asset = editable(&def, &palette).unwrap();
             assert_eq!(
@@ -351,6 +355,16 @@ mod tests {
                 def.id
             );
             let texture = bake(&asset, &palette, 32).unwrap();
+            if let Some(atlas) = atlas.as_mut() {
+                for y in 0..32 { for x in 0..32 {
+                    let pixel = &texture.data[(y*32+x)*4..(y*32+x+1)*4];
+                    if pixel[3] == 0 { continue; }
+                    for dy in 0..2 { for dx in 0..2 {
+                        let offset = (((index/10)*72+4+y*2+dy)*width+(index%10)*72+4+x*2+dx)*4;
+                        atlas[offset..offset+4].copy_from_slice(pixel);
+                    }}
+                }}
+            }
             eprintln!("{} bake {:?}", def.id, started.elapsed());
             assert_eq!((texture.width, texture.height), (32, 32));
             assert_eq!(texture.data[3], 0);
@@ -388,6 +402,9 @@ mod tests {
                     );
                 }
             }
+        }
+        if let (Some(path), Some(atlas)) = (capture, atlas) {
+            std::fs::write(path, TheRGBABuffer::from(atlas,width as u32,height as u32).to_png().unwrap()).unwrap();
         }
     }
     #[test]

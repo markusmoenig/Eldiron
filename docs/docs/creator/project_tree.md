@@ -132,10 +132,13 @@ In the game section you can select:
 - **Settings**. Edit your game settings and see all supported options in [Game Configuration](../configuration/game).
 - **World / Behavior Nodes**. Edit global event-driven behavior.
 - **Authoring**. Edit global text-adventure and authoring behavior like startup text and sector description policies, see [Authoring Configuration](../configuration/authoring).
-- **Rules**. Edit project-wide gameplay definitions, formulas, icons, and particle effects in the rules editor, see [Ruleset Editor](docks/ruleset_nodes).
 - **Locales**. Edit shared localization tables like `[en]` and `[de]` in a TOML-based data editor, see [Localization](../localization).
 - **Audio FX**. Edit generated micro sound effects in a TOML-based data editor with built-in preview, see [Audio](../audio).
 
 Use world and region graphs for their respective events. Available nodes depend on the selected graph owner.
+
+Creator supplies the RPG rules and content. Build the world from its character
+and item catalogue, resource placements and starting options. Standard builds
+do not expose the internal ruleset editor.
 
 For editing per-sector, per-linedef, per-entity, and per-item narrative metadata inside regions, see [Authoring](./authoring).

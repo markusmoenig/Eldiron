@@ -87,6 +87,14 @@ impl PreviewService {
         if !["2d", "2d_iso", "iso", "3d"].contains(&view) {
             return Err("view must be 2d, 2d_iso, iso or 3d".into());
         }
+        if view == "2d_iso" {
+            project
+                .regions
+                .get_mut(index)
+                .ok_or("Region no longer exists")?
+                .map
+                .camera = rusterix::MapCamera::TwoDIso;
+        }
         let mut context = self.shared.lock().unwrap_or_else(|e| {
             let mut guard = e.into_inner();
             *guard = None;
@@ -299,14 +307,57 @@ impl PreviewService {
         let pixels = {
             // A PNG preview is a requested capture, never a display framebuffer.
             // Propagate device/render/map errors instead of returning blank success.
-            let mut target =
-                scenevm::render_output::SceneRenderTarget::new(gpu.clone(), width, height)
-                    .map_err(|error| error.to_string())?;
-            let output = runtime
-                .scene_handler
-                .vm
-                .render_gpu(&mut target, 0)
-                .map_err(|error| error.to_string())?;
+            let output = if widget.camera.is_isometric_2d() {
+                use eldiron_presentation::{
+                    isometric::{IsometricSceneInput, IsometricSceneRenderer, IsometricSourceVersion},
+                    screen::ContentRevision,
+                };
+                let scene = &mut runtime.scene_handler;
+                let assets = &runtime.assets;
+                let projection = widget
+                    .isometric_projection
+                    .ok_or("Isometric preview camera was not prepared")?;
+                scene.apply_runtime_render_state_settings();
+                scene.settings.apply_hour(project.time.to_f32());
+                scene.build_dynamics_2d(&map, frame, assets, &Default::default());
+                let particles = scene.isometric_particles(&map, assets, frame);
+                let lighting = rusterix::isometric::lighting::Lighting::new(
+                    &scene.settings,
+                    scene.vm.vm.lights.values(),
+                    frame,
+                );
+                let mut renderer =
+                    IsometricSceneRenderer::new(gpu.clone()).map_err(|error| error.to_string())?;
+                renderer
+                    .render(
+                        (width, height),
+                        &IsometricSceneInput {
+                            map: &map,
+                            assets,
+                            avatars: &scene.isometric_avatars(&map, assets, frame),
+                            seconds: frame as f32 * assets.animation_tick_seconds(),
+                            projection,
+                            lighting: &lighting,
+                            particles: &particles,
+                            source_version: IsometricSourceVersion {
+                                namespace: map.id,
+                                content: ContentRevision(u64::from(map.changed)),
+                                tiles: assets.tiles_revision,
+                            },
+                        },
+                        0,
+                    )
+                    .map_err(|error| error.to_string())?
+            } else {
+                let mut target =
+                    scenevm::render_output::SceneRenderTarget::new(gpu.clone(), width, height)
+                        .map_err(|error| error.to_string())?;
+                runtime
+                    .scene_handler
+                    .vm
+                    .render_gpu(&mut target, 0)
+                    .map_err(|error| error.to_string())?
+            };
             let mut capture = renderkit::ReadbackTicket::capture(&gpu, output.image)
                 .map_err(|error| error.to_string())?;
             gpu.device
@@ -323,7 +374,16 @@ impl PreviewService {
                 .to_vec()
         };
         #[cfg(not(feature = "native-render"))]
-        let pixels = {
+        let pixels = if widget.camera.is_isometric_2d() {
+            widget.graphical_draw(
+                &map,
+                &project.time,
+                frame,
+                &runtime.assets,
+                &mut runtime.scene_handler,
+            );
+            widget.buffer.pixels().to_vec()
+        } else {
             let mut pixels = vec![0; width as usize * height as usize * 4];
             runtime
                 .scene_handler

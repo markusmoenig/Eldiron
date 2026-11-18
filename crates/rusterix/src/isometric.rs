@@ -226,6 +226,10 @@ struct ContactPass<'a> {
 /// A presentation-only cutaway; identity, collision and intent picking remain active.
 /// The area is an existing named interior sector (or its stable Creator UUID).
 pub fn item_cutaway(map: &Map, item: &crate::Item) -> bool {
+    item_cutaway_for(map, item, crate::party::PlayerView::Legacy)
+}
+
+pub fn item_cutaway_for(map: &Map, item: &crate::Item, view: crate::party::PlayerView) -> bool {
     let Some(area) = item
         .attributes
         .get_str("iso_cutaway_area")
@@ -234,13 +238,20 @@ pub fn item_cutaway(map: &Map, item: &crate::Item) -> bool {
     else {
         return false;
     };
-    map.entities.iter().filter(|e| e.is_player()).any(|player| {
-        map.sectors.iter().any(|sector| {
-            sector.properties.get_bool_default("iso_interior", false)
-                && (sector.name == area || sector.creator_id.to_string() == area)
-                && sector.is_inside(map, player.get_pos_xz())
+    map.entities
+        .iter()
+        .filter(|entity| match view {
+            crate::party::PlayerView::Legacy => entity.is_player(),
+            crate::party::PlayerView::Controlled(id) => entity.id == id,
+            crate::party::PlayerView::Uncontrolled => false,
         })
-    })
+        .any(|player| {
+            map.sectors.iter().any(|sector| {
+                sector.properties.get_bool_default("iso_interior", false)
+                    && (sector.name == area || sector.creator_id.to_string() == area)
+                    && sector.is_inside(map, player.get_pos_xz())
+            })
+        })
 }
 
 /// Draws native map tile sectors, item sprites, and directional character sprites.

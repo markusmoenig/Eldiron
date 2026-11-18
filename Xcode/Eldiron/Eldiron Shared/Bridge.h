@@ -70,6 +70,7 @@ char *eldiron_creator_document_info_v1(uint64_t host);
 char *eldiron_creator_document_load_v1(uint64_t host, const char *expected, const uint8_t *data, uintptr_t length, const char *origin, bool replace_clean);
 // Prepare returns {ticket,document,length}; only one immutable snapshot can be pending.
 char *eldiron_creator_document_prepare_save_v1(uint64_t host, const char *expected);
+char *eldiron_creator_document_prepare_client_export_v1(uint64_t host, const char *expected);
 // Null destination/capacity 0 queries length. Undersized buffers are untouched and
 // return required length. Copy owns no caller memory after return. Zero = stale ticket.
 uintptr_t eldiron_creator_document_copy_save_v1(uint64_t host, uint64_t ticket, uint8_t *destination, uintptr_t capacity);

@@ -8176,6 +8176,11 @@ impl TheTrait for Editor {
                 TheId::named("Save As"),
                 TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 's'),
             ));
+            file_menu.add_separator();
+            file_menu.add(TheContextMenuItem::new(
+                "Export Public Client…".into(),
+                TheId::named("Export Public Client"),
+            ));
             let mut edit_menu = TheContextMenu::named(fl!("menu_edit"));
             edit_menu.add(TheContextMenuItem::new_with_accel(
                 fl!("menu_undo"),
@@ -8273,6 +8278,7 @@ impl TheTrait for Editor {
                 "Settings".to_string(),
                 TheId::named("Show Settings"),
             ));
+            #[cfg(feature = "internal-rules-editor")]
             show_menu.add(TheContextMenuItem::new(
                 "Rules".to_string(),
                 TheId::named("Show Rules"),
@@ -9136,11 +9142,10 @@ impl TheTrait for Editor {
                     if self.play_session.is_none() {
                         // Explicit reference/tooling entry points can still start
                         // the facade directly. Canonical toolbar Play owns a pump.
-                        if tick_update {
-                            rusterix.server.system_tick();
-                        }
-                        if redraw_update {
-                            rusterix.server.redraw_tick();
+                        if tick_update || redraw_update {
+                            rusterix.server.advance_wall_clock(std::time::Duration::from_millis(
+                                rusterix.client.game_tick_ms.max(1) as u64,
+                            ));
                         }
                         if let Some(name) = rusterix.update_server() {
                             rusterix.client.current_map = name;
@@ -10772,6 +10777,19 @@ impl TheTrait for Editor {
                                 }
                             }
                         }
+                    } else if id.name == "Export Public Client" {
+                        let result = self.commit_authoring_views(ctx).and_then(|_| {
+                            let bytes = eldiron_network::public_client::export(&self.documents.project)?;
+                            for path in paths {
+                                Self::write_public_client(&path, &bytes)?;
+                            }
+                            Ok(())
+                        });
+                        let message = match result {
+                            Ok(()) => "Public client exported.".to_string(),
+                            Err(error) => format!("Unable to export public client: {error}"),
+                        };
+                        ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), message));
                     } else if id.name == "Save As" {
                         if let Err(message) = self.commit_authoring_views(ctx) {
                             ctx.ui.send(TheEvent::SetStatusText(
@@ -11158,6 +11176,15 @@ impl TheTrait for Editor {
                             ctx.ui
                                 .set_widget_state("Save".to_string(), TheWidgetState::None);
                         }
+                    } else if id.name == "Export Public Client" {
+                        ctx.ui.save_file_requester(
+                            TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
+                            "Export Public Client".into(),
+                            TheFileExtension::new("Eldiron Client".into(), vec!["eldiron-client".into()]),
+                        );
+                        ctx.ui.set_widget_state(id.name.clone(), TheWidgetState::None);
+                        ctx.ui.clear_hover();
+                        redraw = true;
                     } else if id.name == "Save As" {
                         ctx.ui.save_file_requester(
                             TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),

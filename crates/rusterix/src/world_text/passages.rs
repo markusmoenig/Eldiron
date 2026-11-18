@@ -40,9 +40,32 @@ impl WorldTexts {
         time: &TheTime,
         messages: &[(u32, WorldText)],
     ) {
+        self.receive_for(
+            map,
+            assets,
+            time,
+            messages,
+            crate::party::PlayerView::Legacy,
+        );
+    }
+
+    pub fn receive_for(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        time: &TheTime,
+        messages: &[(u32, WorldText)],
+        player: crate::party::PlayerView,
+    ) {
         for (receiver, message) in messages {
-            let Some(message) = resolve_for_player(map, assets, time, *receiver, message.clone())
-            else {
+            let Some(message) = super::resolve_for_player_view(
+                map,
+                assets,
+                time,
+                *receiver,
+                message.clone(),
+                player,
+            ) else {
                 continue;
             };
             self.passages

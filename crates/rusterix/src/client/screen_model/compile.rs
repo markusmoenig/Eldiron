@@ -691,6 +691,7 @@ impl ScreenElements {
                             self.text_input_widgets.insert(
                                 widget.id,
                                 TextInputWidget {
+                                    secret: table.get("ui").and_then(|v|v.get("secret")).and_then(toml::Value::as_bool).unwrap_or(false),
                                     name: widget.name.clone(),
                                     id: widget.id,
                                     rect: Rect::new(x, y, width, height),

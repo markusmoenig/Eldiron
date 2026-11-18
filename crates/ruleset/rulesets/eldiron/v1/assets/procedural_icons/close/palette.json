@@ -16,5 +16,9 @@
   },
   "handle-color": {
     "color": 21
+  },
+  "@surface": {
+    "base color": 7,
+    "emission": 1
   }
 }

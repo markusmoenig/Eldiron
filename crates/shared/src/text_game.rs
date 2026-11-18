@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use rusterix::party::PlayerView;
 use rusterix::{Currencies, Entity, Item, Linedef, Map, Sector, Value};
 use std::collections::BTreeSet;
 use toml::Table;
@@ -117,7 +118,11 @@ pub fn authoring_exit_presentation(src: &str) -> ExitPresentation {
 }
 
 pub fn current_player_and_sector(map: &Map) -> Option<(&Entity, &Sector)> {
-    let player = map.entities.iter().find(|entity| entity.is_player())?;
+    current_player_and_sector_for(map, PlayerView::Legacy)
+}
+
+pub fn current_player_and_sector_for(map: &Map, view: PlayerView) -> Option<(&Entity, &Sector)> {
+    let player = view.player(map)?;
     let player_pos = player.get_pos_xz();
     let current_sector_id = player
         .attributes
@@ -452,8 +457,12 @@ pub fn resolve_text_exits(map: &Map, sector: &Sector, probe_distance: f32) -> Ve
 }
 
 pub fn build_text_room(map: &Map, authoring: &str) -> Option<TextRoom> {
-    let Some((player, sector)) = current_player_and_sector(map) else {
-        let player = map.entities.iter().find(|entity| entity.is_player())?;
+    build_text_room_for(map, authoring, PlayerView::Legacy)
+}
+
+pub fn build_text_room_for(map: &Map, authoring: &str, view: PlayerView) -> Option<TextRoom> {
+    let Some((player, sector)) = current_player_and_sector_for(map, view) else {
+        let player = view.player(map)?;
         let nearby = |pos: Vec2<f32>| player.get_pos_xz().distance(pos) <= TEXT_NEARBY_DISTANCE;
         return Some(TextRoom {
             title: map.name.clone(),
@@ -461,7 +470,12 @@ pub fn build_text_room(map: &Map, authoring: &str) -> Option<TextRoom> {
                 .entities
                 .iter()
                 .filter(|entity| {
-                    !entity.is_player() && !entity_is_dead(entity) && nearby(entity.get_pos_xz())
+                    (if view == PlayerView::Legacy {
+                        !entity.is_player()
+                    } else {
+                        entity.id != player.id
+                    }) && !entity_is_dead(entity)
+                        && nearby(entity.get_pos_xz())
                 })
                 .map(display_name_for_entity)
                 .collect(),
@@ -469,7 +483,12 @@ pub fn build_text_room(map: &Map, authoring: &str) -> Option<TextRoom> {
                 .entities
                 .iter()
                 .filter(|entity| {
-                    !entity.is_player() && entity_is_dead(entity) && nearby(entity.get_pos_xz())
+                    (if view == PlayerView::Legacy {
+                        !entity.is_player()
+                    } else {
+                        entity.id != player.id
+                    }) && entity_is_dead(entity)
+                        && nearby(entity.get_pos_xz())
                 })
                 .map(corpse_name_for_entity)
                 .collect(),
@@ -488,7 +507,13 @@ pub fn build_text_room(map: &Map, authoring: &str) -> Option<TextRoom> {
     let live_entities = map
         .entities
         .iter()
-        .filter(|entity| !entity.is_player() && !entity_is_dead(entity))
+        .filter(|entity| {
+            (if view == PlayerView::Legacy {
+                !entity.is_player()
+            } else {
+                entity.id != player.id
+            }) && !entity_is_dead(entity)
+        })
         .filter(|entity| entity_sector_matches(map, entity, sector))
         .map(display_name_for_entity)
         .filter(|name| !name.trim().is_empty())
@@ -496,7 +521,13 @@ pub fn build_text_room(map: &Map, authoring: &str) -> Option<TextRoom> {
     let nearby_attackers = map
         .entities
         .iter()
-        .filter(|entity| !entity.is_player() && !entity_is_dead(entity))
+        .filter(|entity| {
+            (if view == PlayerView::Legacy {
+                !entity.is_player()
+            } else {
+                entity.id != player.id
+            }) && !entity_is_dead(entity)
+        })
         .filter(|entity| !entity_sector_matches(map, entity, sector))
         .filter(|entity| entity_target_matches_player(entity, player.id))
         .map(display_name_for_entity)
@@ -505,7 +536,13 @@ pub fn build_text_room(map: &Map, authoring: &str) -> Option<TextRoom> {
     let dead_entities = map
         .entities
         .iter()
-        .filter(|entity| !entity.is_player() && entity_is_dead(entity))
+        .filter(|entity| {
+            (if view == PlayerView::Legacy {
+                !entity.is_player()
+            } else {
+                entity.id != player.id
+            }) && entity_is_dead(entity)
+        })
         .filter(|entity| entity_sector_matches(map, entity, sector))
         .map(corpse_name_for_entity)
         .filter(|name| !name.trim().is_empty())
@@ -530,7 +567,11 @@ pub fn build_text_room(map: &Map, authoring: &str) -> Option<TextRoom> {
 }
 
 pub fn render_current_sector_description(map: &Map) -> Option<String> {
-    let (_, sector) = current_player_and_sector(map)?;
+    render_current_sector_description_for(map, PlayerView::Legacy)
+}
+
+pub fn render_current_sector_description_for(map: &Map, view: PlayerView) -> Option<String> {
+    let (_, sector) = current_player_and_sector_for(map, view)?;
     let (_, description) = sector_text_metadata(sector);
     if description.trim().is_empty() {
         None
@@ -540,7 +581,11 @@ pub fn render_current_sector_description(map: &Map) -> Option<String> {
 }
 
 pub fn render_player_inventory(map: &Map) -> Option<String> {
-    let player = map.entities.iter().find(|entity| entity.is_player())?;
+    render_player_inventory_for(map, PlayerView::Legacy)
+}
+
+pub fn render_player_inventory_for(map: &Map, view: PlayerView) -> Option<String> {
+    let player = view.player(map)?;
 
     let mut lines = vec!["Inventory:".to_string()];
     let configured_slots = player
@@ -752,7 +797,23 @@ pub fn render_player_stats(
     config_src: &str,
     rules_src: &str,
 ) -> Option<String> {
-    let player = map.entities.iter().find(|entity| entity.is_player())?;
+    render_player_stats_for(
+        map,
+        authoring_src,
+        config_src,
+        rules_src,
+        PlayerView::Legacy,
+    )
+}
+
+pub fn render_player_stats_for(
+    map: &Map,
+    authoring_src: &str,
+    config_src: &str,
+    rules_src: &str,
+    view: PlayerView,
+) -> Option<String> {
+    let player = view.player(map)?;
     let template = resolve_player_stats_template(authoring_src).unwrap_or_else(|| {
         [
             "STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}",
@@ -891,15 +952,24 @@ pub fn target_matches(name: &str, query: &str) -> bool {
 }
 
 pub fn resolve_text_target(map: &Map, sector: &Sector, query: &str) -> Result<TextTarget, String> {
-    resolve_text_target_in_room(map, Some(sector), query)
+    resolve_text_target_in_room(map, Some(sector), query, PlayerView::Legacy)
 }
 
 /// Use authored room boundaries when available, or nearby targets in geometry-only scenes.
 pub fn resolve_current_text_target(map: &Map, query: &str) -> Result<TextTarget, String> {
+    resolve_current_text_target_for(map, query, PlayerView::Legacy)
+}
+
+pub fn resolve_current_text_target_for(
+    map: &Map,
+    query: &str,
+    view: PlayerView,
+) -> Result<TextTarget, String> {
     resolve_text_target_in_room(
         map,
-        current_player_and_sector(map).map(|(_, sector)| sector),
+        current_player_and_sector_for(map, view).map(|(_, sector)| sector),
         query,
+        view,
     )
 }
 
@@ -907,15 +977,19 @@ fn resolve_text_target_in_room(
     map: &Map,
     sector: Option<&Sector>,
     query: &str,
+    view: PlayerView,
 ) -> Result<TextTarget, String> {
-    let Some(player) = map.entities.iter().find(|entity| entity.is_player()) else {
+    let Some(player) = view.player(map) else {
         return Err("No local player found.".into());
     };
     let player_pos = player.get_pos_xz();
     let mut matches: Vec<(String, TextTarget)> = Vec::new();
 
     for entity in &map.entities {
-        if entity.is_player() || entity_is_dead(entity) {
+        if entity.id == player.id
+            || (view == PlayerView::Legacy && entity.is_player())
+            || entity_is_dead(entity)
+        {
             continue;
         }
         let in_room = sector.map_or_else(
@@ -1093,8 +1167,16 @@ pub fn text_target_look_description(
 }
 
 pub fn current_player_supported_intents(project: &Project, map: &Map) -> BTreeSet<String> {
+    current_player_supported_intents_for(project, map, PlayerView::Legacy)
+}
+
+pub fn current_player_supported_intents_for(
+    project: &Project,
+    map: &Map,
+    view: PlayerView,
+) -> BTreeSet<String> {
     let mut intents = BTreeSet::new();
-    let Some(player) = map.entities.iter().find(|entity| entity.is_player()) else {
+    let Some(player) = view.player(map) else {
         return intents;
     };
     let Some(class_name) = player.get_attr_string("class_name") else {

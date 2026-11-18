@@ -481,6 +481,18 @@ impl MessagesWidget {
         messages: &[crate::server::Message],
         choices: &[crate::MultipleChoice],
     ) {
+        self.queue_messages_for(assets, map, time, messages, choices, crate::party::PlayerView::Legacy);
+    }
+
+    pub fn queue_messages_for(
+        &mut self,
+        assets: &Assets,
+        map: &Map,
+        time: &TheTime,
+        messages: &[crate::server::Message],
+        choices: &[crate::MultipleChoice],
+        player: crate::party::PlayerView,
+    ) {
         self.deactivate_inactive_choices(assets, map, time);
         self.advance_pause_timer();
         let mut currencies = None;
@@ -489,6 +501,9 @@ impl MessagesWidget {
 
         // Append new messages
         for (sender_entity, sender_item, receiver_id, msg, category) in messages {
+            if player != crate::party::PlayerView::Legacy && player.entity_id(map) != Some(*receiver_id) {
+                continue;
+            }
             if Self::is_pause_category(category) {
                 self.queue_pause(msg, category);
                 continue;
@@ -529,6 +544,9 @@ impl MessagesWidget {
         }
 
         for choices in choices {
+            if player != crate::party::PlayerView::Legacy && player.entity_id(map) != Some(choices.to) {
+                continue;
+            }
             let accepted_choices: Vec<_> = choices
                 .choices
                 .iter()
@@ -1979,5 +1997,38 @@ mod tests {
         assert!(widget.active_choices.is_empty());
         assert_eq!(widget.messages.len(), 1);
         assert_eq!(widget.messages[0].text, "Choose quickly.");
+    }
+}
+
+#[cfg(test)]
+mod connected_player_tests {
+    use super::*;
+
+    #[test]
+    fn connected_transcript_filters_private_messages_before_pause_or_reveal() {
+        let assets = Assets::default();
+        let map = Map::default();
+        let mut widget = MessagesWidget::new();
+        widget.queue_messages_for(
+            &assets,
+            &map,
+            &TheTime::default(),
+            &[
+                (None, None, 1, "Other player's text".into(), "status".into()),
+                (None, None, 1, "1000".into(), "pause".into()),
+                (None, None, 2, "Own private text".into(), "status".into()),
+            ],
+            &[],
+            crate::party::PlayerView::Controlled(2),
+        );
+        assert_eq!(widget.pending_messages.len(), 1);
+        assert!(matches!(widget.pending_messages.front(), Some(PendingMessage::Line(line)) if line.text == "Own private text"));
+        widget.reset_runtime();
+        widget.queue_messages_for(
+            &assets, &map, &TheTime::default(),
+            &[(None, None, 1, "No actor".into(), "status".into())], &[],
+            crate::party::PlayerView::Uncontrolled,
+        );
+        assert!(widget.pending_messages.is_empty());
     }
 }

@@ -143,6 +143,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             case "open_document": openDocument(expected: request["document"] as? String)
             case "save_document": saveDocument(expected: request["document"] as? String)
             case "save_document_as": saveDocument(as: true, expected: request["document"] as? String)
+            case "export_public_client": saveDocument(as: true, expected: request["document"] as? String, publicClient: true)
             #endif
             case "title":
                 #if os(macOS)
@@ -376,18 +377,22 @@ extension Renderer {
             self.readDocument(from: url, host: host, document: document.document)
         }
     }
-    func saveDocument(as saveAs: Bool = false, expected: String? = nil) {
+    func saveDocument(as saveAs: Bool = false, expected: String? = nil, publicClient: Bool = false) {
         guard let document = response(Document.self, eldiron_creator_document_info_v1(handle)),
               expected == nil || expected == document.document,
-              let save = document.document.withCString({ response(Save.self, eldiron_creator_document_prepare_save_v1(handle, $0)) }) else { return }
+              let save = document.document.withCString({ response(Save.self, publicClient ? eldiron_creator_document_prepare_client_export_v1(handle, $0) : eldiron_creator_document_prepare_save_v1(handle, $0)) }) else { return }
         let host = handle
-        if !saveAs, let path = document.path { writeSave(save, to: URL(fileURLWithPath: path), host: host); return }
+        if !saveAs && !publicClient, let path = document.path { writeSave(save, to: URL(fileURLWithPath: path), host: host); return }
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [UTType(filenameExtension: "eldiron") ?? .data]
-        panel.nameFieldStringValue = document.path.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Untitled.eldiron"
+        panel.allowedContentTypes = [UTType(filenameExtension: publicClient ? "eldiron-client" : "eldiron") ?? .data]
+        panel.nameFieldStringValue = publicClient ? ((document.path.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent } ?? "Untitled") + ".eldiron-client") : (document.path.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Untitled.eldiron")
         panel.begin { [weak self] answer in
             guard let self, self.handle == host else { return }
             guard answer == .OK, let url = panel.url else { self.finishSave(host: host, ticket: save.ticket, success: false, url: nil); return }
+            if publicClient && url.pathExtension != "eldiron-client" {
+                self.finishSave(host: host, ticket: save.ticket, success: false, url: nil)
+                return
+            }
             self.writeSave(save, to: url, host: host)
         }
     }
@@ -410,11 +415,11 @@ extension Renderer: UIDocumentPickerDelegate {
         picker.delegate = self
         presenter.present(picker, animated: true)
     }
-    func saveDocument(as saveAs: Bool = false, expected: String? = nil) {
+    func saveDocument(as saveAs: Bool = false, expected: String? = nil, publicClient: Bool = false) {
         guard mobileDocument == nil, let presenter = documentPresenter(),
               let document = response(Document.self, eldiron_creator_document_info_v1(handle)),
               expected == nil || expected == document.document,
-              let save = document.document.withCString({ response(Save.self, eldiron_creator_document_prepare_save_v1(handle, $0)) }) else { return }
+              let save = document.document.withCString({ response(Save.self, publicClient ? eldiron_creator_document_prepare_client_export_v1(handle, $0) : eldiron_creator_document_prepare_save_v1(handle, $0)) }) else { return }
         var data = Data(count: save.length)
         let copied = data.withUnsafeMutableBytes { bytes in
             eldiron_creator_document_copy_save_v1(handle, save.ticket, bytes.bindMemory(to: UInt8.self).baseAddress, UInt(bytes.count))
@@ -423,7 +428,8 @@ extension Renderer: UIDocumentPickerDelegate {
         // UIDocumentPicker owns the external copy. Keep the exact immutable export
         // alive until its addressed delegate completion or cancellation.
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let url = directory.appendingPathComponent(document.path.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Untitled.eldiron")
+        let name = publicClient ? ((document.path.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent } ?? "Untitled") + ".eldiron-client") : (document.path.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Untitled.eldiron")
+        let url = directory.appendingPathComponent(name)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try data.write(to: url, options: .atomic)

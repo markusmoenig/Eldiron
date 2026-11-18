@@ -378,6 +378,7 @@ pub fn apply_item_data(item: &mut Item, toml: &str) {
                     item.set_attribute("light", crate::Value::Light(light));
                 }
             }
+            let _ = crate::effective_values::initialize_presets(item);
         }
         Err(err) => {
             println!("error {:?}", err);

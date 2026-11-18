@@ -1,4 +1,6 @@
 [en]
+recipes.repaired = "Repaired {item}"
+recipes.could_not_repair = "Could not repair {item}: {reason}"
 combat.damage.incoming = "{attacker} hits you for {amount} damage"
 combat.damage.outgoing = "You hit {defender} for {amount} damage"
 progression.xp.gained = "You gain {amount} XP"

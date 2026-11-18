@@ -5,6 +5,8 @@ sidebar_position: 2
 
 You can configure text-adventure and authoring-related runtime behavior by selecting **Game -> Authoring** in the **project tree**.
 
+World resource bindings belong to the selected placement's **Authoring** TOML, rather than this global configuration. See [Bind world resources](../creator/authoring#bind-world-resources) for trees, rivers, shared wells and skeleton remains. Resource profiles and pools come from the project's supplied ruleset.
+
 This page documents:
 
 - the global `Game / Authoring` TOML configuration

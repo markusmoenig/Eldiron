@@ -1,0 +1,15 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "part-0-color": {
+    "color": 17
+  },
+  "part-1-color": {
+    "color": 19
+  },
+  "part-2-color": {
+    "color": 21
+  }
+}

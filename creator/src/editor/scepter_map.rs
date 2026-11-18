@@ -900,10 +900,24 @@ fn delete(project: &mut Project, c: &MapDelete) -> Result<Json, String> {
     Ok(json!({"deleted":c.targets}))
 }
 
+fn validate_sector_data(data: &str) -> Result<(), String> {
+    if data.len() > 65536 {
+        return Err("Sector TOML exceeds 64 KiB".into());
+    }
+    data.parse::<toml::Table>()
+        .map_err(|error| format!("Invalid sector TOML: {error}"))?;
+    Ok(())
+}
+
 fn sector_update(project: &mut Project, c: &SectorUpdate) -> Result<Json, String> {
     let i = region_index(project, &c.region)?;
-    if let Some(n) = &c.name {
+    if let Some(n) = &c.name
+        && !n.is_empty()
+    {
         name(n)?;
+    }
+    if let Some(data) = &c.data {
+        validate_sector_data(data)?;
     }
     if c.height.is_some_and(|h| !(0.01..=256.).contains(&h))
         || c.floor_height
@@ -913,8 +927,12 @@ fn sector_update(project: &mut Project, c: &SectorUpdate) -> Result<Json, String
     }
     let map = &mut project.regions[i].map;
     let s = map.find_sector_mut(c.id).ok_or("Sector not found")?;
+    let creator_id = s.creator_id;
     if let Some(n) = &c.name {
         s.name = n.clone();
+    }
+    if let Some(data) = &c.data {
+        s.properties.set("data", Value::Str(data.clone()));
     }
     if let Some(h) = c.height {
         s.properties.set("wall_height", Value::Float(h));
@@ -956,7 +974,7 @@ fn sector_update(project: &mut Project, c: &SectorUpdate) -> Result<Json, String
         }
     }
     map.update_surfaces();
-    Ok(json!({"sector":c.id}))
+    Ok(json!({"sector":c.id,"creator_id":creator_id}))
 }
 
 pub(super) fn erase_cells(project: &mut Project, c: &EraseCells) -> Result<Json, String> {
@@ -1027,7 +1045,12 @@ pub(super) fn apply(project: &mut Project, op: &EditOperation) -> Result<Json, S
         EditOperation::MapDelete(c) => (c.region.clone(), delete(project, c)?),
         EditOperation::EraseCells(c) => (c.region.clone(), erase_cells(project, c)?),
         EditOperation::SectorCreate(c) => {
-            name(&c.name)?;
+            if !c.name.is_empty() {
+                name(&c.name)?;
+            }
+            if let Some(data) = &c.data {
+                validate_sector_data(data)?;
+            }
             let i = region_index(project, &c.region)?;
             let floor = source(project, &c.floor)?;
             let ceiling = source(project, &c.ceiling)?;
@@ -1039,6 +1062,10 @@ pub(super) fn apply(project: &mut Project, op: &EditOperation) -> Result<Json, S
             let map = &mut project.regions[i].map;
             let id = polygon(map, &c.polygon, &c.name, c.layer)?;
             let s = map.find_sector_mut(id).unwrap();
+            let creator_id = s.creator_id;
+            if let Some(data) = &c.data {
+                s.properties.set("data", Value::Str(data.clone()));
+            }
             if let Some(f) = floor {
                 s.properties.set("source", Value::Source(f));
             }
@@ -1053,7 +1080,10 @@ pub(super) fn apply(project: &mut Project, op: &EditOperation) -> Result<Json, S
                 }
             }
             map.update_surfaces();
-            (c.region.clone(), json!({"sector":id}))
+            (
+                c.region.clone(),
+                json!({"sector":id,"creator_id":creator_id}),
+            )
         }
         _ => return Err("Not a map operation".into()),
     };
@@ -1157,6 +1187,7 @@ mod tests {
                 ceiling: None,
                 height: None,
                 layer: Some(1),
+                data: None,
             })],
         )
         .unwrap();

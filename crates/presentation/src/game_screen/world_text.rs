@@ -26,6 +26,7 @@ struct Placed {
 #[derive(Default)]
 pub struct WorldTextOverlay {
     session: Option<Uuid>,
+    player: rusterix::party::PlayerView,
     state: WorldTexts,
     prepared: FxHashMap<Uuid, Prepared>,
     placed: Vec<Placed>,
@@ -34,8 +35,9 @@ pub struct WorldTextOverlay {
 }
 impl WorldTextOverlay {
     pub(super) fn bind_runtime(&mut self, world: &RuntimeView<'_>) {
-        if self.session != Some(world.session_id) {
+        if self.session != Some(world.session_id) || self.player != world.player {
             self.session = Some(world.session_id);
+            self.player = world.player;
             self.state = WorldTexts::default();
             self.prepared.clear();
             self.invalidate_geometry();
@@ -62,8 +64,13 @@ impl WorldTextOverlay {
     pub fn receive(&mut self, world: &RuntimeView<'_>, events: &RegionEvents) {
         self.bind_runtime(world);
         if let Some(map) = world.map {
-            self.state
-                .receive(map, world.assets, &world.time, &events.world_text);
+            self.state.receive_for(
+                map,
+                world.assets,
+                &world.time,
+                &events.world_text,
+                world.player,
+            );
         }
     }
     pub(super) fn prepare(
@@ -109,7 +116,11 @@ impl WorldTextOverlay {
                 }
                 let point = project(game, position).or_else(|| {
                     carrier(&passage.message.anchor, map)
-                        .filter(|e| e.is_player())
+                        .filter(|e| {
+                            world
+                                .player_entity()
+                                .is_some_and(|player| player.id == e.id)
+                        })
                         .map(|_| {
                             scenevm::prelude::Vec2::new(
                                 game.rect.x + game.rect.width * 0.5,

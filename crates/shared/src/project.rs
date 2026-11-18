@@ -349,6 +349,10 @@ impl TileCollectionAsset {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(remote = "Self")]
 pub struct Project {
+    /// Installed only by the public release reader, never authored/serialized.
+    #[serde(skip)]
+    pub client_release: Option<std::sync::Arc<crate::public_client::ClientRelease>>,
+
     pub name: String,
     pub regions: Vec<Region>,
     pub tilemaps: Vec<Tilemap>,
@@ -526,6 +530,7 @@ impl Project {
         let region = Region::default();
 
         Self {
+            client_release: None,
             name: String::new(),
 
             regions: vec![region],
@@ -583,6 +588,7 @@ impl Project {
     }
 
     pub fn migrate_default_ruleset(&mut self) -> bool {
+        if self.client_release.is_some() { return false; }
         if crate::rulesets::has_top_level_ruleset(&self.config) {
             return false;
         }
@@ -627,6 +633,7 @@ impl Project {
 
     /// Resolve the project-owned rules document for runtime consumers.
     pub fn rules_source(&self) -> Result<String, String> {
+        if let Some(release) = &self.client_release {return Ok(release.visuals.rules.clone());}
         let resolved = self.rules_document.document()?.resolve()?;
         if !resolved.validation().is_ok() {
             let errors = resolved
@@ -652,6 +659,7 @@ impl Project {
     }
 
     pub fn sync_ruleset_items(&mut self) -> Result<usize, String> {
+        if self.client_release.is_some() { return Ok(0); }
         crate::ruleset_materials::install(self)?;
         let procedural_states = crate::ruleset_materials::icon_state_tiles(self)?;
         let bundled_tiles =

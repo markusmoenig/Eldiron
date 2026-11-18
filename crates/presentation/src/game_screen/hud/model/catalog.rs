@@ -124,9 +124,7 @@ impl HudState {
         elements: &ScreenElements,
     ) -> Option<PanelFrame> {
         let open = self.catalog.as_ref()?;
-        let actor = world
-            .map
-            .and_then(|map| screen_model::resolve_party_entity(map, None));
+        let actor = world.map.and_then(|map| world.party_entity(map, None));
         let class = actor.and_then(|actor| {
             actor
                 .get_attr_string("class")

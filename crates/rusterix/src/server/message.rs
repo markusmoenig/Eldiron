@@ -3,7 +3,7 @@ use crate::{BlockPropInstance, Entity, Map, Value, ValueContainer};
 use scenevm::PaletteRemap2DMode;
 use theframework_core::prelude::*;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum AudioCommand {
     /// Play an audio asset on a bus/layer.
     Play {
@@ -20,7 +20,7 @@ pub enum AudioCommand {
     SetBusVolume { bus: String, volume: f32 },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct PaletteRemap2DState {
     pub start_index: u32,
     pub end_index: u32,
@@ -39,7 +39,7 @@ impl Default for PaletteRemap2DState {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct RuntimeRenderState {
     pub palette_remap: Option<PaletteRemap2DState>,
     pub render: ValueContainer,
@@ -79,6 +79,8 @@ pub enum RegionMessage {
     /// Register a local player (which receives user based events).
     /// RegionInstanceId, PlayerId
     RegisterPlayer(u32, u32),
+    /// A host-requested player has been created for one connection.
+    RegisterConnectedPlayer(super::connection::PlayerConnectionId, u32, u32),
     /// Request the current sector description for a player after registration/startup.
     ShowStartupSectorDescription(u32),
     /// An event
@@ -87,6 +89,8 @@ pub enum RegionMessage {
     UserEvent(u32, String, Value),
     /// Create the entity in the region.
     CreateEntity(u32, Entity),
+    /// Instantiate a host-prepared character and acknowledge its connection.
+    CreateConnectedPlayer(super::connection::PlayerConnectionId, Entity),
     /// A user action
     UserAction(u32, EntityAction),
     /// Instantly move an entity to a sector, optionally in another region.
@@ -110,8 +114,8 @@ pub enum RegionMessage {
     /// client side. Its return needs no counterpart: the next entity update
     /// re-creates it.
     RemoveEntity(u32, u32),
-    /// Open a container panel for the local client: RegionId, ContainerItemId, OwnerEntityId
-    OpenContainer(u32, u32, Option<u32>),
+    /// RegionId, recipient actor, ContainerItemId, OwnerEntityId.
+    OpenContainer(u32, u32, u32, Option<u32>),
     /// Log Message
     LogMessage(String),
     /// Time event of a Region
@@ -283,9 +287,12 @@ pub enum EntityAction {
     },
     /// A multiple choice item was selected by the user
     Choice(Choice),
+    /// Bounded world-source request; the authority resolves outputs and costs.
+    ResourceInteract(super::region::resources::ResourceRequest),
+
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PlayerCamera {
     #[default]
     D2,
@@ -432,7 +439,7 @@ pub struct DialogChoice {
 }
 
 /// Multiple choices for the player
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct MultipleChoice {
     pub region: u32,
     pub from: u32,

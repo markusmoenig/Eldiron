@@ -4,6 +4,19 @@ use scenevm::GeoId;
 use std::cell::RefCell;
 use vek::{Vec2, Vec3};
 
+// Unique mutation stamps also distinguish whole-world replacement/rebuilds.
+// Clones preserve their stamp until a real mutation; it is not persisted.
+static NEXT_PHYSICS_REVISION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+fn next_physics_revision() -> u64 {
+    NEXT_PHYSICS_REVISION
+        .fetch_update(
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+            |n| n.checked_add(1),
+        )
+        .expect("Physics revision exhausted")
+}
+
 const PASSABLE_OPENING_EXTRA_TOLERANCE: f32 = 0.12;
 const WORLD_GEOMETRY_RADIUS_PADDING: f32 = 0.025;
 const FLOOR_EDGE_SUPPORT_PROBE_SCALE: f32 = 0.5;
@@ -11,7 +24,11 @@ const DIRECT_MOVEMENT_GEOMETRY_PADDING: f32 = 0.05;
 const DIRECT_FLOOR_FORWARD_SUPPORT_SCALE: f32 = 0.55;
 
 /// Manages collision data across all chunks in the world
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct CollisionWorld {
+    /// Transient mutation stamp; compiled packages retain their external reference.
+    #[serde(skip)]
+    revision: u64,
     /// Collision data indexed by chunk coordinates
     chunks: FxHashMap<Vec2<i32>, ChunkCollision>,
     /// Current state of dynamic geometry (doors open/closed, etc.)
@@ -21,7 +38,7 @@ pub struct CollisionWorld {
 }
 
 /// Collision data for a single chunk
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ChunkCollision {
     /// Static blocking volumes (walls, extruded surfaces)
     pub static_volumes: Vec<BlockingVolume>,
@@ -34,14 +51,14 @@ pub struct ChunkCollision {
 }
 
 /// A static blocking volume (wall, extruded surface, etc.)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct BlockingVolume {
     pub geo_id: GeoId,
     pub min: Vec3<f32>,
     pub max: Vec3<f32>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct StaticBarrier {
     pub geo_id: GeoId,
     pub start: Vec2<f32>,
@@ -51,7 +68,7 @@ pub struct StaticBarrier {
 }
 
 /// A dynamic opening that can change state (door, window, etc.)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DynamicOpening {
     /// GeoId for this opening (used to control state)
     pub geo_id: GeoId,
@@ -68,7 +85,7 @@ pub struct DynamicOpening {
 }
 
 /// Type of dynamic opening
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum OpeningType {
     Door,    // Can open/close
     Window,  // Always blocking at player height
@@ -76,7 +93,7 @@ pub enum OpeningType {
 }
 
 /// A walkable floor region
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct WalkableFloor {
     pub geo_id: GeoId,
     pub height: f32,
@@ -142,7 +159,7 @@ pub struct CollisionProbeResult {
 }
 
 /// State of a dynamic geometry element
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DynamicState {
     /// Whether this geometry is currently passable
     pub is_passable: bool,
@@ -223,6 +240,7 @@ impl CollisionWorld {
             chunks: FxHashMap::default(),
             dynamic_states: FxHashMap::default(),
             chunk_size,
+            revision: next_physics_revision(),
         }
     }
 
@@ -238,9 +256,14 @@ impl CollisionWorld {
         (radius + DIRECT_MOVEMENT_GEOMETRY_PADDING).max(0.0)
     }
 
+    pub fn revision(&self) -> u64 { self.revision }
+
     /// Add/update collision data for a chunk
     pub fn update_chunk(&mut self, chunk_origin: Vec2<i32>, collision: ChunkCollision) {
-        self.chunks.insert(chunk_origin, collision);
+        if self.chunks.get(&chunk_origin) != Some(&collision) {
+            self.chunks.insert(chunk_origin, collision);
+            self.revision = next_physics_revision();
+        }
     }
 
     pub fn has_collision_data(&self) -> bool {
@@ -249,7 +272,9 @@ impl CollisionWorld {
 
     /// Remove collision data for a chunk (when unloading)
     pub fn remove_chunk(&mut self, chunk_origin: Vec2<i32>) {
-        self.chunks.remove(&chunk_origin);
+        if self.chunks.remove(&chunk_origin).is_some() {
+            self.revision = next_physics_revision();
+        }
     }
 
     /// Check if a position is blocked (for player movement)
@@ -503,6 +528,7 @@ impl CollisionWorld {
 
     /// Set the state of a dynamic opening (door open/close)
     pub fn set_opening_state(&mut self, geo_id: GeoId, is_passable: bool) {
+        let mut changed = self.dynamic_states.get(&geo_id).is_none_or(|s|s.is_passable != is_passable);
         self.dynamic_states
             .entry(geo_id)
             .or_insert(DynamicState {
@@ -516,10 +542,12 @@ impl CollisionWorld {
         for chunk in self.chunks.values_mut() {
             for opening in &mut chunk.dynamic_openings {
                 if opening.geo_id == geo_id {
+                    changed |= opening.item_blocking != item_blocking;
                     opening.item_blocking = item_blocking;
                 }
             }
         }
+        if changed { self.revision = next_physics_revision(); }
     }
 
     /// Get the state of a dynamic opening
@@ -2446,6 +2474,23 @@ impl CollisionWorld {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn physics_stamps_distinguish_rebuilds_and_real_mutations_without_persisting() {
+        let mut world=super::CollisionWorld::new(10);
+        let initial=world.revision();
+        world.update_chunk([0,0].into(),super::ChunkCollision::default());
+        let chunk=world.revision();assert_ne!(initial,chunk);
+        world.update_chunk([0,0].into(),super::ChunkCollision::default());assert_eq!(world.revision(),chunk);
+        let id=scenevm::GeoId::Unknown(42);
+        world.set_opening_state(id,false);let closed=world.revision();
+        world.set_opening_state(id,false);assert_eq!(world.revision(),closed);
+        world.set_opening_state(id,true);assert_ne!(world.revision(),closed);
+        let copy=world.clone();assert_eq!(copy.revision(),world.revision());
+        let mut rebuilt=super::CollisionWorld::new(10);
+        rebuilt.update_chunk([0,0].into(),super::ChunkCollision::default());
+        assert_ne!(rebuilt.revision(),world.revision(),"same chunk count is not a content revision");
+        assert!(serde_json::to_value(super::CollisionWorld::new(10)).unwrap().get("revision").is_none());
+    }
     use super::*;
 
     fn fixture_project_json(path: &std::path::Path) -> serde_json::Value {

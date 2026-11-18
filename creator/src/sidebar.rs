@@ -398,10 +398,13 @@ impl Sidebar {
         world_code_item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         config_node.add_widget(Box::new(world_code_item));
 
-        let mut rules_item = TheTreeItem::new(TheId::named("Game Rules"));
-        rules_item.set_text("Rules".to_string());
-        rules_item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
-        config_node.add_widget(Box::new(rules_item));
+        #[cfg(feature = "internal-rules-editor")]
+        {
+            let mut rules_item = TheTreeItem::new(TheId::named("Game Rules"));
+            rules_item.set_text("Rules".to_string());
+            rules_item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
+            config_node.add_widget(Box::new(rules_item));
+        }
 
         let mut locales_item = TheTreeItem::new(TheId::named("Game Locales"));
         locales_item.set_text("Locales".to_string());
@@ -5302,6 +5305,36 @@ impl Sidebar {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rules_navigation_requires_an_internal_build_and_preserves_the_document() {
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(1000, 700, 1.0);
+        ui.init(&mut ctx);
+        let mut server = CreatorContext::default();
+        Sidebar::new().init_ui(&mut ui, &mut ctx, &mut server);
+        let tree = ui.get_tree_layout("Project Tree").unwrap();
+        let has_rules = tree.get_root().childs.iter().any(|node| {
+            node.widgets.iter().any(|widget| widget.id().name == "Game Rules")
+        });
+        assert_eq!(has_rules, cfg!(feature = "internal-rules-editor"));
+        assert_eq!(
+            server.docks.read().docks.contains_key("Rules"),
+            cfg!(feature = "internal-rules-editor")
+        );
+
+        if !cfg!(feature = "internal-rules-editor") {
+            let project = Project::default();
+            let rules = project.rules_document.clone();
+            let previous_context = server.shared.pc;
+            // A legacy Apple command or a stale selection must not open it.
+            set_project_context(
+                &mut ctx, &mut ui, &project, &mut server, ProjectContext::GameRules,
+            );
+            assert!(server.shared.pc == previous_context);
+            assert_eq!(project.rules_document, rules);
+        }
+    }
 
     #[test]
     fn tab_navigation_wraps_in_both_directions() {

@@ -1,6 +1,6 @@
 //! Camera-independent isometric scene selection and borrowed source placement.
 //! This module owns no viewport pixels, GPU device, runtime or presentation surface.
-use super::{AvatarSprite, flat_terrain_contains, item_cutaway, item_sprite_key, lighting};
+use super::{AvatarSprite, flat_terrain_contains, item_sprite_key, lighting};
 use crate::{Assets, Map, Sector, Tile, Value, chunkbuilder::terrain_surface::TerrainSurface};
 use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
@@ -15,6 +15,7 @@ pub use source::{Sprite, SpriteImage, SpriteOwner, TerrainContact};
 /// No viewport-sized albedo, surface, depth or ownership array belongs here.
 #[derive(Default)]
 pub struct SceneCache {
+    pub player_view: crate::party::PlayerView,
     terrain_key: Option<(Uuid, u32)>,
     terrain_model: Option<Arc<TerrainSurface>>,
     pub(super) shadow_geometry: Option<(u64, Arc<scenevm::isometric::ShadowGeometry>)>,
@@ -51,7 +52,14 @@ impl SceneCache {
         seconds: f32,
         avatars: &'a HashMap<usize, AvatarSprite>,
     ) -> ScenePlan<'a> {
-        collect::collect(map, assets, seconds, avatars, self.terrain(map))
+        collect::collect(
+            map,
+            assets,
+            seconds,
+            avatars,
+            self.terrain(map),
+            self.player_view,
+        )
     }
 
     /// Reuses static terrain triangles while updating transformed dynamic meshes.

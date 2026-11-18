@@ -52,11 +52,7 @@ impl GameScreenController {
             if LookSettings::from_widget(widget) != Some(settings) {
                 return None;
             }
-            let player = world
-                .map?
-                .entities
-                .iter()
-                .find(|entity| entity.is_player())?;
+            let player = world.player_entity()?;
             Some((
                 self.world.displayed.as_ref()?.binding,
                 view.key,

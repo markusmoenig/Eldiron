@@ -55,9 +55,12 @@ def main():
     check("rusterix", CPU_ONLY, features="")
     check("eldiron-shared", CPU_ONLY, features="")
     check("eldiron-runtime", CPU_ONLY)
+    check("eldiron-network", CPU_ONLY)
+    check("eldiron-server", CPU_ONLY)
+    check("eldiron-online", CPU_ONLY)
     check("rusterix", CPU_ONLY, features="browser-codec-worker", target="wasm32-unknown-unknown")
     check("eldiron-client-terminal", CPU_ONLY)
-    for package in ("scenevm", "rusterix", "eldiron-shared", "eldiron-runtime"):
+    for package in ("scenevm", "rusterix", "eldiron-shared", "eldiron-runtime", "eldiron-network"):
         check(package, CPU_ONLY, features="", target="wasm32-unknown-unknown")
     check("theframework", GPU, features="ui-paint")
     check("theframework", {"winit", "pixels", "softbuffer"}, features="render-wgpu", no_widget_ui=True)

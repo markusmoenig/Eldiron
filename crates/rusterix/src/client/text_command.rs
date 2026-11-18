@@ -84,6 +84,7 @@ fn ruleset_id_match_len(payload: &str, ruleset_id: &str) -> Option<usize> {
             if !(next.is_whitespace() || next == '_' || next == '-') {
                 return None;
             }
+            consumed += next.len_utf8();
         }
     }
 
@@ -338,6 +339,23 @@ mod tests {
 
     fn actions(values: &[&str]) -> BTreeSet<String> {
         values.iter().map(|value| value.to_string()).collect()
+    }
+
+    #[test]
+    fn action_ids_accept_spaces_underscores_and_hyphens_with_exact_item_targets() {
+        for name in [
+            "repair bone armor",
+            "repair_bone_armor",
+            "repair-bone-armor",
+        ] {
+            assert_eq!(
+                split_ruleset_id_and_target(
+                    &format!("{name} #41"),
+                    &actions(&["repair_bone_armor"])
+                ),
+                ("repair_bone_armor".into(), Some("#41".into()))
+            );
+        }
     }
 
     #[test]

@@ -90,12 +90,31 @@ impl ScepterCommandMeta {
 /// The live Scepter command catalog.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ScepterLorebook {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub guide: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub quick_start: Vec<String>,
     pub commands: BTreeMap<String, ScepterCommandMeta>,
 }
 
 impl ScepterLorebook {
     pub fn built_in() -> Self {
-        let mut lorebook = Self::default();
+        let mut lorebook = Self {
+            guide: "https://eldiron.com/docs/creator/scepter_remote_editing/".into(),
+            quick_start: [
+                "Use a local HTTP client on the same machine as desktop Creator. Open the project in Creator before making requests.",
+                "GET /scepter/project to read the open project, session, and revision.",
+                "POST {command, params} to /scepter/command with Content-Type: application/json. Use commands with implemented: true.",
+                "Read editor.context for the active region and selection. Use region.snapshot to read sector footprints and Authoring TOML, including description.",
+                "Use project.preview_transaction for a staged preview and project.transaction to apply the same operations.",
+                "For mutations, pass request_id, session, and revision at the top level. On HTTP 409, reread the project and affected content before retrying.",
+                "On HTTP 202, poll GET /scepter/job?request_id=<request_id> until the job finishes.",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+            ..Self::default()
+        };
         for mut command in built_in_commands() {
             command.implemented = crate::creator_implements(&command.name);
             lorebook.commands.insert(command.name.clone(), command);
@@ -127,7 +146,11 @@ impl ScepterLorebook {
             ),
             (
                 "project.transaction",
-                "Atomic material, composition, surface, sector, geometry, wall/opening, room, entity and paint operations. Prepares off the UI thread, rechecks revision, one undo. Requires request_id, session and revision. params: {operations:[{op,params}],dry_run:false}.",
+                "Atomic material, mesh, composition, sector, geometry, entity and paint operations. Prepares off the UI thread, rechecks revision and adds one undo step.",
+            ),
+            (
+                "project.preview_transaction",
+                "Render a staged transaction without publishing. Use the returned session and revision to apply the same operations.",
             ),
             (
                 "material.list",
@@ -140,6 +163,10 @@ impl ScepterLorebook {
             (
                 "material.validate",
                 "Validate an MZ PBR bundle against the project palette. params: {bundle:string}.",
+            ),
+            (
+                "mesh.get",
+                "Read an editable MZ mesh recipe and its 2D isometric bake settings. params: {id:UUID}.",
             ),
             (
                 "composition.get",
@@ -165,15 +192,18 @@ impl ScepterLorebook {
                 } else {
                     vec![ScepterCapability::ProjectWrite]
                 }
+            } else if name == "project.preview_transaction" {
+                vec![ScepterCapability::ProjectRead, ScepterCapability::Preview]
             } else {
                 vec![ScepterCapability::ProjectRead]
             };
             meta.undoable = name == "project.transaction";
+            meta.previewable = name == "project.preview_transaction";
             meta.params = match name {
                 "project.transaction" => vec![
                     ScepterParamMeta::new(
                         "operations",
-                        "1–128 typed {op,params} operations. Ops: material_put, composition_put/copy, surface_apply, paint_cells/rect, erase_cells, sector_create/update, geometry_create, entity_place/update, map_copy/transform/delete. Map targets: sectors(integer IDs), geometry/characters/items(UUIDs). 3D uses X/Y/Z, 2D X/Z; rotation_y is degrees.",
+                        "1–128 typed {op,params} operations. Ops: material_put, mesh_put (id, recipe, blocking?), composition_put/copy, surface_apply, paint_cells/rect, erase_cells, sector_create/update (with optional data TOML), geometry_create, entity_place/update, map_copy/transform/delete. Map targets: sectors(integer IDs), geometry/characters/items(UUIDs). 3D uses X/Y/Z, 2D X/Z; rotation_y is degrees.",
                         true,
                         "array",
                     ),
@@ -182,6 +212,20 @@ impl ScepterLorebook {
                         "Validate without publishing or undo",
                         false,
                         "boolean",
+                    ),
+                ],
+                "project.preview_transaction" => vec![
+                    ScepterParamMeta::new(
+                        "operations",
+                        "Same operations as project.transaction",
+                        true,
+                        "array",
+                    ),
+                    ScepterParamMeta::new(
+                        "preview",
+                        "Same parameters as region.render_preview",
+                        true,
+                        "object",
                     ),
                 ],
                 "project.changes" => vec![
@@ -197,7 +241,7 @@ impl ScepterLorebook {
                 "editor.select" => vec![
                     ScepterParamMeta::new(
                         "targets",
-                        "Region map targets: sectors, geometry, walls, characters, items",
+                        "Map targets include sectors, geometry, characters, and items",
                         true,
                         "object",
                     ),
@@ -238,12 +282,44 @@ impl ScepterLorebook {
                 ],
                 "region.entities" | "surface.list" => vec![ScepterParamMeta::new(
                     "region",
-                    "Region reference",
-                    true,
+                    "Region reference. Defaults to the active region.",
+                    false,
                     "object",
+                )],
+                "material.get" | "composition.get" | "mesh.get" => {
+                    vec![ScepterParamMeta::new("id", "Asset UUID", true, "string")]
+                }
+                "material.validate" => vec![ScepterParamMeta::new(
+                    "bundle",
+                    "Editable MZ material bundle encoded as a string",
+                    true,
+                    "string",
                 )],
                 _ => vec![],
             };
+            if name == "project.preview_transaction" {
+                meta.examples.push(json!({
+                    "command": "project.preview_transaction",
+                    "params": {
+                        "operations": [{
+                            "op": "sector_create",
+                            "params": {
+                                "region": {"name": "Harbor"},
+                                "name": "Courtyard",
+                                "polygon": [[2, 4], [6, 4], [6, 8], [2, 8]],
+                                "floor": {"alias": "Street"},
+                                "data": "description = \"A cobbled courtyard.\""
+                            }
+                        }],
+                        "preview": {
+                            "region": {"name": "Harbor"},
+                            "view": "2d_iso",
+                            "bounds": [1, 3, 6, 6],
+                            "size": [768, 512]
+                        }
+                    }
+                }));
+            }
 
             lorebook.commands.insert(name.into(), meta);
         }
@@ -296,7 +372,7 @@ pub fn built_in_commands() -> Vec<ScepterCommandMeta> {
             .capabilities(vec![RegionRead]),
         ScepterCommandMeta::new(
             "region.snapshot",
-            "Read a normalized 2D authoring snapshot for a region, including sectors, linedefs, vertices, material sources, and resolved tile metadata.",
+            "Read sectors, vertices, tile sources and entities. Match editor.context's selected sector IDs and parse properties.data.Str as TOML for the sector description. Raw polygon points use [x,z,height].",
         )
         .params(vec![
             ScepterParamMeta::new(
@@ -354,11 +430,26 @@ pub fn built_in_commands() -> Vec<ScepterCommandMeta> {
             ScepterParamMeta::new("region", "Region id or name.", true, "RegionRef"),
             ScepterParamMeta::new(
                 "bounds",
-                "Optional x, y, width, height region bounds.",
+                "Optional [x, z, width, depth] bounds. Extents must be positive and at most 256.",
                 false,
                 "[integer; 4]",
             ),
-            ScepterParamMeta::new("zoom", "Optional integer preview zoom.", false, "integer"),
+            ScepterParamMeta::new("zoom", "Pixels per world unit in 2D views.", false, "number"),
+            ScepterParamMeta::new(
+                "view",
+                "2d, 2d_iso (sprite isometric), iso (3D isometric), or 3d (perspective).",
+                false,
+                "string",
+            ),
+            ScepterParamMeta::new("size", "Width and height in pixels, each 64–1024.", false, "[integer; 2]"),
+            ScepterParamMeta::new(
+                "camera",
+                "Explicit center [x,y,z], with optional position, scale, azimuth, elevation, fov, and pitch.",
+                false,
+                "object",
+            ),
+            ScepterParamMeta::new("editor_view", "Capture the active editor camera.", false, "boolean"),
+            ScepterParamMeta::new("animation_frame", "Engine animation tick to capture.", false, "integer"),
         ])
         .capabilities(vec![RegionRead, Preview])
         .previewable()
@@ -367,7 +458,9 @@ pub fn built_in_commands() -> Vec<ScepterCommandMeta> {
             "params": {
                 "region": { "name": "Harbor" },
                 "bounds": [-12, -24, 20, 16],
-                "zoom": 2
+                "view": "2d_iso",
+                "size": [768, 512],
+                "zoom": 28
             }
         })]),
         ScepterCommandMeta::new(
@@ -382,8 +475,8 @@ pub fn built_in_commands() -> Vec<ScepterCommandMeta> {
                 true,
                 "TileSelector",
             ),
-            ScepterParamMeta::new("rect", "x, y, width, height.", true, "[integer; 4]"),
-            ScepterParamMeta::new("layer", "Optional generated layer name.", false, "string"),
+            ScepterParamMeta::new("rect", "[x, z, width, depth] in grid cells.", true, "[integer; 4]"),
+            ScepterParamMeta::new("layer", "Numeric layer 0–255 encoded as a string. Defaults to 1.", false, "string"),
             ScepterParamMeta::new(
                 "select",
                 "Select painted sectors in Creator after applying. Defaults to false.",
@@ -427,8 +520,8 @@ pub fn built_in_commands() -> Vec<ScepterCommandMeta> {
                 true,
                 "TileSelector",
             ),
-            ScepterParamMeta::new("cells", "Array of [x, y] grid cells.", true, "[[integer; 2]]"),
-            ScepterParamMeta::new("layer", "Optional generated layer name.", false, "string"),
+            ScepterParamMeta::new("cells", "Array of [x, z] grid cells.", true, "[[integer; 2]]"),
+            ScepterParamMeta::new("layer", "Numeric layer 0–255 encoded as a string. Defaults to 1.", false, "string"),
             ScepterParamMeta::new(
                 "select",
                 "Select painted sectors in Creator after applying. Defaults to false.",
@@ -475,7 +568,12 @@ pub fn built_in_commands() -> Vec<ScepterCommandMeta> {
         .capabilities(vec![RegionWrite, ProjectRead])
         .previewable()
         .undoable(),
-        ScepterCommandMeta::new("tile.list", "List tiles by role, style, kind, or metadata.")
+        ScepterCommandMeta::new("tile.list", "List tile metadata and IDs using optional filters.")
+            .params(vec![
+                ScepterParamMeta::new("role", "Filter by tile role.", false, "string"),
+                ScepterParamMeta::new("kind", "Filter by procedural kind.", false, "string"),
+                ScepterParamMeta::new("style", "Filter by procedural style.", false, "string"),
+            ])
             .capabilities(vec![TileRead]),
         ScepterCommandMeta::new(
             "tile.contact_sheet",

@@ -11,6 +11,7 @@ pub(crate) struct PreparedSave {
     pub info: SaveInfo,
     pub bytes: Vec<u8>,
     pub source: Vec<u8>,
+    pub public_export: bool,
 }
 pub(crate) struct Transfers {
     next: u64,
@@ -50,7 +51,13 @@ impl Transfers {
             info,
             bytes,
             source,
+            public_export: false,
         });
+        Ok(info)
+    }
+    pub fn stage_export(&mut self, document: Uuid, bytes: Vec<u8>) -> Result<SaveInfo, String> {
+        let info = self.stage(document, bytes, Vec::new())?;
+        self.pending.as_mut().unwrap().public_export = true;
         Ok(info)
     }
     pub fn bytes(&self, ticket: u64) -> Option<&[u8]> {

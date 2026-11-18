@@ -90,9 +90,9 @@ See [Screens](/docs/screens/#procedural-screen-artwork).
 
 Projects save their complete current rules document, preserved original, and
 recovery checkpoints in `project.json` under `rules_document`. These snapshots
-travel with the project. **Restore All** restores the project's original rules,
-even if the bundled rules change later. Save the project to persist edits and
-checkpoints. See [Ruleset Editor](docks/ruleset_nodes).
+travel with the project, even though standard Creator builds hide the internal
+ruleset editor. Existing rules and recovery data are preserved on save/reload;
+the bundled rules changing later does not replace the project's document.
 
 ## Compatibility
 
@@ -108,3 +108,7 @@ Creator writes saves through a temporary file beside the destination and replace
 ## Web Client
 
 For web builds, place the project beside the client files and name it `game.eldiron`. The web client downloads it as binary data and supports both the current container and legacy JSON files.
+
+## Public multiplayer clients
+
+For a multiplayer project, **File → Export Public Client…** writes a separate `.eldiron-client` release. Set the project's WSS endpoint first. Give this package to the desktop Player or serve it alongside the browser Player. Export includes public visuals and UI while leaving behavior source, authored occupants and saves private. It does not change the authored project's path or saved state. Keep the `.eldiron` source for editing, dedicated hosting and local Creator Play. See [the export and browser deployment workflow](../../public-client-export.md).

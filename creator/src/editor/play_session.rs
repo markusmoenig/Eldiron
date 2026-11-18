@@ -60,6 +60,8 @@ impl CreatorPlaySession {
         quick_start: bool,
         bridge: &mut Rusterix,
     ) -> Result<Self, String> {
+        let settings = eldiron_runtime::PlayerSettings::parse(&project.config)?;
+        settings.play.launch(shared::project_play::LaunchPurpose::CreatorTest)?;
         let mut game = GameSession::new(project);
         game.start(eldiron_runtime::SessionOptions {
             debug: true,
@@ -67,7 +69,6 @@ impl CreatorPlaySession {
             ..Default::default()
         })?;
         game.clock = SessionClock::new(Duration::from_millis(tick_ms.max(1)));
-        let settings = eldiron_runtime::PlayerSettings::parse(&game.project.config)?;
         let mut initial_screen = settings.start_screen.clone();
         let start_screen = game.project.screens.values()
             .find(|screen| screen.map.name == initial_screen);

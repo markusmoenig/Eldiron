@@ -273,6 +273,23 @@ pub unsafe extern "C" fn eldiron_creator_document_prepare_save_v1(
     })
 }
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn eldiron_creator_document_prepare_client_export_v1(
+    handle: u64,
+    expected: *const c_char,
+) -> *mut c_char {
+    json(handle, |host| {
+        let expected = unsafe { document(expected) }?;
+        host.request_redraw();
+        host.update();
+        let ui = &mut host.application;
+        serde_json::to_value(
+            ui.application
+                .host_prepare_public_client_export(&mut ui.session, expected)?,
+        )
+        .map_err(|e| e.to_string())
+    })
+}
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eldiron_creator_document_copy_save_v1(
     handle: u64,
     ticket: u64,

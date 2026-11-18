@@ -81,6 +81,8 @@ pub struct GameWidget {
     pub player_pos: Vec2<f32>,
     /// Offscreen inspection can use an explicit camera without following the player.
     pub follow_player_camera: bool,
+    /// Explicit actor for connected game views; authored previews retain Legacy.
+    pub player_view: crate::party::PlayerView,
     /// Game cameras stay inside the map; inspection cameras may frame its edges.
     pub clamp_camera_to_map: bool,
 
@@ -237,6 +239,7 @@ impl GameWidget {
 
             player_pos: Vec2::zero(),
             follow_player_camera: true,
+            player_view: Default::default(),
             clamp_camera_to_map: true,
 
             toml_str: String::new(),
@@ -506,12 +509,12 @@ impl GameWidget {
         Self::parse_target_attr(entity.attributes.get(key))
     }
 
-    fn leader_entity<'a>(map: &'a Map) -> Option<&'a crate::Entity> {
-        map.entities.iter().find(|entity| entity.is_player())
+    fn leader_entity<'a>(&self, map: &'a Map) -> Option<&'a crate::Entity> {
+        self.player_view.player(map)
     }
 
-    fn current_target_entity_id(map: &Map) -> Option<u32> {
-        let leader = Self::leader_entity(map)?;
+    fn current_target_entity_id(&self, map: &Map) -> Option<u32> {
+        let leader = self.leader_entity(map)?;
         Self::entity_target_attr(leader, "attack_target")
             .or_else(|| Self::entity_target_attr(leader, "target"))
     }
@@ -523,7 +526,7 @@ impl GameWidget {
         }
 
         let neutral = self.target_frame_color(assets);
-        if let Some(target_id) = Self::current_target_entity_id(map)
+        if let Some(target_id) = self.current_target_entity_id(map)
             && neutral[3] > 0
         {
             styles.insert(
@@ -535,7 +538,7 @@ impl GameWidget {
             );
         }
 
-        let Some(leader) = Self::leader_entity(map) else {
+        let Some(leader) = self.leader_entity(map) else {
             return styles;
         };
         let attacker = self.attacker_frame_color(assets);
@@ -575,19 +578,16 @@ impl GameWidget {
         if !self.follow_player_camera {
             return;
         }
-        for entity in &map.entities {
-            if entity.is_player() {
-                if !Self::is_2d_camera(&self.camera) {
-                    self.apply_player_camera_d3(entity);
-                }
-                self.player_pos = entity.get_pos_xz();
-                self.current_sector_name = entity
-                    .get_attr_string("sector")
-                    .filter(|s| !s.is_empty())
-                    .or_else(|| map.find_sector_at(self.player_pos).map(|s| s.name.clone()))
-                    .unwrap_or_default();
-                break;
+        if let Some(entity) = self.player_view.player(map) {
+            if !Self::is_2d_camera(&self.camera) {
+                self.apply_player_camera_d3(entity);
             }
+            self.player_pos = entity.get_pos_xz();
+            self.current_sector_name = entity
+                .get_attr_string("sector")
+                .filter(|s| !s.is_empty())
+                .or_else(|| map.find_sector_at(self.player_pos).map(|s| s.name.clone()))
+                .unwrap_or_default();
         }
     }
 
@@ -654,6 +654,9 @@ impl GameWidget {
 
     fn text_lines(&self, map: &Map) -> Vec<String> {
         let mut lines = Vec::new();
+        if self.player_view == crate::party::PlayerView::Uncontrolled {
+            return vec!["No current player.".into()];
+        }
         let Some(sector) = self.current_sector(map) else {
             lines.push("No current room.".to_string());
             return lines;
@@ -683,7 +686,11 @@ impl GameWidget {
         let entities: Vec<String> = map
             .entities
             .iter()
-            .filter(|entity| !entity.is_player())
+            .filter(|entity| match self.player_view {
+                crate::party::PlayerView::Legacy => !entity.is_player(),
+                crate::party::PlayerView::Controlled(id) => entity.id != id,
+                crate::party::PlayerView::Uncontrolled => false,
+            })
             .filter(|entity| {
                 entity
                     .get_attr_string("sector")
@@ -930,6 +937,10 @@ impl GameWidget {
         animation_frame: usize,
         scene_handler: &mut SceneHandler,
     ) {
+        if scene_handler.player_view != self.player_view {
+            scene_handler.player_view = self.player_view;
+            scene_handler.mark_dynamics_dirty();
+        }
         if self.force_dynamics_rebuild {
             scene_handler.mark_dynamics_dirty();
             self.force_dynamics_rebuild = false;

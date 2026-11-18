@@ -74,6 +74,7 @@ fn fixture() -> TerminalApp {
     runtime.current_map = "Hall".into();
     TerminalApp {
         runtime,
+        replicated_region: None,
         session: TextSession::new(),
         screen_messages: vec![],
         auto_attack_target: None,

@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 extension UTType {
     nonisolated static let eldironProject = UTType(exportedAs: "com.moenig.eldiron.project", conformingTo: .data)
+    nonisolated static let eldironClient = UTType(exportedAs: "com.moenig.eldiron.client", conformingTo: .data)
     nonisolated static let legacySceneVMProject = UTType(exportedAs: "com.scenevm.project", conformingTo: .data)
 }
 
@@ -14,8 +15,8 @@ final class PlayerViewState: ObservableObject {
     nonisolated init() {}
 }
 
-/// A player keeps authored bytes independent of the running session. Both legacy
-/// JSON and ZIP Eldiron projects reach the existing Rust decoder unchanged.
+/// A player keeps input bytes independent of the running session. Authored
+/// projects and remote-only public releases reach the Rust loader unchanged.
 nonisolated final class SceneVMDocument: ReferenceFileDocument, ObservableObject {
     let player = PlayerViewState()
     let projectData: Data
@@ -27,7 +28,7 @@ nonisolated final class SceneVMDocument: ReferenceFileDocument, ObservableObject
         get { player.errorMessage }
         set { player.errorMessage = newValue }
     }
-    static var readableContentTypes: [UTType] { [.eldironProject, .legacySceneVMProject] }
+    static var readableContentTypes: [UTType] { [.eldironProject, .eldironClient, .legacySceneVMProject] }
     convenience init(configuration: ReadConfiguration) throws {
         guard let data = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
         self.init(data: data)

@@ -4,7 +4,7 @@ use crate::vm::VMValue;
 use std::collections::{BTreeMap, VecDeque};
 use theframework_core::prelude::Uuid;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum EventOwner {
     World,
     Region,
@@ -14,7 +14,7 @@ pub enum EventOwner {
     /// geometry area. Keyed on the place's stable id, never its name.
     Area(Uuid),
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum EventField {
     Text(String),
     Number(f64),
@@ -29,7 +29,7 @@ impl EventField {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct EventObservation {
     pub map: Uuid,
     pub owner: EventOwner,

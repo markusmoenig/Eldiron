@@ -466,6 +466,7 @@ fn native_text_fields_preserve_ime_bindings_focus_and_clipboard_ownership() {
     controller.elements.text_input_widgets.insert(
         20,
         rusterix::client::widget::TextInputWidget {
+            secret: false,
             name: "SecondInput".into(),
             id: 20,
             rect: Rect::new(16., 130., 180., 36.),
@@ -1963,4 +1964,24 @@ fn native_source_ranges_preserve_authored_game_bindings_until_commit_and_reject_
         ticks,
         "native text queries/edits must not advance simulation"
     );
+}
+
+#[test]
+fn secret_input_clearing_revokes_binding_focus_and_editor_history() {
+    let mut session=fixture(false);
+    let screen=session.project.screens.values_mut().next().unwrap();
+    screen.map.sectors.iter_mut().find(|s|s.id==3).unwrap().properties.set("data",Value::Str("[ui]\nrole='input'\nbind='online.password'\nsecret=true\ndefault='private-password'".into()));
+    let mut controller=GameScreenController::from_screen("Main",&session.view(),layout()).unwrap();
+    let mut fonts=GameFonts::default();controller.prepare(&session.view(),&mut fonts,ContentRevision(1),0).unwrap();
+    assert!(controller.elements.text_input_widgets[&3].secret);
+    controller.focus_input(&mut fonts,Some(3));
+    controller.clear_secret_input("online.password",&mut fonts);
+    assert_eq!(controller.focused_input(),None);
+    assert!(!controller.elements.ui_state.contains_key("online.password"));
+    assert!(controller.elements.text_input_widgets[&3].text.is_empty());
+    controller.prepare(&session.view(),&mut fonts,ContentRevision(1),0).unwrap();
+    controller.focus_input(&mut fonts,Some(3));
+    controller.text_input_event(&mut fonts,&theframework::platform::InputEvent::Modifiers(theframework::platform::Modifiers{super_key:true,..Default::default()}));
+    controller.text_input_event(&mut fonts,&theframework::platform::InputEvent::Key{physical:theframework::platform::PhysicalKey::Letter(b'z'),logical:theframework::platform::LogicalKey::Other,pressed:true,repeat:false});
+    assert!(controller.elements.text_input_widgets[&3].text.is_empty(),"cleared credentials must not return through undo");
 }

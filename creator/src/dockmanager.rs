@@ -104,6 +104,7 @@ impl DockManager {
             Box::new(crate::docks::nodes::NodesDock::new()) as Box<dyn Dock>,
         );
 
+        #[cfg(feature = "internal-rules-editor")]
         docks.insert(
             "Rules".into(),
             Box::new(crate::docks::rules_editor::RulesEditor::new()) as Box<dyn Dock>,

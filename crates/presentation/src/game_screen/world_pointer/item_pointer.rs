@@ -75,7 +75,7 @@ impl GameScreenController {
                 {
                     return None;
                 }
-                let actor = screen_model::resolve_party_entity(map, widget.party.as_deref())?;
+                let actor = world.party_entity(map, widget.party.as_deref())?;
                 let item = if let Some(index) = widget.inventory_index {
                     actor.inventory.get(index)?.as_ref()?
                 } else {

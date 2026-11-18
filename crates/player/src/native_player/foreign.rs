@@ -26,11 +26,11 @@ impl ForeignPlayerHost {
             presentations: 0,
         }
     }
-    /// Decode/migrate a runtime copy; the saved player document remains the
-    /// exact authored input, including archive entries and legacy JSON bytes.
+    /// Decode a runtime copy; the saved player document retains its exact input,
+    /// including public releases, authored archive entries and legacy JSON bytes.
     /// Failed loads preserve the live session, registry and pending input owner.
     pub fn load(&mut self, source: &[u8], debug: bool) -> Result<()> {
-        let mut project = shared::project_io::decode_project(source).map_err(RenderError)?;
+        let mut project = shared::public_client::load_player(source, eldiron_network::PROTOCOL_VERSION).map_err(RenderError)?;
         project.migrate_default_ruleset();
         let _ = project.sync_ruleset_items();
         self.install(

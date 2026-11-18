@@ -11,7 +11,7 @@ Audio in Eldiron has three main parts:
 
 - **Assets**: Import and manage audio files in the project tree.
 - **Audio FX**: Define small generated sound effects in `Game / Audio FX`.
-- **Rules integration**: Trigger combat audio from `Game / Rules`.
+- **Rules integration**: Supplied combat rules can trigger audio automatically.
 
 See also:
 
@@ -85,7 +85,9 @@ Generated effects can be used anywhere normal audio names are used:
 
 ## Combat Audio From Rules
 
-`Game / Rules` can play audio automatically when damage is dealt.
+Ruleset combat audio can play automatically when damage is dealt. The following
+is a definition reference for internal ruleset maintenance, rather than a normal
+Creator configuration screen.
 
 ```toml
 [combat.audio]

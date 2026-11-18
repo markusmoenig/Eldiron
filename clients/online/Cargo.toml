@@ -1,0 +1,14 @@
+[package]
+name = "eldiron-online"
+default-run = "eldiron-online"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[dependencies]
+eldiron-network = { path = "../../crates/network" }
+eldiron-runtime = { path = "../../crates/runtime" }
+rusterix = { path = "../../crates/rusterix", default-features = false }
+theframework-core = { path = "../../crates/theframework-core" }
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["rt", "macros", "time", "io-util", "io-std"] }

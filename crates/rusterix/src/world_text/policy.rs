@@ -11,11 +11,27 @@ pub fn resolve_for_player(
     assets: &Assets,
     time: &TheTime,
     receiver: u32,
-    mut message: WorldText,
+    message: WorldText,
 ) -> Option<WorldText> {
-    if !crate::party::resolve_party_entity(map, Some("leader")).is_some_and(|e| e.id == receiver)
-        || message.text.trim().is_empty()
-    {
+    resolve_for_player_view(
+        map,
+        assets,
+        time,
+        receiver,
+        message,
+        crate::party::PlayerView::Legacy,
+    )
+}
+
+pub fn resolve_for_player_view(
+    map: &Map,
+    assets: &Assets,
+    time: &TheTime,
+    receiver: u32,
+    mut message: WorldText,
+    player: crate::party::PlayerView,
+) -> Option<WorldText> {
+    if player.entity_id(map) != Some(receiver) || message.text.trim().is_empty() {
         return None;
     }
     let (sender_entity, sender_item) = match message.anchor {

@@ -1,5 +1,6 @@
 pub mod assets;
 pub mod avatar_assets;
+pub mod connection;
 pub mod currency;
 pub mod data;
 pub mod entity;
@@ -12,8 +13,12 @@ pub mod py_fn;
 pub mod region;
 pub mod region_host;
 pub mod regionctx;
+pub mod persistence;
 pub mod world;
+pub mod scheduling;
+mod ticking;
 
+pub use connection::{PlayerConnectionId, PlayerConnectionState, PlayerControl};
 use crossbeam_channel::{Receiver, Sender};
 use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]
@@ -29,7 +34,6 @@ use theframework_core::prelude::*;
 
 // Routing and registration belong to one Server, including Creator Play.
 type RegionRegistry = Arc<RwLock<FxHashMap<u32, Sender<RegionMessage>>>>;
-type Player = Arc<RwLock<Vec<(u32, u32)>>>;
 
 // SenderEntityId, SenderItemId, ReceiverId, Message
 pub type Message = (Option<u32>, Option<u32>, u32, String, String);
@@ -38,7 +42,7 @@ pub type Say = (Option<u32>, Option<u32>, String, String);
 // ContainerItemId, OwnerEntityId
 pub type OpenContainerRequest = (u32, Option<u32>);
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum ServerState {
     Off,
     Running,
@@ -46,9 +50,13 @@ pub enum ServerState {
 }
 
 pub struct Server {
+    scheduling: scheduling::RegionSchedulingPolicy,
+    diagnostics: Option<Arc<Mutex<crate::diagnostics::RegionTimings>>>,
     region_pipes: RegionRegistry,
-    local_players: Player,
+    local_connection: PlayerConnectionId,
+    connections: FxHashMap<PlayerConnectionId, PlayerConnectionState>,
     world: Arc<world::SimulationWorld>,
+    restore_bootstrap: bool,
     pub node_highlights: Vec<nodes::Highlights>,
     pub node_traces: std::collections::VecDeque<nodes::Trace>,
     pub id_gen: u32,
@@ -73,12 +81,14 @@ pub struct Server {
     pub says: FxHashMap<u32, Vec<Say>>,
     world_texts: FxHashMap<u32, Vec<(u32, crate::world_text::WorldText)>>,
     pub open_container_requests: FxHashMap<u32, Vec<OpenContainerRequest>>,
+    addressed_container_requests: FxHashMap<u32, Vec<(u32, OpenContainerRequest)>>,
     pub multiple_choice: FxHashMap<u32, Vec<MultipleChoice>>,
     pub audio_commands: FxHashMap<u32, Vec<AudioCommand>>,
     pub world_render: RuntimeRenderState,
     pub region_render: FxHashMap<u32, RuntimeRenderState>,
     pub times: FxHashMap<u32, TheTime>,
     pub runtime_maps: FxHashMap<u32, Map>,
+    runtime_map_versions: FxHashMap<u32, u64>,
     pub runtime_map_position_guards: FxHashMap<u32, u8>,
     pub block_prop_instances: FxHashMap<u32, Vec<BlockPropInstance>>,
 
@@ -90,6 +100,8 @@ pub struct Server {
 
     pub instances: Vec<Arc<Mutex<RegionInstance>>>,
     last_visual_update_at: Instant,
+    legacy_clock: crate::simulation::SimulationClock,
+    last_legacy_advance_at: Option<Instant>,
 }
 
 impl Default for Server {
@@ -100,14 +112,21 @@ impl Default for Server {
 
 impl Server {
     pub fn new() -> Self {
+        let local_connection = PlayerConnectionId::new();
         Self {
+            diagnostics:None,
             region_pipes: Default::default(),
-            local_players: Default::default(),
+            local_connection,
+            connections: [(local_connection, PlayerConnectionState::AwaitingCharacter)]
+                .into_iter()
+                .collect(),
             world: Default::default(),
+            restore_bootstrap: false,
             node_traces: Default::default(),
             node_highlights: Default::default(),
             // 0 is reserved as NO_ID / None sentinel.
             id_gen: 1,
+            scheduling: Default::default(),
 
             debug_mode: false,
             eldrin_debug: EldrinDebugModule::default(),
@@ -124,12 +143,14 @@ impl Server {
             says: FxHashMap::default(),
             world_texts: FxHashMap::default(),
             open_container_requests: FxHashMap::default(),
+            addressed_container_requests: FxHashMap::default(),
             multiple_choice: FxHashMap::default(),
             audio_commands: FxHashMap::default(),
             world_render: RuntimeRenderState::default(),
             region_render: FxHashMap::default(),
             times: FxHashMap::default(),
             runtime_maps: FxHashMap::default(),
+            runtime_map_versions: FxHashMap::default(),
             runtime_map_position_guards: FxHashMap::default(),
             block_prop_instances: FxHashMap::default(),
 
@@ -141,6 +162,8 @@ impl Server {
 
             instances: vec![],
             last_visual_update_at: Instant::now(),
+            legacy_clock: crate::simulation::SimulationClock::new(std::time::Duration::from_millis(250)),
+            last_legacy_advance_at: None,
         }
     }
 
@@ -160,13 +183,224 @@ impl Server {
         }
     }
     fn follows_local_player(&self, region: Option<u32>, entity: Option<u32>) -> bool {
-        let Ok(players) = self.local_players.read() else {
-            return true;
+        match self.player_control(self.local_connection) {
+            Some(player) => region == Some(player.region_id) || entity == Some(player.entity_id),
+            None => !self
+                .connections
+                .values()
+                .any(|state| state.control().is_some()),
+        }
+    }
+
+    /// The implicit single-player/reference-host connection. Its handle changes
+    /// on clear/restart, just like explicitly opened connections.
+    pub fn local_connection(&self) -> PlayerConnectionId {
+        self.local_connection
+    }
+
+    pub fn open_player_connection(&mut self) -> PlayerConnectionId {
+        let id = PlayerConnectionId::new();
+        self.connections
+            .insert(id, PlayerConnectionState::AwaitingCharacter);
+        id
+    }
+
+    pub fn connection_state(&self, id: PlayerConnectionId) -> Option<PlayerConnectionState> {
+        self.connections.get(&id).copied()
+    }
+
+    pub fn player_connections(&self) -> impl Iterator<Item = (PlayerConnectionId, PlayerConnectionState)> + '_ {
+        self.connections.iter().map(|(id, state)| (*id, *state))
+    }
+
+    pub fn runtime_map_version(&self, region: u32) -> u64 {
+        self.runtime_map_versions.get(&region).copied().unwrap_or(0)
+    }
+
+    pub fn player_container_access(&self, connection: PlayerConnectionId) -> Option<OpenContainerRequest> {
+        let player = self.player_control(connection)?;
+        self.instances.iter().find_map(|instance| {
+            let instance = instance.lock().ok()?;
+            (instance.id == player.region_id).then(|| instance.active_container_for(player.entity_id)).flatten()
+        })
+    }
+    pub fn player_choice_is_active(&self, connection: PlayerConnectionId, choice: &Choice) -> bool {
+        let Some(player) = self.player_control(connection) else { return false; };
+        self.instances.iter().any(|instance| {
+            let Ok(instance) = instance.lock() else { return false; };
+            instance.id == player.region_id && instance.choice_is_active(player.entity_id, choice)
+        })
+    }
+
+    pub fn player_control(&self, id: PlayerConnectionId) -> Option<PlayerControl> {
+        self.connection_state(id)?.control()
+    }
+
+    pub fn local_player_id(&self) -> Option<u32> {
+        self.player_control(self.local_connection)
+            .map(|control| control.entity_id)
+    }
+
+    pub fn player_region_name(&self, id: PlayerConnectionId) -> Option<&str> {
+        let control = self.player_control(id)?;
+        self.region_name_id_map
+            .iter()
+            .find_map(|(name, region)| (*region == control.region_id).then_some(name.as_str()))
+    }
+
+    /// Submit only a host-prepared character template. This is not a public
+    /// network CreateEntity command: a network host must validate creation
+    /// choices and prepare the template before calling this boundary.
+    pub fn create_connected_player(
+        &mut self,
+        id: PlayerConnectionId,
+        region: &Uuid,
+        entity: Entity,
+    ) -> Result<(), String> {
+        if self.connection_state(id) != Some(PlayerConnectionState::AwaitingCharacter) {
+            return Err("Player connection is unknown or already has a character request".into());
+        }
+        let region_id = *self
+            .region_id_map
+            .get(region)
+            .ok_or("Unknown player start region")?;
+        let sender = self
+            .region_pipes
+            .read()
+            .map_err(|_| "Region routing unavailable")?
+            .get(&region_id)
+            .cloned()
+            .ok_or("Player start region is not running")?;
+        sender
+            .send(RegionMessage::CreateConnectedPlayer(id, entity))
+            .map_err(|_| "Player start region is not running")?;
+        self.connections
+            .insert(id, PlayerConnectionState::Spawning { region_id });
+        Ok(())
+    }
+
+    fn register_connected_player(
+        &mut self,
+        id: PlayerConnectionId,
+        region_id: u32,
+        entity_id: u32,
+    ) {
+        if self.player_control(id)
+            == Some(PlayerControl {
+                region_id,
+                entity_id,
+            })
+        {
+            return;
+        }
+        let accepted = matches!(self.connection_state(id),
+            Some(PlayerConnectionState::Spawning { region_id: expected }) if expected == region_id)
+            || (id == self.local_connection
+                && self.connection_state(id) == Some(PlayerConnectionState::AwaitingCharacter));
+        if accepted {
+            self.connections.insert(
+                id,
+                PlayerConnectionState::Active(PlayerControl {
+                    region_id,
+                    entity_id,
+                }),
+            );
+            let _ = self.send_player_message(
+                region_id,
+                RegionMessage::ShowStartupSectorDescription(entity_id),
+            );
+        } else {
+            // A connection can close while its spawn is queued. Never attach
+            // that late acknowledgement to another connection or leave motion on.
+            let _ = self.send_player_message(
+                region_id,
+                RegionMessage::UserAction(entity_id, EntityAction::Off),
+            );
+        }
+    }
+
+    fn send_player_message(&self, region: u32, message: RegionMessage) -> Result<(), String> {
+        self.region_pipes
+            .read()
+            .map_err(|_| "Region routing unavailable")?
+            .get(&region)
+            .ok_or("Player region is not running")?
+            .send(message)
+            .map_err(|_| "Player region is not running".into())
+    }
+
+    /// Actor identity is resolved here, never supplied by the requester.
+    pub fn player_action(
+        &self,
+        id: PlayerConnectionId,
+        action: EntityAction,
+    ) -> Result<(), String> {
+        let player = self
+            .player_control(id)
+            .ok_or("Player connection has no registered character")?;
+        self.send_player_message(
+            player.region_id,
+            RegionMessage::UserAction(player.entity_id, action),
+        )
+    }
+
+    pub fn player_event(
+        &self,
+        id: PlayerConnectionId,
+        event: String,
+        value: Value,
+    ) -> Result<(), String> {
+        let player = self
+            .player_control(id)
+            .ok_or("Player connection has no registered character")?;
+        self.send_player_message(
+            player.region_id,
+            RegionMessage::UserEvent(player.entity_id, event, value),
+        )
+    }
+
+    pub fn player_teleport(
+        &self,
+        id: PlayerConnectionId,
+        sector: String,
+        region: String,
+    ) -> Result<(), String> {
+        let player = self
+            .player_control(id)
+            .ok_or("Player connection has no registered character")?;
+        self.send_player_message(
+            player.region_id,
+            RegionMessage::TeleportEntity(player.entity_id, sector, region),
+        )
+    }
+
+    pub fn player_teleport_pos(
+        &self,
+        id: PlayerConnectionId,
+        position: Vec2<f32>,
+    ) -> Result<(), String> {
+        let player = self
+            .player_control(id)
+            .ok_or("Player connection has no registered character")?;
+        self.send_player_message(
+            player.region_id,
+            RegionMessage::TeleportEntityPos(player.entity_id, position),
+        )
+    }
+
+    /// Detach control and stop held motion. Character persistence/despawn policy
+    /// is a host concern; closing a connection does not destroy its character.
+    pub fn close_player_connection(&mut self, id: PlayerConnectionId) -> bool {
+        let Some(state) = self.connections.remove(&id) else {
+            return false;
         };
-        players.is_empty()
-            || players
-                .iter()
-                .any(|(r, e)| region == Some(*r) || entity == Some(*e))
+        if let Some(player) = state.control() {
+            let _ = self.send_player_message(
+                player.region_id,
+                RegionMessage::UserAction(player.entity_id, EntityAction::Off),
+            );
+        }
+        true
     }
 
     /// Clear the log
@@ -222,30 +456,86 @@ impl Server {
 
         self.from_region.push(region_instance.from_receiver.clone());
 
+        region_instance.restoring = self.restore_bootstrap;
         region_instance.init_with_shared_assets(name, map, assets, config_toml, self.debug_mode);
         self.instances.push(Arc::new(Mutex::new(region_instance)));
     }
 
-    /// Send a system tick to all instances.
-    pub fn system_tick(&self) {
-        #[cfg(not(target_arch = "wasm32"))]
-        let instances = self.instances.par_iter();
-        #[cfg(target_arch = "wasm32")]
-        let instances = self.instances.iter();
-        instances.for_each(|instance| {
-            instance.lock().unwrap().system_tick();
-        });
+    pub fn enable_diagnostics(&mut self,enabled:bool) {
+        self.diagnostics=enabled.then(||Arc::new(Mutex::new(Default::default())));
+        for instance in &self.instances {
+            if let Some(ctx) = instance.lock().unwrap().context() { ctx.lock().unwrap().diagnostics = enabled.then(Default::default); }
+        }
     }
-
-    /// Send a redraw tick to all instances.
-    pub fn redraw_tick(&self) {
-        #[cfg(not(target_arch = "wasm32"))]
-        let instances = self.instances.par_iter();
-        #[cfg(target_arch = "wasm32")]
-        let instances = self.instances.iter();
-        instances.for_each(|instance| {
-            instance.lock().unwrap().redraw_tick();
-        });
+    pub fn region_diagnostics(&self)->Vec<crate::diagnostics::RegionTimingSummary> {
+        let mut summaries = self.diagnostics.as_ref().map(|d|crate::diagnostics::region_summaries(&d.lock().unwrap())).unwrap_or_default();
+        for instance in &self.instances {
+            let instance = instance.lock().unwrap();
+            if let Some(summary) = summaries.iter_mut().find(|s| s.region == instance.id)
+                && let Some(ctx) = instance.context()
+                && let Some(details) = &ctx.lock().unwrap().diagnostics {
+                summary.details = details.borrow().summary();
+            }
+        }
+        summaries
+    }
+    pub fn set_frame_motion(&self, connection: PlayerConnectionId, enabled: bool) -> bool {
+        let Some(control) = self.player_control(connection) else { return false; };
+        self.instances.iter().any(|instance| {
+            let mut region = instance.lock().unwrap();
+            region.id == control.region_id && region.set_frame_motion(control.entity_id, enabled)
+        })
+    }
+    pub fn player_motion_snapshot(
+        &self,
+        connection: PlayerConnectionId,
+    ) -> Option<crate::movement::MotionSnapshot> {
+        let control = self.player_control(connection)?;
+        self.instances.iter().find_map(|instance| {
+            let region = instance.lock().ok()?;
+            (region.id == control.region_id)
+                .then(|| region.frame_motion_snapshot(control.entity_id))
+                .flatten()
+        })
+    }
+    pub fn apply_movement_frame(
+        &self,
+        connection: PlayerConnectionId,
+        command: crate::movement::MovementCommand,
+    ) -> bool {
+        let Some(control) = self.player_control(connection) else { return false; };
+        self.instances.iter().any(|instance| {
+            let mut region = instance.lock().unwrap();
+            region.id == control.region_id && region.apply_movement_frame(control.entity_id, command)
+        })
+    }
+    /// Compatibility adapter for hosts that still own a Rusterix facade.
+    /// Wall time is measured only here, never by regions or redraw callbacks.
+    pub fn advance_wall_clock(&mut self, game_step: std::time::Duration) -> u32 {
+        let now = Instant::now();
+        let elapsed = self.last_legacy_advance_at.replace(now)
+            .map(|previous| now.saturating_duration_since(previous)).unwrap_or_default();
+        self.advance_elapsed(elapsed, game_step)
+    }
+    /// Explicit host time for reference bootstrap/manual stepping. Canonical
+    /// GameSession hosts schedule through their owned SessionClock instead.
+    pub fn advance_elapsed(&mut self, elapsed: std::time::Duration, game_step: std::time::Duration) -> u32 {
+        self.redraw_tick();
+        if self.legacy_clock.step() != game_step {
+            self.legacy_clock = crate::simulation::SimulationClock::new(game_step);
+        }
+        if self.state != ServerState::Running {
+            self.legacy_clock.reset_elapsed();
+            return 0;
+        }
+        let mut ticks = 0;
+        for step in self.legacy_clock.schedule(elapsed) {
+            match step {
+                crate::simulation::ScheduledStep::Game => { self.system_tick(); ticks += 1; }
+                crate::simulation::ScheduledStep::Movement => self.movement_tick(),
+            }
+        }
+        ticks
     }
 
     /// Process a set of commands from a client.
@@ -253,6 +543,10 @@ impl Server {
         for cmd in commands {
             match cmd {
                 Command::CreateEntity(id, entity) => {
+                    if entity.is_player() {
+                        let _ = self.create_connected_player(self.local_connection, &id, entity);
+                        continue;
+                    }
                     if let Some(region_id) = self.region_id_map.get(&id) {
                         if let Ok(pipe) = self.region_pipes.read() {
                             if let Some(sender) = pipe.get(region_id) {
@@ -347,8 +641,14 @@ impl Server {
     }
 
     /// Get queued container panel requests for a given region and clear them.
+    pub fn take_container_recipients(&mut self, region_id: &Uuid) -> Vec<(u32, OpenContainerRequest)> {
+        self.region_id_map.get(region_id).and_then(|id| self.addressed_container_requests.remove(id)).unwrap_or_default()
+    }
+
     pub fn get_open_container_requests(&mut self, region_id: &Uuid) -> Vec<OpenContainerRequest> {
         if let Some(region_id) = self.region_id_map.get(region_id) {
+            // Legacy collectors do not consume recipient metadata separately.
+            self.addressed_container_requests.remove(region_id);
             let requests = self.open_container_requests.get(region_id).cloned();
             self.open_container_requests.remove(region_id);
             requests.unwrap_or_default()
@@ -431,19 +731,14 @@ impl Server {
             .clamp(0.0, 0.1);
         self.last_visual_update_at = now;
 
-        for receiver in &self.from_region {
+        for receiver in self.from_region.clone() {
             while let Ok(message) = receiver.try_recv() {
                 match message {
                     RegionMessage::RegisterPlayer(region_id, entity_id) => {
-                        if let Ok(mut players) = self.local_players.write() {
-                            players.push((region_id, entity_id));
-                        }
-                        if let Ok(pipe) = self.region_pipes.read()
-                            && let Some(sender) = pipe.get(&region_id)
-                        {
-                            let _ =
-                                sender.send(RegionMessage::ShowStartupSectorDescription(entity_id));
-                        }
+                        self.register_connected_player(self.local_connection, region_id, entity_id);
+                    }
+                    RegionMessage::RegisterConnectedPlayer(connection, region_id, entity_id) => {
+                        self.register_connected_player(connection, region_id, entity_id);
                     }
                     RegionMessage::EntitiesUpdate(id, serialized_updates) => {
                         let updates: Vec<EntityUpdate> = serialized_updates
@@ -513,11 +808,13 @@ impl Server {
                             entities.retain(|entity| entity.id != entity_id);
                         }
                     }
-                    RegionMessage::OpenContainer(region_id, item_id, owner_entity_id) => {
+                    RegionMessage::OpenContainer(region_id, recipient, item_id, owner_entity_id) => {
                         self.open_container_requests
                             .entry(region_id)
                             .or_default()
                             .push((item_id, owner_entity_id));
+                        self.addressed_container_requests.entry(region_id).or_default()
+                            .push((recipient, (item_id, owner_entity_id)));
                     }
                     RegionMessage::LogMessage(message) => {
                         if self.print_log_messages {
@@ -665,10 +962,22 @@ impl Server {
                     }
                     RegionMessage::TransferEntity(
                         from_region_id,
-                        entity,
+                        mut entity,
                         dest_region_name,
                         dest_sector_name,
                     ) => {
+                        // A disconnect can race with an already queued transfer.
+                        // The destination receives stopped motion even if the
+                        // release sent to the source can no longer find its body.
+                        if entity.is_player()
+                            && !self.connections.values().any(|state| {
+                                state
+                                    .control()
+                                    .is_some_and(|control| control.entity_id == entity.id)
+                            })
+                        {
+                            entity.action = EntityAction::Off;
+                        }
                         // If we cannot find the destination region, send the entity back from where it came
                         let mut dest_id = from_region_id;
                         if let Some(region_id) = self.region_name_id_map.get(&dest_region_name) {
@@ -706,11 +1015,11 @@ impl Server {
                         }
 
                         // Change the local player reference to the new region
-                        if let Ok(mut players) = self.local_players.write() {
-                            for item in &mut *players {
-                                if item.1 == entity.id {
-                                    item.0 = dest_id;
-                                }
+                        for state in self.connections.values_mut() {
+                            if let PlayerConnectionState::Active(player) = state
+                                && player.entity_id == entity.id
+                            {
+                                player.region_id = dest_id;
                             }
                         }
 
@@ -756,6 +1065,7 @@ impl Server {
                         }
                     }
                     RegionMessage::MapUpdate(id, map) => {
+                        *self.runtime_map_versions.entry(id).or_default() += 1;
                         if let Some(region_id) = self.region_id_map.get(&map.id).copied() {
                             self.entities.insert(region_id, map.entities.clone());
                             self.items.insert(region_id, map.items.clone());
@@ -770,6 +1080,14 @@ impl Server {
                         }
                     }
                     RegionMessage::BlockPropInstancesUpdate(id, instances) => {
+                        // Layout/material identity changes need a new static
+                        // reference; live collision has an independent stamp.
+                        let art_changed = self.block_prop_instances.get(&id).is_none_or(|old| {
+                            old.len() != instances.len() || old.iter().zip(&instances).any(|(a,b)| {
+                                a.id != b.id || a.asset_id != b.asset_id || a.overrides != b.overrides || a.parameter_overrides != b.parameter_overrides
+                            })
+                        });
+                        if art_changed { *self.runtime_map_versions.entry(id).or_default() += 1; }
                         self.block_prop_instances.insert(id, instances);
                     }
                     RegionMessage::NodeHighlights(updates) => {
@@ -935,98 +1253,32 @@ impl Server {
         }
     }
 
-    /// Send a local player event to the registered players
+    /// Compatibility entry points address only the implicit local connection.
     pub fn local_player_event(&mut self, event: String, value: Value) {
-        if let Ok(local_players) = self.local_players.read() {
-            if let Ok(pipe) = self.region_pipes.read() {
-                for (region_id, entity_id) in local_players.iter() {
-                    if let Some(sender) = pipe.get(region_id) {
-                        match sender.send(RegionMessage::UserEvent(
-                            *entity_id,
-                            event.clone(),
-                            value.clone(),
-                        )) {
-                            Ok(_) => {}
-                            Err(err) => {
-                                println!("{:?}", err.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        let _ = self.player_event(self.local_connection, event, value);
     }
 
-    /// Registration is asynchronous. Scope readiness to this server's regions
-    /// rather than treating a submitted CreateEntity command as an acknowledgement.
     pub fn has_local_player(&self) -> bool {
-        self.local_players.read().is_ok_and(|players| {
-            players
-                .iter()
-                .any(|(region, _)| self.region_id_map.values().any(|owned| owned == region))
-        })
+        self.player_control(self.local_connection).is_some()
     }
 
-    /// Send a local player action to the registered players
     pub fn local_player_action(&mut self, action: EntityAction) {
-        if let Ok(local_players) = self.local_players.read() {
-            if let Ok(pipe) = self.region_pipes.read() {
-                for (region_id, entity_id) in local_players.iter() {
-                    if let Some(sender) = pipe.get(region_id) {
-                        match sender.send(RegionMessage::UserAction(*entity_id, action.clone())) {
-                            Ok(_) => {}
-                            Err(err) => {
-                                println!("{:?}", err.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        let _ = self.player_action(self.local_connection, action);
     }
 
-    /// Instantly move all registered local players to a sector, optionally in another region.
+    /// Trusted local host operations; these are not exposed as wire requests.
     pub fn local_player_teleport(&mut self, sector_name: String, region_name: String) {
-        if let Ok(local_players) = self.local_players.read() {
-            if let Ok(pipe) = self.region_pipes.read() {
-                for (region_id, entity_id) in local_players.iter() {
-                    if let Some(sender) = pipe.get(region_id) {
-                        match sender.send(RegionMessage::TeleportEntity(
-                            *entity_id,
-                            sector_name.clone(),
-                            region_name.clone(),
-                        )) {
-                            Ok(_) => {}
-                            Err(err) => {
-                                println!("{:?}", err.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        let _ = self.player_teleport(self.local_connection, sector_name, region_name);
     }
 
-    /// Instantly move all registered local players to a position in their current region.
     pub fn local_player_teleport_pos(&mut self, position: Vec2<f32>) {
-        if let Ok(local_players) = self.local_players.read() {
-            if let Ok(pipe) = self.region_pipes.read() {
-                for (region_id, entity_id) in local_players.iter() {
-                    if let Some(sender) = pipe.get(region_id) {
-                        match sender.send(RegionMessage::TeleportEntityPos(*entity_id, position)) {
-                            Ok(_) => {}
-                            Err(err) => {
-                                println!("{:?}", err.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        let _ = self.player_teleport_pos(self.local_connection, position);
     }
 
     /// Pause all region instances.
     pub fn pause(&mut self) {
+        self.legacy_clock.reset_elapsed();
+        self.last_legacy_advance_at = None;
         if let Ok(pipes) = self.region_pipes.read() {
             for sender in pipes.values() {
                 _ = sender.send(RegionMessage::Pause);
@@ -1037,6 +1289,7 @@ impl Server {
 
     /// Continue all region instances.
     pub fn continue_instances(&mut self) {
+        self.last_legacy_advance_at = None;
         if let Ok(pipes) = self.region_pipes.read() {
             for sender in pipes.values() {
                 _ = sender.send(RegionMessage::Continue);
@@ -1057,14 +1310,20 @@ impl Server {
 
     /// Shuts down all region instances.
     pub fn clear(&mut self) {
+        self.scheduling = Default::default();
+        self.legacy_clock.reset_elapsed();
+        self.last_legacy_advance_at = None;
         self.node_traces.clear();
         self.node_highlights.clear();
         if let Ok(mut pipes) = self.region_pipes.write() {
             pipes.clear();
         }
-        if let Ok(mut players) = self.local_players.write() {
-            players.clear();
-        }
+        self.connections.clear();
+        self.local_connection = PlayerConnectionId::new();
+        self.connections.insert(
+            self.local_connection,
+            PlayerConnectionState::AwaitingCharacter,
+        );
         self.event_session = Uuid::new_v4();
         self.event_observations.clear();
         self.entities.clear();
@@ -1073,10 +1332,12 @@ impl Server {
         self.says.clear();
         self.world_texts.clear();
         self.open_container_requests.clear();
+        self.addressed_container_requests.clear();
         self.audio_commands.clear();
         self.world_render = RuntimeRenderState::default();
         self.region_render.clear();
         self.runtime_maps.clear();
+        self.runtime_map_versions.clear();
         self.runtime_map_position_guards.clear();
         self.block_prop_instances.clear();
         self.multiple_choice.clear();
@@ -1116,7 +1377,13 @@ mod tests {
         for (server, sender) in [(&mut first, first_tx), (&mut second, second_tx)] {
             server.region_id_map.insert(region, 0);
             server.region_pipes.write().unwrap().insert(0, sender);
-            server.local_players.write().unwrap().push((0, 7));
+            server.connections.insert(
+                server.local_connection,
+                PlayerConnectionState::Active(PlayerControl {
+                    region_id: 0,
+                    entity_id: 7,
+                }),
+            );
         }
         first.local_player_action(EntityAction::Forward);
         assert!(matches!(

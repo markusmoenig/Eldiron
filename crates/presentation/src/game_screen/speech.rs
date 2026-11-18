@@ -30,6 +30,7 @@ struct Placed {
 #[derive(Default)]
 pub struct SpeechOverlay {
     session: Option<Uuid>,
+    player: rusterix::party::PlayerView,
     state: SpeechMessages,
     source: String,
     config: toml::Table,
@@ -121,10 +122,11 @@ impl Placer<'_> {
 
 impl SpeechOverlay {
     pub(super) fn bind_runtime(&mut self, world: &RuntimeView<'_>) {
-        if self.session != Some(world.session_id) {
+        if self.session != Some(world.session_id) || self.player != world.player {
             self.clear();
             self.state = SpeechMessages::default();
             self.session = Some(world.session_id);
+            self.player = world.player;
             self.source.clear();
             self.config.clear();
             self.styles.clear();
