@@ -1,7 +1,10 @@
 //! Source selection for isometric floor/terrain materials. These borrowed cell
 //! policies are independent of the camera, rasterizer and destination pixels.
 use crate::{Assets, Map, PixelSource, Sector, Tile, Value};
-use std::collections::HashMap;
+use std::{
+    collections::{BTreeMap, HashMap},
+    hash::{Hash, Hasher},
+};
 
 /// Shared material clock; spatial pages are selected independently of time.
 pub fn animation_frame(seconds: f32) -> usize {
@@ -134,5 +137,58 @@ impl<'a> SurfaceMaterials<'a> {
             primary: self.tiles.get(&cell).copied().or(self.base)?,
             secondary: self.blends.get(&cell).copied(),
         })
+    }
+
+    /// Identity of the resolved cell policy and the source planes sampled by
+    /// terrain. A publisher can advance its tile revision for unrelated
+    /// assets without changing any of these inputs.
+    pub fn source_fingerprint(&self) -> u64 {
+        let mut hash = rustc_hash::FxHasher::default();
+        self.base.map(|tile| tile.id).hash(&mut hash);
+        let mut sources = BTreeMap::new();
+        if let Some(base) = self.base {
+            sources.insert(base.id, base);
+        }
+        let mut overrides: Vec<_> = self.tiles.iter().collect();
+        overrides.sort_unstable_by_key(|(cell, _)| **cell);
+        overrides.len().hash(&mut hash);
+        for (cell, &tile) in overrides {
+            (cell, tile.id).hash(&mut hash);
+            sources.insert(tile.id, tile);
+        }
+        let mut blends: Vec<_> = self.blends.iter().collect();
+        blends.sort_unstable_by_key(|(cell, _)| **cell);
+        blends.len().hash(&mut hash);
+        for (cell, &(weights, tile)) in blends {
+            (cell, weights.map(f32::to_bits), tile.id).hash(&mut hash);
+            sources.insert(tile.id, tile);
+        }
+        for (id, tile) in sources {
+            id.hash(&mut hash);
+            tile.uv_pages.as_ref().map(|pages| {
+                (
+                    pages.animation_frames,
+                    pages.repeat_period.map(f32::to_bits),
+                    pages.origin,
+                    pages.size,
+                    pages.units_per_page,
+                )
+            }).hash(&mut hash);
+            (&tile.material.preset, &tile.material.finish).hash(&mut hash);
+            tile.textures.len().hash(&mut hash);
+            for texture in &tile.textures {
+                (texture.width, texture.height).hash(&mut hash);
+                texture.data.hash_source(&mut hash);
+                texture.data_ext.is_some().hash(&mut hash);
+                if let Some(data) = &texture.data_ext {
+                    data.hash_source(&mut hash);
+                }
+            }
+            tile.baked_material_data.len().hash(&mut hash);
+            for data in &tile.baked_material_data {
+                data.hash_source(&mut hash);
+            }
+        }
+        hash.finish()
     }
 }

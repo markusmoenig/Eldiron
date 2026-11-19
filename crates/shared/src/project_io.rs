@@ -4,6 +4,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::io::{Cursor, Read, Write};
+use std::sync::Arc;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
@@ -145,6 +146,20 @@ pub fn project_file_format(bytes: &[u8]) -> ProjectFileFormat {
 }
 
 pub fn decode_project(bytes: &[u8]) -> Result<Project, String> {
+    decode_project_with_bakes(bytes, None)
+}
+
+/// Keep the original compressed archive alive for pixel data requested by the
+/// editor after opening. Legacy JSON and archives without binary bakes follow
+/// their usual decoding path.
+pub fn decode_project_streaming(bytes: &[u8]) -> Result<Project, String> {
+    decode_project_with_bakes(bytes, Some(bytes))
+}
+
+fn decode_project_with_bakes(
+    bytes: &[u8],
+    stream_bakes: Option<&[u8]>,
+) -> Result<Project, String> {
     let trace_start = web_time::Instant::now();
     let trace = |label| {
         if std::env::var_os("ELDIRON_PROFILE_STARTUP").is_some() {
@@ -154,7 +169,7 @@ pub fn decode_project(bytes: &[u8]) -> Result<Project, String> {
     let mut project = match project_file_format(bytes) {
         ProjectFileFormat::LegacyJson => crate::project::decode_json(bytes)
             .map_err(|err| format!("invalid legacy Eldiron project JSON: {err}")),
-        ProjectFileFormat::ArchiveV1 => decode_project_archive(bytes),
+        ProjectFileFormat::ArchiveV1 => decode_project_archive(bytes, stream_bakes),
     }?;
     trace("archive");
     for region in &mut project.regions {
@@ -238,7 +253,7 @@ pub fn encode_project(project: &Project) -> Result<Vec<u8>, String> {
         .map_err(|err| format!("failed to finish Eldiron project archive: {err}"))
 }
 
-fn decode_project_archive(bytes: &[u8]) -> Result<Project, String> {
+fn decode_project_archive(bytes: &[u8], stream_bakes: Option<&[u8]>) -> Result<Project, String> {
     let cursor = Cursor::new(bytes);
     let mut archive =
         ZipArchive::new(cursor).map_err(|err| format!("invalid Eldiron project archive: {err}"))?;
@@ -265,7 +280,13 @@ fn decode_project_archive(bytes: &[u8]) -> Result<Project, String> {
         .map_err(|err| format!("invalid project.json in Eldiron archive: {err}"))?;
     let mut binaries = ProjectBinaryReader::new(&mut archive);
     if let Some(path) = manifest.tile_bakes_path.as_deref() {
-        tile_bakes::hydrate(&mut project, &mut binaries, path)?;
+        if let Some(bytes) = stream_bakes {
+            tile_bakes::defer(
+                &mut project, &mut binaries, path, Arc::from(bytes),
+            )?;
+        } else {
+            tile_bakes::hydrate(&mut project, &mut binaries, path)?;
+        }
     }
     hydrate_bake_entries(&mut project, &mut binaries)?;
     hydrate_item_icon_entries(&mut project, &mut binaries)?;

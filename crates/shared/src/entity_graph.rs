@@ -2,7 +2,7 @@
 //! compatibility projection for existing rendering, spawning and client readers.
 //! This compiler has no event scheduler or world mutation dependencies.
 use crate::project::Project;
-use std::collections::{BTreeMap, HashSet};
+use std::{cell::OnceCell, collections::{BTreeMap, HashSet}};
 use theframework_core::graph::*;
 use theframework_core::prelude::Uuid;
 use toml::{Table, Value};
@@ -1127,6 +1127,20 @@ pub fn normalize(doc: &mut GraphDocument) {
 }
 /// Compile overrides and retain non-attribute metadata. No event is run here.
 pub fn project_data(doc: &GraphDocument, previous: &str, rules: &Table) -> Result<String, String> {
+    let data = project_table(doc, previous, rules, &OnceCell::new())?;
+    toml::to_string_pretty(&data).map_err(|e| e.to_string())
+}
+
+// Every linked item in a synchronization pass reads the same rules. Cache
+// the compiled templates for the pass, including errors for malformed rules.
+type ItemTemplates = OnceCell<Result<Vec<crate::rulesets::RulesetItemTemplate>, String>>;
+
+fn project_table(
+    doc: &GraphDocument,
+    previous: &str,
+    rules: &Table,
+    templates: &ItemTemplates,
+) -> Result<Table, String> {
     let mut projection = builtin_registry().compile(doc, rules)?;
     apply_animal_identity(&mut projection, rules)?;
     if let Some(path) = projection
@@ -1136,12 +1150,13 @@ pub fn project_data(doc: &GraphDocument, previous: &str, rules: &Table) -> Resul
         .and_then(Value::as_str)
         .map(str::to_string)
     {
-        let template = crate::rulesets::ruleset_item_templates_from_source(
-            &toml::to_string(rules).map_err(|e| e.to_string())?,
-        )?
-        .into_iter()
-        .find(|t| t.ruleset_path == path)
-        .ok_or_else(|| format!("Unknown ruleset item: {path}"))?;
+        let template = templates
+            .get_or_init(|| crate::rulesets::ruleset_item_templates(rules))
+            .as_ref()
+            .map_err(Clone::clone)?
+            .iter()
+            .find(|t| t.ruleset_path == path)
+            .ok_or_else(|| format!("Unknown ruleset item: {path}"))?;
         let mut defaults = template.data.parse::<Table>().map_err(|e| e.to_string())?;
         if let Some(Value::Table(overrides)) = projection.remove("attributes") {
             let attrs = defaults
@@ -1178,14 +1193,16 @@ pub fn project_data(doc: &GraphDocument, previous: &str, rules: &Table) -> Resul
     data.remove("input");
     data.remove("light");
     data.extend(projection);
-    toml::to_string_pretty(&data).map_err(|e| e.to_string())
+    Ok(data)
 }
 
 /// Materialize custom item defaults without storing duplicate authoring nodes.
 fn project_item_data(doc: &GraphDocument, previous: &str, rules: &Table) -> Result<String, String> {
-    let mut table = project_data(doc, previous, rules)?
-        .parse::<Table>()
-        .map_err(|e| e.to_string())?;
+    let data = project_table(doc, previous, rules, &OnceCell::new())?;
+    format_item_data(data, rules)
+}
+
+fn format_item_data(mut table: Table, rules: &Table) -> Result<String, String> {
     let attrs = table
         .entry("attributes".to_string())
         .or_insert_with(|| Value::Table(Table::new()))
@@ -1205,6 +1222,7 @@ fn project_item_data(doc: &GraphDocument, previous: &str, rules: &Table) -> Resu
 pub fn synchronize(project: &mut Project) -> Result<(), String> {
     let source = project.rules_source()?;
     let rules = source.parse::<Table>().map_err(|e| e.to_string())?;
+    let templates = OnceCell::new();
     fn sync(
         graphs: &mut indexmap::IndexMap<String, serde_json::Value>,
         key: String,
@@ -1213,6 +1231,7 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
         character_template: bool,
         item_template: bool,
         equipment: Option<&crate::equipment::EquipmentCatalog>,
+        templates: &ItemTemplates,
     ) -> Result<(), String> {
         if !graphs.contains_key(&key) {
             graphs.insert(
@@ -1237,11 +1256,13 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
             key.clone(),
             serde_json::to_value(&doc).map_err(|e| e.to_string())?,
         );
-        let generated = (if item_template {
-            project_item_data(&doc, data, rules)
+        let table = project_table(&doc, data, rules, templates)
+            .map_err(|e| format!("{key}: {e}"))?;
+        let generated = if item_template {
+            format_item_data(table, rules)
         } else {
-            project_data(&doc, data, rules)
-        })
+            toml::to_string_pretty(&table).map_err(|e| e.to_string())
+        }
         .map_err(|e| format!("{key}: {e}"))?;
         if let Some(equipment) = equipment {
             equipment
@@ -1261,6 +1282,7 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
             false,
             true,
             None,
+            &templates,
         ) {
             errors.push(e);
         }
@@ -1275,6 +1297,7 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
             true,
             false,
             Some(&equipment),
+            &templates,
         ) {
             errors.push(e);
         }
@@ -1295,6 +1318,7 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
                     false,
                     false,
                     None,
+                    &templates,
                 ) {
                     errors.push(e);
                 }
@@ -1314,6 +1338,7 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
                     false,
                     false,
                     None,
+                    &templates,
                 ) {
                     errors.push(e);
                 }

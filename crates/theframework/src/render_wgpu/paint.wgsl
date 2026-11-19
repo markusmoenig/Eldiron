@@ -281,7 +281,9 @@ fn triangle_coverage(p:vec2<f32>)->bool {
         let position=vec2<i32>(min(floor(pixel/params.color1.xy),vec2<f32>(textureDimensions(image))-vec2<f32>(1.)));
         let tex=target_image(normalized_texel(textureLoad(image,position,0)));
         let alpha=floor(clamp(tex.a*c.a,0.,1.)*255.+0.5)/255.;
-        return vec4<f32>(straight_sample(tex)*c.rgb*alpha,alpha);
+        // The source sprite initializes RGB. In the guide scratch target
+        // only subsequent sampled lines contribute to the coverage channel.
+        return vec4<f32>(straight_sample(tex)*c.rgb*alpha,select(alpha,0.,(params.mode&512u)!=0u));
     }
     if(mode==14u || mode==19u){
         // Invert the draw basis at the physical center. Interpolated local

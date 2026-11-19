@@ -1057,8 +1057,8 @@ impl SceneHandler {
                 id: Self::prefab_particle_sprite_tile_id(effect.id),
                 width: sprite.width as u32,
                 height: sprite.height as u32,
-                frames: vec![sprite.data],
-                material_frames: sprite.data_ext.clone().map(|ext| vec![ext]),
+                frames: vec![sprite.data.into()],
+                material_frames: sprite.data_ext.map(|ext| vec![ext.into()]),
             });
         }
     }
@@ -3438,8 +3438,8 @@ impl SceneHandler {
             id: Self::ruleset_fx_particle_sprite_tile_id(),
             width: fx_sprite.width as u32,
             height: fx_sprite.height as u32,
-            frames: vec![fx_sprite.data],
-            material_frames: fx_sprite.data_ext.clone().map(|ext| vec![ext]),
+            frames: vec![fx_sprite.data.into()],
+            material_frames: fx_sprite.data_ext.map(|ext| vec![ext.into()]),
         });
 
         for (id, tile) in tiles {
@@ -3472,8 +3472,8 @@ impl SceneHandler {
                     id: Self::particle_sprite_tile_id(*id),
                     width: sprite.width as u32,
                     height: sprite.height as u32,
-                    frames: vec![sprite.data],
-                    material_frames: sprite.data_ext.clone().map(|ext| vec![ext]),
+                    frames: vec![sprite.data.into()],
+                    material_frames: sprite.data_ext.map(|ext| vec![ext.into()]),
                 });
             }
             for effect in &tile.particle_effects {
@@ -3484,8 +3484,8 @@ impl SceneHandler {
                     id: Self::recipe_particle_sprite_tile_id(*id, &effect.name),
                     width: sprite.width as u32,
                     height: sprite.height as u32,
-                    frames: vec![sprite.data],
-                    material_frames: sprite.data_ext.clone().map(|ext| vec![ext]),
+                    frames: vec![sprite.data.into()],
+                    material_frames: sprite.data_ext.map(|ext| vec![ext.into()]),
                 });
             }
         }
@@ -3495,7 +3495,7 @@ impl SceneHandler {
             id: Uuid::from_str(DEFAULT_TILE_ID).ok().unwrap(),
             width: 100,
             height: 100,
-            frames: vec![checker.data],
+            frames: vec![checker.data.into()],
             material_frames: None,
         });
 

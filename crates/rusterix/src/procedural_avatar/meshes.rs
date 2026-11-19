@@ -61,7 +61,7 @@ pub(super) fn objects(
                 id: material_id,
                 width: texture.width as u32,
                 height: texture.height as u32,
-                frames: vec![texture.data.clone()],
+                frames: vec![texture.data.to_vec()],
                 material_frames: Some(vec![packed.to_vec()]),
             });
         }

@@ -467,7 +467,7 @@ impl RulesEditor {
             for (id, texture) in textures {
                 self.icons.push((
                     id.into(),
-                    TheRGBABuffer::from(texture.data, texture.width as u32, texture.height as u32),
+                    TheRGBABuffer::from(texture.data.into(), texture.width as u32, texture.height as u32),
                 ));
             }
         }
@@ -476,7 +476,7 @@ impl RulesEditor {
                 self.icons.push((
                     id.to_string(),
                     TheRGBABuffer::from(
-                        texture.data.clone(),
+                        texture.data.to_vec(),
                         texture.width as u32,
                         texture.height as u32,
                     ),

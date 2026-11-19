@@ -516,27 +516,31 @@ impl IsometricBlitter {
             p.set_bind_group(0, &bind, &[0]);
             p.dispatch_workgroups(width.div_ceil(8), height.div_ceil(8), 1);
         }
-        for (i, s) in sprites.iter().enumerate() {
-            let (w, h) = s.source.size;
-            let at = s.origin.map(|v| v.round() as i32);
-            let size = [w, h].map(|v| (v as f32 * s.pixel_scale).round() as i32);
-            let end = [
-                at[0].saturating_add(size[0]).min(width as i32),
-                at[1].saturating_add(size[1]).min(height as i32),
-            ];
-            let extent = [end[0] - at[0].max(0), end[1] - at[1].max(0)];
-            if extent.into_iter().any(|v| v <= 0) {
-                continue;
-            }
+        if !sprites.is_empty() {
+            // WGPU orders conflicting storage accesses at each dispatch. Keep
+            // sprite order and barriers within one compute pass per run.
             let mut p = encoder.begin_pass();
             p.set_pipeline(&self.blit);
-            p.set_bind_group(0, &bind, &[((i as u64 + 1) * self.stride) as u32]);
-            p.set_bind_group(1, &s.source.bind, &[]);
-            p.dispatch_workgroups(
-                (extent[0] as u32).div_ceil(8),
-                (extent[1] as u32).div_ceil(8),
-                1,
-            );
+            for (i, s) in sprites.iter().enumerate() {
+                let (w, h) = s.source.size;
+                let at = s.origin.map(|v| v.round() as i32);
+                let size = [w, h].map(|v| (v as f32 * s.pixel_scale).round() as i32);
+                let end = [
+                    at[0].saturating_add(size[0]).min(width as i32),
+                    at[1].saturating_add(size[1]).min(height as i32),
+                ];
+                let extent = [end[0] - at[0].max(0), end[1] - at[1].max(0)];
+                if extent.into_iter().any(|v| v <= 0) {
+                    continue;
+                }
+                p.set_bind_group(0, &bind, &[((i as u64 + 1) * self.stride) as u32]);
+                p.set_bind_group(1, &s.source.bind, &[]);
+                p.dispatch_workgroups(
+                    (extent[0] as u32).div_ceil(8),
+                    (extent[1] as u32).div_ceil(8),
+                    1,
+                );
+            }
         }
         encoder.finish();
         Ok(())

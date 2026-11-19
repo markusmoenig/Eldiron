@@ -1,11 +1,23 @@
 use super::*;
 use crate::{
     GameSceneInput,
-    isometric::{IsometricSceneInput, IsometricSceneRenderer, IsometricSourceVersion},
+    isometric::{IsometricSceneInput, IsometricSceneRenderer, IsometricSourceVersion, IsometricTerrainCache, TerrainConsumer},
     screen::ContentRevision,
 };
 use rusterix::{client::widget::game::GameWidget, isometric::lighting::Lighting};
 impl SceneViews {
+    /// The isometric renderer reads tiles and palette directly from Assets.
+    /// SceneHandler still supplies the view's live render settings and lights.
+    pub fn configure_isometric(&mut self, id: ViewId, assets: &rusterix::Assets) -> Result<()> {
+        let scene = self.scene_mut(id)?;
+        scene.sync_base_render_settings(&assets.config);
+        scene.mark_dynamics_dirty();
+        Ok(())
+    }
+
+    pub fn set_isometric_terrain_cache(&mut self, cache: Option<IsometricTerrainCache>) {
+        self.shared_isometric_terrain = cache;
+    }
     /// Revoke cached geometry when the owner changes a projection that retains
     /// its authored map ID/revision, such as a clipboard preview. Other views
     /// and immutable GPU source residency are unaffected.
@@ -50,7 +62,7 @@ impl SceneViews {
             .as_mut()
             .unwrap()
             .set_player_view(rusterix::party::PlayerView::Uncontrolled);
-        let frame = view.isometric_renderer.as_mut().unwrap().prepare_unlit(
+        let frame = view.isometric_renderer.as_mut().unwrap().prepare_view(
             size,
             &IsometricSceneInput {
                 map,
@@ -66,6 +78,8 @@ impl SceneViews {
                     tiles: assets.tiles_revision,
                 },
             },
+            TerrainConsumer::Overview,
+            self.shared_isometric_terrain.as_ref(),
         )?;
         view.isometric_frame = Some(frame);
         view.retired_isometric_sources = None;
@@ -137,7 +151,7 @@ impl SceneViews {
         let reduction = widget.upscale.max(1.);
         projection.origin /= reduction;
         projection.unit /= reduction;
-        self.prepare_isometric_scene(id, projection, input, widget.player_view)
+        self.prepare_isometric_scene(id, projection, input, widget.player_view, TerrainConsumer::Play)
     }
     /// Sprite-isometric authoring uses its logical construction-plane projection
     /// and the same injected source producer as player views.
@@ -158,7 +172,9 @@ impl SceneViews {
             input.map,
             scenevm::prelude::Vec2::new(size.0 as f32, size.1 as f32),
         );
-        self.prepare_isometric_scene(id, projection, input, rusterix::party::PlayerView::Legacy)
+        self.prepare_isometric_scene(
+            id, projection, input, rusterix::party::PlayerView::Legacy, TerrainConsumer::Editor,
+        )
     }
     fn prepare_isometric_scene(
         &mut self,
@@ -166,6 +182,7 @@ impl SceneViews {
         projection: rusterix::isometric::Projection,
         input: &GameSceneInput<'_>,
         player_view: rusterix::party::PlayerView,
+        consumer: TerrainConsumer,
     ) -> Result<()> {
         let view = self
             .views
@@ -195,7 +212,7 @@ impl SceneViews {
             .as_mut()
             .unwrap()
             .set_player_view(player_view);
-        let frame = view.isometric_renderer.as_mut().unwrap().prepare(
+        let frame = view.isometric_renderer.as_mut().unwrap().prepare_view(
             view.size,
             &IsometricSceneInput {
                 map: input.map,
@@ -211,6 +228,8 @@ impl SceneViews {
                     tiles: input.assets.tiles_revision,
                 },
             },
+            consumer,
+            self.shared_isometric_terrain.as_ref(),
         )?;
         view.isometric_frame = Some(frame);
         view.retired_isometric_sources = None;

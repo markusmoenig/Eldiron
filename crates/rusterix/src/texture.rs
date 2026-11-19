@@ -2,6 +2,8 @@ use crate::IntoDataInput;
 use crate::material_library::{MaterialDefinition, SEMANTIC_MATERIAL_MARKER};
 use serde::Serializer;
 use std::io::Cursor;
+use std::sync::{Arc, OnceLock};
+use theframework_core::{BytePlanes, SharedBytes};
 use theframework_core::prelude::*;
 
 const DEFAULT_MATERIAL_BYTES: [u8; 2] = [0x08, 0x0f];
@@ -38,7 +40,7 @@ mod tests {
 }
 
 fn serialize_data_ext_normals_only<S>(
-    data_ext: &Option<Vec<u8>>,
+    data_ext: &Option<SharedBytes>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
@@ -48,7 +50,10 @@ where
         return serializer.serialize_none();
     };
 
-    let mut sanitized = data_ext.clone();
+    let mut sanitized = data_ext
+        .try_resolve()
+        .map_err(serde::ser::Error::custom)?
+        .clone();
     reset_material_bytes_to_default(&mut sanitized);
     serializer.serialize_some(&sanitized)
 }
@@ -94,7 +99,7 @@ pub enum RepeatMode {
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Clone, Debug)]
 pub struct Texture {
     /// RGBA8 color data (4 bytes per pixel)
-    pub data: Vec<u8>,
+    pub data: SharedBytes,
     pub width: usize,
     pub height: usize,
     /// Optional unified material+normal data (4 u8 bytes per pixel)
@@ -104,7 +109,7 @@ pub struct Texture {
         skip_serializing_if = "Option::is_none",
         serialize_with = "serialize_data_ext_normals_only"
     )]
-    pub data_ext: Option<Vec<u8>>,
+    pub data_ext: Option<SharedBytes>,
 }
 
 impl Default for Texture {
@@ -113,12 +118,49 @@ impl Default for Texture {
     }
 }
 
+struct DeferredNormals {
+    color: Texture,
+    pixels: OnceLock<Result<Arc<Vec<u8>>, String>>,
+}
+
+impl BytePlanes for DeferredNormals {
+    fn read(&self, index: usize) -> Result<&Arc<Vec<u8>>, &str> {
+        if index != 0 {
+            return Err("invalid normal plane");
+        }
+        self.pixels.get_or_init(|| {
+            self.color.data.try_resolve()?;
+            let mut texture = self.color.clone();
+            texture.generate_normals(true);
+            let normals = texture.data_ext.ok_or("missing generated normal plane")?;
+            Ok(Arc::new(normals.into()))
+        }).as_ref().map_err(String::as_str)
+    }
+}
+
 impl Texture {
+    /// Keep legacy normal generation available without pulling image pixels
+    /// into memory as a side effect of installing a document.
+    pub fn ensure_normals_on_read(&mut self) {
+        if self.data_ext.is_some() {
+            return;
+        }
+        if self.data.is_deferred() && self.width > 0 && self.height > 0 {
+            self.data_ext = Some(SharedBytes::deferred(
+                Arc::new(DeferredNormals { color: self.clone(), pixels: OnceLock::new() }),
+                0,
+                self.width * self.height * 4,
+            ));
+        } else {
+            self.generate_normals(true);
+        }
+    }
+
     /// Creates a new texture with the given width, height, and data
     pub fn new(data: Vec<u8>, width: usize, height: usize) -> Self {
         assert_eq!(data.len(), width * height * 4, "Invalid texture data size.");
         Texture {
-            data,
+            data: data.into(),
             width,
             height,
             data_ext: None,
@@ -128,7 +170,7 @@ impl Texture {
     /// Creates a new texture with the given width, height, and allocates the data.
     pub fn alloc(width: usize, height: usize) -> Self {
         Texture {
-            data: vec![0; width * height * 4],
+            data: vec![0; width * height * 4].into(),
             width,
             height,
             data_ext: None,
@@ -156,7 +198,7 @@ impl Texture {
         }
 
         Texture {
-            data,
+            data: data.into(),
             width,
             height,
             data_ext: None,
@@ -166,7 +208,7 @@ impl Texture {
     /// Creates a texture filled with a single color (1x1 texture)
     pub fn from_color(color: [u8; 4]) -> Self {
         Texture {
-            data: color.to_vec(),
+            data: color.to_vec().into(),
             width: 1,
             height: 1,
             data_ext: None,
@@ -176,7 +218,7 @@ impl Texture {
     /// Creates a texture filled with a white color (1x1 texture)
     pub fn white() -> Self {
         Texture {
-            data: vec![255, 255, 255, 255],
+            data: vec![255, 255, 255, 255].into(),
             width: 1,
             height: 1,
             data_ext: None,
@@ -186,7 +228,7 @@ impl Texture {
     /// Creates a texture filled with a black color (1x1 texture)
     pub fn black() -> Self {
         Texture {
-            data: vec![0, 0, 0, 255],
+            data: vec![0, 0, 0, 255].into(),
             width: 1,
             height: 1,
             data_ext: None,
@@ -195,7 +237,7 @@ impl Texture {
 
     pub fn from_rgbabuffer(buffer: &TheRGBABuffer) -> Self {
         Texture {
-            data: buffer.pixels().to_vec(),
+            data: buffer.pixels().to_vec().into(),
             width: buffer.dim().width as usize,
             height: buffer.dim().height as usize,
             data_ext: None,
@@ -220,7 +262,7 @@ impl Texture {
         let data = rgba_img.into_raw();
 
         Texture {
-            data,
+            data: data.into(),
             width: width as usize,
             height: height as usize,
             data_ext: None,
@@ -245,7 +287,7 @@ impl Texture {
         let data = rgba_img.into_raw();
 
         Some(Texture {
-            data,
+            data: data.into(),
             width: width as usize,
             height: height as usize,
             data_ext: None,
@@ -560,10 +602,10 @@ impl Texture {
         });
 
         Texture {
-            data: new_data,
+            data: new_data.into(),
             width: new_width,
             height: new_height,
-            data_ext: resized_data_ext,
+            data_ext: resized_data_ext.map(Into::into),
         }
     }
 
@@ -602,7 +644,7 @@ impl Texture {
 
     /// Convert to an TheRGBABuffer
     pub fn to_rgba(&self) -> TheRGBABuffer {
-        TheRGBABuffer::from(self.data.clone(), self.width as u32, self.height as u32)
+        TheRGBABuffer::from(self.data.to_vec(), self.width as u32, self.height as u32)
     }
 
     /// Generates normals from this texture's color data using Sobel filter on luma,
@@ -765,7 +807,7 @@ impl Texture {
     /// Ensures data_ext is allocated for this texture
     fn ensure_data_ext(&mut self) {
         if self.data_ext.is_none() {
-            self.data_ext = Some(vec![0u8; self.width * self.height * 4]);
+            self.data_ext = Some(vec![0u8; self.width * self.height * 4].into());
         }
     }
 
@@ -890,14 +932,14 @@ impl Texture {
     }
 
     /// Extracts the two packed material bytes for every pixel.
-    pub fn material_bytes(&self) -> Vec<u8> {
+    pub fn material_bytes(&self) -> SharedBytes {
         let mut bytes = Vec::with_capacity(self.width * self.height * 2);
         if let Some(ext) = &self.data_ext {
             for pixel in ext.chunks_exact(4) {
                 bytes.extend_from_slice(&pixel[..2]);
             }
         }
-        bytes
+        bytes.into()
     }
 
     /// Applies two packed material bytes per pixel while preserving normals.

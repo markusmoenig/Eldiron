@@ -856,7 +856,7 @@ material "surface" called "Initial thumbnails"
                 .count();
             std::fs::write(
                 format!("/tmp/hideout-gpu-{index}.png"),
-                theframework::prelude::TheRGBABuffer::from(frame.tile.data.clone(), 16, 16)
+                theframework::prelude::TheRGBABuffer::from(frame.tile.data.to_vec(), 16, 16)
                     .to_png()
                     .unwrap(),
             )
@@ -1078,12 +1078,12 @@ material "surface" called "Initial thumbnails"
                 id,
                 width: 16,
                 height: 16,
-                frames: pages.textures.iter().map(|t| t.data.clone()).collect(),
+                frames: pages.textures.iter().map(|t| t.data.to_vec()).collect(),
                 material_frames: Some(
                     pages
                         .textures
                         .iter()
-                        .map(|t| t.data_ext.clone().unwrap())
+                        .map(|t| t.data_ext.clone().unwrap().into())
                         .collect(),
                 ),
             });

@@ -1882,7 +1882,7 @@ mod tests {
         let mut avatars = std::collections::HashMap::new();
         let live = AvatarSprite {
             surface: None,
-            pixels: std::sync::Arc::new(actor.textures[0].data.clone()),
+            pixels: std::sync::Arc::new(actor.textures[0].data.to_vec()),
             size: [128, 128],
             anchor: [64., 100.],
             pixels_per_unit: 32.,

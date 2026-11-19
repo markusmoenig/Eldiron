@@ -36,7 +36,7 @@ fn missing_paint_dependencies_never_publish_or_capture_an_original_sample() {
     let context = futures::executor::block_on(GpuContext::headless()).unwrap();
     let mut assets = Assets::default();
     let mut texture = Texture::new(vec![210, 60, 40, 255], 1, 1);
-    texture.data_ext = Some(vec![0x08, 0x0f, 128, 128]);
+    texture.data_ext = Some(vec![0x08, 0x0f, 128, 128].into());
     let tile = rusterix::Tile::from_texture(texture);
     let tile_id = tile.id;
     assets.set_tiles([(tile_id, tile)].into_iter().collect());

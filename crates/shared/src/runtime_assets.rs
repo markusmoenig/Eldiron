@@ -252,40 +252,41 @@ pub fn sync_procedural_avatar_assets(
         .collect::<std::collections::BTreeMap<_, _>>();
     let resource_key = fingerprint(&(resources, material_maps, animation_maps, wardrobe));
     trace("resource fingerprint");
-    for (id, source, equipment) in sources {
+    let prepare = |(id, source, equipment): (String, &str, &[(&str, &str, &str)])| {
         let resolved = denrim_materials::geometry::Document::parse(source)
             .map_err(|e| e.to_string())
             .and_then(|doc| crate::appearance_assets::resolve_dependencies(project, &doc))
             .and_then(|doc| serde_json::to_string_pretty(&doc).map_err(|e| e.to_string()));
         let source = match resolved {
             Ok(s) => s,
-            Err(e) => {
-                eprintln!("Geometry dependency: {e}");
-                if let Some(old) = previous.get(&id) {
-                    if let Some(avatar) = assets.avatars.get(&id) {
-                        assets
-                            .procedural_avatars
-                            .insert(avatar.id.to_string(), old.clone());
-                    }
-                    assets.procedural_avatars.insert(id, old.clone());
-                }
-                continue;
-            }
+            Err(e) => return (id, Err(format!("Geometry dependency: {e}"))),
         };
         let signature = fingerprint(&(&source, &palette, resource_key, equipment));
         let asset = if let Some(old) = previous.get(&id).filter(|a| a.signature == signature) {
-            old.clone()
+            Ok(old.clone())
         } else {
-            match Appearance::new(&source, equipment, signature) {
-                Ok(a) => Arc::new(a),
-                Err(e) => {
-                    eprintln!("Invalid procedural appearance {id}: {e}");
-                    if let Some(old) = previous.get(&id) {
-                        old.clone()
-                    } else {
-                        continue;
-                    }
-                }
+            Appearance::new(&source, equipment, signature)
+                .map(Arc::new)
+                .map_err(|e| format!("Invalid procedural appearance {id}: {e}"))
+        };
+        (id, asset)
+    };
+    // Dependency resolution and mesh evaluation only read authored sources.
+    // Keep publication order and last-good fallback on the owner thread.
+    #[cfg(not(target_arch = "wasm32"))]
+    let prepared: Vec<_> = {
+        use rayon::prelude::*;
+        sources.into_par_iter().map(prepare).collect()
+    };
+    #[cfg(target_arch = "wasm32")]
+    let prepared: Vec<_> = sources.into_iter().map(prepare).collect();
+    for (id, asset) in prepared {
+        let asset = match asset {
+            Ok(asset) => asset,
+            Err(error) => {
+                eprintln!("{error}");
+                let Some(old) = previous.get(&id) else { continue };
+                old.clone()
             }
         };
         if let Some(avatar) = assets.avatars.get(&id) {
@@ -1093,6 +1094,10 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
     if let Err(error) = crate::entity_graph::synchronize(project) {
         eprintln!("Entity configuration: {error}");
     }
+    insert_projected_content_into_maps(project, debug);
+}
+
+fn insert_projected_content_into_maps(project: &mut Project, debug: bool) {
     let block_props = &project.block_props;
     for region in &mut project.regions {
         // Imports can replace the map without updating its internal name.
@@ -1542,7 +1547,7 @@ pub fn prepare_client_content(assets:&mut rusterix::Assets,project:&mut Project,
         regions: project.regions.iter().map(|r| (r.map.id, r.id)).collect(),
     });
 
-    insert_content_into_maps_mode(project, debug);
+    insert_projected_content_into_maps(project, debug);
     let resource_rules = crate::rulesets::document::RulesDocument::parse(&rules_source)?;
     let mut resource_owners = std::collections::BTreeMap::new();
     for region in &project.regions {

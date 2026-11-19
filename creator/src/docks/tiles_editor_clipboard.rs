@@ -81,7 +81,7 @@ fn image(
                 .height
                 .try_into()
                 .map_err(|_| "Clipboard height overflow")?,
-            source.data.clone(),
+            source.data.to_vec(),
         )
         .map_err(|e| e.to_string());
     }

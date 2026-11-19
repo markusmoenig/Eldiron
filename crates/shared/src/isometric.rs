@@ -346,6 +346,27 @@ fn discover_models(project: &mut Project) {
     }
 }
 
+pub(crate) fn archived_ground_preview(tile: &rusterix::Tile) -> Option<u64> {
+    use std::hash::{Hash, Hasher};
+    let layout = tile.isometric.as_ref().filter(|layout| {
+        layout.ground && layout.source_signature != 0 && !layout.frames.is_empty()
+    })?;
+    let mut key = rustc_hash::FxHasher::default();
+    layout.source_signature.hash(&mut key);
+    tile.uv_pages.as_ref().map(|pages| (pages.size, pages.animation_frames)).hash(&mut key);
+    for textures in [&tile.textures, &layout.frames] {
+        textures.len().hash(&mut key);
+        for texture in textures {
+            if !texture.data.is_deferred() {
+                return None;
+            }
+            (texture.width, texture.height).hash(&mut key);
+            texture.data.hash_source(&mut key);
+        }
+    }
+    Some(key.finish())
+}
+
 /// Cache projected material tiles without replacing the flat textures used by
 /// MZ itself, top-down maps or live 3D surfaces in the same project.
 fn project_material_tiles(project: &mut Project) {
@@ -357,6 +378,14 @@ fn project_material_tiles(project: &mut Project) {
             continue;
         };
         if tile.textures.is_empty() {
+            continue;
+        }
+        // The archive writer synchronizes these previews before saving.
+        // Check that the original source and preview planes still match their
+        // opened snapshot. An edit goes through the normal content check.
+        if project.archived_ground_previews.get(id).is_some_and(|saved| {
+            archived_ground_preview(tile) == Some(*saved)
+        }) {
             continue;
         }
         let signature = rusterix::procedural_avatar::fingerprint(&(
@@ -836,7 +865,7 @@ impl Baker<'_> {
                 column
             })
             .flat_map(|v| v.into_iter().flat_map(f32::to_le_bytes))
-            .collect();
+            .collect::<Vec<_>>();
         Ok(ShadowGrid {
             layers,
             emissive: false,
@@ -844,7 +873,7 @@ impl Baker<'_> {
             max,
             width,
             height,
-            data,
+            data: data.into(),
         })
     }
     pub fn bake(&mut self, key: &str, mesh: &Mesh, yaw: f32, fixed: bool) -> Result<Baked, String> {

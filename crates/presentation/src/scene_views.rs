@@ -106,6 +106,7 @@ pub struct SceneViews {
     registry_owner: u64,
     atlas: SharedAtlas,
     views: FxHashMap<ViewId, SceneView>,
+    shared_isometric_terrain: Option<crate::isometric::IsometricTerrainCache>,
     surface_paint: surface_paint::Sources,
     source_upload_budget: scenevm::source_upload::SourceUploadBudget,
 }
@@ -121,6 +122,7 @@ impl SceneViews {
             registry_owner: images.owner_id(),
             atlas,
             views: FxHashMap::default(),
+            shared_isometric_terrain: None,
             surface_paint: Default::default(),
             source_upload_budget: Default::default(),
         }

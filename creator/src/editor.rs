@@ -4606,6 +4606,9 @@ impl Editor {
     }
 
     fn seed_default_material_bakes(project: &mut Project) {
+        if shared::ruleset_materials::has_saved_library_bakes(project) {
+            return;
+        }
         if let Some(cache) = Self::default_material_bakes() {
             if let Err(error) = shared::ruleset_materials::seed_bakes(project, cache) {
                 eprintln!("Default material cache: {error}");
@@ -4615,6 +4618,9 @@ impl Editor {
 
     fn load_project_from_bytes(bytes: &[u8]) -> Result<Project, String> {
         let mut profile = crate::misc::FrameProfile::new();
+        #[cfg(feature = "native-render")]
+        let mut loaded = shared::project_io::decode_project_streaming(bytes)?;
+        #[cfg(not(feature = "native-render"))]
         let mut loaded = shared::project_io::decode_project(bytes)?;
         profile.lap("load_decode");
         loaded.migrate_default_ruleset();
@@ -5603,9 +5609,7 @@ impl Editor {
 
         for (_, tile) in project.tiles.iter_mut() {
             for texture in &mut tile.textures {
-                if texture.data_ext.is_none() {
-                    texture.generate_normals(true);
-                }
+                texture.ensure_normals_on_read();
             }
         }
     }

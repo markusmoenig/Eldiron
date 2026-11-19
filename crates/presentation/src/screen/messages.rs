@@ -130,7 +130,7 @@ impl MessageLayouts {
                 if !self.generated.contains_key(&id) {
                     let texture = noise.to_tile(64).textures.pop()?;
                     let image =
-                        ImageAsset::rgba(texture.width as u32, texture.height as u32, texture.data)
+                        ImageAsset::rgba(texture.width as u32, texture.height as u32, texture.data.into())
                             .ok()?;
                     self.generated.insert(id, Arc::new(image));
                 }

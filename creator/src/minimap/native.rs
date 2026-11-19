@@ -185,7 +185,7 @@ impl Sources {
             let image = Arc::new(Image {
                 key: format!("minimap-source:{}", Uuid::new_v4()),
                 pixels: TheRGBABuffer::from(
-                    texture.data.clone(),
+                    texture.data.to_vec(),
                     texture.width as u32,
                     texture.height as u32,
                 ),

@@ -12,6 +12,7 @@ pub(crate) struct NativeViewport {
     pub(crate) enabled: bool,
     pub(super) window_focused: Option<bool>,
     pub(super) world: super::world::NativeWorld,
+    pub(super) terrain: eldiron_presentation::isometric::IsometricTerrainCache,
     pub(crate) play: super::play::NativePlay,
     pub(super) game_input: super::game_input::NativeGameInput,
     published: Option<(TheId, Arc<theframework::paint::PaintList>)>,

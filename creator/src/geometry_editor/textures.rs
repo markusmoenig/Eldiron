@@ -176,7 +176,7 @@ fn ruleset_asset(
     let image = denrim_materials::image_source::ImageSource::rgba8(
         first.width,
         first.height,
-        &frames.iter().map(|t| t.data.clone()).collect::<Vec<_>>(),
+        &frames.iter().map(|t| t.data.to_vec()).collect::<Vec<_>>(),
     )
     .map_err(|e| e.to_string())?;
     let mut a=EditableMaterialAsset::parse(source,"project 1\nmaterial \"surface\" called \"Ruleset surface\"\n  mode pbr\n  default roughness to 0.6\n  row \"image\"\n    use \"Image / Tile Source\" id \"ruleset-image\"\n  output base color from row \"image\" xyz\n  output opacity from row \"image\" w\n","surface").map_err(|e|e.to_string())?;
@@ -306,7 +306,7 @@ impl Cache {
             self.images.insert(
                 key.clone(),
                 Images {
-                    color: texture.data,
+                    color: texture.data.into(),
                     data,
                     emission,
                 },

@@ -7,6 +7,43 @@ use rusterix::Tile;
 use std::sync::Arc;
 use theframework_core::Uuid;
 
+pub(super) fn material_page_headers(tile: &Tile, count: u32) -> [[u32; 4]; 3] {
+    let mut header = [[count, 1, 1, 0], [0; 4], [0; 4]];
+    if let Some(pages) = tile.uv_pages.as_ref().filter(|p| !p.size.contains(&0)) {
+        let periodic = pages.repeat_period.iter().all(|v| v.is_finite() && *v > 0.);
+        header[0] = [
+            count,
+            pages.size[0],
+            pages.size[1],
+            if periodic { 3 } else { 1 },
+        ];
+        header[1] = [
+            pages.origin[0] as u32,
+            pages.origin[1] as u32,
+            pages.units_per_page.max(1),
+            0,
+        ];
+        if periodic {
+            header[2][..2].copy_from_slice(&pages.repeat_period.map(f32::to_bits));
+        }
+    }
+    header
+}
+
+pub(super) fn material_page_texels(
+    tile: &Tile,
+    index: usize,
+) -> Option<impl Iterator<Item = [u32; 4]> + '_> {
+    Some(tile.source_surface_texels(index)?.map(|(rgba, material)| {
+        [
+            u32::from_le_bytes(rgba),
+            material[0].to_bits(),
+            material[1].to_bits(),
+            material[3].to_bits(),
+        ]
+    }))
+}
+
 /// GPU material blob: three header words, page descriptors, then RGBA/R/M/E
 /// texels. Each word is `[u32;4]`; material channels retain their original f32
 /// precision until GPU blend/lighting packing. No CPU display image is retained.
@@ -129,30 +166,7 @@ impl IsometricMaterialSources {
         }
         let mut data = vec![[0u32; 4]; 3 + count as usize];
         data.reserve((words - 3 - count) as usize);
-        data[0] = [count as u32, 1, 1, 0];
-        if let Some(p) = pages.filter(|p| p.size.iter().all(|v| *v > 0)) {
-            let periodic = p.repeat_period.iter().all(|v| v.is_finite() && *v > 0.);
-            data[0] = [
-                count as u32,
-                p.size[0],
-                p.size[1],
-                1 | if periodic { 2 } else { 0 },
-            ];
-            data[1] = [
-                p.origin[0] as u32,
-                p.origin[1] as u32,
-                p.units_per_page.max(1),
-                0,
-            ];
-            if periodic {
-                data[2] = [
-                    p.repeat_period[0].to_bits(),
-                    p.repeat_period[1].to_bits(),
-                    0,
-                    0,
-                ];
-            }
-        }
+        data[..3].copy_from_slice(&material_page_headers(tile, count as u32));
         for page in 0..count as usize {
             let index = base + page;
             let Some(texture) = tile.textures.get(index) else {
@@ -163,17 +177,9 @@ impl IsometricMaterialSources {
             let height = u32::try_from(texture.height)
                 .map_err(|_| RenderError("isometric source height overflow".into()))?;
             data[3 + page] = [data.len() as u32, width, height, 0];
-            let texels = tile
-                .source_surface_texels(index)
+            let texels = material_page_texels(tile, index)
                 .ok_or_else(|| RenderError("invalid isometric material source texels".into()))?;
-            data.extend(texels.map(|(rgba, material)| {
-                [
-                    u32::from_le_bytes(rgba),
-                    material[0].to_bits(),
-                    material[1].to_bits(),
-                    material[3].to_bits(),
-                ]
-            }));
+            data.extend(texels);
         }
         let raw: &[u8] = bytemuck::cast_slice(&data);
         let bytes = raw.len() as u64;

@@ -474,7 +474,7 @@ impl GeometryEditor {
         let same_source = |request: &baked_preview::Request| {
             request.source.width() as usize == source.width
                 && request.source.height() as usize == source.height
-                && request.source.pixels() == source.data
+                && request.source.pixels() == source.data.as_slice()
         };
         if self.native.baked.as_ref().is_some_and(|r| {
             r.epoch == self.preview_epoch
@@ -491,7 +491,7 @@ impl GeometryEditor {
                 renderkit::ImageAsset::rgba(
                     source.width as u32,
                     source.height as u32,
-                    source.data.clone(),
+                    source.data.to_vec(),
                 )
                 .map_err(|e| e.to_string())?,
             )
@@ -717,7 +717,7 @@ mod tests {
             .as_mut()
             .unwrap()
             .frames[2]
-            .data = vec![241, 19, 33, 255];
+            .data = vec![241, 19, 33, 255].into();
         editor.update(&project, &mut ui, &mut ctx, &CreatorContext::default());
         let changed = editor
             .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)

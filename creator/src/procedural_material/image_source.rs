@@ -79,7 +79,7 @@ pub(super) fn from_tile(id: Uuid, tile: &rusterix::Tile) -> Result<ImageSource, 
         &tile
             .textures
             .iter()
-            .map(|t| t.data.clone())
+            .map(|t| t.data.to_vec())
             .collect::<Vec<_>>(),
     )
     .map_err(|e| e.to_string())?;
@@ -105,7 +105,7 @@ pub(super) fn from_tile(id: Uuid, tile: &rusterix::Tile) -> Result<ImageSource, 
     for (frame, texture) in tile.textures.iter().enumerate() {
         let mut texture = texture.clone();
         if let Some(bytes) = materials.get(frame).filter(|b| b.len() == w * h * 4) {
-            texture.data_ext = Some(bytes.clone());
+            texture.data_ext = Some(bytes.clone().into());
         }
         let mut maps: [Vec<u8>; 4] = std::array::from_fn(|_| Vec::with_capacity(w * h * 4));
         for y in 0..h {

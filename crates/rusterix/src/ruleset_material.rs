@@ -149,7 +149,7 @@ pub fn bake_at_time(
         size as usize,
         size as usize,
     );
-    texture.data_ext = Some([0, 15, 128, 128].repeat((size * size) as usize));
+    texture.data_ext = Some([0, 15, 128, 128].repeat((size * size) as usize).into());
     for i in 0..(size * size) as usize {
         let rgb: [u8; 3] = std::array::from_fn(|k| srgb(maps[0][i][k]));
         let color = colors
@@ -494,7 +494,7 @@ mod tests {
             if let Ok(directory) = std::env::var("ELDIRON_ENCHANTING_ICON_PREVIEW") {
                 std::fs::write(
                     format!("{directory}/{id}.png"),
-                    TheRGBABuffer::from(texture.data, 32, 32).to_png().unwrap(),
+                    TheRGBABuffer::from(texture.data.into(), 32, 32).to_png().unwrap(),
                 )
                 .unwrap();
             }
@@ -527,7 +527,7 @@ mod tests {
         if let Ok(path) = std::env::var("ELDIRON_LEARNING_ICON_PREVIEW") {
             std::fs::write(
                 path,
-                TheRGBABuffer::from(texture.data.clone(), 32, 32)
+                TheRGBABuffer::from(texture.data.to_vec(), 32, 32)
                     .to_png()
                     .unwrap(),
             )

@@ -87,7 +87,7 @@ pub struct GameScreenController {
     buttons: FxHashMap<u32, ButtonSource>,
     geometry: Option<ScreenGeometry>,
     view_ids: FxHashMap<Uuid, ViewId>,
-    configured_views: FxHashMap<ViewId, ContentRevision>,
+    configured_views: FxHashMap<ViewId, (ContentRevision, bool)>,
     view_images: FxHashMap<Uuid, ViewImage>,
     pending_view_images: FxHashSet<Uuid>,
     completed_view_scopes: FxHashMap<ViewId, (Uuid, Uuid)>,
@@ -591,16 +591,22 @@ impl GameScreenController {
                 views.create(id, (0, 0)).map_err(|e| e.to_string())?;
                 self.configured_views.remove(&id);
             }
-            if self.configured_views.get(&id) != Some(&revision) {
-                views
-                    .configure_game(id, world.assets)
-                    .map_err(|e| e.to_string())?;
+            widget.sync_isometric_camera(map);
+            let isometric = widget.camera.is_isometric_2d();
+            let configuration = (revision, isometric);
+            if self.configured_views.get(&id) != Some(&configuration) {
+                if isometric {
+                    views.configure_isometric(id, world.assets)
+                } else {
+                    views.configure_game(id, world.assets)
+                }
+                .map_err(|e| e.to_string())?;
                 widget.rebuild_graphical_scene(
                     map,
                     world.assets,
                     views.scene_mut(id).map_err(|e| e.to_string())?,
                 );
-                self.configured_views.insert(id, revision);
+                self.configured_views.insert(id, configuration);
             }
             let size = (
                 widget.rect.width.round().max(0.) as u32,

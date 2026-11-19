@@ -25,6 +25,7 @@ fn sample(
 "#,
     );
     shader.push_str(include_str!("../src/isometric/material_sample.wgsl"));
+    shader.push_str(include_str!("../src/isometric/material_sampling.wgsl"));
     shader.push_str(
         r#"
 @compute @workgroup_size(64)

@@ -583,7 +583,7 @@ impl AvatarBuilder {
 
         Some(AvatarBuildOutput {
             size: target_size as u32,
-            rgba,
+            rgba: rgba.into(),
             marker_channels,
         })
     }

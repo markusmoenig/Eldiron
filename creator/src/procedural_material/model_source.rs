@@ -675,7 +675,7 @@ mod tests {
         assert!(texture.data.chunks_exact(4).any(|p| p[3] == 0));
         assert!(texture.data.chunks_exact(4).any(|p| p[3] > 200));
         if let Ok(path) = std::env::var("ELDIRON_MODEL_SOURCE_PREVIEW") {
-            let img = TheRGBABuffer::from(texture.data, 32, 32);
+            let img = TheRGBABuffer::from(texture.data.into(), 32, 32);
             std::fs::write(path, img.to_png().unwrap()).unwrap();
         }
         // The modelling viewport must select animated surface frames too, even

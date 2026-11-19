@@ -147,6 +147,7 @@ pub struct PaintRenderer {
     pub glyphs: GlyphCache,
     stats: FrameStats,
     legacy_display: bool,
+    guide_coverage: bool,
     display_target: Option<Arc<GpuImage>>,
     display_pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
     bindings: Bindings,
@@ -274,6 +275,7 @@ impl PaintRenderer {
             glyphs: GlyphCache::default(),
             stats: FrameStats::default(),
             legacy_display: false,
+            guide_coverage: false,
             display_target: None,
             display_pipelines: HashMap::new(),
             bindings: Bindings::default(),
@@ -530,7 +532,8 @@ impl PaintRenderer {
                 2
             } else {
                 mode
-            }) | if self.legacy_display { 256 } else { 0 },
+            }) | if self.legacy_display { 256 } else { 0 }
+                | if self.guide_coverage { 512 } else { 0 },
             source: field.map_or(source | if internal_image { 32 } else { 0 }, Field::count),
             color0: threshold.map_or_else(
                 || {
@@ -741,14 +744,30 @@ impl PaintRenderer {
                 "paint registry belongs to another device".into(),
             ));
         }
-        self.legacy_display = matches!(
+        let legacy_root = matches!(
             list.ops.first(),
             Some(PaintOp::DisplayCompositing(
                 DisplayCompositing::LegacyOpaque
             ))
         );
+        let guide_coverage = matches!(
+            list.ops.first(),
+            Some(PaintOp::DisplayCompositing(DisplayCompositing::EncodedGuideCoverage))
+        );
+        if guide_coverage
+            && (format != wgpu::TextureFormat::Rgba8Unorm
+                || density != 1.
+                || !matches!(list.ops.get(1), Some(PaintOp::SpriteImage { .. }))
+                || !list.ops[2..].iter().all(|op| {
+                    matches!(op, PaintOp::SampledLine { color, .. } if color[3] == 0. || color[3] >= 1. / 255.)
+                }))
+        {
+            return Err(RenderError("encoded guide coverage requires one source sprite and sampled lines at logical resolution".into()));
+        }
+        self.legacy_display = legacy_root || guide_coverage;
+        self.guide_coverage = guide_coverage;
         self.bindings.begin_frame();
-        let result = if self.legacy_display {
+        let result = if legacy_root {
             self.render_display(list, images, target, format, size, density, clear)
         } else {
             self.render_ops(
@@ -758,7 +777,7 @@ impl PaintRenderer {
                 format,
                 size,
                 density,
-                clear,
+                if guide_coverage { [0.; 4] } else { clear },
                 Transform::default(),
             )
         };

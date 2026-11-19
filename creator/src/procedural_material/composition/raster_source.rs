@@ -8,7 +8,7 @@ pub(super) fn asset(id: Uuid, tile: &rusterix::Tile) -> Result<EditableMaterialA
         .first()
         .filter(|bytes| bytes.len() == texture.width * texture.height * 4)
     {
-        texture.data_ext = Some(materials.clone());
+        texture.data_ext = Some(materials.clone().into());
     }
     if texture.width == 0
         || texture.height == 0

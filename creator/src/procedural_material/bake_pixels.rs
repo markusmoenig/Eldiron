@@ -47,7 +47,7 @@ pub(super) fn bake(maps: &Maps, size: usize) -> rusterix::Texture {
 pub(super) fn bake_rect(maps: &Maps, size: [usize; 2]) -> rusterix::Texture {
     let rgba = preview_images(maps)[0].clone();
     let mut texture = rusterix::Texture::alloc(size[0], size[1]);
-    texture.data = rgba;
+    texture.data = rgba.into();
     for y in 0..size[1] {
         for x in 0..size[0] {
             let i = y * size[0] + x;

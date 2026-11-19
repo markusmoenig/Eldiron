@@ -17,7 +17,9 @@ pub(super) fn shader_source(batched: bool) -> String {
         );
         source.push_str(include_str!("batch.wgsl"));
     }
+    source.push_str(include_str!("../surface_math.wgsl"));
     source.push_str(include_str!("../material_sample.wgsl"));
+    source.push_str(include_str!("../material_sampling.wgsl"));
     source.push_str(include_str!("../paint_sample.wgsl"));
     source
 }

@@ -54,12 +54,16 @@ pub(super) mod gpu {
         isometric::{PointLight, Uniforms},
     };
     use renderkit::GpuContext;
+    use std::ops::Range;
     use std::sync::Arc;
     use vek::Vec3;
     const SUN_SIZE: u32 = 2048;
     const POINT_SIZE: u32 = 512;
     // WebGPU's guaranteed 256 array layers can hold six views for every light.
     const MAX_POINT_LIGHTS: usize = 32;
+    // Keep authored triangle order and cheap contiguous draw ranges. Terrain
+    // triangles arrive in spatial order, so most batches cover a small area.
+    const SHADOW_BATCH_VERTICES: usize = 384;
     #[repr(C)]
     #[derive(Clone, Copy, Default, Pod, Zeroable)]
     struct View {
@@ -69,6 +73,48 @@ pub(super) mod gpu {
         origin: [f32; 4],
         projection: [f32; 4], // half width/height, near/far
         meta: [u32; 4],       // perspective, light index, enabled, unused
+    }
+    struct VertexBatch {
+        vertices: Range<u32>,
+        min: Vec3<f32>,
+        max: Vec3<f32>,
+    }
+
+    fn point_shadow_ranges(
+        view: &View,
+        batches: &[VertexBatch],
+        mut draw: impl FnMut(Range<u32>),
+    ) {
+        let origin = Vec3::from_slice(&view.origin[..3]);
+        let forward = Vec3::from_slice(&view.forward[..3]);
+        let [_, _, near, far] = view.projection;
+        // The cube face is contained by this box. Pad its clip planes so
+        // projection roundoff near the GPU clip planes never drops a caster.
+        let padding = far * 0.01 + 0.01;
+        let extent = Vec3::broadcast(far + padding);
+        let shift = forward * (far + near);
+        let min = -extent + shift.map(|v| v.max(0.));
+        let max = extent + shift.map(|v| v.min(0.));
+        let mut current: Option<Range<u32>> = None;
+        for batch in batches {
+            let a = batch.min - origin;
+            let b = batch.max - origin;
+            if b.x < min.x || b.y < min.y || b.z < min.z
+                || a.x > max.x || a.y > max.y || a.z > max.z
+            {
+                continue;
+            }
+            if let Some(range) = &mut current
+                && range.end == batch.vertices.start
+            {
+                range.end = batch.vertices.end;
+            } else if let Some(range) = current.replace(batch.vertices.clone()) {
+                draw(range);
+            }
+        }
+        if let Some(range) = current {
+            draw(range);
+        }
     }
     fn vec4(v: Vec3<f32>) -> [f32; 4] {
         [v.x, v.y, v.z, 0.]
@@ -160,6 +206,8 @@ pub(super) mod gpu {
         pub point_view: wgpu::TextureView,
         sun_ready: bool,
         layers: u32,
+        rendered_point_views: Vec<View>,
+        vertex_batches: Vec<VertexBatch>,
         revision: Option<u64>,
         count: u32,
     }
@@ -273,6 +321,8 @@ pub(super) mod gpu {
                 context,
                 sun_ready: false,
                 layers: 0,
+                rendered_point_views: Vec::new(),
+                vertex_batches: Vec::new(),
                 revision: None,
                 count: 0,
             })
@@ -293,16 +343,15 @@ pub(super) mod gpu {
             let light_count = lights.len().min(MAX_POINT_LIGHTS);
             let mut views = vec![View::default(); 1 + lights.len() * 6];
             if let Some(g) = geometry {
-                if g.vertices.len() % 3 != 0
-                    || g.vertices
-                        .iter()
-                        .any(|v| v.position.iter().any(|x| !x.is_finite()))
+                if g.revision == 0
+                    || self.revision != Some(g.revision)
+                    || self.count as usize != g.vertices.len()
                 {
-                    return Err(SceneVMError::InvalidOperation(
-                        "Invalid iso shadow triangles".into(),
-                    ));
-                }
-                if self.revision != Some(g.revision) || self.count as usize != g.vertices.len() {
+                    if g.vertices.len() % 3 != 0 {
+                        return Err(SceneVMError::InvalidOperation(
+                            "Invalid iso shadow triangles".into(),
+                        ));
+                    }
                     let bytes = bytemuck::cast_slice(&g.vertices);
                     if bytes.len() > device.limits().max_storage_buffer_binding_size as usize {
                         return Err(SceneVMError::BufferAllocationFailed(
@@ -321,12 +370,38 @@ pub(super) mod gpu {
                             "Iso shadow alpha exceeds device limits".into(),
                         ));
                     }
+                    let mut batches = Vec::with_capacity(
+                        g.vertices.len().div_ceil(SHADOW_BATCH_VERTICES),
+                    );
+                    for (i, vertices) in g.vertices.chunks(SHADOW_BATCH_VERTICES).enumerate() {
+                        let mut min = Vec3::broadcast(f32::INFINITY);
+                        let mut max = Vec3::broadcast(f32::NEG_INFINITY);
+                        for v in vertices {
+                            if !v.position.into_iter().all(f32::is_finite) {
+                                return Err(SceneVMError::InvalidOperation(
+                                    "Invalid iso shadow triangles".into(),
+                                ));
+                            }
+                            let position = Vec3::from_slice(&v.position[..3]);
+                            min = min.map2(position, f32::min);
+                            max = max.map2(position, f32::max);
+                        }
+                        let start = (i * SHADOW_BATCH_VERTICES) as u32;
+                        batches.push(VertexBatch {
+                            vertices: start..start + vertices.len() as u32,
+                            min,
+                            max,
+                        });
+                    }
+                    self.revision = None;
+                    self.rendered_point_views.fill(View::default());
                     self.vertices
                         .write(device, queue, bytes, self.context.as_deref())?;
                     self.alpha
                         .write(device, queue, alpha, self.context.as_deref())?;
                     self.revision = Some(g.revision);
                     self.count = g.vertices.len() as u32;
+                    self.vertex_batches = batches;
                 }
                 // Fit the sun to the visible world plus its maximum shadow reach, not the entire map.
                 let unit = u.projection[2].max(0.001);
@@ -402,6 +477,7 @@ pub(super) mod gpu {
                 (self.point, self.point_view, self.point_lease) =
                     depth(device, self.context.as_deref(), POINT_SIZE, layers)?;
                 self.layers = layers;
+                self.rendered_point_views = vec![View::default(); layers as usize];
             }
             let mut uniform_bytes = vec![0u8; (1 + light_count * 6) * 256];
             for (i, v) in views.iter().take(1 + light_count * 6).enumerate() {
@@ -435,6 +511,14 @@ pub(super) mod gpu {
                 if v.meta[2] == 0 {
                     continue;
                 }
+                // Point-light depth is in world space. It can survive camera
+                // and light color changes until a caster or projection changes.
+                if i > 0
+                    && bytemuck::bytes_of(&self.rendered_point_views[i - 1])
+                        == bytemuck::bytes_of(v)
+                {
+                    continue;
+                }
                 let target = if i == 0 { &self.sun } else { &self.point };
                 let target_view = target.create_view(&wgpu::TextureViewDescriptor {
                     dimension: Some(wgpu::TextureViewDimension::D2),
@@ -459,7 +543,12 @@ pub(super) mod gpu {
                 });
                 pass.set_pipeline(&self.pipeline);
                 pass.set_bind_group(0, &bind, &[(i * 256) as u32]);
-                pass.draw(0..self.count, 0..1);
+                if i == 0 {
+                    pass.draw(0..self.count, 0..1);
+                } else {
+                    point_shadow_ranges(v, &self.vertex_batches, |range| pass.draw(range, 0..1));
+                    self.rendered_point_views[i - 1] = *v;
+                }
             }
             Ok(())
         }

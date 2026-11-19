@@ -46,6 +46,15 @@ struct Params {
     contact: [u32; 4],
     cell: [i32; 4],
 }
+
+pub(super) fn terrain_normal(vertices: [Vec3<f32>; 3]) -> Vec3<f32> {
+    let normal = (vertices[1] - vertices[0]).cross(vertices[2] - vertices[0]);
+    if normal.magnitude_squared() <= 0. {
+        return Vec3::unit_y();
+    }
+    let normal = normal.normalized();
+    if normal.y < 0. { -normal } else { normal }
+}
 pub struct IsometricSurfaceRenderer {
     context: Arc<GpuContext>,
     layout: wgpu::BindGroupLayout,
@@ -245,22 +254,11 @@ impl IsometricSurfaceRenderer {
             .ok_or_else(|| {
                 RenderError("isometric surface parameter arena exceeds device limits".into())
             })?;
-        let mask_count = triangles
-            .iter()
-            .try_fold(0u64, |n, t| {
-                n.checked_add(t.contacts.protected.len() as u64)
-            })
-            .filter(|n| {
-                n.max(&1).saturating_mul(4)
-                    <= u64::from(self.context.device.limits().max_storage_buffer_binding_size)
-            })
-            .ok_or_else(|| RenderError("isometric surface masks exceed device limits".into()))?;
-        #[cfg(not(target_arch = "wasm32"))]
-        if std::env::var_os("ELDIRON_PROFILE_ISOMETRIC").is_some() {
-            eprintln!("Isometric surface work: triangles={} terrain={} record_bytes={} legacy_arena_bytes={size} mask_words={mask_count}; registry={:?}",
-                triangles.len(), triangles.iter().filter(|t| t.kind == SurfaceKind::Terrain).count(), triangles.len() * std::mem::size_of::<Params>(), self.context.instance.generate_report());
-        }
-        let mut masks = Vec::<u32>::with_capacity(mask_count.max(1) as usize);
+        let limits = self.context.device.limits();
+        let mask_limit = u64::from(limits.max_storage_buffer_binding_size)
+            .min(limits.max_buffer_size) / 4;
+        let mut masks = Vec::<u32>::new();
+        let mut mask_ranges = FxHashMap::default();
         let mut records = Vec::<Params>::with_capacity(triangles.len());
         let mut regions = Vec::with_capacity(triangles.len());
         let (width, height) = canvas.size();
@@ -313,22 +311,31 @@ impl IsometricSurfaceRenderer {
             regions.push(region);
             let mut normal = Vec3::unit_y();
             if t.kind == SurfaceKind::Terrain {
-                normal = (Vec3::from(t.vertices[1]) - Vec3::from(t.vertices[0]))
-                    .cross(Vec3::from(t.vertices[2]) - Vec3::from(t.vertices[0]));
-                if normal.magnitude_squared() > 0. {
-                    normal = normal.normalized();
-                    if normal.y < 0. {
-                        normal = -normal;
-                    }
-                } else {
-                    normal = Vec3::unit_y();
-                }
+                normal = terrain_normal(t.vertices.map(Vec3::from));
                 if !normal.into_array().into_iter().all(f32::is_finite) {
                     return Err(RenderError("non-finite isometric surface normal".into()));
                 }
             }
-            let offset = masks.len() as u32;
-            masks.extend(t.contacts.protected.iter().map(|v| u32::from(*v)));
+            let protected = t.contacts.protected;
+            let (offset, len) = if region[0] >= region[2] || region[1] >= region[3] || protected.is_empty() {
+                (0, 0)
+            } else {
+                // Every triangle of a floor borrows the same protection mask.
+                // Share its GPU range for this call and omit its false suffix.
+                let key = (protected.as_ptr(), protected.len());
+                match mask_ranges.entry(key) {
+                    std::collections::hash_map::Entry::Occupied(entry) => *entry.get(),
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        let len = protected.iter().rposition(|v| *v).map_or(0, |i| i + 1);
+                        if masks.len() as u64 + len as u64 > mask_limit {
+                            return Err(RenderError("isometric surface masks exceed device limits".into()));
+                        }
+                        let range = (masks.len() as u32, len as u32);
+                        masks.extend(protected[..len].iter().map(|v| u32::from(*v)));
+                        *entry.insert(range)
+                    }
+                }
+            };
             let cell = t.clip_cell.map_or([0; 4], |p| [p[0], p[1], 1, 0]);
             let params = Params {
                 projection: [
@@ -351,12 +358,17 @@ impl IsometricSurfaceRenderer {
                 contact: [
                     t.contacts.owner,
                     offset,
-                    t.contacts.protected.len() as u32,
+                    len,
                     u32::from(t.secondary.is_some()) | (u32::from(t.paint.is_some()) << 1),
                 ],
                 cell,
             };
             records.push(params);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if std::env::var_os("ELDIRON_PROFILE_ISOMETRIC").is_some() {
+            eprintln!("Isometric surface work: triangles={} terrain={} record_bytes={} legacy_arena_bytes={size} mask_words={}; registry={:?}",
+                triangles.len(), triangles.iter().filter(|t| t.kind == SurfaceKind::Terrain).count(), triangles.len() * std::mem::size_of::<Params>(), masks.len(), self.context.instance.generate_report());
         }
         if masks.is_empty() {
             masks.push(0);

@@ -3,7 +3,7 @@ pub mod image;
 mod shared_bytes;
 mod shared_text;
 pub use shared_text::SharedText;
-pub use shared_bytes::SharedBytes;
+pub use shared_bytes::{BytePlanes, SharedBytes};
 pub mod thecolor;
 pub mod thedim;
 pub mod thepalette;

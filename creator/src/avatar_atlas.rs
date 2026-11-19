@@ -152,7 +152,7 @@ pub fn import_avatar_atlas(
         for (frame_index, frame) in perspective.frames.iter_mut().enumerate() {
             let frame_x = frame_x(frame_index, layout.cell) + BORDER_SIZE;
             frame.texture.data =
-                extract_rgba(atlas, frame_x, frame_y, layout.cell - BORDER_SIZE * 2)?;
+                extract_rgba(atlas, frame_x, frame_y, layout.cell - BORDER_SIZE * 2)?.into();
             frame.texture.width = avatar.resolution as usize;
             frame.texture.height = avatar.resolution as usize;
             frame.texture.data_ext = None;
@@ -530,7 +530,7 @@ mod tests {
         let mut imported = avatar.clone();
         imported.animations[0].perspectives[0].frames[0]
             .texture
-            .data = vec![0; 16];
+            .data = vec![0; 16].into();
 
         let count = import_avatar_atlas(&mut imported, &atlas).unwrap();
 

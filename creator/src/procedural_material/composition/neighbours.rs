@@ -325,7 +325,7 @@ mod tests {
         let base = tile.id;
         p.tiles.insert(base, tile.clone());
         tile.id = Uuid::new_v4();
-        tile.textures[0].data = vec![255; 4];
+        tile.textures[0].data = vec![255; 4].into();
         let road = tile.id;
         p.tiles.insert(road, tile.clone());
         tile.id = Uuid::new_v4();

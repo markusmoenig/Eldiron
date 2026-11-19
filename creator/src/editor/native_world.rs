@@ -266,6 +266,7 @@ struct WorldGpu {
     display: image::Owner,
     registry: u64,
     scope: Option<(Uuid, ProjectContext, Uuid, Option<Uuid>)>,
+    isometric: bool,
     scenes: SceneViews,
     view: ViewId,
     configured: Option<AssetKey>,
@@ -291,6 +292,7 @@ impl WorldGpu {
         Ok(Self {
             registry: images.owner_id(),
             scope: None,
+            isometric: false,
             scenes,
             view,
             configured: None,
@@ -1227,11 +1229,13 @@ impl Editor {
         let atlas_changed = gpu.configured.as_ref().is_some_and(|old| {
             !old.same_atlas(&binding.assets)
         });
+        let isometric = map.camera == MapCamera::TwoDIso && binding.mode == EditorViewMode::D2;
         gpu.display.scope((scope, binding.view.uuid, binding.mode, binding.camera, binding.size, binding.density));
-        if gpu.scope != Some(scope) || atlas_changed {
+        if gpu.scope != Some(scope) || atlas_changed || gpu.isometric != isometric {
             // Reopened/copied documents may reuse map IDs and local revisions.
             // Neither atlas residency nor builder caches can cross that lifetime.
             gpu.scope = Some(scope);
+            gpu.isometric = isometric;
             gpu.custom.clear(images.registry);
             gpu.bake.clear(images.registry);
             gpu.pixels.clear(images.registry);
@@ -1291,7 +1295,11 @@ impl Editor {
             return Ok(None);
         }
         if gpu.configured.as_ref() != Some(&binding.assets) {
-            if gpu
+            if isometric {
+                gpu.scenes
+                    .configure_isometric(gpu.view, assets)
+                    .map_err(|e| e.to_string())?;
+            } else if gpu
                 .configured
                 .as_ref()
                 .is_some_and(|old| old.same_atlas(&binding.assets))
@@ -1415,8 +1423,11 @@ impl Editor {
                     authored_source.map(|source| source.billboards()).unwrap_or_default()
                 };
             }
-            let isometric = map.camera == MapCamera::TwoDIso && binding.mode == EditorViewMode::D2;
             if isometric {
+                gpu.scenes.set_isometric_terrain_cache(
+                    (binding.paste.is_none() && binding.custom.is_none() && self.play_session.is_none())
+                        .then(|| self.native_viewport.terrain.clone()),
+                );
                 gpu.scenes
                     .prepare_isometric_editor(
                         gpu.view,
@@ -1696,6 +1707,18 @@ impl Editor {
                     .at_height(map.properties.get_float_default("iso_edit_height", 0.)),
                 gpu.guides.isometric_guides(),
                 |a, b, color| {
+                    // DDA visits the interval from a through a+(b-a), then
+                    // rounds to logical pixels. Drop guides wholly outside it.
+                    let end = a + (b - a);
+                    if end.x.is_finite()
+                        && end.y.is_finite()
+                        && (a.x.max(end.x) < -0.5
+                            || a.y.max(end.y) < -0.5
+                            || a.x.min(end.x) >= size.x
+                            || a.y.min(end.y) >= size.y)
+                    {
+                        return;
+                    }
                     list.ops.push(PaintOp::SampledLine {
                         from: [a.x, a.y],
                         to: [b.x, b.y],

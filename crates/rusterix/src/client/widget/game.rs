@@ -564,7 +564,8 @@ impl GameWidget {
         styles
     }
 
-    fn update_player_context(&mut self, map: &Map) {
+    /// Resolve the map's 2D camera before the presenter configures its renderer.
+    pub fn sync_isometric_camera(&mut self, map: &Map) {
         if self.follow_player_camera
             && map.camera == crate::MapCamera::TwoDIso
             && Self::is_2d_camera(&self.camera)
@@ -575,6 +576,10 @@ impl GameWidget {
                 PlayerCamera::D2Iso
             };
         }
+    }
+
+    fn update_player_context(&mut self, map: &Map) {
+        self.sync_isometric_camera(map);
         if !self.follow_player_camera {
             return;
         }

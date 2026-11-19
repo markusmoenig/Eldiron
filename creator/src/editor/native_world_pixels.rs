@@ -111,10 +111,30 @@ impl Gpu {
                 self.renderer =
                     Some(PaintRenderer::new(images.context().clone()).map_err(|e| e.to_string())?);
             }
-            list.ops.insert(
-                0,
-                PaintOp::DisplayCompositing(DisplayCompositing::LegacyOpaque),
+            // A single source over black can store guide coverage directly
+            // in the painted alpha channel. Preserve general layer composition
+            // for custom backgrounds and other paint lists.
+            let has_black_base = matches!(
+                ops.first(),
+                Some(SourceOp::Clear(rect, color))
+                    if *rect == Rect::new(0., 0., size.0 as f32, size.1 as f32)
+                        && *color == [0., 0., 0., 1.]
             );
+            let single_source = ops.get(usize::from(has_black_base)..).is_some_and(|ops| {
+                matches!(ops.first(), Some(SourceOp::Sprite(..)))
+                    && ops[1..].iter().all(|op| {
+                        matches!(op, SourceOp::Line(_, _, color) if color[3] == 0. || color[3] >= 1. / 255.)
+                    })
+            });
+            let policy = if single_source {
+                if has_black_base {
+                    list.ops.remove(0);
+                }
+                DisplayCompositing::EncodedGuideCoverage
+            } else {
+                DisplayCompositing::LegacyOpaque
+            };
+            list.ops.insert(0, PaintOp::DisplayCompositing(policy));
             // The CPU guide routine blends stored RGB regardless of its prior
             // alpha, and makes touched pixels opaque. Preserve hidden source
             // RGB until guides are painted, then flatten the finished source.
@@ -158,7 +178,7 @@ impl Gpu {
                 .alpha
                 .as_mut()
                 .unwrap()
-                .compose(&list, &source, image, images)?;
+                .compose(&list, &source, image, images, single_source)?;
             // The reference first expands the logical RenderView into its local
             // canvas, then copies that canvas at a rounded parent origin. At
             // fractional DPI those two integer grids may differ by one pixel.

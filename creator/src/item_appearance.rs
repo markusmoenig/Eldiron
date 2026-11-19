@@ -131,7 +131,7 @@ pub fn handle_event(
                 let size = (frames[0].width, frames[0].height);
                 let frames = frames
                     .into_iter()
-                    .map(|t| t.resized(size.0, size.1).data)
+                    .map(|t| t.resized(size.0, size.1).data.into())
                     .take(32)
                     .collect::<Vec<_>>();
                 let image =

@@ -644,7 +644,7 @@ fn create_source(
         }
         source.grid_size = w;
         source.frame_size = (w != h || o.iso).then_some([w, h]);
-        source.buffer = TheRGBABuffer::from(sheet.data, sheet.width as u32, sheet.height as u32);
+        source.buffer = TheRGBABuffer::from(sheet.data.into(), sheet.width as u32, sheet.height as u32);
     } else {
         for (name, t) in &images {
             if t.width == 0 || t.height == 0 || t.width > 4096 || t.height > 4096 {

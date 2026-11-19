@@ -243,7 +243,7 @@ fn flatten_group(
                 .cloned()
                 .into_iter()
                 .collect();
-            source.data_ext = frame_tile.to_material_array().into_iter().next();
+            source.data_ext = frame_tile.to_material_array().into_iter().next().map(Into::into);
             for y in 0..cell_height {
                 for x in 0..cell_width {
                     let src = ((y * source.height / cell_height) * source.width
@@ -257,7 +257,7 @@ fn flatten_group(
                     if let Some(ext) = &source.data_ext {
                         let output = texture
                             .data_ext
-                            .get_or_insert_with(|| [0x88, 0x0f, 128, 128].repeat(width * height));
+                            .get_or_insert_with(|| [0x88, 0x0f, 128, 128].repeat(width * height).into());
                         output[dst..dst + 4].copy_from_slice(&ext[src..src + 4]);
                     }
                 }

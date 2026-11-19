@@ -342,7 +342,7 @@ fn saved_key(bundle: &str, palette: &theframework_core::prelude::ThePalette, res
         (h ^ u64::from(b)).wrapping_mul(0x100000001b3)
     })
 }
-fn saved_frames(project: &Project, name: &str, resolution: u32) -> Option<Vec<Texture>> {
+fn saved_tile<'a>(project: &'a Project, name: &str, resolution: u32) -> Option<&'a Tile> {
     let id = crate::rulesets::material_asset_id(name);
     let bundle = project.procedural_materials.get(&id)?;
     if project.procedural_material_cache_keys.get(&id)
@@ -352,21 +352,33 @@ fn saved_frames(project: &Project, name: &str, resolution: u32) -> Option<Vec<Te
     }
     let tile = project.tiles.get(&id)?;
     if tile.textures.is_empty()
+        || tile.textures.len() != tile.baked_material_data.len()
         || tile
             .textures
             .iter()
-            .any(|t| t.width != resolution as usize || t.height != resolution as usize)
+            .zip(&tile.baked_material_data)
+            .any(|(t, bytes)| {
+                t.width != resolution as usize
+                    || t.height != resolution as usize
+                    || bytes.len() != t.width * t.height * 2
+            })
     {
         return None;
     }
+    Some(tile)
+}
+
+pub fn has_saved_library_bakes(project: &Project) -> bool {
+    definitions(&project.config)
+        .iter()
+        .all(|def| saved_tile(project, def.id, def.resolution).is_some())
+}
+
+fn saved_frames(project: &Project, name: &str, resolution: u32) -> Option<Vec<Texture>> {
+    let tile = saved_tile(project, name, resolution)?;
     let mut frames = tile.textures.clone();
     for (texture, bytes) in frames.iter_mut().zip(&tile.baked_material_data) {
-        if !texture.apply_material_bytes(bytes) {
-            return None;
-        }
-    }
-    if tile.baked_material_data.len() != frames.len() {
-        return None;
+        texture.apply_material_bytes(bytes);
     }
     Some(frames)
 }
@@ -438,7 +450,7 @@ pub fn seed_bakes(project: &mut Project, cache: &Project) -> Result<usize, Strin
         };
         let key = saved_key(&bundle, &project.palette, def.resolution);
         if cache.procedural_material_cache_keys.get(&id) == Some(&key)
-            && saved_frames(cache, def.id, def.resolution).is_some()
+            && saved_tile(cache, def.id, def.resolution).is_some()
         {
             project.procedural_materials.insert(id, bundle);
             let cached = &cache.tiles[&id];
@@ -465,21 +477,21 @@ fn install_definitions(
     project: &mut Project,
     definitions: &[crate::rulesets::BundledMaterialAsset],
 ) -> Result<(), String> {
-    for def in definitions {
-        let id = crate::rulesets::material_asset_id(def.id);
-        if !project.procedural_materials.contains_key(&id) {
-            let asset = rusterix::ruleset_material::editable(def, &project.palette)?;
-            project
-                .procedural_materials
-                .insert(id, asset.save().map_err(|e| e.to_string())?);
-        }
-    }
     let bake = |def: &crate::rulesets::BundledMaterialAsset| -> Result<_, String> {
         let id = crate::rulesets::material_asset_id(def.id);
-        if saved_frames(project, def.id, def.resolution).is_some() {
+        if saved_tile(project, def.id, def.resolution).is_some() {
             return Ok(None);
         }
-        let frames = baked_frames(project, def.id)?;
+        let (bundle, frames) = if project.procedural_materials.contains_key(&id) {
+            (None, baked_frames(project, def.id)?)
+        } else {
+            // The fresh editable asset already has the project palette
+            // resolved. Bake it directly instead of saving and reopening it.
+            let asset = rusterix::ruleset_material::editable(def, &project.palette)?;
+            let bundle = asset.save().map_err(|e| e.to_string())?;
+            let frames = animation_frames(&asset, &project.palette, def.resolution)?;
+            (Some(bundle), frames)
+        };
         let mut tile = project
             .tiles
             .get(&id)
@@ -494,11 +506,11 @@ fn install_definitions(
             texture.set_materials_all(0.5, 0., 1., 0.);
         }
         let key = saved_key(
-            &project.procedural_materials[&id],
+            bundle.as_deref().unwrap_or_else(|| &project.procedural_materials[&id]),
             &project.palette,
             def.resolution,
         );
-        Ok(Some((id, tile, key)))
+        Ok(Some((id, bundle, tile, key)))
     };
     // Independent MZ recipes can bake concurrently. Collect in library order and
     // publish only after all workers finish, so picker order stays stable and
@@ -510,7 +522,10 @@ fn install_definitions(
     };
     #[cfg(target_arch = "wasm32")]
     let baked: Result<Vec<_>, String> = definitions.iter().map(bake).collect();
-    for (id, tile, key) in baked?.into_iter().flatten() {
+    for (id, bundle, tile, key) in baked?.into_iter().flatten() {
+        if let Some(bundle) = bundle {
+            project.procedural_materials.insert(id, bundle);
+        }
         project.tiles.insert(id, tile);
         project.procedural_material_cache_keys.insert(id, key);
     }

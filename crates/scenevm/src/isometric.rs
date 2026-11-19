@@ -586,7 +586,8 @@ mod tests {
         assert_eq!(floor[0], 0, "sun is occluded by the lower stone span");
         // A horizontal light travels through the window's open height interval.
         u.sun = [1., 0., 0., 0.];
-        let wall = vec![[255 | 128 << 8 | 14 << 16, 1.2f32.to_bits()]; 64];
+        // Packed height reserves the low byte for surface flags and AO.
+        let wall = vec![[255 | 128 << 8 | 14 << 16, 1.2f32.to_bits() & 0xffffff00]; 64];
         let mut opening = vec![160u8; 64 * 4];
         scene
             .render_isometric(
@@ -729,6 +730,17 @@ mod mesh_shadow_tests {
         u.sun_color = [0.; 4];
         u.counts[2] = 1;
         let blocked = render(&mut scene, &u, &mesh, &[light]);
+        let mut shifted = u;
+        shifted.projection = [0.45, 0.6, 1.25, 1.];
+        let mut relit = light;
+        relit.color = [0.7, 0.1, 0., 0.];
+        let reused = render(&mut scene, &shifted, &mesh, &[relit]);
+        mesh.revision += 1;
+        assert_eq!(
+            reused,
+            render(&mut scene, &shifted, &mesh, &[relit]),
+            "pan, zoom and light color must match freshly drawn point shadows"
+        );
         // Opening the roof at runtime must update local-light shadows too.
         mesh.alpha[0] = 0;
         mesh.revision += 1;

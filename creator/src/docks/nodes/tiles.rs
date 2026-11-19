@@ -85,7 +85,7 @@ impl TileControls {
                 self.images.insert(
                     id.into(),
                     Arc::new(TheRGBABuffer::from(
-                        texture.data,
+                        texture.data.into(),
                         texture.width as u32,
                         texture.height as u32,
                     )),
@@ -107,7 +107,7 @@ impl TileControls {
                 self.images.insert(
                     id.clone(),
                     Arc::new(TheRGBABuffer::from(
-                        texture.data.clone(),
+                        texture.data.to_vec(),
                         texture.width as u32,
                         texture.height as u32,
                     )),

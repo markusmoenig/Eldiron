@@ -460,7 +460,7 @@ pub struct Tile {
     /// Packed per-pixel R/M/O/E bytes for every texture frame. Texture serialization
     /// intentionally strips these bytes, so generated tiles persist them here.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub baked_material_data: Vec<Vec<u8>>,
+    pub baked_material_data: Vec<theframework_core::SharedBytes>,
     /// Optional particle emitter definition for this tile.
     #[serde(default)]
     pub particle_emitter: Option<ParticleEmitter>,
@@ -766,7 +766,7 @@ impl Tile {
                 .map(|texture| {
                     let mut texture = texture.clone();
                     Self::apply_material_meta_to_texture(&self.material, &mut texture);
-                    texture.data_ext.unwrap_or_default()
+                    texture.data_ext.unwrap_or_default().into()
                 })
                 .collect();
         }
@@ -784,7 +784,7 @@ impl Tile {
                     texture.set_materials_all(0.5, 0.0, 1.0, 0.0);
                 }
                 if let Some(mat) = texture.data_ext {
-                    b.push(mat);
+                    b.push(mat.into());
                 }
             }
         }
@@ -938,7 +938,7 @@ mod tests {
         assert_eq!(frames.len(), 1);
 
         let mut material_texture = Texture::from_color([0, 0, 0, 255]);
-        material_texture.data_ext = Some(frames[0].clone());
+        material_texture.data_ext = Some(frames[0].clone().into());
         let (roughness, metallic, opacity, emissive) = material_texture.get_materials(0, 0);
 
         assert!(roughness <= 0.15);
@@ -1001,7 +1001,7 @@ mod tests {
         let decoded: Tile = serde_json::from_str(&serialized).unwrap();
         let frames = decoded.to_material_array();
         let mut reconstructed = decoded.textures[0].clone();
-        reconstructed.data_ext = Some(frames[0].clone());
+        reconstructed.data_ext = Some(frames[0].clone().into());
         let (roughness, metallic, opacity, emissive) = reconstructed.get_materials(0, 0);
 
         assert!((roughness - 0.2).abs() < 0.07);
@@ -1031,7 +1031,7 @@ mod tests {
 
         let frames = tile.to_material_array();
         let mut material_texture = Texture::new(vec![0, 0, 0, 255, 0, 0, 0, 255], 2, 1);
-        material_texture.data_ext = Some(frames[0].clone());
+        material_texture.data_ext = Some(frames[0].clone().into());
 
         let (_, _, _, dark_emissive) = material_texture.get_materials(0, 0);
         let (_, _, _, bright_emissive) = material_texture.get_materials(1, 0);
@@ -1055,7 +1055,7 @@ mod tests {
         assert_eq!(frames.len(), 1);
 
         let mut material_texture = Texture::from_color([0, 0, 0, 255]);
-        material_texture.data_ext = Some(frames[0].clone());
+        material_texture.data_ext = Some(frames[0].clone().into());
         let (roughness, metallic, opacity, emissive) = material_texture.get_materials(0, 0);
         let (normal_x, normal_y) = material_texture.get_normal(0, 0);
 
@@ -1078,7 +1078,7 @@ mod tests {
         assert_eq!(frames.len(), 1);
 
         let mut material_texture = Texture::from_color([0, 0, 0, 255]);
-        material_texture.data_ext = Some(frames[0].clone());
+        material_texture.data_ext = Some(frames[0].clone().into());
         let (roughness, metallic, opacity, emissive) = material_texture.get_materials(0, 0);
 
         assert!(roughness <= 0.1);

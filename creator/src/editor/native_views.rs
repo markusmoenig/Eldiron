@@ -227,6 +227,15 @@ impl Editor {
         );
         self.prepare_native_bake(ctx, images.registry);
         profile.lap("native_previews");
+        let terrain_scope = self.documents.project
+            .get_region(&self.server_ctx.shared.curr_region)
+            .filter(|region| region.map.camera == MapCamera::TwoDIso)
+            .map(|region| (
+                self.server_ctx.shared.document_instance,
+                region.map.id,
+                images.registry.context().generation(),
+            ));
+        self.native_viewport.terrain.set_scope(terrain_scope);
         let display = self.prepare_native_display_viewport(ui, ctx, images)?;
         let world = self.prepare_native_world_viewport(ui, ctx, images)?;
         profile.lap("native_world");
@@ -250,6 +259,9 @@ impl Editor {
                 let builds = self.server_ctx.jobs.scene();
                 !builds.has_pending_geometry() && builds.source_matches(map.id, map.camera)
             });
+            self.sidebar.minimap_scene.set_isometric_terrain_cache(
+                self.native_viewport.terrain.clone(),
+            );
             self.sidebar.minimap_scene.prepare(
                 &self.documents.project, &self.server_ctx, ui, ctx,
                 &bridge.assets, asset_key, bridge.scene_handler.build_index.snapshot(),

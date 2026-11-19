@@ -1449,7 +1449,7 @@ impl Widget {
     ) -> Option<(u32, Vec<u8>)> {
         let texture = Self::item_icon_source_texture(assets, item, animation_frame)?;
         let (texture, _) = crate::client::content::TexturePlan::Square(texture).build()?;
-        Some((texture.width as u32, texture.data))
+        Some((texture.width as u32, texture.data.into()))
     }
     fn item_icon_source_texture<'a>(
         assets: &'a Assets,

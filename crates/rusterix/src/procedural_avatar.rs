@@ -543,7 +543,7 @@ impl Appearance {
             let rm = r | (m << 4);
             let packed = texture.data_ext.clone().unwrap_or_else(|| {
                 [if rm == 0xfe { 0xff } else { rm }, 15, 128, 128]
-                    .repeat(texture.width * texture.height)
+                    .repeat(texture.width * texture.height).into()
             });
             let hash = fingerprint(&(texture.width, texture.height, &texture.data, &packed));
             let id = Uuid::from_u128((0x4d5a5f4d41544552u128 << 64) | hash as u128);
@@ -561,13 +561,13 @@ impl Appearance {
                             let t = t.resized(texture.width, texture.height);
                             let p = t.data_ext.clone().unwrap_or_else(|| {
                                 [if rm == 0xfe { 0xff } else { rm }, 15, 128, 128]
-                                    .repeat(t.width * t.height)
+                                    .repeat(t.width * t.height).into()
                             });
                             let hash = fingerprint(&(t.width, t.height, &t.data, &p));
                             (
                                 Uuid::from_u128((0x4d5a5f4d41544552u128 << 64) | hash as u128),
                                 t,
-                                p,
+                                p.into(),
                             )
                         })
                         .collect::<Vec<_>>()
@@ -582,7 +582,7 @@ impl Appearance {
                 frames,
                 duration,
                 texture,
-                packed,
+                packed: packed.into(),
             });
         }
         let mut motion_names = FxHashMap::default();
@@ -3224,7 +3224,7 @@ mod tests {
             assert!(spec.source.starts_with("ruleset:material/"));
             let expected = &assets.ruleset_materials[&spec.source];
             assert_eq!(material.texture.data, expected.data);
-            assert_eq!(Some(&material.packed), expected.data_ext.as_ref());
+            assert_eq!(Some(material.packed.as_slice()), expected.data_ext.as_deref().map(Vec::as_slice));
         }
         let posed = Appearance::pose(&bare, "walk", 0.3).unwrap();
         for (bind, posed) in bare.evaluation.mesh.parts.iter().zip(&posed.parts) {

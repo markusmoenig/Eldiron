@@ -457,7 +457,7 @@ impl PublicTexture {
     fn capture(t: &Texture) -> Self {
         Self {
             texture: t.clone(),
-            materials: t.material_bytes(),
+            materials: t.material_bytes().into(),
         }
     }
     fn texture(&self) -> Result<Texture, String> {
@@ -730,7 +730,7 @@ impl PublicAvatar {
                 .iter()
                 .flat_map(|a| a.perspectives.iter())
                 .flat_map(|p| p.frames.iter())
-                .map(|f| f.texture.material_bytes())
+                .map(|f| f.texture.material_bytes().into())
                 .collect(),
         }
     }

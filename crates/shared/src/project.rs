@@ -361,6 +361,10 @@ pub struct Project {
     #[serde(default)]
     pub tiles: IndexMap<Uuid, rusterix::Tile>,
 
+    /// Local identity of source planes paired with their saved ground preview.
+    #[serde(skip)]
+    pub(crate) archived_ground_previews: IndexMap<Uuid, u64>,
+
     /// Versioned MaterialZ editable bundles, keyed by the normal tile UUID.
     /// The tile textures remain the baked runtime representation.
     #[serde(
@@ -567,6 +571,7 @@ impl Project {
             tilemaps: vec![],
 
             tiles: IndexMap::default(),
+            archived_ground_previews: IndexMap::default(),
             procedural_materials: Default::default(),
             procedural_appearances: Default::default(),
             isometric_bakes: IndexMap::default(),

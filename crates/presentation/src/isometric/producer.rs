@@ -26,11 +26,15 @@ use scenevm::{
 use std::{collections::HashMap, sync::Arc};
 mod frame_sources;
 mod ground_cache;
+mod terrain_chunks;
+mod terrain_materials;
 mod terrain_sources;
 #[cfg(test)]
 mod unlit_tests;
 pub(crate) use frame_sources::IsometricFrameSources;
 pub use ground_cache::GroundCacheUsage;
+pub use terrain_chunks::IsometricTerrainCache;
+pub(crate) use terrain_chunks::TerrainConsumer;
 
 pub struct IsometricSceneInput<'a> {
     pub map: &'a Map,
@@ -49,6 +53,7 @@ pub struct IsometricPreparedFrame {
     projection: Projection,
     generation: u64,
     terrain: bool,
+    terrain_draw: Option<terrain_chunks::TerrainDraw>,
     ground: Vec<Command>,
     upright: Vec<(usize, Command)>,
     contacts: ContactPolicy,
@@ -87,6 +92,11 @@ pub struct IsometricSceneRenderer {
     materials: IsometricMaterialSources,
     paints: IsometricPaintSources,
     ground_cache: ground_cache::GroundCache,
+    terrain_chunks: Option<(
+        (theframework_core::Uuid, u32, IsometricSourceVersion),
+        Option<Arc<terrain_chunks::GpuTerrainChunks>>,
+    )>,
+    terrain_rasterizer: Option<terrain_chunks::TerrainRasterizer>,
 }
 impl IsometricSceneRenderer {
     pub fn set_player_view(&mut self, player: rusterix::party::PlayerView) {
@@ -99,7 +109,7 @@ impl IsometricSceneRenderer {
         size: (u32, u32),
         input: &IsometricSceneInput<'_>,
     ) -> Result<IsometricPreparedFrame> {
-        self.prepare_impl(size, input, true)
+        self.prepare_impl(size, input, true, false, None)
     }
     pub fn new(context: Arc<GpuContext>) -> Result<Self> {
         Ok(Self {
@@ -110,6 +120,8 @@ impl IsometricSceneRenderer {
             materials: IsometricMaterialSources::new(context.clone(), 32 * 1024 * 1024, 1024),
             paints: IsometricPaintSources::new(context.clone(), 32 * 1024 * 1024, 256),
             ground_cache: Default::default(),
+            terrain_chunks: None,
+            terrain_rasterizer: None,
             context,
             scene: SceneCache::default(),
             elevation: None,
@@ -129,6 +141,7 @@ impl IsometricSceneRenderer {
         self.scene = SceneCache::default();
         self.elevation = None;
         self.ground_cache.clear();
+        self.terrain_chunks = None;
     }
     pub fn ground_cache_usage(&self) -> GroundCacheUsage {
         self.ground_cache.usage()
@@ -154,13 +167,25 @@ impl IsometricSceneRenderer {
         size: (u32, u32),
         input: &IsometricSceneInput<'_>,
     ) -> Result<IsometricPreparedFrame> {
-        self.prepare_impl(size, input, false)
+        self.prepare_impl(size, input, false, true, None)
+    }
+    pub(crate) fn prepare_view(
+        &mut self,
+        size: (u32, u32),
+        input: &IsometricSceneInput<'_>,
+        consumer: TerrainConsumer,
+        shared_terrain: Option<&IsometricTerrainCache>,
+    ) -> Result<IsometricPreparedFrame> {
+        let unlit = consumer == TerrainConsumer::Overview;
+        self.prepare_impl(size, input, unlit, !unlit, shared_terrain.map(|cache| (cache, consumer)))
     }
     fn prepare_impl(
         &mut self,
         size: (u32, u32),
         input: &IsometricSceneInput<'_>,
         unlit: bool,
+        retain_terrain: bool,
+        shared_terrain: Option<(&IsometricTerrainCache, TerrainConsumer)>,
     ) -> Result<IsometricPreparedFrame> {
         let p = input.projection;
         let limits = self.context.device.limits();
@@ -215,24 +240,61 @@ impl IsometricSceneRenderer {
         };
         let terrain = plan.terrain.is_some();
         let mut ground = Vec::new();
+        let mut terrain_draw = None;
+        let use_chunks = (retain_terrain || shared_terrain.is_some())
+            && terrain
+            && !input.assets.terrain_paint.contains_key(&input.map.id);
+        if !use_chunks {
+            self.terrain_chunks = None;
+        }
         if let Some(model) = &plan.terrain {
-            let policy = SurfaceMaterials::for_terrain(input.map, input.assets);
             let visible = visible_bounds(p, size, 0., model.max_height);
-            let mut triangles = Vec::new();
-            model.triangles(visible, |t| triangles.push(t));
-            let mut surfaces = Vec::new();
-            let mut sources = terrain_sources::CellSources::default();
-            for t in triangles {
-                let center = (t[0] + t[1] + t[2]) / 3.;
-                let cell = [center.x.floor() as i32, center.z.floor() as i32];
-                if let Some(surface) = sources.prepare(
-                    self, input, &policy, plan.material_frame, cell,
-                    t.map(|v| v.into_array()),
-                )? {
-                    surfaces.push(surface);
+            if use_chunks {
+                let key = (input.map.id, input.map.changed, input.source_version);
+                let chunks = if let Some((_, chunks)) =
+                    self.terrain_chunks.as_ref().filter(|(previous, _)| *previous == key)
+                {
+                    chunks.clone()
+                } else {
+                    self.terrain_chunks = None;
+                    let policy = SurfaceMaterials::for_terrain(input.map, input.assets);
+                    let chunks = if let Some((cache, consumer)) = shared_terrain {
+                        cache.prepare(&self.context, input.map, &policy, model, consumer)?
+                    } else {
+                        terrain_chunks::GpuTerrainChunks::prepare(&self.context, &policy, model)?
+                    };
+                    if retain_terrain {
+                        self.terrain_chunks = Some((key, chunks.clone()));
+                    }
+                    chunks
+                };
+                if let Some(chunks) = chunks {
+                    terrain_draw = Some(terrain_chunks::TerrainDraw {
+                        chunks,
+                        clip: visible,
+                        phase: plan.material_frame,
+                    });
+                    self.ground_cache.clear();
                 }
             }
-            ground.push(Command::Surface(surfaces));
+            if terrain_draw.is_none() {
+                let policy = SurfaceMaterials::for_terrain(input.map, input.assets);
+                let mut triangles = Vec::new();
+                model.triangles(visible, |t| triangles.push(t));
+                let mut surfaces = Vec::new();
+                let mut sources = terrain_sources::CellSources::default();
+                for t in triangles {
+                    let center = (t[0] + t[1] + t[2]) / 3.;
+                    let cell = [center.x.floor() as i32, center.z.floor() as i32];
+                    if let Some(surface) = sources.prepare(
+                        self, input, &policy, plan.material_frame, cell,
+                        t.map(|v| v.into_array()),
+                    )? {
+                        surfaces.push(surface);
+                    }
+                }
+                ground.push(Command::Surface(surfaces));
+            }
         } else {
             for (sector, tile) in &plan.floors {
                 ground.push(Command::Surface(self.prepare_floor(
@@ -296,6 +358,7 @@ impl IsometricSceneRenderer {
             projection: p,
             generation: self.context.generation(),
             terrain,
+            terrain_draw,
             ground,
             upright,
             contacts,
@@ -329,7 +392,13 @@ impl IsometricSceneRenderer {
         let lighting = &frame.lighting;
         let geometry = &frame.geometry;
         let canvas = self.canvas.as_ref().unwrap();
-        if !self.ground_cache.restore(&self.context, canvas, frame)? {
+        if let Some(terrain) = &frame.terrain_draw {
+            self.blitter.render(canvas, [17, 34, 29, 0], &[])?;
+            if self.terrain_rasterizer.is_none() {
+                self.terrain_rasterizer = Some(terrain_chunks::TerrainRasterizer::new(&self.context)?);
+            }
+            self.terrain_rasterizer.as_ref().unwrap().draw(&self.context, canvas, p, terrain);
+        } else if !self.ground_cache.restore(&self.context, canvas, frame)? {
             self.blitter.render(
                 canvas,
                 if terrain {

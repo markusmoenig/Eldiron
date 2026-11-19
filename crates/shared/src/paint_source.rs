@@ -299,7 +299,7 @@ impl Spec {
             };
             textures.push(texture);
         }
-        let frames = textures.iter().map(|t| t.data.clone()).collect::<Vec<_>>();
+        let frames = textures.iter().map(|t| t.data.to_vec()).collect::<Vec<_>>();
         let mut image = ImageSource::rgba8(native[0] as usize, native[1] as usize, &frames)
             .map_err(|e| e.to_string())?;
         image.reference = Some(format!(

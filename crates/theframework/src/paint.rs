@@ -268,6 +268,9 @@ pub enum DisplayCompositing {
     /// Match the old opaque window's encoded-channel UI blending. Rendering
     /// stays on the GPU; final presentation preserves encoded RGB and is opaque.
     LegacyOpaque,
+    /// Encode a source sprite and sampled guides into an RGBA8 scratch target.
+    /// RGB blends in display space and alpha records where guides were drawn.
+    EncodedGuideCoverage,
 }
 #[derive(Clone, Debug)]
 pub enum PaintOp {

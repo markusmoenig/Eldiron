@@ -2,7 +2,8 @@
 //! and triangle interpolation are identical for rendering, walking and picking.
 use super::terrain_generator::{TerrainConfig, TerrainGenerator, TerrainSampler};
 use crate::{BBox, Map};
-use std::sync::Arc;
+use rustc_hash::FxHashMap;
+use std::sync::{Arc, Mutex};
 use vek::{Vec2, Vec3};
 
 #[derive(Clone)]
@@ -13,6 +14,7 @@ pub struct TerrainSurface {
     sampler: Option<Arc<TerrainSampler>>,
     sampled: Option<SampledTerrain>,
     excluded: Vec<(BBox, Vec<[Vec2<f32>; 3]>)>,
+    guide_corners: Arc<Mutex<FxHashMap<[u32; 2], f32>>>,
 }
 type Cached = (uuid::Uuid, u32, bool, Option<Arc<TerrainSurface>>);
 thread_local! {static CACHE:std::cell::RefCell<Option<Cached>>=const {std::cell::RefCell::new(None)};}
@@ -91,6 +93,7 @@ impl<'de> serde::Deserialize<'de> for TerrainSurface {
             excluded: wire.excluded,
             sampler: None,
             sampled: Some(wire.samples),
+            guide_corners: Default::default(),
         })
     }
 }
@@ -229,6 +232,7 @@ impl TerrainSurface {
             sampler: Some(Arc::new(TerrainGenerator::new(config).sampler(map))),
             sampled: None,
             excluded,
+            guide_corners: Default::default(),
         })
     }
     pub fn contains(&self, p: Vec2<f32>) -> bool {
@@ -298,16 +302,15 @@ impl TerrainSurface {
         ))
     }
 
-    /// Reuse exact corner evaluations during one caller's sampling pass. The
-    /// borrow binds this bounded scratch cache to this immutable surface; no
-    /// map revision, source pointer or cross-frame cache identity is needed.
+    /// Reuse exact corner evaluations across guide draws of this immutable
+    /// surface. Rebuilding the underlying terrain starts a fresh cache.
     pub fn height_sampler(&self) -> impl FnMut(Vec2<f32>) -> Option<f32> + '_ {
         const MAX_CORNERS: usize = 32768;
-        let mut corners = rustc_hash::FxHashMap::<[u32; 2], f32>::default();
         move |p| {
             if !self.contains(p) {
                 return None;
             }
+            let mut corners = self.guide_corners.lock().unwrap();
             Some(TerrainSampler::height_on_grid_with(
                 p,
                 self.subdivisions,

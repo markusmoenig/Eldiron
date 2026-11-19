@@ -118,7 +118,7 @@ impl ContentSources {
                 let image = ImageAsset::rgba(
                     u32::try_from(art.texture.width).map_err(|_| "source width overflow")?,
                     u32::try_from(art.texture.height).map_err(|_| "source height overflow")?,
-                    art.texture.data,
+                    art.texture.data.into(),
                 )
                 .map_err(|e| e.to_string())?;
                 let alpha_bounds = if art.avatar {

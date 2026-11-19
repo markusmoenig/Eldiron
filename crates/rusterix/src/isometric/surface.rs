@@ -3,6 +3,7 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
+use theframework_core::SharedBytes;
 use vek::Vec3;
 const STRIDE: usize = 8;
 const MAX_BYTES: usize = 1024 * 1024 * STRIDE;
@@ -10,10 +11,10 @@ const AO_MASK: u8 = 63;
 fn is_false(value: &bool) -> bool {
     !*value
 }
-fn serialize<S: serde::Serializer>(v: &Vec<u8>, s: S) -> Result<S::Ok, S::Error> {
-    s.serialize_str(&STANDARD.encode(v))
+fn serialize<S: serde::Serializer>(v: &SharedBytes, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_str(&STANDARD.encode(v.try_resolve().map_err(serde::ser::Error::custom)?))
 }
-fn deserialize<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
+fn deserialize<'de, D: serde::Deserializer<'de>>(d: D) -> Result<SharedBytes, D::Error> {
     let s = String::deserialize(d)?;
     if s.len() > MAX_BYTES.div_ceil(3) * 4 {
         return Err(serde::de::Error::custom("Iso geometry buffer exceeds 8 MB"));
@@ -22,14 +23,14 @@ fn deserialize<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Err
     if data.len() > MAX_BYTES || data.len() % STRIDE != 0 {
         return Err(serde::de::Error::custom("Invalid iso geometry buffer"));
     }
-    Ok(data)
+    Ok(data.into())
 }
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct SurfaceFrame {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub effects: Vec<denrim_materials::geometry::effects::ParticleEffect>,
     #[serde(serialize_with = "serialize", deserialize_with = "deserialize")]
-    pub data: Vec<u8>,
+    pub data: SharedBytes,
     /// Opt-in encoding for static bakes. Six low mantissa bits of the height
     /// store ambient occlusion, leaving 17 bits of height precision and the
     /// same binary frame size. Legacy heights retain their original encoding.
@@ -57,7 +58,7 @@ pub struct ShadowGrid {
     pub width: usize,
     pub height: usize,
     #[serde(serialize_with = "serialize", deserialize_with = "deserialize")]
-    pub data: Vec<u8>,
+    pub data: SharedBytes,
 }
 #[derive(Clone, Copy, Debug)]
 pub struct Sample {
@@ -117,7 +118,7 @@ pub fn packed(
 impl SurfaceFrame {
     pub fn new(pixels: usize) -> Self {
         Self {
-            data: vec![0; pixels * STRIDE],
+            data: vec![0; pixels * STRIDE].into(),
             has_baked_ao: false,
             shadow: None,
             shadow_mesh: None,
@@ -214,7 +215,7 @@ impl SurfaceFrame {
             data[at..at + old[0] * STRIDE]
                 .copy_from_slice(&self.data[y * old[0] * STRIDE..(y + 1) * old[0] * STRIDE]);
         }
-        self.data = data;
+        self.data = data.into();
     }
 }
 impl ShadowGrid {

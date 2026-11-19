@@ -115,7 +115,7 @@ fn procedural_icon_gpu_sources_match_legacy_color_and_noise_without_pixel_upload
         assert_eq!(pixels.len(), expected.data.len());
         let error = pixels
             .iter()
-            .zip(&expected.data)
+            .zip(expected.data.iter())
             .map(|(a, b)| a.abs_diff(*b))
             .max()
             .unwrap();

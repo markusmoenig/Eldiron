@@ -1,7 +1,7 @@
 //! Map overview ownership. CPU snapshots enter here; only GPU handles leave.
 //! Navigation uses an immutable, actually presented map/projection, independent of the reference CPU cache.
 use super::*;
-use eldiron_presentation::{SceneViews, ViewId, ViewImage};
+use eldiron_presentation::{SceneViews, ViewId, ViewImage, isometric::IsometricTerrainCache};
 use rusterix::scene_build_index::SceneBuildSnapshot;
 use std::sync::Arc;
 use theframework::{
@@ -92,6 +92,9 @@ struct Gpu {
     scenes: SceneViews,
     view: ViewId,
     binding: Option<Binding>,
+    isometric: bool,
+    bounds: Option<Vec4<f32>>,
+    elevation: Option<rusterix::isometric::elevation::ElevationMap>,
     assets: u64,
     source: Option<Arc<SceneBuildSnapshot>>,
     animation: usize,
@@ -110,6 +113,9 @@ impl Gpu {
             scenes,
             view,
             binding: None,
+            isometric: false,
+            bounds: None,
+            elevation: None,
             assets: 0,
             source: None,
             animation: 0,
@@ -130,6 +136,7 @@ pub(crate) struct SceneOverview {
     waiting: bool,
     source: Option<sources::Source>,
     source_cache: SourceCache,
+    terrain: Option<IsometricTerrainCache>,
 }
 impl Default for SceneOverview {
     fn default() -> Self {
@@ -143,6 +150,7 @@ impl Default for SceneOverview {
             waiting: false,
             source: None,
             source_cache: SourceCache::default(),
+            terrain: None,
         }
     }
 }
@@ -184,6 +192,9 @@ fn separate_source(project: &Project, server: &CreatorContext, map: &Map) -> boo
                 .is_none_or(|editing| editing.id != map.id))
 }
 impl SceneOverview {
+    pub(crate) fn set_isometric_terrain_cache(&mut self, terrain: IsometricTerrainCache) {
+        self.terrain = Some(terrain);
+    }
     fn refresh_source(&mut self, project: &Project, server: &CreatorContext) -> Option<source_cache::Snapshot> {
         if let Some((map, _)) = overview_map(project, server) {
             Some(self.source_cache.publish(server.shared.document_instance, map))
@@ -356,17 +367,9 @@ impl SceneOverview {
                 || old.map != binding.map
                 || old.context != binding.context
         });
-        let bbox = if iso {
-            isometric_minimap_bbox(
-                &map,
-                assets,
-                Vec2::new(binding.rect[2] as f32, binding.rect[3] as f32),
-            )
-        } else {
-            minimap_bbox_for_map(&map).ok_or("minimap bounds unavailable")?
-        };
         if scope_changed
             || gpu.assets != asset_revision
+            || gpu.isometric != iso
             || gpu.binding.as_ref() != Some(&binding)
             || (!iso
                 && !screen
@@ -376,7 +379,18 @@ impl SceneOverview {
                         .as_ref()
                         .is_none_or(|old| !Arc::ptr_eq(old, &source))))
         {
-            if scope_changed || gpu.assets != asset_revision {
+            // Camera movement changes the marker. Bounds follow the overview
+            // source, which already invalidates on map, asset or size changes.
+            let bbox = if iso {
+                isometric_minimap_bbox(
+                    &map,
+                    assets,
+                    Vec2::new(binding.rect[2] as f32, binding.rect[3] as f32),
+                )
+            } else {
+                minimap_bbox_for_map(&map).ok_or("minimap bounds unavailable")?
+            };
+            if scope_changed || gpu.isometric != iso || (!iso && gpu.assets != asset_revision) {
                 if let Some((_, image)) = gpu.opaque.take() {
                     images.remove(image);
                 }
@@ -390,7 +404,7 @@ impl SceneOverview {
                     images.remove(output.image);
                 }
                 gpu.overview = None;
-                if !screen {
+                if !screen && !iso {
                     gpu.scenes
                         .configure_editor(gpu.view, assets)
                         .map_err(|e| e.to_string())?;
@@ -474,6 +488,7 @@ impl SceneOverview {
                     content_revision: gpu.version as u64,
                 });
             } else if iso {
+                gpu.scenes.set_isometric_terrain_cache(self.terrain.clone());
                 gpu.scenes
                     .prepare_isometric_overview(
                         gpu.view,
@@ -507,10 +522,14 @@ impl SceneOverview {
                     .map_err(|e| e.to_string())?;
             }
             gpu.binding = Some(binding.clone());
+            gpu.isometric = iso;
+            gpu.bounds = Some(bbox);
+            gpu.elevation = iso.then(|| rusterix::isometric::elevation::ElevationMap::from_map(&map));
             gpu.assets = asset_revision;
             gpu.source = Some(source);
             gpu.animation = animation;
         }
+        let bbox = gpu.bounds.ok_or("minimap bounds unavailable")?;
         let output = if raster_overview {
             gpu.overview_output
         } else {
@@ -556,7 +575,11 @@ impl SceneOverview {
         let mut markers = PaintList::default();
         for (world, color) in [(Some(center), [255, 0, 0, 255]), (look, [255, 255, 0, 255])] {
             if let Some(world) = world {
-                let p = minimap_world_to_pixel_on_map(world, size, bbox, &map);
+                let p = if let Some(elevation) = &gpu.elevation {
+                    isometric_minimap_projection(size, bbox).screen(world, elevation.height_at(world))
+                } else {
+                    minimap_world_to_pixel(world, size, bbox, map.camera)
+                };
                 let (x, y) = (p.x as i32 as f32 - 4., p.y as i32 as f32 - 4.);
                 markers.ops.push(PaintOp::PixelRects {
                     rects: vec![

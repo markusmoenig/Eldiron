@@ -1617,7 +1617,7 @@ impl ProceduralMaterialEditor {
                         let image = denrim_materials::image_source::ImageSource::rgba8(
                             texture.width,
                             texture.height,
-                            &[texture.data],
+                            &[texture.data.into()],
                         )
                         .map_err(|e| e.to_string())?;
                         let before = project
@@ -4655,9 +4655,9 @@ impl ScepterBakeCache {
                 let bytes = |tile: &rusterix::Tile| {
                     tile.textures
                         .iter()
-                        .map(|t| t.data.len() + t.data_ext.as_ref().map_or(0, Vec::len))
+                        .map(|t| t.data.len() + t.data_ext.as_deref().map_or(0, Vec::len))
                         .sum::<usize>()
-                        + tile.baked_material_data.iter().map(Vec::len).sum::<usize>()
+                        + tile.baked_material_data.iter().map(|bytes| bytes.len()).sum::<usize>()
                 };
                 if self.tiles.values().map(|(_, t)| bytes(t)).sum::<usize>() + bytes(tile)
                     > 64 * 1024 * 1024

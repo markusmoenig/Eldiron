@@ -4,7 +4,7 @@ use super::*;
 
 pub(super) struct Composer {
     context: Arc<renderkit::GpuContext>,
-    mask: PaintRenderer,
+    mask: Option<PaintRenderer>,
     layout: wgpu::BindGroupLayout,
     pipeline: wgpu::RenderPipeline,
 }
@@ -68,10 +68,9 @@ impl Composer {
                 multiview_mask: None,
                 cache: None,
             });
-        let mask = PaintRenderer::new(context.clone())?;
         Ok(Self {
             context,
-            mask,
+            mask: None,
             layout,
             pipeline,
         })
@@ -82,6 +81,7 @@ impl Composer {
         source: &GpuImage,
         painted: Arc<GpuImage>,
         images: &ImageRegistry,
+        painted_contains_coverage: bool,
     ) -> Result<Arc<GpuImage>, String> {
         let descriptor = painted.descriptor;
         let size = (descriptor.width, descriptor.height);
@@ -90,42 +90,11 @@ impl Composer {
         {
             return Err("isometric source alpha dimensions/device mismatch".into());
         }
-        let mask = GpuImage::render_target(
-            &self.context,
-            ImageDescriptor {
-                color_space: ColorSpace::Linear,
-                alpha_mode: AlphaMode::Premultiplied,
-                ..descriptor
-            },
-        )
-        .map_err(|e| e.to_string())?;
-        let coverage = PaintList {
-            ops: source_paint
-                .ops
-                .iter()
-                .filter_map(|op| match op {
-                    PaintOp::SampledLine { from, to, color } if color[3] > 0. => {
-                        Some(PaintOp::SampledLine {
-                            from: *from,
-                            to: *to,
-                            color: [1.; 4],
-                        })
-                    }
-                    _ => None,
-                })
-                .collect(),
+        let mask = if painted_contains_coverage {
+            painted.clone()
+        } else {
+            self.coverage(source_paint, descriptor, images)?
         };
-        self.mask
-            .render(
-                &coverage,
-                images,
-                &mask.view,
-                descriptor.format,
-                size,
-                1.,
-                [0.; 4],
-            )
-            .map_err(|e| e.to_string())?;
         let output =
             GpuImage::render_target(&self.context, descriptor).map_err(|e| e.to_string())?;
         let bind = self
@@ -178,5 +147,53 @@ impl Composer {
         }
         self.context.queue.submit([encoder.finish()]);
         Ok(output)
+    }
+
+    fn coverage(
+        &mut self,
+        source_paint: &PaintList,
+        descriptor: ImageDescriptor,
+        images: &ImageRegistry,
+    ) -> Result<Arc<GpuImage>, String> {
+        let mask = GpuImage::render_target(
+            &self.context,
+            ImageDescriptor {
+                color_space: ColorSpace::Linear,
+                alpha_mode: AlphaMode::Premultiplied,
+                ..descriptor
+            },
+        )
+        .map_err(|e| e.to_string())?;
+        let coverage = PaintList {
+            ops: source_paint
+                .ops
+                .iter()
+                .filter_map(|op| match op {
+                    PaintOp::SampledLine { from, to, color } if color[3] > 0. => {
+                        Some(PaintOp::SampledLine {
+                            from: *from,
+                            to: *to,
+                            color: [1.; 4],
+                        })
+                    }
+                    _ => None,
+                })
+                .collect(),
+        };
+        if self.mask.is_none() {
+            self.mask = Some(PaintRenderer::new(self.context.clone()).map_err(|e| e.to_string())?);
+        }
+        self.mask.as_mut().unwrap()
+            .render(
+                &coverage,
+                images,
+                &mask.view,
+                descriptor.format,
+                (descriptor.width, descriptor.height),
+                1.,
+                [0.; 4],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(mask)
     }
 }

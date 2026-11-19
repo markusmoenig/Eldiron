@@ -375,6 +375,49 @@ fn run_release_benchmark() {
         );
         std::thread::sleep(Duration::from_millis(2));
     }
+    if std::env::var_os("ELDIRON_BENCH_STARTUP_ONLY").is_some() {
+        assert_eq!(backend, "native", "startup benchmark uses native Creator");
+        let (_, _, context) = application.parts();
+        context.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.game".into()),
+        ));
+        application.frame(&gpu, &mut host, &mut registry, &mut renderer, &output);
+
+        let play_started = Instant::now();
+        let (_, _, context) = application.parts();
+        context.ui.send(TheEvent::StateChanged(
+            TheId::named("Play"),
+            TheWidgetState::Clicked,
+        ));
+        let mut frames = Vec::new();
+        loop {
+            frames.push(application.frame(&gpu, &mut host, &mut registry, &mut renderer, &output));
+            let (editor, _, _) = application.parts();
+            if editor.native_game_stats_for_test().is_some_and(|(_, _, views, cpu)| views > 0 && !cpu)
+                && editor.play_session.as_ref().is_some_and(|play| play.requested)
+            {
+                break;
+            }
+            assert!(
+                play_started.elapsed() < Duration::from_secs(60),
+                "Play did not produce a native player viewport"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let evidence = json!({
+            "profile": "release",
+            "project": path,
+            "physical_size": size,
+            "first_complete_view_ms": first_ready_ms,
+            "play_to_world_ms": milliseconds(play_started.elapsed()),
+            "play_frames": frames
+        });
+        let destination = std::env::var("ELDIRON_BENCH_OUTPUT").unwrap();
+        std::fs::write(destination, serde_json::to_vec_pretty(&evidence).unwrap()).unwrap();
+        eprintln!("Release startup: {evidence}");
+        return;
+    }
     // A requested comparison image is an explicit capture outside timed frames.
     if let Ok(destination) = std::env::var("ELDIRON_BENCH_SNAPSHOT") {
         let mut capture = renderkit::ReadbackTicket::capture(&gpu, output.clone()).unwrap();

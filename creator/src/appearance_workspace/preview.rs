@@ -176,7 +176,7 @@ pub(super) fn prepare_with_effects(
                 .icon
                 .as_ref()
                 .ok_or("No image source for this item state")?;
-            (icon.width as u32, icon.data.clone())
+            (icon.width as u32, icon.data.to_vec())
         } else {
             let appearance = rusterix::procedural_avatar::Runtime::resolve(&entity, &job.assets)
                 .ok_or("Choose a procedural character model")?;

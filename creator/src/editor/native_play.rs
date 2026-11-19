@@ -4,6 +4,7 @@ use super::*;
 use eldiron_presentation::{
     GameFonts, GameScreenController, SceneViews, ScreenCapture, ScreenEffect, ScreenTextTarget,
     ScreenViewport, ViewId,
+    isometric::IsometricTerrainCache,
     screen::{ContentRevision, ScreenImageCache},
 };
 use eldiron_runtime::{PlayerControls, PlayerSettings, RegionEvents, RuntimeView};
@@ -316,6 +317,7 @@ impl NativePlay {
     fn paint(
         &mut self,
         world: &RuntimeView<'_>,
+        terrain: &IsometricTerrainCache,
         images: &mut renderkit::ImageRegistry,
     ) -> Result<Option<(Arc<PaintList>, NativePlayFrame)>, String> {
         if self.binding.is_none() {
@@ -359,6 +361,7 @@ impl NativePlay {
         for id in owner.retired.drain(..) {
             gpu.scenes.remove(id, images).map_err(|e| e.to_string())?;
         }
+        gpu.scenes.set_isometric_terrain_cache(Some(terrain.clone()));
         owner
             .screen
             .prepare_game_views(world, &mut gpu.scenes, images)?;
@@ -558,7 +561,9 @@ impl Editor {
         };
         let bridge = self.server_ctx.reference.read();
         let world = play.view(&bridge, &self.documents.project);
-        let Some((list, frame)) = self.native_viewport.play.paint(&world, images)? else {
+        let Some((list, frame)) = self.native_viewport.play.paint(
+            &world, &self.native_viewport.terrain, images,
+        )? else {
             return Ok(None);
         };
         let view = ui
