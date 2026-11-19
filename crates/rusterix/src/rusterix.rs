@@ -815,10 +815,32 @@ impl Rusterix {
     ) where
         I: IntoIterator<Item = &'a Map>,
     {
+        let all_tiles = self.tiles_for_maps(textures, maps);
+        self.apply_tiles(all_tiles, editor, true);
+    }
+
+    /// Install the indexed sources for an isometric view. Build the
+    /// compatibility atlas when a view that needs it is drawn.
+    pub fn set_tiles_for_maps_cpu<'a>(
+        &mut self,
+        textures: IndexMap<Uuid, Tile>,
+        maps: impl IntoIterator<Item = &'a Map>,
+    ) {
+        let all_tiles = self.tiles_for_maps(textures, maps);
+        self.install_tiles(all_tiles);
+        self.deferred_tile_textures = true;
+        self.scene_handler.clear_runtime_scene();
+    }
+
+    fn tiles_for_maps<'a>(
+        &self,
+        textures: IndexMap<Uuid, Tile>,
+        maps: impl IntoIterator<Item = &'a Map>,
+    ) -> IndexMap<Uuid, Tile> {
         let mut all_tiles = self.tiles_with_palette(textures);
         self.assets
             .materialize_geometry_material_tiles_for_maps(&mut all_tiles, maps);
-        self.apply_tiles(all_tiles, editor, true);
+        all_tiles
     }
 
     /// Replace baked texture data while retaining the visible world geometry.
@@ -873,6 +895,13 @@ impl Rusterix {
         self.atlas_omits_iso_sprites = editor && self.draw_mode == D3;
         self.scene_handler
             .build_atlas_for_view(&all_tiles, editor, self.atlas_omits_iso_sprites);
+        self.install_tiles(all_tiles);
+        if clear_scene {
+            self.scene_handler.clear_runtime_scene();
+        }
+    }
+
+    fn install_tiles(&mut self, all_tiles: IndexMap<Uuid, Tile>) {
         self.scene_handler
             .sync_prefab_particle_sprites(&self.assets.block_props);
         self.assets.set_tiles(all_tiles);
@@ -892,9 +921,6 @@ impl Rusterix {
             })
             .collect();
         self.scene_handler.vm.execute(Atom::SetPalette(palette));
-        if clear_scene {
-            self.scene_handler.clear_runtime_scene();
-        }
     }
 }
 

@@ -480,9 +480,12 @@ pub struct Project {
     #[serde(skip, default = "default_rules")]
     pub rules: crate::rulesets::graph::RulesetState,
 
-    /// Rules authoring data used by the catalogue editor and the runtime.
-    #[serde(default)]
+    /// Temporary workbench for ruleset maintainers and in-memory fixtures.
+    #[serde(skip)]
     pub rules_document: crate::rulesets::document::RulesState,
+
+    #[serde(skip)]
+    preview_workbench_rules: bool,
 
     #[serde(default = "default_locales")]
     pub locales: String,
@@ -509,7 +512,19 @@ impl<'de> serde::Deserialize<'de> for Project {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let mut value = serde_json::Value::deserialize(deserializer)?;
         crate::legacy_tiles::migrate(&mut value).map_err(serde::de::Error::custom)?;
-        Project::deserialize(value).map_err(serde::de::Error::custom)
+        let mut project = Project::deserialize(value).map_err(serde::de::Error::custom)?;
+        // Old projects could opt into a rules document embedded in the archive.
+        // Select the bundled rules for those files and keep all world settings.
+        if crate::rulesets::selected_ruleset_config(&project.config).source == "project" {
+            let mut config: toml::Table = project.config.parse().map_err(serde::de::Error::custom)?;
+            if let Some(game) = config.get_mut("game").and_then(toml::Value::as_table_mut) {
+                game.remove("ruleset");
+            }
+            config.remove("ruleset");
+            project.config = toml::to_string_pretty(&config).map_err(serde::de::Error::custom)?;
+            crate::rulesets::prefix_default_ruleset_config(&mut project.config);
+        }
+        Ok(project)
     }
 }
 
@@ -523,6 +538,21 @@ impl Default for Project {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn checked_rules_source(resolved: crate::rulesets::ResolvedRuleset) -> Result<String, String> {
+    if !resolved.validation().is_ok() {
+        let errors = resolved
+            .validation()
+            .issues
+            .iter()
+            .filter(|issue| issue.severity == crate::rulesets::RulesetValidationSeverity::Error)
+            .map(|issue| format!("{}: {}", issue.path, issue.message))
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Err(errors);
+    }
+    resolved.to_toml_string()
 }
 
 impl Project {
@@ -580,6 +610,7 @@ impl Project {
             world_source_debug: String::new(),
             rules: default_rules(),
             rules_document: Default::default(),
+            preview_workbench_rules: false,
             locales: default_locales(),
             audio_fx: default_audio_fx(),
             authoring: default_authoring(),
@@ -631,22 +662,37 @@ impl Project {
         changed
     }
 
-    /// Resolve the project-owned rules document for runtime consumers.
+    /// Resolve the bundled rules selected by the project. Remote sessions use
+    /// the server's public projection. Custom fixtures can supply rules in memory.
     pub fn rules_source(&self) -> Result<String, String> {
-        if let Some(release) = &self.client_release {return Ok(release.visuals.rules.clone());}
-        let resolved = self.rules_document.document()?.resolve()?;
-        if !resolved.validation().is_ok() {
-            let errors = resolved
-                .validation()
-                .issues
-                .iter()
-                .filter(|issue| issue.severity == crate::rulesets::RulesetValidationSeverity::Error)
-                .map(|issue| format!("{}: {}", issue.path, issue.message))
-                .collect::<Vec<_>>()
-                .join("\n");
-            return Err(errors);
+        if let Some(release) = &self.client_release {
+            return Ok(release.visuals.rules.clone());
         }
-        resolved.to_toml_string()
+        if self.preview_workbench_rules {
+            return checked_rules_source(self.rules_document.document()?.resolve()?);
+        }
+        let selection = crate::rulesets::selected_ruleset_config(&self.config);
+        if selection.source == "project"
+            || (selection.source == "official"
+                && selection.id == crate::rulesets::OFFICIAL_RULESET_ID
+                && selection.version == crate::rulesets::OFFICIAL_RULESET_VERSION
+                && selection.schema_version == crate::rulesets::OFFICIAL_RULESET_SCHEMA_VERSION)
+        {
+            static OFFICIAL: std::sync::LazyLock<Result<String, String>> = std::sync::LazyLock::new(|| {
+                checked_rules_source(crate::rulesets::resolve_project_ruleset("", "")?)
+            });
+            return (*OFFICIAL).clone();
+        }
+        checked_rules_source(crate::rulesets::resolve_project_ruleset(&self.config, "")?)
+    }
+
+    /// Explicit opt-in for code that exercises a ruleset draft in memory.
+    pub fn preview_workbench_rules(&mut self) {
+        self.preview_workbench_rules = true;
+    }
+
+    pub fn rules_catalogue_document(&self) -> Result<crate::rulesets::document::RulesDocument, String> {
+        crate::rulesets::document::RulesDocument::parse(&self.rules_source()?)
     }
 
     pub fn palette_visible_color_count(&self) -> usize {
@@ -657,7 +703,6 @@ impl Project {
             .map(|index| index + 1)
             .unwrap_or(1)
     }
-
     pub fn sync_ruleset_items(&mut self) -> Result<usize, String> {
         if self.client_release.is_some() { return Ok(0); }
         crate::ruleset_materials::install(self)?;
@@ -665,7 +710,6 @@ impl Project {
         let bundled_tiles =
             crate::rulesets::bundled_tiles_with_frames(&self.config, &procedural_states)?;
         let rules = self.rules_source()?;
-        let templates = crate::rulesets::ruleset_item_templates_from_source(&rules)?;
         let mut changed = 0;
         let selection = crate::rulesets::selected_ruleset_config(&self.config);
         if selection.source != "project" {
@@ -700,15 +744,34 @@ impl Project {
             }
         }
 
-        for template in templates {
-            if let Some(item) = self
-                .items
-                .values_mut()
-                .find(|item| item_ruleset_path(item).as_deref() == Some(&template.ruleset_path))
-            {
+        Ok(changed + self.sync_ruleset_item_templates(&rules)?)
+    }
+
+    /// Populate item definitions for the headless runtime as well as Creator.
+    /// A project can reference a bundled item before it ever saved a template.
+    pub(crate) fn sync_ruleset_item_templates(&mut self, rules: &str) -> Result<usize, String> {
+        let mut linked_items = std::collections::HashMap::new();
+        let mut authored_names = std::collections::HashSet::new();
+        for item in self.items.values() {
+            if let Some(path) = item_ruleset_path(item) {
+                linked_items.entry(path).or_insert(item.id);
+            } else {
+                authored_names.insert(item.name.to_ascii_lowercase());
+            }
+        }
+        let mut changed = 0;
+        for template in crate::rulesets::ruleset_item_templates_from_source(rules)? {
+            // Keep a custom template's name usable if it matches a bundled one.
+            // The bundled item's registered ID and visible name are in its data.
+            let name = if authored_names.contains(&template.name.to_ascii_lowercase()) {
+                template.ruleset_path.clone()
+            } else {
+                template.name
+            };
+            if let Some(item) = linked_items.get(&template.ruleset_path).and_then(|id| self.items.get_mut(id)) {
                 let mut item_changed = false;
-                if item.name != template.name {
-                    item.name = template.name.clone();
+                if item.name != name {
+                    item.name = name;
                     item_changed = true;
                 }
                 let data = crate::item::merge_appearance_data(&item.data, &template.data);
@@ -729,7 +792,8 @@ impl Project {
                 }
             } else {
                 let mut item = Item::new();
-                item.name = template.name;
+                item.id = crate::rulesets::material_asset_id(&format!("item-template/{}", template.id));
+                item.name = name;
                 item.source = template.source;
                 item.data = template.data;
                 item.authoring = template.authoring;
@@ -2000,7 +2064,7 @@ mod tests {
     }
 
     #[test]
-    fn projects_persist_rules_document() {
+    fn project_archives_ignore_embedded_rules_and_resolve_the_bundled_catalogue() {
         let mut project = Project::new();
         project
             .rules_document
@@ -2015,17 +2079,21 @@ mod tests {
                 Ok(())
             })
             .unwrap();
-        let json = serde_json::to_value(&project).unwrap();
+        let mut json = serde_json::to_value(&project).unwrap();
         assert!(json.get("rules").is_none());
         assert!(json.get("rules_graph").is_none());
-        assert!(json.get("rules_document").is_some());
+        assert!(json.get("rules_document").is_none());
+        json["rules_document"] = serde_json::to_value(&project.rules_document).unwrap();
+        json["config"] = serde_json::json!("[game]\nstart_region = 'Village'\n[ruleset]\nsource = 'project'");
         let loaded: Project = serde_json::from_value(json).unwrap();
-        assert_eq!(loaded.rules_document, project.rules_document);
-        assert!(loaded.rules_source().unwrap().contains("Custom Strike"));
+        assert_eq!(crate::rulesets::selected_ruleset_config(&loaded.config).source, "official");
+        assert!(loaded.config.contains("Village"));
+        assert!(!loaded.rules_source().unwrap().contains("Custom Strike"));
         assert_eq!(
             loaded.rules_source().unwrap(),
             project.rules_source().unwrap()
         );
+        assert_eq!(crate::rulesets::animals::from_source(&loaded.rules_source().unwrap()).unwrap().len(), 7);
     }
 
     #[test]

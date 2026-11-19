@@ -88,11 +88,10 @@ See [Screens](/docs/screens/#procedural-screen-artwork).
 
 ## Ruleset Storage
 
-Projects save their complete current rules document, preserved original, and
-recovery checkpoints in `project.json` under `rules_document`. These snapshots
-travel with the project, even though standard Creator builds hide the internal
-ruleset editor. Existing rules and recovery data are preserved on save/reload;
-the bundled rules changing later does not replace the project's document.
+Projects store the ruleset selection in Game / Settings. Creator and the runtime
+resolve that selection from the bundled catalogue. Legacy rules snapshots are
+ignored on open and omitted on save. The project defines its world, character
+options, placements, resource bindings and behavior graphs.
 
 ## Compatibility
 

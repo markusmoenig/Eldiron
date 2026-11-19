@@ -4028,7 +4028,9 @@ impl SceneHandler {
             }
         }
 
-        self.procedural_avatars.retain(&active_avatar_geo);
+        if actor_sprites || map.camera != crate::MapCamera::TwoDIso {
+            self.procedural_avatars.retain(&active_avatar_geo);
+        }
         self.avatar_builder
             .remove_stale_avatars(&mut self.vm, &active_avatar_geo);
         self.update_generated_item_avatar_data(&active_generated_item_geo);
@@ -4177,6 +4179,7 @@ impl SceneHandler {
         self.procedural_avatars
             .tick(frame, assets.animation_tick_seconds());
         let mut result = std::collections::HashMap::new();
+        let mut active = FxHashSet::default();
         for (index, original) in map.entities.iter().enumerate() {
             let display;
             let entity = if self.preview_character_setup {
@@ -4202,6 +4205,7 @@ impl SceneHandler {
             let id = Self::entity_render_geo_id(entity, index);
             if let Some(sprite) = self.procedural_avatars.isometric_sprite(entity, assets, id) {
                 result.insert(index, sprite);
+                active.insert(id);
             }
         }
         for (index, item) in map.items.iter().enumerate() {
@@ -4212,6 +4216,7 @@ impl SceneHandler {
                 result.insert(crate::isometric::item_sprite_key(index), sprite);
             }
         }
+        self.procedural_avatars.retain(&active);
         result
     }
 

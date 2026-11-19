@@ -552,6 +552,13 @@ fn sum_all_equipped_attr(entity: &crate::Entity, assets: &Assets, attr: &str) ->
 }
 
 fn resolve_entity_attr(entity: &crate::Entity, attr: &str, assets: &Assets) -> String {
+    if attr == "knowledge.summary" {
+        return assets
+            .value_rules()
+            .and_then(|rules| crate::learning::summary(&rules, entity).ok())
+            .map(|lines| lines.join("; "))
+            .unwrap_or_else(|| "Invalid knowledge journal".into());
+    }
     if let Some(attribute) = attr.strip_prefix("explain.") {
         return assets.value_rules().and_then(|rules| rules.explain(entity, attribute, 0.0).ok())
             .map(|value| value.summary()).unwrap_or_else(|| "Invalid effective value".into());

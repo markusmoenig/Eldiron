@@ -29,6 +29,18 @@ impl CommandReceipt {
             }
         )
     }
+    fn journal(&self) -> bool {
+        matches!(
+            self.control.panel,
+            HudPanelId::Catalog {
+                kind: screen_model::CatalogPanelKind::Journal,
+                ..
+            }
+        )
+    }
+    fn assignable(&self) -> bool {
+        self.command().starts_with("rules.")
+    }
 }
 pub(super) struct CommandCapture {
     pub receipt: CommandReceipt,
@@ -116,7 +128,7 @@ impl GameScreenController {
             let mut effects = Vec::new();
             if !capture.cancelled {
                 let receipt = &capture.receipt;
-                if capture.assigning {
+                if capture.assigning && receipt.assignable() {
                     if let Some(target) = capture
                         .target
                         .filter(|target| self.command_target_valid(world, target, point))
@@ -128,7 +140,7 @@ impl GameScreenController {
                         self.hud.pending_command = None;
                         self.hud.state.finish_assignment(receipt.control.panel);
                     }
-                } else if capture.dragging && capture.key.is_none() {
+                } else if capture.dragging && capture.key.is_none() && receipt.assignable() {
                     if let Some(target) = self.command_target_at(world, point) {
                         effects.push(ScreenEffect::Action(EntityAction::SetCommandSlot {
                             slot: target.slot,
@@ -140,7 +152,8 @@ impl GameScreenController {
                 {
                     if receipt.assignment() {
                         self.hud.pending_command = Some(receipt.clone());
-                    } else if receipt.available
+                    } else if !receipt.journal()
+                        && receipt.available
                         && receipt.immediate == self.immediate_intents(world)?
                     {
                         if let Some(binding) = parse_client_command(receipt.command()) {

@@ -54,6 +54,21 @@ pub(super) fn prepare(
                 && old.frame.style.font == frame.style.font
                 && old.frame.style.quantity_size == frame.style.quantity_size
         });
+        let fallback = if matches!(
+            frame.id,
+            HudPanelId::Catalog {
+                kind: screen_model::CatalogPanelKind::Journal,
+                ..
+            }
+        ) {
+            card.name
+                .split_whitespace()
+                .filter_map(|word| word.chars().next())
+                .take(2)
+                .collect::<String>()
+        } else {
+            card.name.clone()
+        };
         let name = compatible
             .filter(|old| {
                 old.frame
@@ -65,7 +80,7 @@ pub(super) fn prepare(
             .cloned()
             .unwrap_or_else(|| {
                 Arc::new(fonts.text.layout(
-                    &card.name,
+                    &fallback,
                     &frame.style.font,
                     frame.style.quantity_size,
                     None,

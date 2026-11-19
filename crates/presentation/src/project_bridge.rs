@@ -45,6 +45,12 @@ pub fn sync_item_icon_assets(rusterix: &mut Rusterix, project: &Project) {
 }
 
 pub fn sync_editor_visual_assets(rusterix: &mut Rusterix, project: &Project) {
+    sync_editor_content_assets(rusterix, project);
+    rusterix.set_tiles(project.tiles.clone(), true);
+}
+
+/// Publish rules, item icons and avatars separately from map tile installation.
+pub fn sync_editor_content_assets(rusterix: &mut Rusterix, project: &Project) {
     rusterix.assets.config = project.config.clone();
     rusterix.assets.rules = project.rules_source().unwrap_or_else(|_| String::new());
     rusterix.assets.palette = project.palette.clone();
@@ -59,7 +65,6 @@ pub fn sync_editor_visual_assets(rusterix: &mut Rusterix, project: &Project) {
             .insert(avatar.name.clone(), avatar.clone());
     }
     sync_item_icon_assets(rusterix, project);
-    rusterix.set_tiles(project.tiles.clone(), true);
     sync_procedural_avatar_assets(&mut rusterix.assets, project);
 }
 

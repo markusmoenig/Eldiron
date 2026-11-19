@@ -2,6 +2,7 @@ pub mod iso_bitmap;
 pub mod appearance_assets;
 pub mod asset;
 pub mod character;
+pub mod animals;
 pub mod context;
 pub mod entity_graph;
 pub mod equipment;

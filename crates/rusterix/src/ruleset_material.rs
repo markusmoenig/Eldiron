@@ -285,6 +285,63 @@ mod tests {
     use super::*;
     use denrim_materials::{format::Binding, metadata::ValueType};
     #[test]
+    fn leather_family_native_icons_and_world_models_are_editable_and_render() {
+        let palette = eldiron_ruleset::palette_template_from_source(
+            eldiron_ruleset::latest_official_ruleset(),
+        )
+        .unwrap();
+        let icons = eldiron_ruleset::bundled_icon_material_assets_for_ruleset(
+            eldiron_ruleset::OFFICIAL_RULESET_ID,
+            eldiron_ruleset::OFFICIAL_RULESET_VERSION,
+        );
+        let models = eldiron_ruleset::bundled_appearance_assets_for_ruleset(
+            eldiron_ruleset::OFFICIAL_RULESET_ID,
+            eldiron_ruleset::OFFICIAL_RULESET_VERSION,
+        );
+        for id in [
+            "leather_vest",
+            "leather_hood",
+            "leather_leggings",
+            "leather_gloves",
+            "leather_boots",
+            "flint_awl",
+            "leather_workbench",
+            "leatherworking_manual",
+            "fox_inscription_manual",
+            "fox_inlay",
+        ] {
+            let icon = icons
+                .iter()
+                .find(|a| a.id == format!("icon/{id}/on"))
+                .unwrap();
+            let editable = editable(icon, &palette).unwrap();
+            let pixels = bake(&editable, &palette, 32).unwrap();
+            assert!(pixels.data.chunks_exact(4).any(|p| p[3] > 0), "{id}");
+            assert!(
+                pixels.data.chunks_exact(4).any(|p| p[3] == 0),
+                "{id}: transparent silhouette"
+            );
+            let model = models.iter().find(|a| a.id == id).unwrap();
+            let mesh = denrim_materials::geometry::Document::load(model.source)
+                .unwrap()
+                .evaluate()
+                .unwrap()
+                .mesh;
+            assert!(!mesh.parts.is_empty(), "{id}");
+            if let Some(path) = std::env::var_os("ELDIRON_LEATHER_PREVIEW") {
+                std::fs::create_dir_all(&path).unwrap();
+                image::save_buffer(
+                    std::path::Path::new(&path).join(format!("{id}.png")),
+                    &pixels.data,
+                    32,
+                    32,
+                    image::ColorType::Rgba8,
+                )
+                .unwrap();
+            }
+        }
+    }
+    #[test]
     fn torch_flicker_keeps_the_diagonal_handle_still_and_uses_four_frames() {
         let palette = eldiron_ruleset::palette_template_from_source(
             eldiron_ruleset::latest_official_ruleset(),
@@ -405,6 +462,76 @@ mod tests {
         }
         if let (Some(path), Some(atlas)) = (capture, atlas) {
             std::fs::write(path, TheRGBABuffer::from(atlas,width as u32,height as u32).to_png().unwrap()).unwrap();
+        }
+    }
+
+    #[test]
+    fn enchanting_icons_use_editable_native_mz_and_render_transparent_silhouettes() {
+        let palette =
+            eldiron_ruleset::palette_template_from_source(eldiron_ruleset::latest_official_ruleset())
+                .unwrap();
+        let definitions = eldiron_ruleset::bundled_icon_material_assets_for_ruleset(
+            eldiron_ruleset::OFFICIAL_RULESET_ID,
+            eldiron_ruleset::OFFICIAL_RULESET_VERSION,
+        );
+        for id in ["bear_inlay", "bear_inscription_manual"] {
+            let definition = definitions
+                .iter()
+                .find(|definition| definition.id == format!("icon/{id}/on"))
+                .unwrap();
+            let asset = editable(definition, &palette).unwrap();
+            let texture = bake(&asset, &palette, 32).unwrap();
+            assert_eq!((texture.width, texture.height), (32, 32));
+            assert!(
+                texture
+                    .data
+                    .chunks_exact(4)
+                    .filter(|pixel| pixel[3] > 128)
+                    .count()
+                    > 25
+            );
+            assert_eq!(texture.data[3], 0);
+            if let Ok(directory) = std::env::var("ELDIRON_ENCHANTING_ICON_PREVIEW") {
+                std::fs::write(
+                    format!("{directory}/{id}.png"),
+                    TheRGBABuffer::from(texture.data, 32, 32).to_png().unwrap(),
+                )
+                .unwrap();
+            }
+        }
+    }
+    #[test]
+    fn learning_manual_uses_native_editable_mz_artwork() {
+        let palette =
+            eldiron_ruleset::palette_template_from_source(eldiron_ruleset::latest_official_ruleset())
+                .unwrap();
+        let definition = eldiron_ruleset::bundled_icon_material_assets_for_ruleset(
+            eldiron_ruleset::OFFICIAL_RULESET_ID,
+            eldiron_ruleset::OFFICIAL_RULESET_VERSION,
+        )
+        .into_iter()
+        .find(|definition| definition.id == "icon/boneworking_manual/on")
+        .unwrap();
+        let asset = editable(&definition, &palette).unwrap();
+        let texture = bake(&asset, &palette, 32).unwrap();
+        assert_eq!((texture.width, texture.height), (32, 32));
+        assert!(
+            texture
+                .data
+                .chunks_exact(4)
+                .filter(|pixel| pixel[3] > 128)
+                .count()
+                > 25
+        );
+        assert_eq!(texture.data[3], 0);
+        if let Ok(path) = std::env::var("ELDIRON_LEARNING_ICON_PREVIEW") {
+            std::fs::write(
+                path,
+                TheRGBABuffer::from(texture.data.clone(), 32, 32)
+                    .to_png()
+                    .unwrap(),
+            )
+            .unwrap();
         }
     }
     #[test]

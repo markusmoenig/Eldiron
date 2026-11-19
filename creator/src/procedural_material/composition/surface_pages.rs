@@ -5,6 +5,46 @@ use shared::material_composition::{CompositionSurface as Surface, MapMaterialBin
 pub(super) const PAGES: &str = "eldiron-surface-pages";
 pub(super) const AXES: &str = "eldiron-surface-axes";
 const FLOOR: [[f32; 3]; 2] = [[1., 0., 0.], [0., 0., 1.]];
+const BAKE_BUDGET_BYTES: u64 = 64 * 1024 * 1024;
+
+fn page_count(layout: &rusterix::TileUvPages) -> u64 {
+    u64::from(layout.size[0]) * u64::from(layout.size[1])
+}
+
+pub(in crate::procedural_material) fn fit_bake_budget(
+    layout: &mut Option<rusterix::TileUvPages>,
+    texels_per_page: usize,
+    frames: u32,
+) -> Result<(), String> {
+    let limit = BAKE_BUDGET_BYTES / (u64::from(frames) * texels_per_page as u64 * 8);
+    if let Some(world) = layout.as_mut()
+        && world.repeat_period == [0.; 2]
+    {
+        while page_count(world) > limit {
+            // Double world coverage per page, rounding outwards even on the
+            // negative side of the origin. Texture dimensions stay fixed.
+            let Some(units) = world.units_per_page.checked_mul(2) else {
+                break;
+            };
+            let origin = world.origin.map(|value| value.div_euclid(2));
+            let size = std::array::from_fn(|axis| {
+                let end = i64::from(world.origin[axis]) + i64::from(world.size[axis]);
+                let upper = end.div_euclid(2) + i64::from(end.rem_euclid(2) != 0);
+                (upper - i64::from(origin[axis])) as u32
+            });
+            if size == world.size {
+                break;
+            }
+            world.units_per_page = units;
+            world.origin = origin;
+            world.size = size;
+        }
+    }
+    if layout.as_ref().map_or(1, page_count) > limit {
+        return Err("Material pages exceed the 64 MB bake budget; reduce resolution, frame count or surface coverage".into());
+    }
+    Ok(())
+}
 fn point(p: Vec3<f32>, axes: [[f32; 3]; 2]) -> [f32; 2] {
     axes.map(|a| a[0] * p.x + a[1] * p.y + a[2] * p.z)
 }
@@ -338,6 +378,23 @@ pub(crate) fn decode(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn large_page_grids_fit_the_budget_without_losing_coverage() {
+        let mut pages = Some(rusterix::TileUvPages {
+            animation_frames: 1,
+            origin: [-13, 7],
+            size: [63, 53],
+            units_per_page: 1,
+            repeat_period: [0.; 2],
+            axes: [[0.; 3]; 2],
+        });
+        fit_bake_budget(&mut pages, 64 * 64, 1).unwrap();
+        let result = pages.unwrap();
+        assert_eq!(result.units_per_page, 2);
+        assert_eq!(result.origin, [-7, 3]);
+        assert_eq!(result.size, [32, 27]);
+        assert!(fit_bake_budget(&mut Some(result), 8192 * 8192, 1).is_err());
+    }
     #[test]
     fn continuous_material_coverage_follows_projected_iso_output_placements() {
         let mut p = Project::default();

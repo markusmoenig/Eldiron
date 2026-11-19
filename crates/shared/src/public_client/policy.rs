@@ -227,6 +227,32 @@ pub fn template_data(source: &str) -> Result<String, String> {
     encode(out)
 }
 const UI_ROW_KEYS: &[&str] = &[
+    // Declarative inspection inputs. Execution/behavior source remains excluded.
+    "recipe",
+    "lesson",
+    "produces",
+    "tool",
+    "station",
+    "fixed_quality",
+    "recommended_skill",
+    "difficulty",
+    "repair",
+    "enchant",
+    "required_spell",
+    "epithet",
+    "requires_positive_condition",
+    "allowed_categories",
+    "modifiers",
+    "knowledge_grants",
+    "knowledge",
+    "recipes",
+    "starting_knowledge",
+    "required_members",
+    "required_slots",
+    "variants",
+    "slot",
+    "quantity_unit",
+    "max_stack",
     "name",
     "label",
     "description",
@@ -319,6 +345,10 @@ pub fn rules(source: &str) -> Result<String, String> {
         "skills",
         "currencies",
         "recipes",
+        "knowledge",
+        "teaching",
+        "enchantments",
+        "equipment_families",
         "equipment",
         "intents",
     ] {
@@ -354,6 +384,112 @@ pub fn rules(source: &str) -> Result<String, String> {
             }
             out.insert(key.into(), public.into());
         }
+    }
+    // Item definitions are grouped, unlike the flat catalogues above. Publish
+    // only display/quantity facts and the capabilities used by the planner.
+    if let Some(groups) = source.get("items").and_then(toml::Value::as_table) {
+        let mut items = toml::Table::new();
+        for (group, rows) in groups {
+            let Some(rows) = rows.as_table() else {
+                continue;
+            };
+            let mut public = toml::Table::new();
+            for (id, item) in rows {
+                let Some(item) = item.as_table() else {
+                    continue;
+                };
+                let mut row = select(item, UI_ROW_KEYS);
+                if let Some(attributes) = item.get("attributes").and_then(toml::Value::as_table) {
+                    row.insert(
+                        "attributes".into(),
+                        select(
+                            attributes,
+                            &[
+                                "stackable",
+                                "quantity",
+                                "condition",
+                                "quality",
+                                "tool_capabilities",
+                                "station_capabilities",
+                                "liquid_capacity",
+                                "liquid_quantity",
+                                "liquid_item",
+                            ],
+                        )
+                        .into(),
+                    );
+                }
+                public.insert(id.clone(), row.into());
+            }
+            items.insert(group.clone(), public.into());
+        }
+        out.insert("items".into(), items.into());
+    }
+    if let Some(equipment) = source.get("equipment").and_then(toml::Value::as_table) {
+        let mut public = select(
+            equipment,
+            &["weapon_slots", "armor_slots", "avatar_anchors"],
+        );
+        for group in ["weapon_categories", "armor_categories"] {
+            if let Some(categories) = equipment.get(group).and_then(toml::Value::as_table) {
+                public.insert(
+                    group.into(),
+                    categories
+                        .iter()
+                        .filter_map(|(id, category)| {
+                            Some((
+                                id.clone(),
+                                select(
+                                    category.as_table()?,
+                                    &[
+                                        "name",
+                                        "description",
+                                        "contributions",
+                                        "requires_positive_condition",
+                                        "wear",
+                                        "crafting_family",
+                                        "armor_bonus",
+                                        "dex_penalty",
+                                        "handed",
+                                        "damage_kind",
+                                        "base_cooldown",
+                                        "range",
+                                        "occupies_slots",
+                                    ],
+                                )
+                                .into(),
+                            ))
+                        })
+                        .collect::<toml::Table>()
+                        .into(),
+                );
+            }
+        }
+        out.insert("equipment".into(), public.into());
+    }
+    if let Some(kinds) = source
+        .get("combat")
+        .and_then(|v| v.get("kinds"))
+        .and_then(toml::Value::as_table)
+    {
+        // Wear compatibility needs declared kind IDs, not combat execution rules.
+        let kinds = kinds
+            .iter()
+            .map(|(id, value)| {
+                (
+                    id.clone(),
+                    value
+                        .as_table()
+                        .map(|row| select(row, &["name", "description"]))
+                        .unwrap_or_default()
+                        .into(),
+                )
+            })
+            .collect::<toml::Table>();
+        out.insert(
+            "combat".into(),
+            toml::Table::from_iter([("kinds".into(), kinds.into())]).into(),
+        );
     }
     encode(out)
 }

@@ -54,6 +54,16 @@ pub enum HudPart {
     CatalogTab(usize),
     Assign,
     Detail,
+    JournalSearch,
+    JournalClear,
+    JournalFilter,
+    JournalTab(usize),
+    JournalTarget,
+    JournalTargetOption(usize),
+    JournalFilterOption(usize),
+    JournalPopupPage(bool),
+    JournalCraft,
+    OpenJournal,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct HudControlId {

@@ -6510,7 +6510,7 @@ impl Client {
 
     fn active_catalog_panel_config(&self) -> CatalogPanelConfig {
         match self.actions_panel_content {
-            CatalogPanelContent::Actions => self
+            CatalogPanelContent::Actions | CatalogPanelContent::Journal => self
                 .custom_actions_panel_config
                 .clone()
                 .unwrap_or_else(|| self.toolbar_actions_panel_config.clone()),
@@ -8433,6 +8433,7 @@ impl Client {
                 let message = match self.actions_panel_content {
                     CatalogPanelContent::Actions => "No actions available for this character.",
                     CatalogPanelContent::Spellbook => "No abilities available for this character.",
+                    CatalogPanelContent::Journal => "No recipes available for this character.",
                 };
                 self.draw2d.text_rect_blend_safe(
                     self.target.pixels_mut(),

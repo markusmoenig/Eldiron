@@ -87,6 +87,23 @@ pub struct CompositionGeometry {
     pub map: Uuid,
     pub linedefs: Vec<u32>,
     pub sectors: Vec<u32>,
+    /// A terrain stroke can read each guide's width so differently sized
+    /// segments share a single material overlay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path_width_source: Option<CompositionPathWidth>,
+}
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CompositionPathWidth {
+    Road,
+    Verge,
+}
+impl CompositionPathWidth {
+    pub fn property(self) -> (&'static str, f32) {
+        match self {
+            Self::Road => ("terrain_material_width", 1.35),
+            Self::Verge => ("terrain_material_verge_width", 3.2),
+        }
+    }
 }
 fn default_wobble_scale() -> f32 {
     2.

@@ -579,18 +579,8 @@ impl MapEditor {
         center
     }
 
-    pub fn load_from_project(
-        &mut self,
-        _ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        project: &Project,
-        reference: &CreatorReference,
-    ) {
+    pub fn reset_project_selection(&mut self) {
         self.curr_tile_uuid = None;
-        {
-            let mut rusterix = reference.write();
-            rusterix.set_tiles(project.tiles.clone(), true);
-        }
     }
 
     #[allow(clippy::suspicious_else_formatting)]

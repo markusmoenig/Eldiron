@@ -1,7 +1,7 @@
 struct Params {
     canvas:vec4<u32>, // width,height,background,empty terrain depth bits
     screen:vec4<i32>, // rounded x0,y0,x1,y1
-    image:vec4<u32>, // width,height,bitmap flags,has source geometry
+    image:vec4<u32>, // width,height,bitmap flags,geometry & AO flags
     scale:vec4<f32>, // screen scale,base height,world scale,opacity
     contact:vec4<u32>, // owner,protection offset,length,unused
     bitmap:vec4<f32>, // anchor y,pixels/unit,unused,unused
@@ -34,9 +34,34 @@ fn blit(@builtin(global_invocation_id) id:vec3<u32>) {
     let color=bytes(source[src]);let alpha=u32(floor(f32(color.a)*p.scale.w+0.5));
     if alpha==0u {return;}
     let dst=u32(at.y)*p.canvas.x+u32(at.x);
+    var height=p.scale.y;
+    var packed=128u|(255u<<8u)|(14u<<16u); // same upright normal/RME fallback
+    var mode=0u;
+    var occlusion=0u;
+    var has_surface_height=false;
+    if (p.policy.x&2u)==0u && (p.image.z&1u)!=0u {
+        if (p.image.z&4u)==0u { height+=(p.bitmap.x-f32(texel.y)-0.5)/p.bitmap.y*p.scale.z*0.61237246; }
+        mode=select(2u,1u,(p.image.z&2u)!=0u);
+    } else if (p.policy.x&2u)==0u && (p.image.w&1u)!=0u {
+        let g=geometry[src];
+        packed=(g.x&65535u)|(g.y&0xffff0000u);
+        var source_height_bits=(g.x>>16u)|((g.y&65535u)<<16u);
+        if (p.image.w&2u)!=0u {
+            occlusion=source_height_bits&63u;
+            source_height_bits=source_height_bits&0xffffffc0u;
+        }
+        let source_height=bitcast<f32>(source_height_bits);
+        height+=source_height*p.scale.z;
+        has_surface_height=(bitcast<u32>(source_height)&0x7f800000u)!=0x7f800000u;
+    }
     if (p.policy.x&1u)!=0u {
         let ground=terrain[dst];
-        if ground.y>p.foot.y+0.06 && ground.x>p.foot.z+(p.foot.x-f32(at.y)-0.5)/p.foot.w*0.6666667+0.02 {return;}
+        if has_surface_height {
+            // Along the same ortho ray, the higher world point is closer.
+            if bitcast<u32>(ground.x)!=p.canvas.w && ground.y>height+0.06 {return;}
+        } else if ground.y>p.foot.y+0.06 && ground.x>p.foot.z+(p.foot.x-f32(at.y)-0.5)/p.foot.w*0.6666667+0.02 {
+            return;
+        }
     }
     let previous_owner=owners[dst];
     if previous_owner<p.contact.z && protection[p.contact.y+previous_owner]!=0u {return;}
@@ -46,17 +71,5 @@ fn blit(@builtin(global_invocation_id) id:vec3<u32>) {
         let under=bytes(albedo[dst]);
         albedo[dst]=word(vec4<u32>((color.rgb*alpha+under.rgb*(255u-alpha)+127u)/255u,255u));
     }
-    var height=p.scale.y;
-    var packed=128u|(255u<<8u)|(14u<<16u); // same upright normal/RME fallback
-    var mode=0u;
-    if (p.policy.x&2u)==0u && (p.image.z&1u)!=0u {
-        if (p.image.z&4u)==0u { height+=(p.bitmap.x-f32(texel.y)-0.5)/p.bitmap.y*p.scale.z*0.61237246; }
-        mode=select(2u,1u,(p.image.z&2u)!=0u);
-    } else if (p.policy.x&2u)==0u && p.image.w!=0u {
-        let g=geometry[src];
-        packed=(g.x&65535u)|(g.y&0xffff0000u);
-        let source_height=bitcast<f32>((g.x>>16u)|((g.y&65535u)<<16u));
-        height+=source_height*p.scale.z;
-    }
-    surfaces[dst]=vec2<u32>(packed,(bitcast<u32>(height)&0xffffff00u)|mode);
+    surfaces[dst]=vec2<u32>(packed,(bitcast<u32>(height)&0xffffff00u)|(occlusion<<2u)|mode);
 }

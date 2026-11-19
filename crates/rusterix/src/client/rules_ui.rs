@@ -199,10 +199,32 @@ pub fn describe_item(item: &Item, assets: &Assets) -> RulesDescription {
                             });
                             lines.push(detail);
                         }
+                        for knowledge in &enchantment.knowledge_grants {
+                            if let Some(definition) = rules.learning.knowledge.get(knowledge) {
+                                lines.push(format!(
+                                    "{}: temporary {} while equipped{}",
+                                    enchantment.name,
+                                    definition.name,
+                                    if active { "" } else { " (inactive: broken)" }
+                                ));
+                            }
+                        }
                     }
                 }
             }
             Err(_) => lines.push("Invalid enchantment state".into()),
+        }
+    }
+    if let Some(rules) = assets.value_rules()
+        && let Some(Value::StrArray(lessons)) = item.attributes.get("teaching")
+    {
+        for lesson in lessons {
+            if let Some(definition) = rules.learning.teaching.get(lesson) {
+                lines.push(format!("Teaches permanently: {}", definition.name));
+                if let Some(skill) = &definition.skill {
+                    lines.push(format!("Requires {skill} {}", definition.required_skill));
+                }
+            }
         }
     }
     if let Some(damage) = item_damage_line(item) {
@@ -709,6 +731,48 @@ fn rules_action_state(assets: &Assets, actor: &Entity, action_id: &str) -> Comma
         }
     }
 
+    if let Some(rules) = assets.value_rules() {
+        if let Some(id) = &action.recipe {
+            let access = crate::learning::recipe_access(&rules, actor, id).and_then(|_| {
+                root.get("recipes")
+                    .and_then(|v| v.get(id))
+                    .and_then(toml::Value::as_table)
+                    .ok_or("Unknown recipe".to_string())
+                    .and_then(|recipe| crate::learning::recipe_skill_access(actor, recipe))
+            });
+            if let Err(reason) = access {
+                state.enabled = false;
+                state.disabled_reason = Some(reason);
+            }
+        }
+        if let Some(lesson) = action
+            .lesson
+            .as_ref()
+            .and_then(|id| rules.learning.teaching.get(id))
+        {
+            if let Err(error) = crate::learning::journal(actor) {
+                state.enabled = false;
+                state.disabled_reason = Some(error);
+                return state;
+            }
+            if lesson
+                .knowledge
+                .iter()
+                .all(|id| crate::learning::has_permanent(actor, id).unwrap_or(false))
+            {
+                state.enabled = false;
+                state.disabled_reason = Some("Already learned".into());
+                return state;
+            }
+            if let Some(skill) = &lesson.skill {
+                if crate::learning::skill_points(actor, skill) < lesson.required_skill as i32 {
+                    state.enabled = false;
+                    state.disabled_reason = Some(format!("Need {skill} {}", lesson.required_skill));
+                }
+            }
+        }
+    }
+
     for cost in &action.item_costs {
         if inventory_item_quantity(actor, &cost.item) < cost.quantity as i32 {
             state.enabled = false;
@@ -771,11 +835,67 @@ fn describe_rules_action(
     {
         lines.push(description.trim().to_string());
     }
+    if let Some(lesson) = action
+        .lesson
+        .as_ref()
+        .and_then(|id| root.get("teaching").and_then(|v| v.get(id)))
+    {
+        lines.push("Grants permanent knowledge; already learned lessons cost nothing.".into());
+        if let Some(knowledge) = lesson.get("knowledge").and_then(toml::Value::as_array) {
+            for id in knowledge.iter().filter_map(toml::Value::as_str) {
+                let name = root
+                    .get("knowledge")
+                    .and_then(|v| v.get(id))
+                    .and_then(|v| v.get("name"))
+                    .and_then(toml::Value::as_str)
+                    .unwrap_or(id);
+                lines.push(format!("Learn: {name}"));
+            }
+        }
+        if let Some(skill) = lesson.get("skill").and_then(toml::Value::as_str) {
+            lines.push(format!(
+                "Requires {skill} {}",
+                lesson
+                    .get("required_skill")
+                    .and_then(toml::Value::as_integer)
+                    .unwrap_or(0)
+            ));
+        }
+    }
     if let Some(recipe) = action
         .recipe
         .as_deref()
         .and_then(|id| table_at(root, &["recipes", id]))
     {
+        if let Some(id) = action.recipe.as_deref() {
+            let knowledge = root
+                .get("knowledge")
+                .and_then(toml::Value::as_table)
+                .into_iter()
+                .flatten()
+                .filter(|(_, definition)| {
+                    definition
+                        .get("recipes")
+                        .and_then(toml::Value::as_array)
+                        .is_some_and(|recipes| {
+                            recipes.iter().any(|recipe| recipe.as_str() == Some(id))
+                        })
+                })
+                .map(|(id, definition)| {
+                    definition
+                        .get("name")
+                        .and_then(toml::Value::as_str)
+                        .unwrap_or(id)
+                        .to_string()
+                })
+                .collect::<Vec<_>>();
+            if !knowledge.is_empty() {
+                lines.push(format!(
+                    "Knowledge: {} (learned or temporarily granted)",
+                    knowledge.join(" or ")
+                ));
+            }
+        }
         for (key, label) in [("consumes", "Materials"), ("produces", "Produces")] {
             if let Some(entries) = recipe.get(key).and_then(toml::Value::as_array) {
                 let values = entries
@@ -799,6 +919,66 @@ fn describe_rules_action(
             }
         }
         if let Ok(requirements) = eldiron_ruleset::crafting::requirements(recipe) {
+            if let Some(enchant) = requirements.enchant {
+                let name = root
+                    .get("enchantments")
+                    .and_then(|v| v.get(&enchant.definition))
+                    .and_then(|v| v.get("name"))
+                    .and_then(toml::Value::as_str)
+                    .unwrap_or(&enchant.definition);
+                lines.push(format!("Enchant the selected owned item: {name}. Keeps identity, quality and condition; cannot attach the same enchantment twice."));
+                if enchant.items.is_empty() {
+                    let categories = root
+                        .get("enchantments")
+                        .and_then(|v| v.get(&enchant.definition))
+                        .and_then(|v| v.get("allowed_categories"))
+                        .and_then(toml::Value::as_array)
+                        .map(|values| {
+                            values
+                                .iter()
+                                .filter_map(toml::Value::as_str)
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default();
+                    lines.push(if categories.is_empty() {
+                        "Eligible items: any registered item compatible with this enchantment".into()
+                    } else {
+                        format!("Eligible equipment categories: {}", categories.join(", "))
+                    });
+                } else {
+                    lines.push(format!(
+                        "Eligible items: {}",
+                        enchant
+                            .items
+                            .iter()
+                            .map(|id| {
+                                root.get("items")
+                                    .and_then(toml::Value::as_table)
+                                    .into_iter()
+                                    .flatten()
+                                    .find_map(|(_, items)| items.get(id))
+                                    .and_then(|v| v.get("name"))
+                                    .and_then(toml::Value::as_str)
+                                    .unwrap_or(id)
+                                    .to_string()
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                if let Some(name) = enchant.name {
+                    lines.push(format!("Result name: {name}"));
+                } else if let Some(epithet) = root
+                    .get("enchantments")
+                    .and_then(|v| v.get(&enchant.definition))
+                    .and_then(|v| v.get("epithet"))
+                    .and_then(toml::Value::as_str)
+                {
+                    lines.push(format!(
+                        "Name: of {epithet}; combines with other attached epithets."
+                    ));
+                }
+            }
             if let Some(repair) = requirements.repair {
                 lines.push(format!("Repair the selected owned item: +{} condition, up to {}. Keeps quality and other properties.", repair.amount, repair.maximum));
             }
@@ -1402,6 +1582,116 @@ fn current_weapon_range(root: &Table, entity: &Entity) -> Option<f32> {
 mod tests {
     use super::*;
     use crate::{Entity, Value};
+
+    #[test]
+    fn enchanting_ui_explains_the_bear_pattern_materials_and_owned_target() {
+        let mut assets = Assets::new();
+        assets.rules = eldiron_ruleset::document::RulesState::default().current;
+        let mut actor = Entity::new();
+        actor.set_attribute("skill_boneworking", Value::Int(10));
+        assert_eq!(
+            command_state(&assets, Some(&actor), "rules.inscribe_bear_cuirass")
+                .disabled_reason
+                .as_deref(),
+            Some("Learn Bear Inscription")
+        );
+        let rules = assets.value_rules().unwrap();
+        crate::learning::acquire(
+            &mut actor,
+            &rules,
+            &["bear_inscription".into()],
+            crate::learning::Origin::Character,
+        )
+        .unwrap();
+        assert!(command_state(&assets, Some(&actor), "rules.inscribe_bear_cuirass").enabled);
+        let text = describe_command(&assets, Some(&actor), "rules.inscribe_bear_cuirass")
+            .lines
+            .join("\n");
+        for expected in [
+            "Bear's Vigor",
+            "Name: of the Bear",
+            "Eligible equipment categories:",
+            "Tree Resin",
+            "Fresh Water",
+            "identity, quality and condition",
+        ] {
+            assert!(text.contains(expected), "{expected}: {text}");
+        }
+        let template = eldiron_ruleset::ruleset_item_templates_from_source(&assets.rules)
+            .unwrap()
+            .into_iter()
+            .find(|item| item.id == "bear_inscription_manual")
+            .unwrap();
+        let mut book = Item::new();
+        crate::server::data::apply_item_data(&mut book, &template.data);
+        assert_eq!(describe_item(&book, &assets).title, "Patterns of the Bear");
+        assert!(
+            describe_item(&book, &assets)
+                .lines
+                .iter()
+                .any(|line| line.contains("Teaches permanently: Bear Inscription"))
+        );
+    }
+
+    #[test]
+    fn learning_ui_separates_skill_permanent_knowledge_and_temporary_guidance() {
+        let mut assets = Assets::new();
+        assets.rules = eldiron_ruleset::document::RulesState::default().current;
+        let mut actor = Entity::new();
+        assert_eq!(
+            command_state(&assets, Some(&actor), "rules.craft_shape_bone_batch")
+                .disabled_reason
+                .as_deref(),
+            Some("Learn Advanced Boneworking")
+        );
+        assert!(!command_state(&assets, Some(&actor), "rules.learn_boneworking").enabled);
+        actor.set_attribute("skill_boneworking", Value::Int(10));
+        assert!(command_state(&assets, Some(&actor), "rules.learn_boneworking").enabled);
+        let values = assets.value_rules().unwrap();
+        let mut guide = Item::new();
+        guide.set_attribute("category", Value::Str("bone_armor".into()));
+        crate::effective_values::attach(&mut guide, &values, "boneworking_guidance").unwrap();
+        actor.equipped.insert("head".into(), guide);
+        assert!(command_state(&assets, Some(&actor), "rules.craft_shape_bone_batch").enabled);
+        assert!(
+            command_state(&assets, Some(&actor), "rules.learn_boneworking").enabled,
+            "temporary access must not masquerade as permanent learning"
+        );
+        crate::learning::acquire(
+            &mut actor,
+            &values,
+            &["boneworking_patterns".into()],
+            crate::learning::Origin::Character,
+        )
+        .unwrap();
+        actor.equipped.clear();
+        assert!(command_state(&assets, Some(&actor), "rules.craft_shape_bone_batch").enabled);
+        assert_eq!(
+            command_state(&assets, Some(&actor), "rules.learn_boneworking")
+                .disabled_reason
+                .as_deref(),
+            Some("Already learned")
+        );
+        assert!(
+            describe_command(&assets, Some(&actor), "rules.learn_boneworking")
+                .lines
+                .iter()
+                .any(|line| line.contains("permanent knowledge"))
+        );
+        let template = eldiron_ruleset::ruleset_item_templates_from_source(&assets.rules)
+            .unwrap()
+            .into_iter()
+            .find(|item| item.id == "boneworking_manual")
+            .unwrap();
+        let mut book = Item::new();
+        crate::server::data::apply_item_data(&mut book, &template.data);
+        assert!(
+            describe_item(&book, &assets)
+                .lines
+                .iter()
+                .any(|line| line.contains("Teaches permanently"))
+        );
+    }
 
     #[test]
     fn action_requirements_use_equipped_enchantment_and_disable_when_broken() {

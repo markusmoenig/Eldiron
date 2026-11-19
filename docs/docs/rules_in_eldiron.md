@@ -11,28 +11,20 @@ resolution, project-owned rules, and rule testing.
 
 ## Source Of Truth
 
-The bundled official rules are currently compiled from `crates/ruleset/rulesets/eldiron/v1/rules.graph.json`. New projects receive their own rules document, including an original and recovery checkpoints. Project storage and runtime resolution use that document; the former project rules graph is no longer the authoring source.
+The official rules are compiled from `crates/ruleset/rulesets/eldiron/v1/rules.graph.json`.
+A project selects its bundled ruleset in Game / Settings. Creator, local play
+and the dedicated host resolve the same definitions. Older archives may contain
+rules snapshots. Loading ignores them, and saving omits them.
 
-The split TOML files beside the bundled graph, including `world_resources.toml`, are reference fixtures used for verification. Changing a reference fixture alone does not change the bundled rules.
+The split TOML files beside the bundled graph are reference fixtures used for
+verification. Change the canonical source to publish changes to the official rules.
 
 ## Internal Ruleset Maintenance
 
-Normal Creator builds hide the ruleset editor from the project tree, menus and
-dock registry. Creators use the supplied content and build acquisition paths in
-their worlds. Hiding this UI does not replace, strip or reinitialize the rules
-document, templates or saved item identities.
-
-Maintainer builds can opt in with the `internal-rules-editor` Cargo feature.
-The retained editor provides a searchable catalogue and property forms, list
-editing, icon selection, particle previews and recovery. See the
-[internal editor reference](./creator/docks/ruleset_nodes). The feature changes
-authoring access only; runtime rules are resolved the same way in all builds.
-
-Compatible valid changes refresh running and paused games. Invalid rules remain saved, while a running game retains its last valid rules and new play sessions are blocked until errors are repaired. Existing resource policy changes can require state migration; editing initial stock does not refill a live source. Checkpoint, recovery, and undo support experimentation.
-
-The shared catalogue normalizes stable definition identities independently of storage paths and item-template UUIDs. Item identifiers must be unique across item groups. **Armor Family** adds a guided five-piece bone-pattern family using ordinary recipes, actions and equipment definitions, with a preview and atomic Undo/Redo. See [Create a bone armor family](./creator/docks/ruleset_nodes#create-a-bone-armor-family).
-
-Projects currently own complete rules documents. Inherited deltas and upgrade conflict handling remain future work. Game / Settings still supplies asset and locale lookup; it does not replace the owned document or apply `update_policy` to it.
+The internal rules editor is a temporary workbench available in maintainer builds.
+Its drafts and checkpoints live in memory. The shared catalogue keeps stable IDs
+for classes, recipes and grouped items. A game's content and exposure are authored
+through its world, character options, resource placements and behavior graphs.
 
 Global definitions own gameplay policy. Character and item configuration graphs select those definitions and author entity-specific settings. Timing units are explicit per subsystem: existing action timing uses seconds, world scheduling commands use in-game minutes, and world resource recovery/expiry use simulation milliseconds.
 
@@ -623,10 +615,9 @@ bitmap overrides retain their own colors.
 Runtime systems should use the effective ruleset, not scattered character or
 item rule attributes.
 
-Clients and shared runtime helpers use the project-owned rules document as
-the rules source, together with concrete character or item identity and state
-such as race, class, level, and equipment. The selected bundled ruleset supplies
-asset and locale lookup; it is not layered over the project document at runtime.
+Creator and the host use the selected bundled ruleset with concrete character
+and item identity and state, such as race, class, level, and equipment. An online
+client receives the host’s public projection of its active rules.
 
 The practical result is that Creator, graphical clients, terminal clients, and
 shared server logic all answer the same rules questions.
@@ -786,7 +777,7 @@ requires_positive_condition = true
 contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }]
 
 [enchantments.strength]
-name = "Strength"
+name = "Bear's Vigor"
 requires_positive_condition = true
 allowed_categories = ["bone_armor"]
 modifiers = [{ attribute = "STR", add = 2 }]
@@ -838,10 +829,184 @@ move. Armor families can list optional `variants` in their existing covered
 slots; family repair accepts those variants without replacing the five-piece
 coverage list.
 
-The supplied Strength cuirass proves passive attachment, break/repair and
-ownership lifetime. Charged triggers, gameplay enchanting operations, talents,
+The supplied Bear cuirass proves passive attachment, break/repair and
+ownership lifetime. The inscription recipe below adds gameplay acquisition. Charged triggers, talents,
 item-local modifier stages and advanced stacking/replacement groups still need
 their remaining contracts and implementation.
+
+## Persistent learning
+
+The canonical rules document owns `knowledge`, `teaching`, learning actions,
+profession lessons and book definitions. `learning.toml` is their readable
+reference fixture. Knowledge definitions own recipe grants in one direction:
+a recipe with no grant is open, and any registered knowledge granting a gated
+recipe provides access. Recipe skill requirements remain separate.
+
+```toml
+[knowledge.boneworking_patterns]
+name = "Advanced Boneworking"
+recipes = ["shape_bone_batch"]
+
+[teaching.advanced_boneworking]
+name = "Advanced Boneworking"
+knowledge = ["boneworking_patterns"]
+skill = "boneworking"
+required_skill = 10
+
+[actions.learn_boneworking]
+name = "Learn Advanced Boneworking"
+kind = "learn"
+lesson = "advanced_boneworking"
+target = "any_entity"
+range = 2.0
+```
+
+These are maintainer references, not steps required in standard Creator.
+`professions.Boneworker.teaching` and `items.books.boneworking_manual.teaching`
+both name `advanced_boneworking`. The study action uses the same lesson with
+`target = "inventory_item"`. Teaching needs an available, nonhostile nearby
+teacher; study needs the exact owned, usable book. Generic action resource and
+item costs are staged with the acquisition on a learner copy before commit.
+The source book cannot also be consumed as tuition.
+
+`classes.<id>.starting_knowledge` seeds registered knowledge once. Character
+`starting_knowledge` overrides the class even when empty. A version-1
+`knowledge_journal` entity attribute stores acquisition UUIDs, stable knowledge
+IDs and class/character/teacher/book provenance. An initialized empty journal
+also prevents reseeding. Malformed or unsupported journals are preserved and
+rejected rather than reset. Definitions removed later do not erase history.
+
+`enchantments.<id>.knowledge_grants` supplies temporary access while equipped
+and eligible under that enchantment's condition policy. A grant-only
+enchantment may have no numeric modifiers. Reads never create acquisitions;
+permanent learning checks the journal separately, so an equipped grant cannot
+prevent learning the same knowledge permanently. Craft commitment checks
+current access again before consuming any inputs.
+
+The journal uses existing saved and owner-replicated entity attributes. Source
+instance IDs and creator UUIDs record provenance without requiring that source
+to remain alive. Existing gameplay request sequencing protects committed
+retries; this adds no new protocol message, persistence schema or arbitrary
+NPC operation journal. `stats` and `{E:1.knowledge.summary}` expose the same
+permanent/temporary distinction.
+
+## Targeted enchanting recipes
+
+`enchanting.toml` is the readable reference for the canonical Bear inscription
+content. The existing craft action and staged recipe planner also mutate exact
+owned targets; they do not replace them with item-template outputs.
+
+```toml
+[recipes.inscribe_bear_cuirass]
+name = "Inscribe the Bear"
+skill = "boneworking"
+required_skill = 10
+recommended_skill = 20
+difficulty = 20
+consumes = [
+    { item = "bear_inlay", quantity = 1 },
+    { item = "tree_resin", quantity = 1 },
+    { item = "fresh_water", quantity = 1 },
+]
+produces = []
+
+[recipes.inscribe_bear_cuirass.enchant]
+definition = "strength"
+items = ["bone_cuirass"]
+name = "Bone Cuirass of the Bear"
+
+[recipes.inscribe_bear_cuirass.tool]
+capability = "carve_bone"
+condition_cost = 2
+
+[recipes.inscribe_bear_cuirass.station]
+capability = "bonework"
+range = 2.0
+
+[actions.inscribe_bear_cuirass]
+name = "Inscribe the Bear"
+kind = "craft"
+recipe = "inscribe_bear_cuirass"
+target = "item"
+```
+
+`enchant.definition` names a registered passive enchantment; `items` is an
+explicit eligible definition list. Optional `name` is an authored result label;
+omitting it preserves a custom item name. It is independent of the numeric
+effect's identity or description. The default changes the supplied display
+names to **Bear's Vigor** and **Bone Cuirass of the Bear**, retaining the existing
+`strength` and `strength_bone_cuirass` identifiers. Saved instances are not
+automatically renamed or migrated. A newly inscribed cuirass retains its
+original `bone_cuirass` definition ID, rather than becoming the preset variant.
+
+The resolver validates target/enchantment references, category compatibility,
+unique eligible IDs and exact-item action targeting. A mutation cannot combine
+repair, replacement outputs or a quality reset. It cannot consume its target
+definition as either a recipe input or action cost. Runtime also requires a
+single owned, usable target and rejects duplicate/invalid attachments.
+
+Knowledge, skill, inputs, liquid contents, tool and station requirements use
+the normal recipe checks. Attachment, optional name, debits, wear and training
+are staged together. Equipped prospective values are checked for finite totals
+before commit. Failed operations leave all staged changes uncommitted. Runtime
+item/attachment identity, ordinary item deltas and durable player receipts are
+reused without new protocol variants or persistence schemas.
+
+`knowledge.bear_inscription` grants both `carve_bear_inlay` and
+`inscribe_bear_cuirass`; the Inscriber lesson or reusable manual teaches that
+knowledge at Boneworking 10. Inlay production uses a bone plate, tree resin and
+water, so every ingredient traces to existing world resources. Gameplay
+disenchanting, charge consumption, recharging and triggered effects remain
+separate extensions.
+
+## Crafting journal inspection
+
+The shared `JournalModel` indexes registered crafting actions by recipe and
+craft, filters them by current recipe knowledge and supplies case-insensitive
+search, bounded pages, acquisition explanations and exact owned-target choices.
+Knowledge availability is cached independently of movement; inspection reports
+are invalidated by the actor, station, rules and pause snapshot. It is separate
+from the character's saved acquisition journal.
+
+`RecipeInspector` runs the authoritative recipe planner on a private scratch
+context. It reconstructs the owning replica's cooldowns and condition stacks,
+stages input and liquid debits, output capacity, tool wear, mutation, quality,
+training and prospective equipped values, then discards that result. Scratch
+item/attachment identities never leave inspection or enter a save, receipt,
+runtime allocator or network request. Inspection does not advance simulation.
+The UI receives only readiness, a reason, ingredient counts and result text.
+
+Owned-target compatibility and action requirements are shared with real recipe
+execution. Exact target choices include both runtime item ID and creator UUID;
+loss or replacement requires an explicit new choice. A client preview is
+advisory. The host always revalidates current state and commits the existing
+craft transaction atomically.
+
+The GPU HUD uses retained text, sources, catalogue capture and existing
+action-bar assignment. Recipe cards select details; a separate operation button
+submits a self/entity or exact owned-item action. Changed requirements between
+press and release invalidate that captured operation. Craft and target menus
+are paged, and the Knowledge tab separates permanent records from active item
+grants. No inventory mutation occurs in the presentation controller.
+
+`ui.journal` opens the floating journal; `ui.crafting` and `ui.knowledge` are
+aliases. The default Creator toolbar includes it, and existing Actions and
+Spellbook panels offer a Journal button. Its supplied icon reuses native MZ
+catalogue artwork. Custom screens and Entity Nodes can bind `ui.journal` using
+the normal command system.
+
+Known crafting actions can be pinned without appearing in a class's starter
+action bar. Other action assignment policies remain unchanged. Pins use the
+existing `command_slot_*` attributes and `CommandSlot` request, with normal
+character persistence and owner replication. Pinning never bypasses action,
+knowledge or recipe checks. Public stations expose only capability and
+condition inspection fields in addition to existing public item data; private
+stock, container contents and other opaque properties retain existing policy.
+
+Focused coverage includes planner/preview parity and read-only guarantees,
+knowledge/source lifetimes, large-list geometry, native input capture, a native
+GPU rendering/retention check and one owner-replica solo/dedicated pin, craft,
+stale-preview, save/reconnect and durable-retry scenario.
 
 ## Containers
 

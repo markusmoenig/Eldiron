@@ -1,4 +1,8 @@
 [en]
+"recipes.enchanted" = "You inscribe {item}."
+"recipes.could_not_enchant" = "You cannot inscribe {item}: {reason}"
+learning.learned = "You learn {lesson}."
+learning.already_known = "You already learned {lesson}."
 recipes.repaired = "Repaired {item}"
 recipes.could_not_repair = "Could not repair {item}: {reason}"
 combat.damage.incoming = "{attacker} hits you for {amount} damage"

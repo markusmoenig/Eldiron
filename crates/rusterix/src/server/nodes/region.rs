@@ -898,6 +898,15 @@ impl WorldServices for RegionServices<'_> {
         if !self.acts_on_entity() {
             return Err("Use Action requires a character".into());
         }
+        if self.ctx.resolved_action(action)?.is_some_and(|rule| {
+            rule.target == eldiron_ruleset::ResolvedActionTarget::SelfTarget
+        }) {
+            return crate::server::region::execute_ruleset_action_with_target(
+                self.ctx, actor.render_id, action, None,
+            )
+            .then_some(())
+            .ok_or_else(|| format!("Ruleset action '{action}' could not be performed"));
+        }
         let target = subject.or_else(|| self.ctx.entity_target(actor.render_id));
         if let Some(target) = target {
             if !self
@@ -920,6 +929,33 @@ impl WorldServices for RegionServices<'_> {
             Ok(())
         } else {
             Err(format!("Ruleset action '{action}' could not be performed"))
+        }
+    }
+    fn teach(&mut self, actor: &Actor, action: &str, learner: u32) -> Result<(), String> {
+        if !self.acts_on_entity() {
+            return Err("Teach requires a character".into());
+        }
+        if !self.ctx.resolved_action(action)?.is_some_and(|action| {
+            action.lesson.is_some()
+                && matches!(
+                    action.target,
+                    eldiron_ruleset::ResolvedActionTarget::AnyEntity
+                        | eldiron_ruleset::ResolvedActionTarget::FriendlyEntity
+                )
+        }) {
+            return Err("Teach needs a learning action targeting a teacher".into());
+        }
+        if crate::server::region::execute_ruleset_action_with_target(
+            self.ctx,
+            learner,
+            action,
+            Some(crate::server::region::RulesetActionTarget::Entity(
+                actor.render_id,
+            )),
+        ) {
+            Ok(())
+        } else {
+            Err("Lesson is unavailable or learner requirements are not met".into())
         }
     }
     fn lookout(

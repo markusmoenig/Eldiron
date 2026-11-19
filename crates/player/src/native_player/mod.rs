@@ -237,6 +237,9 @@ impl PlayerApplication {
         Ok(())
     }
     fn sync_host(&mut self, host: &mut HostContext) -> std::result::Result<(), String> {
+        if let Some(text) = self.online.as_mut().and_then(|online| online.external_clipboard.take()) {
+            host.requests.push(HostRequest::ClipboardWrite {text, request:None});
+        }
         self.screen.set_scene_source_wake(Some(host.wake.clone()));
         if self.suspended || host.physical_size.0 == 0 || host.physical_size.1 == 0 {
             self.screen.suspend_scene_sources();

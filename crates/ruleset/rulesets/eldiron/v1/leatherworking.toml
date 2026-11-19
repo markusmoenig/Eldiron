@@ -1,0 +1,487 @@
+# Readable fixture for the canonical world-sourced leatherworking graph.
+
+["items"."armor"."leather_hood"]
+worth = 12
+"appearance_ground_flat" = true
+"name" = "Leather Hood"
+"description" = "Supple leather armor sewn with flax cord."
+"category" = "leather"
+"slot" = "head"
+"rarity" = "common"
+"appearance_icon" = "icon/leather_hood/on"
+"appearance_geometry" = "leather_hood"
+"appearance_worn_geometry" = "garment_leather_hood"
+
+["items"."armor"."leather_hood"."attributes"]
+"ARMOR" = 1
+"quality" = 100
+"condition" = 100
+
+["items"."armor"."leather_leggings"]
+worth = 22
+"appearance_ground_flat" = true
+"name" = "Leather Leggings"
+"description" = "Supple leather armor sewn with flax cord."
+"category" = "leather"
+"slot" = "legs"
+"rarity" = "common"
+"appearance_icon" = "icon/leather_leggings/on"
+"appearance_geometry" = "leather_leggings"
+"appearance_worn_geometry" = "garment_leather_leggings"
+
+["items"."armor"."leather_leggings"."attributes"]
+"ARMOR" = 2
+"quality" = 100
+"condition" = 100
+
+["items"."armor"."leather_gloves"]
+worth = 10
+"appearance_ground_flat" = true
+"name" = "Leather Gloves"
+"description" = "Supple leather armor sewn with flax cord."
+"category" = "leather"
+"slot" = "hands"
+"rarity" = "common"
+"appearance_icon" = "icon/leather_gloves/on"
+"appearance_geometry" = "leather_gloves"
+"appearance_worn_geometry" = "garment_leather_gloves"
+
+["items"."armor"."leather_gloves"."attributes"]
+"ARMOR" = 1
+"quality" = 100
+"condition" = 100
+
+["items"."armor"."leather_boots"]
+worth = 14
+"appearance_ground_flat" = true
+"name" = "Leather Boots"
+"description" = "Supple leather armor sewn with flax cord."
+"category" = "leather"
+"slot" = "feet"
+"rarity" = "common"
+"appearance_icon" = "icon/leather_boots/on"
+"appearance_geometry" = "leather_boots"
+"appearance_worn_geometry" = "garment_leather_boots"
+
+["items"."armor"."leather_boots"."attributes"]
+"ARMOR" = 1
+"quality" = 100
+"condition" = 100
+
+["recipes"."make_leather_hood"]
+"name" = "Make Leather Hood"
+"skill" = "leatherworking"
+"required_skill" = 0
+"recommended_skill" = 10
+"difficulty" = 10
+"fixed_quality" = 100
+"consumes" = [{ "item" = "leather", "quantity" = 1 }, { "item" = "twisted_cord", "quantity" = 1 }]
+"produces" = [{ "item" = "leather_hood", "quantity" = 1 }]
+
+["recipes"."make_leather_hood"."tool"]
+"capability" = "sew_leather"
+"condition_cost" = 1
+
+["recipes"."make_leather_hood"."station"]
+"capability" = "leatherwork"
+"range" = 2.0
+
+["recipes"."make_leather_vest"]
+"name" = "Make Leather Vest"
+"skill" = "leatherworking"
+"required_skill" = 0
+"recommended_skill" = 10
+"difficulty" = 10
+"fixed_quality" = 100
+"consumes" = [{ "item" = "leather", "quantity" = 3 }, { "item" = "twisted_cord", "quantity" = 2 }]
+"produces" = [{ "item" = "leather_vest", "quantity" = 1 }]
+
+["recipes"."make_leather_vest"."tool"]
+"capability" = "sew_leather"
+"condition_cost" = 1
+
+["recipes"."make_leather_vest"."station"]
+"capability" = "leatherwork"
+"range" = 2.0
+
+["recipes"."make_leather_leggings"]
+"name" = "Make Leather Leggings"
+"skill" = "leatherworking"
+"required_skill" = 0
+"recommended_skill" = 10
+"difficulty" = 10
+"fixed_quality" = 100
+"consumes" = [{ "item" = "leather", "quantity" = 2 }, { "item" = "twisted_cord", "quantity" = 2 }]
+"produces" = [{ "item" = "leather_leggings", "quantity" = 1 }]
+
+["recipes"."make_leather_leggings"."tool"]
+"capability" = "sew_leather"
+"condition_cost" = 1
+
+["recipes"."make_leather_leggings"."station"]
+"capability" = "leatherwork"
+"range" = 2.0
+
+["recipes"."make_leather_gloves"]
+"name" = "Make Leather Gloves"
+"skill" = "leatherworking"
+"required_skill" = 0
+"recommended_skill" = 10
+"difficulty" = 10
+"fixed_quality" = 100
+"consumes" = [{ "item" = "leather", "quantity" = 1 }, { "item" = "twisted_cord", "quantity" = 1 }]
+"produces" = [{ "item" = "leather_gloves", "quantity" = 1 }]
+
+["recipes"."make_leather_gloves"."tool"]
+"capability" = "sew_leather"
+"condition_cost" = 1
+
+["recipes"."make_leather_gloves"."station"]
+"capability" = "leatherwork"
+"range" = 2.0
+
+["recipes"."make_leather_boots"]
+"name" = "Make Leather Boots"
+"skill" = "leatherworking"
+"required_skill" = 0
+"recommended_skill" = 10
+"difficulty" = 10
+"fixed_quality" = 100
+"consumes" = [{ "item" = "leather", "quantity" = 1 }, { "item" = "twisted_cord", "quantity" = 1 }]
+"produces" = [{ "item" = "leather_boots", "quantity" = 1 }]
+
+["recipes"."make_leather_boots"."tool"]
+"capability" = "sew_leather"
+"condition_cost" = 1
+
+["recipes"."make_leather_boots"."station"]
+"capability" = "leatherwork"
+"range" = 2.0
+
+["recipes"."make_flint_awl"]
+"name" = "Make Flint Awl"
+"required_skill" = 0
+"fixed_quality" = 100
+"consumes" = [{ "item" = "flint_stone", "quantity" = 1 }, { "item" = "wood_branch", "quantity" = 1 }, { "item" = "twisted_cord", "quantity" = 1 }]
+"produces" = [{ "item" = "flint_awl", "quantity" = 1 }]
+
+["recipes"."make_flint_awl"."tool"]
+"capability" = "carve_wood"
+"condition_cost" = 1
+
+["recipes"."build_leather_workbench"]
+"name" = "Build Leather Workbench"
+"skill" = "woodworking"
+"required_skill" = 0
+"recommended_skill" = 10
+"difficulty" = 10
+"fixed_quality" = 100
+"consumes" = [{ "item" = "wood_branch", "quantity" = 6 }, { "item" = "twisted_cord", "quantity" = 4 }]
+"produces" = [{ "item" = "leather_workbench", "quantity" = 1 }]
+
+["recipes"."build_leather_workbench"."tool"]
+"capability" = "carve_wood"
+"condition_cost" = 1
+
+["recipes"."repair_leather_armor"]
+"name" = "Repair Leather Armor"
+"skill" = "leatherworking"
+"required_skill" = 0
+"recommended_skill" = 10
+"difficulty" = 10
+"consumes" = [{ "item" = "leather", "quantity" = 1 }, { "item" = "twisted_cord", "quantity" = 1 }]
+"produces" = []
+
+["recipes"."repair_leather_armor"."repair"]
+"family" = "leather_armor"
+"amount" = 25
+"maximum" = 100
+
+["recipes"."repair_leather_armor"."tool"]
+"capability" = "sew_leather"
+"condition_cost" = 1
+
+["recipes"."repair_leather_armor"."station"]
+"capability" = "leatherwork"
+"range" = 2.0
+
+["recipes"."cut_straps_batch"]
+"name" = "Cut Leather Straps in a Batch"
+"skill" = "leatherworking"
+"required_skill" = 10
+"recommended_skill" = 20
+"difficulty" = 20
+"fixed_quality" = 100
+"consumes" = [{ "item" = "leather", "quantity" = 2 }]
+"produces" = [{ "item" = "leather_strap", "quantity" = 4 }]
+
+["recipes"."cut_straps_batch"."tool"]
+"capability" = "sew_leather"
+"condition_cost" = 1
+
+["recipes"."cut_straps_batch"."station"]
+"capability" = "leatherwork"
+"range" = 2.0
+
+["recipes"."cut_fox_inlay"]
+"name" = "Cut Fox Sigil Inlay"
+"skill" = "leatherworking"
+"required_skill" = 10
+"recommended_skill" = 20
+"difficulty" = 20
+"fixed_quality" = 100
+"consumes" = [{ "item" = "leather", "quantity" = 1 }, { "item" = "tree_resin", "quantity" = 1 }, { "item" = "fresh_water", "quantity" = 1 }]
+"produces" = [{ "item" = "fox_inlay", "quantity" = 1 }]
+
+["recipes"."cut_fox_inlay"."tool"]
+"capability" = "sew_leather"
+"condition_cost" = 1
+
+["recipes"."cut_fox_inlay"."station"]
+"capability" = "leatherwork"
+"range" = 2.0
+
+["recipes"."inscribe_fox"]
+"name" = "Inscribe the Fox"
+"skill" = "leatherworking"
+"required_skill" = 10
+"recommended_skill" = 20
+"difficulty" = 20
+"consumes" = [{ "item" = "fox_inlay", "quantity" = 1 }, { "item" = "tree_resin", "quantity" = 1 }, { "item" = "fresh_water", "quantity" = 1 }]
+"produces" = []
+
+["recipes"."inscribe_fox"."enchant"]
+"definition" = "fox"
+
+["recipes"."inscribe_fox"."tool"]
+"capability" = "inscribe"
+"condition_cost" = 2
+
+["recipes"."inscribe_fox"."station"]
+"capability" = "inscribe"
+"range" = 2.0
+
+["equipment_families"."leather_armor"]
+"name" = "Leather Armor"
+"category" = "leather"
+"required_members" = ["leather_hood", "leather_vest", "leather_leggings", "leather_gloves", "leather_boots"]
+"required_slots" = ["head", "torso", "legs", "hands", "feet"]
+
+["items"."tools"."flint_awl"]
+"appearance_ground_flat" = true
+"name" = "Flint Awl"
+"description" = "A flint point in a wooden handle for sewing leather and inscribing sigils."
+"slot" = "tool"
+"category" = "world_tool"
+"appearance_icon" = "icon/flint_awl/on"
+"appearance_geometry" = "flint_awl"
+
+["items"."tools"."flint_awl"."attributes"]
+"tool_capabilities" = ["sew_leather", "inscribe"]
+"condition" = 100
+
+["items"."stations"."leather_workbench"]
+"name" = "Leather Workbench"
+"description" = "Deploy nearby for leatherworking and inscription. Carrying it does not enable station work."
+"slot" = "tool"
+"category" = "world_station"
+"appearance_icon" = "icon/leather_workbench/on"
+"appearance_geometry" = "leather_workbench"
+
+["items"."stations"."leather_workbench"."attributes"]
+"station_capabilities" = ["leatherwork", "inscribe"]
+"condition" = 100
+
+["knowledge"."leatherworking_patterns"]
+"name" = "Advanced Leatherworking"
+"description" = "Efficient batch cutting of leather straps."
+"recipes" = ["cut_straps_batch"]
+
+["knowledge"."fox_inscription"]
+"name" = "Fox Inscription"
+"description" = "A leather sigil binding the grace of the fox."
+"recipes" = ["cut_fox_inlay", "inscribe_fox"]
+
+["teaching"."advanced_leatherworking"]
+"name" = "Advanced Leatherworking"
+"description" = "Learn from a Leatherworker, an appropriate teacher or a reusable manual."
+"knowledge" = ["leatherworking_patterns"]
+"skill" = "leatherworking"
+"required_skill" = 10
+
+["teaching"."fox_inscription"]
+"name" = "Fox Inscription"
+"description" = "Learn from a Leatherworker, an appropriate teacher or a reusable manual."
+"knowledge" = ["fox_inscription"]
+"skill" = "leatherworking"
+"required_skill" = 10
+
+["actions"."learn_advanced_leatherworking"]
+"name" = "Learn Advanced Leatherworking"
+"description" = "Permanently learn Advanced Leatherworking."
+"kind" = "learn"
+"lesson" = "advanced_leatherworking"
+"target" = "any_entity"
+"range" = 2.0
+"cooldown" = 0.0
+
+["actions"."study_advanced_leatherworking"]
+"name" = "Study Advanced Leatherworking"
+"description" = "Permanently learn Advanced Leatherworking."
+"kind" = "learn"
+"lesson" = "advanced_leatherworking"
+"target" = "inventory_item"
+"range" = 2.0
+"cooldown" = 0.0
+
+["actions"."learn_fox_inscription"]
+"name" = "Learn Fox Inscription"
+"description" = "Permanently learn Fox Inscription."
+"kind" = "learn"
+"lesson" = "fox_inscription"
+"target" = "any_entity"
+"range" = 2.0
+"cooldown" = 0.0
+
+["actions"."study_fox_inscription"]
+"name" = "Study Fox Inscription"
+"description" = "Permanently learn Fox Inscription."
+"kind" = "learn"
+"lesson" = "fox_inscription"
+"target" = "inventory_item"
+"range" = 2.0
+"cooldown" = 0.0
+
+["actions"."craft_make_leather_hood"]
+"name" = "Make Leather Hood"
+"kind" = "craft"
+"recipe" = "make_leather_hood"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_make_leather_vest"]
+"name" = "Make Leather Vest"
+"kind" = "craft"
+"recipe" = "make_leather_vest"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_make_leather_leggings"]
+"name" = "Make Leather Leggings"
+"kind" = "craft"
+"recipe" = "make_leather_leggings"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_make_leather_gloves"]
+"name" = "Make Leather Gloves"
+"kind" = "craft"
+"recipe" = "make_leather_gloves"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_make_leather_boots"]
+"name" = "Make Leather Boots"
+"kind" = "craft"
+"recipe" = "make_leather_boots"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_make_flint_awl"]
+"name" = "Make Flint Awl"
+"kind" = "craft"
+"recipe" = "make_flint_awl"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_build_leather_workbench"]
+"name" = "Build Leather Workbench"
+"kind" = "craft"
+"recipe" = "build_leather_workbench"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."repair_leather_armor"]
+"name" = "Repair Leather Armor"
+"kind" = "craft"
+"recipe" = "repair_leather_armor"
+"target" = "item"
+"cooldown" = 0.0
+"range" = 2.0
+
+["actions"."craft_cut_straps_batch"]
+"name" = "Cut Leather Straps in a Batch"
+"kind" = "craft"
+"recipe" = "cut_straps_batch"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."craft_cut_fox_inlay"]
+"name" = "Cut Fox Sigil Inlay"
+"kind" = "craft"
+"recipe" = "cut_fox_inlay"
+"target" = "self"
+"cooldown" = 0.0
+
+["actions"."inscribe_fox"]
+"name" = "Inscribe the Fox"
+"kind" = "craft"
+"recipe" = "inscribe_fox"
+"target" = "item"
+"cooldown" = 0.0
+"range" = 2.0
+
+["professions"."Leatherworker"]
+"name" = "Leatherworker"
+"description" = "Works hides into durable garments and teaches advanced patterns and the fox sigil."
+"teaching" = ["advanced_leatherworking", "fox_inscription"]
+"skills" = ["leatherworking"]
+
+["items"."books"."leatherworking_manual"]
+"appearance_ground_flat" = true
+"name" = "Leatherworker's Handbook"
+"description" = "Use this owned, reusable manual with Leatherworking 10 to learn its pattern permanently."
+"slot" = "tool"
+"category" = "book"
+"appearance_icon" = "icon/leatherworking_manual/on"
+"appearance_geometry" = "leatherworking_manual"
+"teaching" = ["advanced_leatherworking"]
+
+["items"."books"."leatherworking_manual"."attributes"]
+"condition" = 100
+
+["items"."books"."fox_inscription_manual"]
+"appearance_ground_flat" = true
+"name" = "Patterns of the Fox"
+"description" = "Use this owned, reusable manual with Leatherworking 10 to learn its pattern permanently."
+"slot" = "tool"
+"category" = "book"
+"appearance_icon" = "icon/fox_inscription_manual/on"
+"appearance_geometry" = "fox_inscription_manual"
+"teaching" = ["fox_inscription"]
+
+["items"."books"."fox_inscription_manual"."attributes"]
+"condition" = 100
+
+["items"."materials"."fox_inlay"]
+"appearance_ground_flat" = true
+"name" = "Fox Sigil Inlay"
+"description" = "A leather fox sigil sealed with tree resin."
+"slot" = "material"
+"category" = "world_material"
+"appearance_icon" = "icon/fox_inlay/on"
+"appearance_geometry" = "fox_inlay"
+"max_stack" = 100
+
+["items"."materials"."fox_inlay"."attributes"]
+"stackable" = true
+"quantity" = 1
+"quality" = 100
+"condition" = 100
+
+["enchantments"."fox"]
+"name" = "Fox's Grace"
+"epithet" = "the Fox"
+"requires_positive_condition" = true
+"allowed_categories" = ["cloth", "leather", "chain", "shield", "focus", "bone_armor", "sword", "axe", "mace", "spear", "bow"]
+"modifiers" = [{ "attribute" = "DEX", "add" = 2 }]

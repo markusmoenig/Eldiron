@@ -10,6 +10,7 @@ pub(super) fn register(registry: &mut Registry) {
         .register(Box::new(PlayerAttributeGuardModule))
         .unwrap();
     registry.register(Box::new(UseActionModule)).unwrap();
+    registry.register(Box::new(TeachModule)).unwrap();
     registry.register(Box::new(LookoutModule)).unwrap();
     registry.register(Box::new(EngageModule)).unwrap();
     registry.register(Box::new(TimeRangeModule)).unwrap();
@@ -1078,6 +1079,38 @@ impl Operation for Engage {
 }
 
 struct UseActionModule;
+struct TeachModule;
+impl NodeModule for TeachModule {
+    fn id(&self) -> &'static str {
+        "teach"
+    }
+    fn inputs(&self) -> &'static [&'static str] {
+        &["in"]
+    }
+    fn outputs(&self) -> &'static [&'static str] {
+        &["done", "failed"]
+    }
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        Ok(Box::new(Teach(selection(p, "action")?)))
+    }
+}
+struct Teach(String);
+impl Operation for Teach {
+    fn error_output(&self) -> Option<&'static str> {
+        Some("failed")
+    }
+    fn execute(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        let Some(EventField::Entity(learner)) = ctx.event.fields.get("subject") else {
+            return Err("Teach needs event.subject as learner".into());
+        };
+        world.teach(ctx.actor, &self.0, *learner)?;
+        Ok("done")
+    }
+}
 impl NodeModule for UseActionModule {
     fn id(&self) -> &'static str {
         "use_action"

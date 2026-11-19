@@ -54,6 +54,29 @@ impl Default for ReplicationPolicy {
             "appearance_worn_geometry",
             "avatar_attack_time",
             "visual_template",
+            "icon_template",
+            "rig_template",
+            "icon_avatar",
+            "avatar_channels",
+            "torso_index",
+            "arms_index",
+            "legs_index",
+            "feet_index",
+            "category",
+            "ruleset_kind",
+            "icon",
+            "icon_color",
+            "visual_template_width",
+            "visual_template_height",
+            "visual_template_pixels",
+            "blade_color",
+            "blade_color_index",
+            "grip_color",
+            "grip_color_index",
+            "accent_color",
+            "accent_color_index",
+            "highlight_color",
+            "highlight_color_index",
             "slot",
             "creator_template_id",
             "ruleset_id",
@@ -116,7 +139,9 @@ impl Default for ReplicationPolicy {
         ];
         Self {
             entity_attributes: visual.iter().map(|s| s.to_string()).collect(),
-            item_attributes: visual.iter().map(|s| s.to_string()).collect(),
+            item_attributes: visual.iter().copied()
+                .chain(["station_capabilities"])
+                .map(str::to_string).collect(),
             prop_state: ["open", "visible", "state"]
                 .into_iter()
                 .map(str::to_owned)
@@ -139,7 +164,17 @@ impl ReplicationPolicy {
         source
             .iter()
             .filter(|(key, _)| public.contains(*key) || (private && !key.starts_with('_')))
-            .map(|(key, value)| (key.clone(), value.clone()))
+            .map(|(key, value)| {
+                (
+                    key.clone(),
+                    match value {
+                        Value::Light(light) => {
+                            Value::Light(shared::public_geometry::project_light(light))
+                        }
+                        _ => value.clone(),
+                    },
+                )
+            })
             .collect()
     }
 }
@@ -158,6 +193,20 @@ pub struct ItemSnapshot {
 }
 impl ItemSnapshot {
     pub(crate) fn capture(item: &Item, private: bool, policy: &ReplicationPolicy) -> Self {
+        let mut attributes = policy.attributes(&item.attributes, private, true);
+        // A deployed station's affordances are public inspection data. Keep
+        // arbitrary item properties and container contents under existing policy.
+        if !private
+            && matches!(attributes.get("station_capabilities"), Some(Value::StrArray(_)))
+        {
+            if let Some(condition) = item.attributes.get("condition") {
+                let condition = match condition {
+                    Value::Int(_) | Value::UInt(_) | Value::Int64(_) => condition.clone(),
+                    _ => Value::Int(-1),
+                };
+                attributes.insert("condition".into(), condition);
+            }
+        }
         Self {
             id: item.id,
             creator_id: item.creator_id,
@@ -167,7 +216,7 @@ impl ItemSnapshot {
             is_container: item.is_container()
                 || item.attributes.get_bool_default("container", false)
                 || item.attributes.get_int_default("container_slots", 0) > 0,
-            attributes: policy.attributes(&item.attributes, private, true),
+            attributes,
             contents: private
                 .then(|| {
                     item.container.as_ref().map(|items| {
@@ -301,6 +350,70 @@ pub(crate) fn attributes(values: &BTreeMap<String, Value>) -> ValueContainer {
         result.set(key, value.clone());
     }
     result
+}
+
+#[cfg(test)]
+mod visual_tests {
+    use super::*;
+    #[test]
+    fn journal_replication_exposes_station_usability_without_disclosing_private_item_data() {
+        let mut station = Item::new();
+        station.set_attribute(
+            "station_capabilities",
+            Value::StrArray(vec!["bonework".into()]),
+        );
+        station.set_attribute("condition", Value::Int(73));
+        station.set_attribute("secret_recipe_stock", Value::Int(99));
+        station.container = Some(vec![Item::new()]);
+        let public = ItemSnapshot::capture(&station, false, &ReplicationPolicy::default());
+        assert_eq!(public.attributes.get("condition"), Some(&Value::Int(73)));
+        assert!(public.attributes.contains_key("station_capabilities"));
+        assert!(!public.attributes.contains_key("secret_recipe_stock"));
+        assert!(public.contents.is_none());
+        let mut hidden = ReplicationPolicy::default();
+        hidden.item_attributes.remove("station_capabilities");
+        let filtered = ItemSnapshot::capture(&station, false, &hidden);
+        assert!(!filtered.attributes.contains_key("station_capabilities"));
+        assert!(!filtered.attributes.contains_key("condition"));
+        station.attributes.remove("station_capabilities");
+        assert!(
+            !ItemSnapshot::capture(&station, false, &ReplicationPolicy::default())
+                .attributes
+                .contains_key("condition")
+        );
+    }
+    #[test]
+    fn remote_equipment_keeps_render_inputs_and_hides_private_state() {
+        let mut actor = Entity::default();
+        let mut item = Item::default();
+        item.id = 12;
+        item.attributes
+            .set("rig_template", Value::Str("armor".into()));
+        item.attributes
+            .set("avatar_channels", Value::StrArray(vec!["torso".into()]));
+        item.attributes.set("blade_color_index", Value::Int(7));
+        item.attributes
+            .set("private_quest", Value::Str("HIDDEN".into()));
+        let mut light = rusterix::Light::new(rusterix::LightType::Point).with_intensity(2.);
+        light
+            .properties
+            .set("private_token", Value::Str("HIDDEN_LIGHT".into()));
+        item.attributes.set("light", Value::Light(light));
+        actor.equipped.insert("body".into(), item);
+        let snapshot = EntitySnapshot::capture(&actor, None, &ReplicationPolicy::default());
+        let replica = snapshot.materialize();
+        let item = &replica.equipped["body"];
+        assert_eq!(item.attributes.get_str("rig_template"), Some("armor"));
+        if let Some(Value::Light(light)) = item.attributes.get("light") {
+            assert_eq!(light.get_intensity(), 2.);
+            assert!(light.properties.get("private_token").is_none());
+        } else {
+            panic!("public equipment light missing");
+        }
+        assert_eq!(item.attributes.get_int("blade_color_index"), Some(7));
+        assert!(item.attributes.get("avatar_channels").is_some());
+        assert!(item.attributes.get("private_quest").is_none());
+    }
 }
 
 /// Motion changes preserve the last fully validated appearance/private state.

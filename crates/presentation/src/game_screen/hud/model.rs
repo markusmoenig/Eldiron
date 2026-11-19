@@ -6,6 +6,7 @@ use rusterix::{ServerState, client::rules_ui, world_interaction::item_is_contain
 use scenevm::prelude::Vec2;
 mod actor_panels;
 pub(super) mod catalog;
+mod journal;
 mod preferences;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum PanelKind {
@@ -56,6 +57,7 @@ pub(super) struct HudState {
     selected: Option<u32>,
     catalog: Option<catalog::OpenCatalog>,
     catalog_cache: std::cell::RefCell<Option<catalog::CatalogCache>>,
+    journal_model: std::cell::RefCell<screen_model::JournalModel>,
 }
 #[derive(Clone, PartialEq)]
 pub(in crate::game_screen) struct PanelFrame {
@@ -106,6 +108,23 @@ pub(in crate::game_screen) enum HudAction {
     CatalogTab(String),
     CatalogPage(usize),
     CatalogAssign,
+    OpenJournal,
+    JournalSearch,
+    JournalClear,
+    JournalFilter(String),
+    JournalTab(screen_model::JournalTab),
+    JournalTarget(screen_model::JournalTarget),
+    JournalPopup {
+        targets: bool,
+    },
+    JournalPopupPage(usize),
+    JournalBlocked,
+    JournalCraft {
+        command: String,
+        target: Option<screen_model::JournalTarget>,
+        expected: rusterix::server::region::crafting::preview::RecipePreview,
+        rules_revision: u64,
+    },
     CatalogCommand {
         command: String,
         assignment: bool,
@@ -156,6 +175,20 @@ pub(in crate::game_screen) struct DetailSpec {
 impl PanelFrame {
     pub fn popup_trigger(&self) -> Option<HudPart> {
         self.popup?;
+        if self
+            .buttons
+            .iter()
+            .any(|button| matches!(button.part, HudPart::JournalTargetOption(_)))
+        {
+            return Some(HudPart::JournalTarget);
+        }
+        if self
+            .buttons
+            .iter()
+            .any(|button| matches!(button.part, HudPart::JournalFilterOption(_)))
+        {
+            return Some(HudPart::JournalFilter);
+        }
         let setting = self.buttons.iter().find_map(|button| match button.part {
             HudPart::PreferenceOption(setting, _) => Some(setting),
             _ => None,

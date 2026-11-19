@@ -61,6 +61,11 @@ name = "Actions"
 description = "Open the complete ruleset action catalogue."
 icon = "ui_actions"
 
+[ui.commands.journal]
+name = "Crafting & Knowledge"
+description = "Search known recipes, inspect crafting requirements and review learned patterns."
+icon = "ui_actions"
+
 [ui.action_icon_fallbacks]
 healing = "minor_heal"
 condition = "round_shield"

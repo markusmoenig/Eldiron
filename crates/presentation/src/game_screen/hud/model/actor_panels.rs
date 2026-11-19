@@ -90,9 +90,17 @@ impl HudState {
         true
     }
     pub fn popup_open(&self) -> bool {
-        (self.inventory.is_some() && self.sort_open) || self.preferences_popup.is_some()
+        (self.inventory.is_some() && self.sort_open)
+            || self.preferences_popup.is_some()
+            || self
+                .catalog
+                .as_ref()
+                .is_some_and(|open| open.journal_popup.is_some())
     }
     pub fn dismiss_popup(&mut self) {
+        if let Some(open) = &mut self.catalog {
+            open.journal_popup = None;
+        }
         self.sort_open = false;
         self.preferences_popup = None;
     }

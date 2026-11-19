@@ -7,6 +7,7 @@ pub(super) mod raster_source;
 mod shape_picker;
 pub(super) mod surface_pages;
 use denrim_materials::integration::InstanceRecord;
+use denrim_materials::metadata::Kernel;
 use shape_picker::{PRESETS, ShapePicker};
 use shared::material_composition::{
     CompositionLayer, CompositionMask, CompositionShape, MaterialComposition,
@@ -81,12 +82,28 @@ fn append_mask_row(
     tile: &str,
     expression: &str,
 ) -> Result<(), String> {
-    let source = denrim_materials::tilelang::source(denrim_materials::metadata::Kernel::Color);
+    recipe.push_str(&format!("  mixing mask from row \"{row}\" xyz\n"));
+    append_algorithm_row(recipe, row, tile, Kernel::Color, &[], expression)
+}
+
+fn append_algorithm_row(
+    recipe: &mut String,
+    row: &str,
+    tile: &str,
+    kernel: Kernel,
+    bindings: &[(&str, &str)],
+    expression: &str,
+) -> Result<(), String> {
+    let source = denrim_materials::tilelang::source(kernel);
     let header = source
-        .split_once("\nimage =")
-        .ok_or("Color source has no image output")?
+        .split_once(if kernel == Kernel::Color { "\nimage =" } else { "\nlet " })
+        .ok_or("Mask operation has no shader body")?
         .0;
-    recipe.push_str(&format!("  mixing mask from row \"{row}\" xyz\n  row \"{row}\"\n    use \"Color\" id \"{tile}\"\n      source\n"));
+    recipe.push_str(&format!("  row \"{row}\"\n    use \"{}\" id \"{tile}\"\n", kernel.metadata().name));
+    for (parameter, input) in bindings {
+        recipe.push_str(&format!("      set \"{parameter}\" from row \"{input}\" xyzw\n"));
+    }
+    recipe.push_str("      source\n");
     for line in format!("{header}\n{expression}").lines() {
         recipe.push_str(&format!("        {line}\n"));
     }
@@ -534,25 +551,16 @@ impl Builder<'_> {
                     | CompositionShape::Strips
                     | CompositionShape::Road
                     | CompositionShape::Crossing
-                    | CompositionShape::AutoRoad
-                    | CompositionShape::MapArea
-                    | CompositionShape::MapPath => {
+                    | CompositionShape::AutoRoad => {
                         append_mask_row(
                             &mut recipe,
                             "shape",
                             &format!("shape-{}", layer.id),
-                            &shape_code_with_distance(
-                                layer,
-                                if matches!(
-                                    layer.shape,
-                                    CompositionShape::MapArea | CompositionShape::MapPath
-                                ) {
-                                    map_shapes::distance(self.project, layer)?
-                                } else {
-                                    neighbours::distance(self.project, id, layer)?
-                                },
-                            ),
+                            &shape_code_with_distance(layer, neighbours::distance(self.project, id, layer)?),
                         )?;
+                    }
+                    CompositionShape::MapArea | CompositionShape::MapPath => {
+                        map_shapes::append_mask(&mut recipe, self.project, layer, &format!("shape-{}", layer.id))?;
                     }
                 }
                 previous = output;

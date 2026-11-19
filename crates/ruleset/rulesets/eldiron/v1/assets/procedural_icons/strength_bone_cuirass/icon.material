@@ -1,7 +1,7 @@
 # Native 32px resource/equipment icon. Editable stock MZ shapes; colors belong to the project palette.
 project 1
 result from material "icon"
-material "icon" called "Bone Cuirass of Strength"
+material "icon" called "Bone Cuirass of the Bear"
   mode pbr
   tiling raw
   default roughness to 0.8

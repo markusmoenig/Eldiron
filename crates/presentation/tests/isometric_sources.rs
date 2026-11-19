@@ -165,6 +165,9 @@ fn immutable_avatar_and_stamp_leases_prevent_pointer_reuse_and_share_across_inst
     let mut avatar = AvatarSprite {
         pixels: Arc::new([70, 120, 190, 255].repeat(128 * 128)),
         surface: None,
+        size: [128, 128],
+        anchor: [64., 100.],
+        pixels_per_unit: 32.,
     };
     let initial = cache
         .prepare(&sprite(None, Some(&avatar), None), v)
@@ -276,6 +279,9 @@ fn evicted_avatar_publications_reuse_live_gpu_and_alpha_without_pinning_cpu_asse
             data: vec![0; 128 * 128 * 8],
             ..Default::default()
         })),
+        size: [128, 128],
+        anchor: [64., 100.],
+        pixels_per_unit: 32.,
     };
     let (first, alpha) = cache
         .prepare_with_alpha(&sprite(None, Some(&avatar), None), v)

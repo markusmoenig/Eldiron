@@ -1,0 +1,71 @@
+{
+  "identity": {
+    "linked_existing_character": true,
+    "provider_login": true,
+    "cancellation_stops_polling": true,
+    "unlinked": true,
+    "password_retained": true,
+    "duplicate_characters": 0
+  },
+  "account_management": {
+    "registration": true,
+    "password_changed": true,
+    "new_password_login": true,
+    "global_logout": true
+  },
+  "streaming": {
+    "version": 1,
+    "global_packs": 0,
+    "regional_packs": 0,
+    "requested_regions": 0,
+    "peak_fetches": 0,
+    "frame_gate_observed": false
+  },
+  "public_package": true,
+  "transport": "explicit loopback WS",
+  "game_documents_served": [
+    "/game.eldiron-client"
+  ],
+  "gpu": {
+    "eldironState": "playing",
+    "eldironCodecWorkers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+    "eldironReadbackBytes": "0",
+    "eldironGpuGeneration": "1",
+    "eldironPresentations": "628",
+    "eldironSession": "3470888e-9537-4fbb-a2a3-ebac3f8a4856",
+    "eldironOnlineAccount": "false",
+    "eldironOnlineStatus": "All sessions signed out. Log in again to continue.",
+    "eldironTicks": "0"
+  },
+  "host": {
+    "mode": "Persistent",
+    "players": 1,
+    "entities": 1
+  },
+  "transport_metrics": {
+    "accepted": 4,
+    "refused": 0,
+    "active": 1,
+    "websocket_payload_bytes_received": 38496,
+    "websocket_payload_bytes_sent": 217543,
+    "http_payload_bytes_sent": 8820,
+    "command_queue_peak": 2,
+    "hash_busy": 0,
+    "malformed": 0,
+    "socket_write": {
+      "calls": 322,
+      "total_us": 12587,
+      "last_us": 43,
+      "max_us": 67,
+      "rolling_samples": 256,
+      "p50_us": 41,
+      "p95_us": 52,
+      "p99_us": 58
+    }
+  },
+  "exceptions": 0,
+  "initial_gpu_state": "playing",
+  "verified_on": "2026-11-18",
+  "identity_test_profile": "Owned loopback OIDC device issuer; real RS256 signing and browser provider approval; no production provider credentials",
+  "canonical_content_revision": "dee566a27db66fb1979abbdd816c327b59c3330653c497a57e03e804ad37a9a1"
+}

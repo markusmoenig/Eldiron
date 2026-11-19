@@ -139,6 +139,9 @@ impl GraphContext for AuthoringContext<'_> {
         {
             if let GraphControlValue::Choice { options, selected } = &r.value {
                 if options.get(*selected).is_some_and(|s| s.is_empty()) {
+                    if n.definition.as_deref() == Some("entity_animal") {
+                        return Some(fl!("entity_animal_choose_species"));
+                    }
                     return Some(fl!("entity_inherit"));
                 }
             }

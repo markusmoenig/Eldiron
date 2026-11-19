@@ -1858,6 +1858,8 @@ mod hud;
 
 #[path = "game_screen/catalog.rs"]
 mod catalog;
+#[path = "game_screen/journal.rs"]
+mod journal;
 
 #[path = "game_screen/preferences.rs"]
 mod preferences;

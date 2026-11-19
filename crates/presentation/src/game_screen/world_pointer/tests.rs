@@ -2,6 +2,7 @@ use super::*;
 use eldiron_runtime::{GameSession, Project};
 use rusterix::{Entity, Item, Value, client::widget::Widget};
 mod catalog;
+mod journal;
 mod cursor;
 mod feedback;
 mod hud;

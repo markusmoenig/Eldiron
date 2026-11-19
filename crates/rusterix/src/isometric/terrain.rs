@@ -169,14 +169,12 @@ pub(super) struct Occlusion<'a> {
     pub contact: super::scene::TerrainContact,
 }
 impl Occlusion<'_> {
-    pub fn hides(&self, x: usize, y: usize) -> bool {
+    pub fn hides(&self, x: usize, y: usize, surface_height: Option<f32>) -> bool {
         let at = (y + self.offset.y) * self.width + x + self.offset.x;
         let Some(pixel) = self.pixels.get(at) else {
             return false;
         };
-        // Supporting ground cannot erase the boot pixels below the sprite's
-        // foot anchor. A genuinely higher slope can still hide the character.
-        self.contact.hides(pixel[0], pixel[1], y as f32)
+        self.contact.hides(pixel[0], pixel[1], y as f32, surface_height)
     }
 }
 
@@ -184,6 +182,21 @@ impl Occlusion<'_> {
 mod material_tests {
     use super::*;
     use crate::{PixelSource, Texture};
+
+    #[test]
+    fn terrain_clips_sprite_pixels_using_the_surface_elevation() {
+        let contact = super::super::scene::TerrainContact {
+            foot_y: 80.,
+            foot_height: 0.,
+            foot_depth: 0.,
+            unit: 24.,
+        };
+        assert!(contact.hides(10., 0.6, 40., None));
+        assert!(!contact.hides(10., 0.6, 40., Some(1.8)));
+        assert!(contact.hides(10., 0.6, 40., Some(0.3)));
+        assert!(!contact.hides(10., 0.6, 40., Some(0.55)));
+        assert!(!contact.hides(f32::NEG_INFINITY, 0., 40., Some(-1.)));
+    }
 
     #[test]
     fn terrain_materials_reach_gpu_surface_after_height_and_blend_changes() {

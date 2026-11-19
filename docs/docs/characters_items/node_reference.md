@@ -41,6 +41,17 @@ Pursue and attack the current target using a ruleset combat profile. The ruleset
 
 Request a ruleset attack once using `event.subject`, or the current target when no subject is supplied. **Done** means accepted; **Failed** means refused, for example due to range or cooldown. The current picker offers attacks targeting characters. This is for graph-initiated actions; ordinary ruleset UI commands already execute their actions directly.
 
+### Teach
+
+Teach a supplied lesson to the learner in `event.subject`. The graph's character
+is the teacher and must offer the lesson through its profession or `teaching`
+attribute. Choose `learn_boneworking` for Advanced Boneworking; it requires
+Boneworking 10 and unlocks batch bone-plate shaping. Range, skill and action
+costs are checked by the shared action before recording permanent knowledge.
+**Done** means learned or already known; **Failed** means unavailable. Repeated
+learning adds no acquisition and costs nothing. Book study uses the owned
+manual's study action instead.
+
 ### Resume Routine
 
 Restart normal behavior after a temporary interaction. Connect it after the interaction's completion, rather than after a long-running action's Started output.

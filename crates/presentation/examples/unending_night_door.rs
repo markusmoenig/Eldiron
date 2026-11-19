@@ -17,19 +17,6 @@ fn id(s: &str) -> Uuid {
 }
 
 fn install(p: &mut Project) -> Result<(), Box<dyn std::error::Error>> {
-    let official = shared::rulesets::latest_official_ruleset().parse::<toml::Table>()?;
-    p.rules_document.checkpoint();
-    p.rules_document.edit(|rules| {
-        let intents = rules
-            .entry("intents")
-            .or_insert_with(|| toml::Value::Table(Default::default()))
-            .as_table_mut()
-            .ok_or("Invalid intents")?;
-        for name in ["open", "close", "open_close"] {
-            intents.insert(name.into(), official["intents"][name].clone());
-        }
-        Ok(())
-    })?;
     let mut locales = p.locales.parse::<toml::Table>()?;
     let en = locales
         .entry("en")

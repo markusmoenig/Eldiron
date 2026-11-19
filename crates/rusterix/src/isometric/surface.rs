@@ -1,4 +1,4 @@
-//! Cached geometry, never illumination. Orthographic pixel coordinates and a
+//! Cached surfaces and optional ambient occlusion. Orthographic pixel coordinates and a
 //! height reconstruct a world position; octahedral normals retain both hemispheres.
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
@@ -6,6 +6,10 @@ use std::sync::OnceLock;
 use vek::Vec3;
 const STRIDE: usize = 8;
 const MAX_BYTES: usize = 1024 * 1024 * STRIDE;
+const AO_MASK: u8 = 63;
+fn is_false(value: &bool) -> bool {
+    !*value
+}
 fn serialize<S: serde::Serializer>(v: &Vec<u8>, s: S) -> Result<S::Ok, S::Error> {
     s.serialize_str(&STANDARD.encode(v))
 }
@@ -26,6 +30,11 @@ pub struct SurfaceFrame {
     pub effects: Vec<denrim_materials::geometry::effects::ParticleEffect>,
     #[serde(serialize_with = "serialize", deserialize_with = "deserialize")]
     pub data: Vec<u8>,
+    /// Opt-in encoding for static bakes. Six low mantissa bits of the height
+    /// store ambient occlusion, leaving 17 bits of height precision and the
+    /// same binary frame size. Legacy heights retain their original encoding.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub has_baked_ao: bool,
     /// Height intervals from the same alpha-tested mesh, used by live shadow rays.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shadow: Option<ShadowGrid>,
@@ -57,6 +66,7 @@ pub struct Sample {
     pub roughness: f32,
     pub metallic: f32,
     pub emission: f32,
+    pub ambient_visibility: f32,
 }
 fn decode(x: u8, y: u8) -> Vec3<f32> {
     let a = x as f32 / 255. * 2. - 1.;
@@ -77,6 +87,7 @@ fn normals() -> &'static [Vec3<f32>] {
     })
 }
 /// Two words shared with SceneVM: oct normal + R/M/E, then world height.
+/// The low height byte is reserved for six occlusion bits and two mode bits.
 pub fn packed(
     normal: Vec3<f32>,
     height: f32,
@@ -107,6 +118,7 @@ impl SurfaceFrame {
     pub fn new(pixels: usize) -> Self {
         Self {
             data: vec![0; pixels * STRIDE],
+            has_baked_ao: false,
             shadow: None,
             shadow_mesh: None,
             effects: Vec::new(),
@@ -137,6 +149,9 @@ impl SurfaceFrame {
         d[0] = ((u * 0.5 + 0.5) * 255.).round().clamp(0., 255.) as u8;
         d[1] = ((v * 0.5 + 0.5) * 255.).round().clamp(0., 255.) as u8;
         d[2..6].copy_from_slice(&height.to_le_bytes());
+        if self.has_baked_ao {
+            d[2] &= !AO_MASK;
+        }
         d[6] = ((roughness.clamp(0., 1.) * 15.).round() as u8)
             | ((metallic.clamp(0., 1.) * 15.).round() as u8) << 4;
         d[7] = (emission.clamp(0., 1.) * 255.).round() as u8;
@@ -144,16 +159,42 @@ impl SurfaceFrame {
     pub fn packed(&self, i: usize, base: f32, scale: f32) -> Option<[u32; 2]> {
         let at = i.checked_mul(8)?;
         let d = self.data.get(at..at + 8)?;
-        let height = f32::from_le_bytes(d[2..6].try_into().ok()?) * scale + base;
+        let height = self.decode_height(d[2..6].try_into().ok()?) * scale + base;
         Some([
             u32::from_le_bytes([d[0], d[1], d[6], d[7]]),
-            height.to_bits() & 0xffffff00,
+            (height.to_bits() & 0xffffff00) | (u32::from(self.occlusion(d)) << 2),
         ])
+    }
+    pub(super) fn height_at(&self, i: usize) -> Option<f32> {
+        let at = i.checked_mul(STRIDE)?.checked_add(2)?;
+        let height = self.decode_height(self.data.get(at..at + 4)?.try_into().ok()?);
+        height.is_finite().then_some(height)
+    }
+    fn decode_height(&self, mut bytes: [u8; 4]) -> f32 {
+        if self.has_baked_ao {
+            bytes[0] &= !AO_MASK;
+        }
+        f32::from_le_bytes(bytes)
+    }
+    fn occlusion(&self, pixel: &[u8]) -> u8 {
+        if self.has_baked_ao { pixel[2] & AO_MASK } else { 0 }
+    }
+    /// Install one [0, 1] ambient occlusion value per pixel. The packed mask
+    /// is copied through cache hydration with the existing sprite surface.
+    pub fn set_baked_ambient_occlusion(&mut self, occlusion: &[f32]) -> bool {
+        if occlusion.len() != self.data.len() / STRIDE {
+            return false;
+        }
+        self.has_baked_ao = true;
+        for (pixel, occlusion) in self.data.chunks_exact_mut(STRIDE).zip(occlusion) {
+            pixel[2] = (pixel[2] & !AO_MASK) | ((*occlusion * 63.).round().clamp(0., 63.) as u8);
+        }
+        true
     }
     pub fn sample(&self, i: usize) -> Option<Sample> {
         let p = i.checked_mul(STRIDE)?;
         let d = self.data.get(p..p + STRIDE)?;
-        let height = f32::from_le_bytes(d[2..6].try_into().ok()?);
+        let height = self.decode_height(d[2..6].try_into().ok()?);
         if !height.is_finite() {
             return None;
         }
@@ -163,6 +204,7 @@ impl SurfaceFrame {
             roughness: (d[6] & 15) as f32 / 15.,
             metallic: (d[6] >> 4) as f32 / 15.,
             emission: d[7] as f32 / 255.,
+            ambient_visibility: 1. - f32::from(self.occlusion(d)) / 63.,
         })
     }
     pub fn pad(&mut self, old: [usize; 2], new: [usize; 2], offset: [usize; 2]) {
@@ -198,6 +240,28 @@ impl ShadowGrid {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn baked_occlusion_keeps_material_channels_and_geometry_stride() {
+        let height = f32::from_bits(0x4020_003f);
+        let mut frame = SurfaceFrame::new(2);
+        for i in 0..2 {
+            frame.set(i, Vec3::unit_y(), height, 0.8, 0.2, 0.4);
+        }
+        let old = frame.sample(0).unwrap();
+        assert_eq!(old.ambient_visibility, 1.);
+        assert_eq!(old.height, height);
+        let bytes = frame.data.len();
+        assert!(frame.set_baked_ambient_occlusion(&[0., 0.25]));
+        let occluded = frame.sample(1).unwrap();
+        assert_eq!(frame.data.len(), bytes);
+        assert!((occluded.height - height).abs() < 0.0001);
+        assert_eq!(occluded.roughness, old.roughness);
+        assert_eq!(occluded.metallic, old.metallic);
+        assert_eq!(occluded.emission, old.emission);
+        assert_eq!(occluded.ambient_visibility, 1. - 16. / 63.);
+        assert_eq!(frame.packed(1, 0., 1.).unwrap()[1] & 255, 16 << 2);
+    }
+
     #[test]
     fn normals_heights_materials_and_shadow_intervals_roundtrip() {
         let mut f = SurfaceFrame::new(6);

@@ -11,6 +11,12 @@ pub(super) struct OpenCatalog {
     pub selected: Option<String>,
     pub assignment: bool,
     pub detail_scroll: f32,
+    pub journal_tab: screen_model::JournalTab,
+    pub search: String,
+    pub craft: String,
+    pub target: Option<screen_model::JournalTarget>,
+    pub journal_popup: Option<bool>,
+    pub journal_popup_page: usize,
 }
 pub(super) struct CatalogCache {
     rules: String,
@@ -22,7 +28,7 @@ pub(in crate::game_screen::hud) fn configuration(
     kind: CatalogPanelKind,
 ) -> &screen_model::CatalogPanelConfig {
     match kind {
-        CatalogPanelKind::Actions => elements
+        CatalogPanelKind::Actions | CatalogPanelKind::Journal => elements
             .custom_actions_panel_config
             .as_ref()
             .unwrap_or(&elements.toolbar_actions_panel_config),
@@ -54,6 +60,7 @@ impl HudState {
         let kind = match command.trim().to_ascii_lowercase().as_str() {
             "actions" | "action_catalog" | "abilities" => CatalogPanelKind::Actions,
             "spellbook" | "spells" => CatalogPanelKind::Spellbook,
+            "journal" | "crafting" | "knowledge" => CatalogPanelKind::Journal,
             _ => return false,
         };
         let was_open = self.catalog.as_ref().is_some_and(|open| open.kind == kind);
@@ -75,11 +82,24 @@ impl HudState {
                 selected: None,
                 assignment: false,
                 detail_scroll: 0.,
+                journal_tab: if command.eq_ignore_ascii_case("knowledge") {
+                    screen_model::JournalTab::Knowledge
+                } else {
+                    screen_model::JournalTab::Recipes
+                },
+                search: String::new(),
+                craft: "all".into(),
+                target: None,
+                journal_popup: None,
+                journal_popup_page: 0,
             });
         }
         true
     }
     pub(super) fn activate_catalog(&mut self, action: &HudAction) -> bool {
+        if *action == HudAction::OpenJournal {
+            return self.toggle_catalog("journal");
+        }
         let Some(open) = &mut self.catalog else {
             return false;
         };
@@ -88,14 +108,56 @@ impl HudState {
                 open.tab.clone_from(tab);
                 open.page = 0;
                 open.selected = None;
+                open.target = None;
             }
             HudAction::CatalogPage(page) => {
                 open.page = *page;
                 open.selected = None;
+                open.target = None;
             }
             HudAction::CatalogAssign => {
                 open.assignment = !open.assignment;
                 return true;
+            }
+            HudAction::JournalSearch | HudAction::JournalBlocked => return true,
+            HudAction::JournalClear => {
+                open.search.clear();
+                open.selected = None;
+                open.target = None;
+                open.page = 0;
+                open.assignment = false;
+                open.journal_popup = None;
+            }
+            HudAction::JournalTab(tab) => {
+                open.journal_tab = *tab;
+                open.page = 0;
+                open.selected = None;
+                open.target = None;
+                open.assignment = false;
+                open.craft = "all".into();
+            }
+            HudAction::JournalFilter(craft) => {
+                open.craft = craft.clone();
+                open.page = 0;
+                open.selected = None;
+                open.target = None;
+                open.journal_popup = None;
+            }
+            HudAction::JournalTarget(target) => {
+                open.target = Some(*target);
+                open.journal_popup = None;
+            }
+            HudAction::JournalPopup { targets } => {
+                open.journal_popup = if open.journal_popup == Some(*targets) {
+                    None
+                } else {
+                    Some(*targets)
+                };
+                open.journal_popup_page = 0;
+                open.assignment = false;
+            }
+            HudAction::JournalPopupPage(page) => {
+                open.journal_popup_page = *page;
             }
             _ => return false,
         }
@@ -107,6 +169,7 @@ impl HudState {
         if let Some(open) = self.catalog_panel_mut(id) {
             if open.selected.as_deref() != Some(command) {
                 open.detail_scroll = 0.;
+                open.target = None;
             }
             open.selected = Some(command.into());
         }
@@ -124,6 +187,9 @@ impl HudState {
         elements: &ScreenElements,
     ) -> Option<PanelFrame> {
         let open = self.catalog.as_ref()?;
+        if open.kind == CatalogPanelKind::Journal {
+            return self.journal_frame(world, elements);
+        }
         let actor = world.map.and_then(|map| world.party_entity(map, None));
         let class = actor.and_then(|actor| {
             actor
@@ -366,6 +432,20 @@ impl HudState {
                 false,
             );
         }
+        frame.button(
+            HudPart::OpenJournal,
+            Rect::new(
+                right - assign_width - if geometry.page_count > 1 { 82. } else { 0. } - 76.,
+                frame.rect.y + 5.,
+                76.,
+                20f32.min(title_height),
+            ),
+            HudAction::OpenJournal,
+            "Journal".into(),
+            c.tab_background_color,
+            false,
+            false,
+        );
         if geometry.page_count > 1 {
             let next_x = right - assign_width - 24.;
             let previous_x = next_x - 54.;
@@ -401,9 +481,12 @@ impl HudState {
             });
         }
         if let Some(title) = &mut frame.title_rect {
-            title.width =
-                (right - assign_width - if geometry.page_count > 1 { 82. } else { 0. } - title.x)
-                    .max(0.);
+            title.width = (right
+                - assign_width
+                - if geometry.page_count > 1 { 82. } else { 0. }
+                - 76.
+                - title.x)
+                .max(0.);
         }
         Some(frame)
     }

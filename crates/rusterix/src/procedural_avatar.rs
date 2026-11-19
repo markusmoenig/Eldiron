@@ -17,9 +17,7 @@ mod preparation;
 pub use preparation::Preparation as AppearancePreparation;
 mod weapon;
 pub mod wearable;
-#[cfg(any(feature = "graphics", test))]
-use vek::Vec2;
-use vek::Vec3;
+use vek::{Vec2, Vec3};
 pub use weapon::attack_duration;
 pub use wearable::Wearable;
 
@@ -79,7 +77,7 @@ pub struct Appearance {
     last_ready: Mutex<FxHashMap<(Uuid, u32), u64>>,
     preparing: Mutex<FxHashSet<((Uuid, u32), u64)>>,
 }
-type SpriteKey = (u64, String, u32, i32, u64, bool);
+type SpriteKey = (u64, String, u32, i32, u64, bool, bool);
 /// Metadata and immutable compiled geometry retained for one selected sprite.
 /// Resolution does not rasterize the selected sprite. A late variant job cannot change the
 /// source between a presentation cache lookup and its materialization.
@@ -114,6 +112,7 @@ impl ResolvedSprite<'_> {
             &self.assets.palette,
             self.surface_seconds,
             self.key.5,
+            self.key.6,
         );
         let mut cache = self.appearance.sprites.lock().unwrap();
         if cache.len() >= 512 {
@@ -468,13 +467,9 @@ impl Appearance {
         let (lo, hi) = body.bounds();
         let height = (hi[1] - lo[1]).max(0.01);
         // Stable framing across clips, headings and equipment variants.
-        let extent = if body.rig.is_some() {
-            height * 0.70
-        } else {
-            // Flat coins and broad props need horizontal room in model previews.
-            // The diagonal bounds also cover every heading without changing scale.
-            height.max((hi[0] - lo[0]).hypot(hi[2] - lo[2])) * 0.70
-        };
+        // Broad quadrupeds need the same horizontal room as broad props. The
+        // un-equipped body's diagonal keeps framing stable through every heading.
+        let extent = height.max((hi[0] - lo[0]).hypot(hi[2] - lo[2])) * 0.70;
         let wearer = doc.wearer_body().map_err(|e| e.to_string())?;
         // Fitted material layers retain the recipe's UVs and skin weights. Body
         // framing and sockets above are measured before garment padding.
@@ -718,7 +713,8 @@ impl Appearance {
         surface_seconds: f32,
         joints: Option<&[denrim_materials::geometry::rig::Pose]>,
     ) -> Result<Arc<Vec<u8>>, String> {
-        self.sprite_camera(
+        // Icon and preview-sheet callers use a fixed 128×128 source.
+        self.resolve_sprite_frame(
             entity,
             assets,
             animation,
@@ -726,8 +722,10 @@ impl Appearance {
             surface_seconds,
             joints,
             true,
-        )
-        .map(|f| f.pixels)
+            false,
+        )?
+        .render()
+        .map(|frame| frame.pixels)
     }
     fn sprite_camera(
         &self,
@@ -759,6 +757,21 @@ impl Appearance {
         surface_seconds: f32,
         joints: Option<&'a [denrim_materials::geometry::rig::Pose]>,
         isometric: bool,
+    ) -> Result<ResolvedSprite<'a>, String> {
+        self.resolve_sprite_frame(
+            entity, assets, animation, seconds, surface_seconds, joints, isometric, isometric,
+        )
+    }
+    fn resolve_sprite_frame<'a>(
+        &'a self,
+        entity: &Entity,
+        assets: &'a Assets,
+        animation: &str,
+        seconds: f32,
+        surface_seconds: f32,
+        joints: Option<&'a [denrim_materials::geometry::rig::Pose]>,
+        isometric: bool,
+        fit_mesh: bool,
     ) -> Result<ResolvedSprite<'a>, String> {
         let (c, mask) = self.compiled_for(entity, assets)?;
         let seconds = Self::animation_seconds(&c, entity, animation, seconds);
@@ -811,6 +824,7 @@ impl Appearance {
             yaw.to_bits() as i32,
             textures,
             isometric,
+            fit_mesh,
         );
         let sample = clip
             .filter(|m| !m.looping)
@@ -1097,7 +1111,7 @@ fn raster_sprite_at(
     seconds: f32,
     isometric: bool,
 ) -> Vec<u8> {
-    (*raster_sprite_frame(mesh, c, yaw, palette, seconds, isometric).pixels).clone()
+    (*raster_sprite_frame(mesh, c, yaw, palette, seconds, isometric, isometric).pixels).clone()
 }
 fn raster_sprite_frame(
     mesh: &Mesh,
@@ -1106,25 +1120,58 @@ fn raster_sprite_frame(
     palette: &ThePalette,
     seconds: f32,
     isometric: bool,
+    fit_mesh: bool,
 ) -> crate::isometric::AvatarSprite {
-    let size = if isometric { 128 } else { SPRITE_SIZE };
-    let mut rgba = vec![0; size * size * 4];
-    let mut surface = isometric.then(|| crate::isometric::surface::SurfaceFrame::new(size * size));
-    let mut depth = vec![f32::NEG_INFINITY; size * size];
     let (s, co) = yaw.to_radians().sin_cos();
     let rotate = |p: [f32; 3]| [co * p[0] + s * p[2], p[1], -s * p[0] + co * p[2]];
+    let pixels_per_unit = 32.;
+    let iso_xy = |p: [f32; 3]| {
+        Vec2::new(
+            (p[0] + p[2]) * pixels_per_unit,
+            (p[2] - p[0]) * 16. - (p[1] - c.floor) * 39.1918359,
+        )
+    };
+    let (size, anchor, resolution) = if isometric {
+        // Keep the usual character framing and grow around any part of the
+        // posed mesh that extends beyond it, including large world props.
+        let mut min = Vec2::<f32>::new(-64., -100.);
+        let mut max = Vec2::<f32>::new(64., 28.);
+        if fit_mesh {
+            for (part, _) in mesh.parts.iter().zip(&c.materials).filter(|(_, m)| m.visible) {
+                for vertex in &part.vertices {
+                    let xy = iso_xy(rotate(vertex.position));
+                    if xy.x.is_finite() && xy.y.is_finite() {
+                        min = Vec2::new(min.x.min(xy.x.floor() - 1.), min.y.min(xy.y.floor() - 1.));
+                        max = Vec2::new(max.x.max(xy.x.ceil() + 1.), max.y.max(xy.y.ceil() + 1.));
+                    }
+                }
+            }
+        }
+        // Bound the transient buffers even for very large authored meshes.
+        let extent = max - min;
+        let resolution = (1024. / extent.x.max(extent.y)).min(1.);
+        let size = (extent * resolution).map(|v| v.ceil() as usize);
+        (size, -min * resolution, resolution)
+    } else {
+        (Vec2::broadcast(SPRITE_SIZE), Vec2::zero(), 1.)
+    };
+    let mut rgba = vec![0; size.x * size.y * 4];
+    let mut surface =
+        isometric.then(|| crate::isometric::surface::SurfaceFrame::new(size.x * size.y));
+    let mut depth = vec![f32::NEG_INFINITY; size.x * size.y];
     let project = |p: [f32; 3]| {
         let p = rotate(p);
         if isometric {
+            let xy = anchor + iso_xy(p) * resolution;
             return [
-                64. + (p[0] + p[2]) * 32.,
-                100. + (p[2] - p[0]) * 16. - (p[1] - c.floor) * 39.1918359,
+                xy.x,
+                xy.y,
                 (p[2] - p[0]) * 0.612372436 + p[1] * 0.5,
             ];
         }
         [
-            size as f32 * (0.5 + p[0] / (2. * c.extent)),
-            size as f32
+            size.x as f32 * (0.5 + p[0] / (2. * c.extent)),
+            size.y as f32
                 * (0.5 - (p[1] - c.floor - c.height * 0.5) * 0.94 / (2. * c.extent)
                     + p[2] * 0.34 / (2. * c.extent)),
             p[2] * 0.94 + p[1] * 0.34,
@@ -1166,7 +1213,7 @@ fn raster_sprite_frame(
                 .map(|p| p[0])
                 .fold(f32::NEG_INFINITY, f32::max)
                 .ceil()
-                .min(size as f32) as usize;
+                .min(size.x as f32) as usize;
             let miny = p
                 .iter()
                 .map(|p| p[1])
@@ -1178,7 +1225,7 @@ fn raster_sprite_frame(
                 .map(|p| p[1])
                 .fold(f32::NEG_INFINITY, f32::max)
                 .ceil()
-                .min(size as f32) as usize;
+                .min(size.y as f32) as usize;
             let n = rotate(tri[0].normal);
             let light =
                 (0.65 + (n[0] * -0.3 + n[1] * 0.7 + n[2] * 0.5).max(0.) * 0.35).clamp(0., 1.);
@@ -1193,7 +1240,7 @@ fn raster_sprite_frame(
                         continue;
                     }
                     let z = (0..3).map(|i| p[i][2] * w[i]).sum::<f32>();
-                    let at = y * size + x;
+                    let at = y * size.x + x;
                     if z <= depth[at] {
                         continue;
                     }
@@ -1262,6 +1309,9 @@ fn raster_sprite_frame(
     crate::isometric::AvatarSprite {
         pixels: Arc::new(rgba),
         surface: surface.map(Arc::new),
+        size: size.into_array(),
+        anchor: anchor.into_array(),
+        pixels_per_unit: pixels_per_unit * resolution,
     }
 }
 
@@ -1819,6 +1869,61 @@ mod tests {
     use super::*;
     use crate::{Item, Value};
     #[test]
+    fn leather_family_worn_meshes_follow_the_wearer_and_render_every_slot() {
+        let (mut assets, human, mut entity) = fixture();
+        assets
+            .procedural_avatars
+            .insert("humanoid".into(), Arc::new(human));
+        let templates = eldiron_ruleset::ruleset_item_templates_from_source(
+            eldiron_ruleset::latest_official_ruleset(),
+        )
+        .unwrap();
+        for (id, slot) in [
+            ("leather_hood", "head"),
+            ("leather_vest", "torso"),
+            ("leather_leggings", "legs"),
+            ("leather_gloves", "hands"),
+            ("leather_boots", "feet"),
+        ] {
+            let mut item = Item::default();
+            crate::server::data::apply_item_data(
+                &mut item,
+                &templates.iter().find(|t| t.id == id).unwrap().data,
+            );
+            entity.equipped.insert(slot.into(), item);
+        }
+        for race in ["humanoid", "orc", "skeleton"] {
+            let model = &assets.procedural_avatars[race];
+            let (compiled, _) = model.compiled_for(&entity, &assets).unwrap();
+            assert!(
+                compiled
+                    .evaluation
+                    .mesh
+                    .parts
+                    .iter()
+                    .flat_map(|p| &p.vertices)
+                    .all(|v| v.skin.is_some())
+            );
+            for clip in ["idle", "walk", "attack"] {
+                let posed = Appearance::pose(&compiled, clip, 0.3).unwrap();
+                assert!(!posed.parts.is_empty());
+                let sprite = model.sprite(&entity, &assets, clip, 0.3).unwrap();
+                assert!(sprite.chunks_exact(4).any(|p| p[3] > 0));
+                if let Some(path) = std::env::var_os("ELDIRON_LEATHER_PREVIEW") {
+                    std::fs::create_dir_all(&path).unwrap();
+                    image::save_buffer(
+                        std::path::Path::new(&path).join(format!("{race}-{clip}.png")),
+                        &sprite,
+                        64,
+                        64,
+                        image::ColorType::Rgba8,
+                    )
+                    .unwrap();
+                }
+            }
+        }
+    }
+    #[test]
     fn bed_pose_is_immediate_in_iso_and_3d_without_changing_sitting() {
         let (assets, model, mut entity) = fixture();
         let (compiled, _) = model.compiled_for(&entity, &assets).unwrap();
@@ -1864,6 +1969,33 @@ mod tests {
                 "sitting should retain its animation"
             );
         }
+    }
+
+    #[test]
+    fn isometric_world_frame_preserves_geometry_outside_the_fixed_sprite() {
+        let (assets, model, _) = fixture();
+        let compiled = model.compile(0, &assets).unwrap();
+        let mut mesh = compiled.evaluation.mesh.clone();
+        for vertex in mesh.parts.iter_mut().flat_map(|part| &mut part.vertices) {
+            vertex.position[1] = compiled.floor + (vertex.position[1] - compiled.floor) * 3.;
+        }
+        let sprite = raster_sprite_frame(&mesh, &compiled, 0., &assets.palette, 0., true, true);
+        let [width, height] = sprite.size;
+        assert!(height > 128);
+        assert!(sprite.anchor[1] > 100.);
+        assert_eq!(sprite.pixels_per_unit, 32.);
+        let surface = sprite.surface.unwrap();
+        assert_eq!(surface.data.len(), width * height * 8);
+        let mut above_old_top = false;
+        for (i, pixel) in sprite.pixels.chunks_exact(4).enumerate() {
+            if pixel[3] == 0 {
+                continue;
+            }
+            let (x, y) = (i % width, i / width);
+            assert!(x > 0 && x + 1 < width && y > 0 && y + 1 < height);
+            above_old_top |= (y as f32) < sprite.anchor[1] - 100.;
+        }
+        assert!(above_old_top, "the tall model must render above the old frame");
     }
 
     #[test]

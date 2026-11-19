@@ -27,7 +27,7 @@ pub struct GpuSpriteSource {
     // Bind groups keep raw handles alive; these leases also prevent pool reuse.
     _source_leases: [renderkit::WorkingBufferLease; 2],
     size: (u32, u32),
-    surface: bool,
+    surface_flags: u32,
     generation: u64,
     bytes: u64,
 }
@@ -39,6 +39,17 @@ impl GpuSpriteSource {
         rgba: &[u8],
         surface: Option<&[u8]>,
     ) -> Result<Arc<Self>> {
+        Self::with_surface(context, width, height, rgba, surface.map(|data| (data, false)))
+    }
+    /// Upload an existing packed surface. The flag identifies a static frame
+    /// whose low height bits carry baked ambient occlusion.
+    pub fn with_surface(
+        context: &GpuContext,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+        surface: Option<(&[u8], bool)>,
+    ) -> Result<Arc<Self>> {
         let pixels = u64::from(width) * u64::from(height);
         let limit = u64::from(context.device.limits().max_storage_buffer_binding_size);
         if context.is_lost()
@@ -46,11 +57,11 @@ impl GpuSpriteSource {
             || height == 0
             || pixels > limit / 8
             || rgba.len() as u64 != pixels * 4
-            || surface.is_some_and(|s| s.len() as u64 != pixels * 8)
+            || surface.is_some_and(|(data, _)| data.len() as u64 != pixels * 8)
         {
             return Err(RenderError("invalid isometric sprite source".into()));
         }
-        let geometry = surface.unwrap_or(&[0; 8]);
+        let geometry = surface.map_or(&[0; 8][..], |(data, _)| data);
         let make = |data: &[u8]| -> Result<renderkit::WorkingBufferLease> {
             let lease = context.acquire_working_buffer(
                 renderkit::WorkingBufferDescriptor::storage(data.len() as u64),
@@ -82,7 +93,7 @@ impl GpuSpriteSource {
             bind,
             _source_leases: [albedo, surfaces],
             size: (width, height),
-            surface: surface.is_some(),
+            surface_flags: surface.map_or(0, |(_, has_ao)| 1 | (u32::from(has_ao) << 1)),
             generation: context.generation(),
             bytes,
         }))
@@ -117,8 +128,8 @@ pub struct SpriteContacts<'a> {
     pub owner: u32,
     pub protected: &'a [bool],
 }
-/// Reference terrain occlusion uses the instance's foot in the same projection
-/// as the GPU-produced ground depth/height, not a CPU ownership image.
+/// Terrain clipping in the GPU ground projection. Sprites without surface
+/// geometry fall back to the instance's foot.
 #[derive(Clone, Copy)]
 pub struct SpriteTerrainClip {
     pub foot_y: f32,
@@ -430,7 +441,7 @@ impl IsometricBlitter {
                         u32::from(s.bitmap)
                             | (u32::from(s.prelit) << 1)
                             | (u32::from(s.ground) << 2),
-                        u32::from(s.source.surface),
+                        s.source.surface_flags,
                     ],
                     scale: [s.pixel_scale, s.base_height, s.world_scale, s.opacity],
                     contact,

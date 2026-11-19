@@ -20,6 +20,7 @@ fn project() -> Project {
             .into();
     p.rules_document.current = String::new();
     p.rules_document.original = String::new();
+    p.preview_workbench_rules();
     let mut c = shared::character::Character::new();
     c.name = "Hero".into();
     c.data = "[attributes]\nplayer=true\ninventory_slots=8".into();

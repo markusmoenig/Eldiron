@@ -14,6 +14,7 @@ The separate **Input Mapping** branch starts with an Input Mapping node. Connect
 | Node | Settings |
 | --- | --- |
 | Entity | Ruleset race, class, and initial level. Empty race/class and level 0 inherit defaults. |
+| Animal | Species from the active ruleset. Supplies its race and class, including the body, stats and remains binding. Leave Entity race/class empty. |
 | Set Tile | Assign a sprite tile using a scrollable grid of previews. Type to search aliases; no UUID entry is needed. Legacy module tiles are excluded. |
 | Appearance | Avatar, 2D size, and visibility. Visibility is independent of life/activity state. |
 | Equipment | Starting worn/held items. Drag project item headers onto the node; item names are shown and stable references are saved. |
@@ -34,6 +35,12 @@ For an interactive MZ item and keyed-door walkthrough, see [Doors and MZ Item St
 Race and class choices come from the active ruleset. Ruleset stats, abilities, permissions, progression, and starting equipment do not need duplicate configuration nodes. Add overrides only for exceptions. Character defaults come from `attributes.defaults` and the selected race and class; custom item defaults come from `item_defaults`. Matching defaults are omitted during import.
 
 Entity stays limited to race, class and level. Other authored settings use separate configuration nodes.
+
+For an animal, use **+ → Add Animal**. It opens **Entity Nodes** with
+**Entity → Animal** already connected. Choose its species on Animal, then drag the character
+template onto the map as usual. Animals have the same **Behavior Nodes** as
+NPCs: add routines, Random Walk, event reactions or other behavior there.
+Selecting a species does not create or replace a behavior graph.
 
 Choice controls open compact, searchable, scrollable pickers. Inline text commits on Return. Edits use the global Undo/Redo system.
 

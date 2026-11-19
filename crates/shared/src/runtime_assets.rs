@@ -1213,6 +1213,7 @@ mod live_rules_tests {
     fn valid_edits_sync_assets_invalid_drafts_keep_last_valid_and_restore_syncs() {
         let mut assets = rusterix::server::assets::Assets::default();
         let mut project = Project::new();
+        project.preview_workbench_rules();
         assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
         let original = assets.rules.clone();
         assert!(!prepare_live_rules(&mut assets, &project).unwrap().is_some());
@@ -1514,6 +1515,7 @@ pub fn prepare_client_content(assets:&mut rusterix::Assets,project:&mut Project,
         return Err(iso_errors.join("; "));
     }
     let rules_source = project.rules_source()?;
+    project.sync_ruleset_item_templates(&rules_source)?;
     for error in crate::geometry_recipe::synchronize(project).1 {
         eprintln!("MZ geometry recipe: {error}");
     }

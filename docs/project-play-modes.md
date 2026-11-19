@@ -57,7 +57,7 @@ The connection fingerprint normalizes the ruleset selection and ignores project 
 
 ## Current limits
 
-The graphical connection path supports account/session management, predicted movement and explicit validated combat, inventory and dialogue requests. See [network-gameplay-requests.md](network-gameplay-requests.md) for permissions, durable retries and supported actions. Arbitrary engine actions and raw text commands remain outside the wire vocabulary. Server-compiled physics is authoritative, but not every private dynamic visual state has a public rendering DTO yet. Network errors return to the connection screen; there is no fallback to a hidden local world.
+The graphical connection path supports account/session management, predicted movement and explicit validated combat, inventory and dialogue requests. See [network-gameplay-requests.md](network-gameplay-requests.md) for permissions, durable retries and supported actions. Arbitrary server/AI/admin actions remain outside the wire vocabulary. GPU command text resolves to typed requests. Public visual projection includes procedural equipment inputs, map lights and particle/campfire settings while private state stays private; see [gameplay parity](network-gameplay-parity.md). Network errors return to the connection screen; there is no fallback to a hidden local world.
 
 This phase preserves the local renderer/UI behavior and adds project-driven online startup. It does not claim feature-complete multiplayer interactions, automatic hosting, or automatic hosted publishing.
 
@@ -72,3 +72,5 @@ This phase preserves the local renderer/UI behavior and adds project-driven onli
 ## Account security controls
 
 Persistent servers advertise account-management support. The graphical lobby's Account button and in-game F10 open masked password-change and global-logout controls. Authored commands use `game.account`, `game.account_back`, `game.change_password` and `game.logout_all`. Successful changes sign out all sessions; saved account/character ownership remains stable. Old servers and demos keep the existing connection flow. See [account management and private recovery](account-management.md).
+
+Optional provider login, linking and unlinking use server-owned [external identity configuration](external-login.md). The connection fingerprint includes project camera/logout policy while ignoring endpoint/deployment addresses. No hosting service is required.

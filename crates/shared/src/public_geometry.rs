@@ -121,8 +121,22 @@ const VISUAL: &[&str] = &[
     "feature_top_mode",
     "tile_size",
     "no_rect_geo",
+    "recipe_effect_source",
+    "recipe_particle_effect",
+    "recipe_effect_origin",
+    "recipe_effect_direction",
+    "campfire_flame_height",
+    "campfire_flame_width",
+    "campfire_flame_source",
+    "campfire_light_intensity",
+    "campfire_light_range",
+    "campfire_light_flicker",
+    "campfire_light_lift",
 ];
 fn allowed(value: &Value) -> bool {
+    if let Value::Str(text) = value {
+        return text.len() <= 256 && !text.chars().any(char::is_control);
+    }
     matches!(
         value,
         Value::Bool(_)
@@ -173,6 +187,48 @@ pub struct RegionGeometry {
     pub surfaces: Vec<(Uuid, Surface)>,
     pub profiles: Vec<(Uuid, RegionGeometry)>,
     pub properties: ValueContainer,
+    /// Missing in earlier releases: retain their release-local lights.
+    #[serde(default)]
+    pub lights: Option<Vec<rusterix::Light>>,
+}
+const LIGHT_PROPERTIES: &[&str] = &[
+    "position",
+    "color",
+    "intensity",
+    "start_distance",
+    "end_distance",
+    "flicker",
+    "lift",
+    "direction",
+    "cone_angle",
+    "normal",
+    "width",
+    "height",
+    "emitting",
+    "from_linedef",
+    "from_sector",
+];
+fn light_properties(source: &ValueContainer) -> ValueContainer {
+    let mut public = ValueContainer::default();
+    for (key, value) in source.iter() {
+        let valid = match value {
+            Value::Bool(_) => true,
+            Value::Float(v) => v.is_finite(),
+            Value::Vec3(v) => v.iter().all(|v| v.is_finite()),
+            _ => false,
+        };
+        if LIGHT_PROPERTIES.contains(&key.as_str()) && valid {
+            public.set(key, value.clone());
+        }
+    }
+    public
+}
+pub fn project_light(light: &rusterix::Light) -> rusterix::Light {
+    rusterix::Light {
+        light_type: light.light_type,
+        active: light.active,
+        properties: light_properties(&light.properties),
+    }
 }
 impl RegionGeometry {
     pub fn capture(map: &Map) -> Result<Self, String> {
@@ -227,6 +283,7 @@ impl RegionGeometry {
                 .collect(),
             profiles,
             properties: properties(&map.properties),
+            lights: Some(map.lights.iter().map(project_light).collect()),
         })
     }
     /// Stricter release policy in addition to transport topology validation.
@@ -237,6 +294,11 @@ impl RegionGeometry {
                 .all(|(k, v)| VISUAL.contains(&k.as_str()) && allowed(v))
         }
         if !clean(&self.properties)
+            || self.lights.as_ref().is_some_and(|lights| {
+                lights
+                    .iter()
+                    .any(|light| light.properties != light_properties(&light.properties))
+            })
             || self
                 .vertices
                 .iter()
@@ -273,8 +335,14 @@ impl RegionGeometry {
             + self.sectors.len()
             + self.objects.len()
             + self.surfaces.len();
+        *count += self.lights.as_ref().map_or(0, Vec::len);
         if depth > 8
             || *count > 100_000
+            || self.lights.as_ref().is_some_and(|lights| {
+                lights
+                    .iter()
+                    .any(|light| light.properties != light_properties(&light.properties))
+            })
             || !self.grid_size.is_finite()
             || !self.subdivisions.is_finite()
         {
@@ -383,8 +451,60 @@ impl RegionGeometry {
         map.sectors = sectors;
         map.geometry_objects = objects;
         map.surfaces = self.surfaces.iter().cloned().collect();
+        if let Some(lights) = &self.lights {
+            map.lights.clone_from(lights);
+        }
         merge(&mut map.properties, &self.properties);
         map.entities.clear();
         map.items.clear();
+    }
+}
+
+#[cfg(test)]
+mod visual_tests {
+    use super::*;
+    #[test]
+    fn public_lights_particles_and_string_modes_survive_without_private_fields() {
+        let mut map = Map::default();
+        map.properties.set("tile_mode", Value::Str("repeat".into()));
+        map.properties
+            .set("recipe_particle_effect", Value::Str("embers".into()));
+        map.properties
+            .set("recipe_effect_origin", Value::Vec3([1., 2., 3.]));
+        map.properties
+            .set("private_quest", Value::Str("PRIVATE_VISUAL_TEST".into()));
+        let mut light = rusterix::Light::new(rusterix::LightType::Point).with_intensity(4.);
+        light
+            .properties
+            .set("secret", Value::Str("PRIVATE_LIGHT_TEST".into()));
+        map.lights.push(light);
+        let public = RegionGeometry::capture(&map).unwrap();
+        public.validate_public().unwrap();
+        let encoded = serde_json::to_string(&public).unwrap();
+        assert!(!encoded.contains("PRIVATE_"));
+        let mut target = Map::default();
+        public.apply(&mut target);
+        assert_eq!(target.properties.get_str("tile_mode"), Some("repeat"));
+        assert_eq!(
+            target.properties.get_str("recipe_particle_effect"),
+            Some("embers")
+        );
+        assert_eq!(target.lights.len(), 1);
+        assert_eq!(target.lights[0].get_intensity(), 4.);
+        let mut update = public.clone();
+        update.lights = Some(vec![]);
+        update.apply(&mut target);
+        assert!(target.lights.is_empty());
+        let mut legacy = serde_json::to_value(&public).unwrap();
+        legacy.as_object_mut().unwrap().remove("lights");
+        let legacy: RegionGeometry = serde_json::from_value(legacy).unwrap();
+        public.apply(&mut target);
+        legacy.apply(&mut target);
+        assert_eq!(target.lights.len(), 1);
+        let mut bad = public;
+        bad.lights.as_mut().unwrap()[0]
+            .properties
+            .set("intensity", Value::Float(f32::NAN));
+        assert!(bad.validate().is_err());
     }
 }

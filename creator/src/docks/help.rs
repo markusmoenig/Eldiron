@@ -28,10 +28,16 @@ impl HelpDock {
         force: bool,
         reference: &CreatorReference,
     ) -> bool {
-        if !force && self.observed_rules.as_ref() == Some(&project.rules_document.current) {
+        let selection = shared::rulesets::selected_ruleset_config(&project.config);
+        let observed = if selection.source == "project" {
+            project.rules_document.current.clone()
+        } else {
+            project.config.clone()
+        };
+        if !force && self.observed_rules.as_ref() == Some(&observed) {
             return false;
         }
-        self.observed_rules = Some(project.rules_document.current.clone());
+        self.observed_rules = Some(observed);
         match Self::effective_rules(project, reference) {
             Ok(source) => {
                 if self.document.is_empty() || self.rules_source != source || self.draft_error {
@@ -881,6 +887,8 @@ mod tests {
     #[test]
     fn live_rules_refresh_current_help_query_and_recover_from_invalid_draft() {
         let mut project = Project::new();
+        project.config = "[ruleset]\nsource = 'project'".into();
+        project.preview_workbench_rules();
         let mut dock = HelpDock::new();
         let mut ctx = TheContext::new(900, 650, 1.);
         let mut ui = TheUI::new();

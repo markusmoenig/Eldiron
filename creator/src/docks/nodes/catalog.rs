@@ -1094,11 +1094,16 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
                     actions
                         .iter()
                         .filter(|(_, action)| {
+                            let kind = action.get("kind").and_then(toml::Value::as_str);
+                            let target = action.get("target").and_then(toml::Value::as_str);
+                            if (kind, target) == (Some("craft"), Some("self")) {
+                                return true;
+                            }
                             matches!(
-                                action.get("kind").and_then(toml::Value::as_str),
+                                kind,
                                 Some("attack" | "spell")
                             ) && matches!(
-                                action.get("target").and_then(toml::Value::as_str),
+                                target,
                                 Some(
                                     "hostile_entity"
                                         | "hostile_or_neutral_entity"
@@ -1142,6 +1147,58 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         "use_action",
         &fl!("node_group_actions"),
         &action,
+    ))
+    .unwrap();
+    let mut teach = GraphNode::new(&fl!("node_teach"), [0., 0.], [35, 87, 134, 255]);
+    let options = rules
+        .parse::<toml::Table>()
+        .ok()
+        .and_then(|root| {
+            root.get("actions")
+                .and_then(toml::Value::as_table)
+                .map(|actions| {
+                    actions
+                        .iter()
+                        .filter(|(_, action)| {
+                            action.get("lesson").is_some()
+                                && matches!(
+                                    action.get("target").and_then(toml::Value::as_str),
+                                    Some("any_entity" | "friendly_entity")
+                                )
+                        })
+                        .map(|(id, _)| id.clone())
+                        .collect::<Vec<_>>()
+                })
+        })
+        .unwrap_or_default();
+    row(
+        &mut teach,
+        "action",
+        &fl!("node_ruleset_action"),
+        GraphControlValue::Choice {
+            options,
+            selected: 0,
+        },
+    );
+    port(&mut teach, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut teach,
+        "done",
+        &fl!("node_done"),
+        PortDirection::Output,
+        0.35,
+    );
+    port(
+        &mut teach,
+        "failed",
+        &fl!("node_action_failed"),
+        PortDirection::Output,
+        0.8,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "teach",
+        &fl!("node_group_actions"),
+        &teach,
     ))
     .unwrap();
     for (id, title, default_profile, outputs) in [
@@ -1403,7 +1460,7 @@ pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
                     {
                         let profile = (matches!(
                             row.key.as_deref(),
-                            Some("profile" | "action" | "race" | "class" | "command")
+                            Some("profile" | "action" | "race" | "class" | "animal" | "command")
                         ))
                         .then(|| options.get(*selected).cloned())
                         .flatten();

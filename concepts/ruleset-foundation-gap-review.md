@@ -10,6 +10,10 @@ Implementation update (2026-11-18): passive equipment, enchantment and condition
 
 Source baseline: working tree at Git HEAD `f8d88011`. The ongoing rendering rewrite can move these source locations; the named functions and behaviors identify the evidence being reviewed.
 
+Learning update (2026-11-18): recipe knowledge now has permanent acquisition records, one-time class/character starting grants, NPC teaching, reusable owned manuals and separate temporary equipment grants. Advanced Boneworking demonstrates the same knowledge through all sources while leaving the bootstrap recipes open. See the [implemented contract](../docs/docs/rules_in_eldiron.md#persistent-learning). The historical learning gaps below are resolved for this recipe slice; general talents and other service policies remain separate.
+
+Enchanting update (2026-11-18): the Bear inscription slice now provides gameplay acquisition of a passive attachment, with sourced reagents, learned knowledge, atomic exact-item mutation and persistence/ownership coverage. The [current contract](../docs/docs/rules_in_eldiron.md#targeted-enchanting-recipes) supersedes the historical passive-attachment acquisition gap for this scope; trigger, recharge and advanced-policy gaps below remain.
+
 ## Main finding
 
 Product decision updated on 2026-11-17: generic ruleset editing is internal maintenance tooling, hidden in standard Creator builds. Ordinary creators build worlds from supplied content and choose starting options; the historical public guided-editor recommendations below are superseded by [the current authoring decision](ruleset-editor-concept.md). The first complete bone-armor production slice is supplied; further production chains remain a content priority.

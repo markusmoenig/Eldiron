@@ -256,6 +256,115 @@ fn gpu_sprite_terrain_clipping_matches_reference_and_keeps_supporting_feet_visib
 
 #[test]
 #[ignore = "requires native GPU; run with --ignored"]
+fn baked_ao_only_darkens_ambient_and_iso_materials_respond_to_live_sun() {
+    use scenevm::isometric::{GpuSpriteSource, Uniforms};
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let canvas = IsometricCanvas::new(&gpu, 5, 1).unwrap();
+    let mut blitter = IsometricBlitter::new(gpu.clone()).unwrap();
+    let mut renderer = IsometricRenderer::new(gpu.clone()).unwrap();
+    let mut surface = isometric::surface::SurfaceFrame::new(5);
+    for (i, (roughness, metallic, emission)) in
+        [(0.9, 0., 0.), (0.9, 0., 0.), (0.2, 0., 0.), (0.2, 1., 0.), (0.9, 0., 0.3)]
+            .into_iter().enumerate()
+    {
+        surface.set(i, Vec3::unit_y(), 0.25, roughness, metallic, emission);
+    }
+    assert!(surface.set_baked_ambient_occlusion(&[0., 0.24, 0., 0., 0.24]));
+    let source = GpuSpriteSource::with_surface(
+        &gpu, 5, 1, &[128, 128, 128, 255].repeat(5), Some((&surface.data, surface.has_baked_ao)),
+    ).unwrap();
+    let sprite = SpriteBlit {
+        source: &source,
+        origin: [0.; 2],
+        pixel_scale: 1.,
+        base_height: 0.,
+        world_scale: 1.,
+        opacity: 1.,
+        bitmap: false,
+        prelit: false,
+        ground: false,
+        anchor_y: 1.,
+        pixels_per_unit: 1.,
+    };
+    blitter.render(&canvas, [0; 4], &[sprite]).unwrap();
+    let mut uniforms = Uniforms {
+        counts: [5, 1, 0, 0],
+        projection: [2.5, 0.5, 1., 5.],
+        ambient: [0.3, 0.3, 0.3, 0.],
+        ..Default::default()
+    };
+    let mut reds = |uniforms: &Uniforms, frame| {
+        let output = renderer.render(&canvas, uniforms, &[], &[], &[], &[], None, frame).unwrap();
+        capture(&gpu, output.image).chunks_exact(4).map(|c| c[0]).collect::<Vec<_>>()
+    };
+    let ambient = reds(&uniforms, 1);
+    assert!(ambient[0] > ambient[1], "{ambient:?}");
+    assert_eq!(ambient[0], ambient[3]);
+    assert!(ambient[4] > ambient[0], "{ambient:?}");
+    uniforms.ambient = [0.; 4];
+    uniforms.sun = [0.61237246, 0.5, -0.61237246, 0.];
+    uniforms.sun_color = [0.5, 0.5, 0.5, 0.];
+    let sun = reds(&uniforms, 2);
+    assert_eq!(sun[0], sun[1], "{sun:?}");
+    assert!(sun[3] > sun[2] && sun[2] > sun[0], "{sun:?}");
+    assert!(sun[4] > sun[1], "{sun:?}");
+}
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn terrain_keeps_the_roof_above_a_slope_and_hides_the_low_pixel() {
+    use scenevm::isometric::{GpuSpriteSource, Uniforms};
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let canvas = IsometricCanvas::new(&gpu, 2, 1).unwrap();
+    let mut blitter = IsometricBlitter::new(gpu.clone()).unwrap();
+    let mut renderer = IsometricRenderer::new(gpu.clone()).unwrap();
+    let mut surface = isometric::surface::SurfaceFrame::new(2);
+    surface.set(0, Vec3::unit_y(), 1.5, 0.7, 0., 0.);
+    surface.set(1, Vec3::unit_y(), 0.3, 0.7, 0., 0.);
+    let source =
+        GpuSpriteSource::new(&gpu, 2, 1, &[150, 150, 150, 255].repeat(2), Some(&surface.data))
+            .unwrap();
+    blitter.render(&canvas, [0; 4], &[]).unwrap();
+    gpu.queue.write_buffer(
+        canvas.terrain(),
+        0,
+        bytemuck::cast_slice(&[[5.0f32, 0.6]; 2]),
+    );
+    let sprite = SpriteBlit {
+        source: &source,
+        origin: [0.; 2],
+        pixel_scale: 1.,
+        base_height: 0.,
+        world_scale: 1.,
+        opacity: 1.,
+        bitmap: false,
+        prelit: false,
+        ground: false,
+        anchor_y: 1.,
+        pixels_per_unit: 1.,
+    };
+    let clip = SpriteEnvironment {
+        terrain: Some(SpriteTerrainClip {
+            foot_y: 1.,
+            foot_height: 0.,
+            foot_depth: 0.,
+            unit: 1.,
+        }),
+        ..Default::default()
+    };
+    blitter.append_with_environment(&canvas, &[sprite], &[clip]).unwrap();
+    let uniforms = Uniforms {
+        counts: [2, 1, 0, 0],
+        projection: [1., 0.5, 1., 1.],
+        ambient: [1., 1., 1., 0.],
+        ..Default::default()
+    };
+    let output = renderer.render(&canvas, &uniforms, &[], &[], &[], &[], None, 1).unwrap();
+    assert_eq!(capture(&gpu, output.image), [150, 150, 150, 255, 0, 0, 0, 0]);
+}
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
 fn flat_ground_environment_ignores_source_geometry_and_bad_metadata_rejects_atomically() {
     use scenevm::isometric::{GpuSpriteSource, Uniforms};
     let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
@@ -315,10 +424,10 @@ fn flat_ground_environment_ignores_source_geometry_and_bad_metadata_rejects_atom
     let output = renderer
         .render(&canvas, &uniforms, &[], &[], &[], &[], None, 2)
         .unwrap();
+    let flat_pixels = capture(&gpu, output.image);
     assert!(
-        capture(&gpu, output.image)
-            .chunks_exact(4)
-            .all(|p| p == [150, 150, 150, 255]),
+        flat_pixels.chunks_exact(4)
+            .all(|p| (150..=152).contains(&p[0]) && p == [p[0], p[0], p[0], 255]),
         "shared ground uses flat up normals and its base plane"
     );
     let before = gpu.transfers();
@@ -356,9 +465,5 @@ fn flat_ground_environment_ignores_source_geometry_and_bad_metadata_rejects_atom
     let output = renderer
         .render(&canvas, &uniforms, &[], &[], &[], &[], None, 3)
         .unwrap();
-    assert!(
-        capture(&gpu, output.image)
-            .chunks_exact(4)
-            .all(|p| p == [150, 150, 150, 255])
-    );
+    assert_eq!(capture(&gpu, output.image), flat_pixels);
 }

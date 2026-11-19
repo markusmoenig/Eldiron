@@ -21,6 +21,7 @@ pub mod command;
 pub mod edge;
 pub mod equipment_lifecycle;
 pub mod effective_values;
+pub mod learning;
 pub mod editor_colors;
 #[cfg(feature = "graphics")]
 pub mod editor_view;

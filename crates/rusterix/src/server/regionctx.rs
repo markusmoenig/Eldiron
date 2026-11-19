@@ -1248,8 +1248,9 @@ impl RegionCtx {
     /// means, so absence counts as dead here. That keeps every caller that used
     /// to read `mode == "dead"` working once death removes the body.
     pub fn is_entity_dead_ctx(&self, id: u32) -> bool {
-        if self.stashed_entities.contains_key(&id) {
-            return true;
+        if let Some(entity) = self.stashed_entities.get(&id) {
+            return !entity.attributes.get_bool_default("__logout_hidden", false)
+                || entity.get_mode() == "dead";
         }
         let mut v = false;
         for entity in &self.map.entities {

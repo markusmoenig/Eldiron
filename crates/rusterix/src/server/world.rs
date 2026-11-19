@@ -19,6 +19,13 @@ impl Default for SimulationWorld {
     }
 }
 impl SimulationWorld {
+    /// Shared elapsed simulation time; paused/offline wall time grants none.
+    pub fn elapsed_ms(&self) -> i64 {
+        match self.get("__world_resource_clock_ms") {
+            Some(Value::Int64(value)) => value.max(0),
+            _ => 0,
+        }
+    }
     /// Zero is the existing NO_ID sentinel. Exhaustion must never reuse IDs.
     pub fn next_id(&self) -> u32 {
         self.ids

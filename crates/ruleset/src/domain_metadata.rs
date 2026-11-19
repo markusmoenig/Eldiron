@@ -3,10 +3,12 @@ use toml::{Table, Value as TomlValue};
 
 pub fn field_order(domain: &str, key: &str) -> usize {
     let leading = match domain {
+        "animals" => &["name", "description", "race", "class", "roam_distance", "roam_speed", "pause_minutes"][..],
         "actions" => &[
             "name",
             "description",
             "kind",
+            "lesson",
             "target",
             "range",
             "cooldown",
@@ -24,6 +26,7 @@ pub fn field_order(domain: &str, key: &str) -> usize {
             "slot",
             "rarity",
             "enchantments",
+            "teaching",
             "damage",
             "attributes",
             "icon",
@@ -38,6 +41,7 @@ pub fn field_order(domain: &str, key: &str) -> usize {
             "progression",
             "unlocks",
             "starting_loadout",
+            "starting_knowledge",
             "allowed_weapons",
             "allowed_armor",
         ][..],
@@ -87,7 +91,22 @@ pub fn field_order(domain: &str, key: &str) -> usize {
             "periodic",
             "fx",
         ][..],
-        "enchantments" => &["name", "requires_positive_condition", "allowed_categories", "modifiers"][..],
+        "knowledge" => &["name", "description", "recipes"][..],
+        "teaching" => &[
+            "name",
+            "description",
+            "knowledge",
+            "skill",
+            "required_skill",
+        ][..],
+        "enchantments" => &[
+            "name",
+            "epithet",
+            "requires_positive_condition",
+            "allowed_categories",
+            "modifiers",
+            "knowledge_grants",
+        ][..],
         "spells" | "abilities" => {
             &["name", "description", "kind", "school", "damage", "healing"][..]
         }
@@ -101,21 +120,68 @@ pub fn field_order(domain: &str, key: &str) -> usize {
 
 pub fn field_help(domain: &str, key: &str) -> &'static str {
     match (domain, key) {
+        ("knowledge", "recipes") => {
+            "Recipes unlocked by this knowledge. Recipes with no knowledge grant remain open."
+        }
+        ("teaching", "knowledge") => {
+            "Permanent knowledge acquired once from this lesson, independent of temporary equipment grants."
+        }
+        ("teaching", "required_skill") => {
+            "Minimum skill required to learn; recipe skill requirements still apply when crafting."
+        }
+        ("actions", "lesson") => {
+            "Registered lesson for a learn action targeting a nearby teacher or exact owned book."
+        }
+        ("items" | "professions", "teaching") => {
+            "Registered lessons this book or teacher profession offers."
+        }
+        ("classes", "starting_knowledge") => {
+            "Permanent knowledge seeded once for a new character. An explicit character list overrides it, including an empty list."
+        }
+        ("enchantments", "knowledge_grants") => {
+            "Temporary knowledge available only while this equipment source is active; never added to the permanent journal."
+        }
         ("actions", "cooldown") => "Time in seconds before this action can be used again.",
         ("actions", "target") => "Which target the action can affect.",
         ("recipes", "time") => "Crafting time in seconds.",
         ("recipes", "consumes") => "Ingredients consumed by the recipe.",
         ("recipes", "produces") => "Items created by the recipe.",
-        ("recipes", "tool") => "Owned tool capability and condition cost, paid only on successful completion.",
-        ("recipes", "station") => "A capability/range record requires a nearby deployed world station. Legacy text values are descriptive hints.",
-        ("recipes", "fixed_quality") => "Optional fixed output quality from 1 to 100; otherwise the existing skill calculation applies.",
-        ("recipes", "repair") => "Mutates an exact owned family member, restoring condition while preserving its identity and other properties. No replacement output.",
-        ("equipment", "requires_positive_condition") => "Opt-in equipment contributions require finite positive condition. Missing condition means full condition for legacy instances.",
-        ("equipment", "wear") => "Charges the declared equipped slot after matching damage actually reduces health; no costs on absorbed or rejected damage.",
-        ("equipment", "contributions") => "Explicit item-rating projections into actor attributes. Shared values count each equipped source once.",
-        ("enchantments", "modifiers") => "Passive wearer additions, multipliers and bounds over declared numeric attributes.",
-        ("enchantments", "requires_positive_condition") => "This enchantment is active only while equipped and the item's condition is positive.",
-        ("items", "enchantments") => "Initial passive enchantment definition IDs. Attachment identity follows the actual item instance.",
+        ("recipes", "tool") => {
+            "Owned tool capability and condition cost, paid only on successful completion."
+        }
+        ("recipes", "station") => {
+            "A capability/range record requires a nearby deployed world station. Legacy text values are descriptive hints."
+        }
+        ("recipes", "fixed_quality") => {
+            "Optional fixed output quality from 1 to 100; otherwise the existing skill calculation applies."
+        }
+        ("recipes", "repair") => {
+            "Mutates an exact owned family member, restoring condition while preserving its identity and other properties. No replacement output."
+        }
+        ("recipes", "enchant") => {
+            "Attaches to compatible registered owned items, preserving identity, quality and condition. Optional items narrow the definition's category compatibility; absent or empty items use that compatibility. Optional name overrides the composed thematic name."
+        }
+        ("enchantments", "epithet") => {
+            "Optional thematic suffix such as 'the Fox'. Distinct attached epithets compose deterministically without changing effect IDs or replacing the item's base name."
+        }
+        ("equipment", "requires_positive_condition") => {
+            "Opt-in equipment contributions require finite positive condition. Missing condition means full condition for legacy instances."
+        }
+        ("equipment", "wear") => {
+            "Charges the declared equipped slot after matching damage actually reduces health; no costs on absorbed or rejected damage."
+        }
+        ("equipment", "contributions") => {
+            "Explicit item-rating projections into actor attributes. Shared values count each equipped source once."
+        }
+        ("enchantments", "modifiers") => {
+            "Passive wearer additions, multipliers and bounds over declared numeric attributes."
+        }
+        ("enchantments", "requires_positive_condition") => {
+            "This enchantment is active only while equipped and the item's condition is positive."
+        }
+        ("items", "enchantments") => {
+            "Initial passive enchantment definition IDs. Attachment identity follows the actual item instance."
+        }
         ("conditions", "duration") => "Duration in seconds.",
         ("conditions", "stacking") => "How repeated applications combine.",
         ("classes", "unlocks") => "Abilities and spells learned at each level.",
@@ -278,6 +344,8 @@ pub fn reference_domain(key: &str) -> Option<&'static str> {
         "ability" | "abilities" => Some("abilities"),
         "spell" | "spells" => Some("spells"),
         "recipe" | "recipes" => Some("recipes"),
+        "knowledge" | "starting_knowledge" | "knowledge_grants" => Some("knowledge"),
+        "teaching" | "lesson" => Some("teaching"),
         "apply_condition" | "condition" => Some("conditions"),
         "class_hint" => Some("classes"),
         "profession_hint" => Some("professions"),

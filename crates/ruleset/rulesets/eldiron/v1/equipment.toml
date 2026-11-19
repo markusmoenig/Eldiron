@@ -46,11 +46,17 @@ crafting_family = "tailoring"
 armor_bonus = 0
 dex_penalty = 0
 
-[equipment.armor_categories.leather]
-contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
-crafting_family = "leatherworking"
-armor_bonus = 1
-dex_penalty = 0
+["equipment"."armor_categories"."leather"]
+"contributions" = [{ "attribute" = "ARMOR", "item_attribute" = "ARMOR" }, { "attribute" = "RESIST", "item_attribute" = "RESIST" }, { "attribute" = "FIRE_RESIST", "item_attribute" = "FIRE_RESIST" }, { "attribute" = "POWER", "item_attribute" = "POWER" }]
+"crafting_family" = "leatherworking"
+"armor_bonus" = 1
+"dex_penalty" = 0
+"requires_positive_condition" = true
+
+["equipment"."armor_categories"."leather"."wear"]
+"damage_kind" = "physical"
+"slot" = "torso"
+"condition_cost" = 1
 
 [equipment.armor_categories.chain]
 contributions = [{ attribute = "ARMOR", item_attribute = "ARMOR" }, { attribute = "RESIST", item_attribute = "RESIST" }, { attribute = "FIRE_RESIST", item_attribute = "FIRE_RESIST" }, { attribute = "POWER", item_attribute = "POWER" }]
@@ -636,6 +642,7 @@ avatar_channels = ["torso", "arms"]
 ARMOR = 1
 
 [items.armor.leather_vest]
+worth = 28
 appearance_geometry = "leather_vest"
 appearance_ground_flat = true
 appearance_icon = "icon/leather_vest/on"
@@ -649,8 +656,10 @@ color = 4
 icon = "leather_vest"
 avatar_channels = ["torso"]
 
-[items.armor.leather_vest.attributes]
-ARMOR = 2
+["items"."armor"."leather_vest"."attributes"]
+"ARMOR" = 2
+"condition" = 100
+"quality" = 100
 
 [items.armor.chain_shirt]
 appearance_geometry = "chain_shirt"

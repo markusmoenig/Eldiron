@@ -10,30 +10,16 @@ pub(super) struct FamilyWizard {
     message: String,
 }
 
-/// Rules edits usually have no template side effects. Family creation records
-/// only its newly created templates; unrelated project edits are never restored.
-pub(super) struct RulesUndo {
-    rules: RulesState,
-    items: Vec<(Uuid, Option<shared::item::Item>)>,
-}
+/// Undo a workbench draft edit without changing project content.
+pub(super) struct RulesUndo(RulesState);
 impl From<RulesState> for RulesUndo {
     fn from(rules: RulesState) -> Self {
-        Self {
-            rules,
-            items: Vec::new(),
-        }
+        Self(rules)
     }
 }
 impl RulesUndo {
     pub fn restore(self, project: &mut Project) -> Self {
-        let mut inverse = Self::from(std::mem::replace(&mut project.rules_document, self.rules));
-        for (id, item) in self.items {
-            inverse.items.push((id, project.items.shift_remove(&id)));
-            if let Some(item) = item {
-                project.items.insert(id, item);
-            }
-        }
-        inverse
+        Self(std::mem::replace(&mut project.rules_document, self.0))
     }
 }
 
@@ -163,7 +149,7 @@ impl RulesEditor {
         }
     }
 
-    /// Prepare every fallible step before committing rules and project templates.
+    /// Validate the candidate before updating the workbench draft.
     fn apply_family(&mut self, project: &mut Project) -> Result<(), String> {
         let wizard = self.family.as_ref().ok_or("Open the family guide first")?;
         let plan = wizard
@@ -173,47 +159,8 @@ impl RulesEditor {
         let mut document = project.rules_document.document()?;
         plan.apply(&mut document)?;
         let source = document.to_toml()?;
-        let wanted: Vec<_> = plan.item_ids.iter().chain(&plan.added_materials).collect();
-        let templates = shared::rulesets::ruleset_item_templates_from_source(&source)?;
-        let mut additions = Vec::new();
-        for template in templates
-            .into_iter()
-            .filter(|t| wanted.iter().any(|id| **id == t.id))
-        {
-            if project.items.values().any(|item| {
-                item.data.parse::<toml::Table>().ok().is_some_and(|table| {
-                    let attributes = table.get("attributes");
-                    attributes
-                        .and_then(|v| v.get("ruleset_path"))
-                        .and_then(toml::Value::as_str)
-                        == Some(&template.ruleset_path)
-                        || attributes
-                            .and_then(|v| v.get("ruleset_id"))
-                            .and_then(toml::Value::as_str)
-                            == Some(&template.id)
-                })
-            }) {
-                return Err(format!(
-                    "Project template '{}' already exists",
-                    template.ruleset_path
-                ));
-            }
-            let mut item = shared::item::Item::new();
-            item.name = template.name;
-            item.source = template.source;
-            item.data = template.data;
-            item.authoring = template.authoring;
-            additions.push(item);
-        }
-        if additions.len() != wanted.len() {
-            return Err("The generated family could not be materialized completely".into());
-        }
-        let mut undo = RulesUndo::from(project.rules_document.clone());
+        let undo = RulesUndo::from(project.rules_document.clone());
         project.rules_document.current = source;
-        for item in additions {
-            undo.items.push((item.id, None));
-            project.add_item(item);
-        }
         self.undo.push(undo);
         self.redo.clear();
         self.selected = Some(vec![
@@ -470,12 +417,12 @@ mod tests {
             &mut server,
         );
         assert!(dock.family.is_none());
-        assert_eq!(project.items.len(), count + 7);
+        assert_eq!(project.items.len(), count);
         let after = project.rules_document.clone();
         let ids: Vec<_> = project.items.keys().copied().collect();
         let bytes = shared::project_io::encode_project(&project).unwrap();
         let saved = shared::project_io::decode_project(&bytes).unwrap();
-        assert_eq!(saved.rules_document, after);
+        assert_eq!(saved.rules_document, before);
         assert_eq!(
             saved
                 .items

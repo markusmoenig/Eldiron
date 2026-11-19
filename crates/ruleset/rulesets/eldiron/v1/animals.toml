@@ -1,0 +1,511 @@
+# Readable fixture for the canonical animal foundation graph.
+
+["classes"."Animal"]
+"name" = "Animal"
+"description" = "Unrestricted by humanoid occupations; wildlife and domestic animal baseline."
+"role" = "animal"
+"primary_attributes" = ["VIT"]
+"allowed_weapons" = []
+"allowed_armor" = []
+
+["classes"."Animal"."starting_loadout"]
+"clothing" = []
+"inventory" = []
+
+["classes"."Animal"."attributes"]
+"inventory_slots" = 0
+"respawn_enabled" = false
+
+["animals"."deer"]
+"name" = "Deer"
+"description" = "A placeable deer with editable MZ anatomy, motion and a finite carcass."
+"race" = "Deer"
+"class" = "Animal"
+"roam_distance" = 5.0
+"roam_speed" = 1.2
+"pause_minutes" = 2
+
+["animals"."pig"]
+"name" = "Pig"
+"description" = "A placeable pig with editable MZ anatomy, motion and a finite carcass."
+"race" = "Pig"
+"class" = "Animal"
+"roam_distance" = 3.0
+"roam_speed" = 0.6
+"pause_minutes" = 2
+
+["animals"."cow"]
+"name" = "Cattle"
+"description" = "A placeable cow with editable MZ anatomy, motion and a finite carcass."
+"race" = "Cow"
+"class" = "Animal"
+"roam_distance" = 3.0
+"roam_speed" = 0.65
+"pause_minutes" = 2
+
+["animals"."sheep"]
+"name" = "Sheep"
+"description" = "A placeable sheep with editable MZ anatomy, motion and a finite carcass."
+"race" = "Sheep"
+"class" = "Animal"
+"roam_distance" = 3.0
+"roam_speed" = 0.7
+"pause_minutes" = 2
+
+["animals"."goat"]
+"name" = "Goat"
+"description" = "A placeable goat with editable MZ anatomy, motion and a finite carcass."
+"race" = "Goat"
+"class" = "Animal"
+"roam_distance" = 3.0
+"roam_speed" = 0.85
+"pause_minutes" = 2
+
+["animals"."horse"]
+"name" = "Horse"
+"description" = "A placeable horse with editable MZ anatomy, motion and a finite carcass."
+"race" = "Horse"
+"class" = "Animal"
+"roam_distance" = 3.0
+"roam_speed" = 1.3
+"pause_minutes" = 2
+
+["animals"."chicken"]
+"name" = "Chicken"
+"description" = "A placeable chicken with editable MZ anatomy, motion and a finite carcass."
+"race" = "Chicken"
+"class" = "Animal"
+"roam_distance" = 3.0
+"roam_speed" = 0.8
+"pause_minutes" = 2
+
+["races"."Deer"]
+"name" = "Deer"
+"description" = "Wild deer. Animal anatomy and finite remains."
+"default_avatar" = "deer"
+"languages" = []
+"traits" = ["animal"]
+
+["races"."Deer"."attributes"]
+"HP" = 12
+"MAX_HP" = 12
+"MP" = 0
+"MAX_MP" = 0
+"STR" = 10
+"DEX" = 12
+"INT" = 2
+"WIS" = 6
+"VIT" = 10
+"SPEED" = 1.2
+"DMG" = 2
+"ARMOR" = 0
+"radius" = 0.28
+"remains_profile" = "deer_remains"
+"remains_geometry" = "ruleset:geometry/deer_remains"
+"size" = 2.0
+"avatar_stride" = 1.11
+
+
+["races"."Pig"]
+"name" = "Pig"
+"description" = "Domestic pig. Animal anatomy and finite remains."
+"default_avatar" = "pig"
+"languages" = []
+"traits" = ["animal"]
+
+["races"."Pig"."attributes"]
+"HP" = 16
+"MAX_HP" = 16
+"MP" = 0
+"MAX_MP" = 0
+"STR" = 10
+"DEX" = 9
+"INT" = 2
+"WIS" = 6
+"VIT" = 10
+"SPEED" = 0.6
+"DMG" = 2
+"ARMOR" = 0
+"radius" = 0.32
+"remains_profile" = "pig_remains"
+"remains_geometry" = "ruleset:geometry/pig_remains"
+"size" = 0.85
+"avatar_stride" = 0.4
+
+
+["races"."Cow"]
+"name" = "Cattle"
+"description" = "Domestic cow. Animal anatomy and finite remains."
+"default_avatar" = "cow"
+"languages" = []
+"traits" = ["animal"]
+
+["races"."Cow"."attributes"]
+"HP" = 30
+"MAX_HP" = 30
+"MP" = 0
+"MAX_MP" = 0
+"STR" = 10
+"DEX" = 9
+"INT" = 2
+"WIS" = 6
+"VIT" = 10
+"SPEED" = 0.65
+"DMG" = 2
+"ARMOR" = 0
+"radius" = 0.42
+"remains_profile" = "cow_remains"
+"remains_geometry" = "ruleset:geometry/cow_remains"
+"size" = 1.65
+"avatar_stride" = 0.99
+
+
+["races"."Sheep"]
+"name" = "Sheep"
+"description" = "Domestic sheep. Animal anatomy and finite remains."
+"default_avatar" = "sheep"
+"languages" = []
+"traits" = ["animal"]
+
+["races"."Sheep"."attributes"]
+"HP" = 12
+"MAX_HP" = 12
+"MP" = 0
+"MAX_MP" = 0
+"STR" = 10
+"DEX" = 9
+"INT" = 2
+"WIS" = 6
+"VIT" = 10
+"SPEED" = 0.7
+"DMG" = 2
+"ARMOR" = 0
+"radius" = 0.3
+"remains_profile" = "sheep_remains"
+"remains_geometry" = "ruleset:geometry/sheep_remains"
+"size" = 1.1
+"avatar_stride" = 0.64
+
+
+["races"."Goat"]
+"name" = "Goat"
+"description" = "Domestic goat. Animal anatomy and finite remains."
+"default_avatar" = "goat"
+"languages" = []
+"traits" = ["animal"]
+
+["races"."Goat"."attributes"]
+"HP" = 12
+"MAX_HP" = 12
+"MP" = 0
+"MAX_MP" = 0
+"STR" = 10
+"DEX" = 9
+"INT" = 2
+"WIS" = 6
+"VIT" = 10
+"SPEED" = 0.85
+"DMG" = 2
+"ARMOR" = 0
+"radius" = 0.25
+"remains_profile" = "goat_remains"
+"remains_geometry" = "ruleset:geometry/goat_remains"
+"size" = 1.35
+"avatar_stride" = 0.72
+
+
+["races"."Horse"]
+"name" = "Horse"
+"description" = "Domestic horse. Animal anatomy and finite remains."
+"default_avatar" = "horse"
+"languages" = []
+"traits" = ["animal"]
+
+["races"."Horse"."attributes"]
+"HP" = 28
+"MAX_HP" = 28
+"MP" = 0
+"MAX_MP" = 0
+"STR" = 10
+"DEX" = 9
+"INT" = 2
+"WIS" = 6
+"VIT" = 10
+"SPEED" = 1.3
+"DMG" = 2
+"ARMOR" = 0
+"radius" = 0.4
+"remains_profile" = "horse_remains"
+"remains_geometry" = "ruleset:geometry/horse_remains"
+"size" = 2.05
+"avatar_stride" = 1.29
+
+
+["races"."Chicken"]
+"name" = "Chicken"
+"description" = "Domestic chicken. Animal anatomy and finite remains."
+"default_avatar" = "chicken"
+"languages" = []
+"traits" = ["animal"]
+
+["races"."Chicken"."attributes"]
+"HP" = 4
+"MAX_HP" = 4
+"MP" = 0
+"MAX_MP" = 0
+"STR" = 6
+"DEX" = 9
+"INT" = 2
+"WIS" = 6
+"VIT" = 10
+"SPEED" = 0.8
+"DMG" = 1
+"ARMOR" = 0
+"radius" = 0.15
+"remains_profile" = "chicken_remains"
+"remains_geometry" = "ruleset:geometry/chicken_remains"
+"size" = 0.75
+"avatar_stride" = 0.2
+
+
+["assets"."avatars"."deer"]
+"path" = "assets/geometry/animals/deer.mzgeometry.json"
+"format" = "mzgeometry"
+
+["assets"."avatars"."pig"]
+"path" = "assets/geometry/animals/pig.mzgeometry.json"
+"format" = "mzgeometry"
+
+["assets"."avatars"."cow"]
+"path" = "assets/geometry/animals/cow.mzgeometry.json"
+"format" = "mzgeometry"
+
+["assets"."avatars"."sheep"]
+"path" = "assets/geometry/animals/sheep.mzgeometry.json"
+"format" = "mzgeometry"
+
+["assets"."avatars"."goat"]
+"path" = "assets/geometry/animals/goat.mzgeometry.json"
+"format" = "mzgeometry"
+
+["assets"."avatars"."horse"]
+"path" = "assets/geometry/animals/horse.mzgeometry.json"
+"format" = "mzgeometry"
+
+["assets"."avatars"."chicken"]
+"path" = "assets/geometry/animals/chicken.mzgeometry.json"
+"format" = "mzgeometry"
+
+["resource_profiles"."pig_remains"]
+"name" = "Pig Remains"
+"default_interaction" = "collect_hide"
+"spent_when_empty" = true
+"expires_after_ms" = 172800000
+
+["resource_profiles"."pig_remains"."supplies"]
+
+["resource_profiles"."pig_remains"."supplies"."bones"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "raw_bone", "quantity" = 2 }]
+
+["resource_profiles"."pig_remains"."supplies"."hide"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "raw_hide", "quantity" = 1 }]
+
+["resource_profiles"."pig_remains"."interactions"]
+
+["resource_profiles"."pig_remains"."interactions"."collect_bones"]
+"supply" = "bones"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "skin"
+"tool_wear" = 1
+
+["resource_profiles"."pig_remains"."interactions"."collect_hide"]
+"supply" = "hide"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "skin"
+"tool_wear" = 1
+
+["resource_profiles"."cow_remains"]
+"name" = "Cow Remains"
+"default_interaction" = "collect_hide"
+"spent_when_empty" = true
+"expires_after_ms" = 172800000
+
+["resource_profiles"."cow_remains"."supplies"]
+
+["resource_profiles"."cow_remains"."supplies"."bones"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "raw_bone", "quantity" = 2 }]
+
+["resource_profiles"."cow_remains"."supplies"."hide"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "raw_hide", "quantity" = 2 }]
+
+["resource_profiles"."cow_remains"."interactions"]
+
+["resource_profiles"."cow_remains"."interactions"."collect_bones"]
+"supply" = "bones"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "skin"
+"tool_wear" = 1
+
+["resource_profiles"."cow_remains"."interactions"."collect_hide"]
+"supply" = "hide"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "skin"
+"tool_wear" = 1
+
+["resource_profiles"."sheep_remains"]
+"name" = "Sheep Remains"
+"default_interaction" = "collect_hide"
+"spent_when_empty" = true
+"expires_after_ms" = 172800000
+
+["resource_profiles"."sheep_remains"."supplies"]
+
+["resource_profiles"."sheep_remains"."supplies"."bones"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "raw_bone", "quantity" = 2 }]
+
+["resource_profiles"."sheep_remains"."supplies"."hide"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "raw_hide", "quantity" = 1 }]
+
+["resource_profiles"."sheep_remains"."interactions"]
+
+["resource_profiles"."sheep_remains"."interactions"."collect_bones"]
+"supply" = "bones"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "skin"
+"tool_wear" = 1
+
+["resource_profiles"."sheep_remains"."interactions"."collect_hide"]
+"supply" = "hide"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "skin"
+"tool_wear" = 1
+
+["resource_profiles"."goat_remains"]
+"name" = "Goat Remains"
+"default_interaction" = "collect_hide"
+"spent_when_empty" = true
+"expires_after_ms" = 172800000
+
+["resource_profiles"."goat_remains"."supplies"]
+
+["resource_profiles"."goat_remains"."supplies"."bones"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "raw_bone", "quantity" = 2 }]
+
+["resource_profiles"."goat_remains"."supplies"."hide"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "raw_hide", "quantity" = 1 }]
+
+["resource_profiles"."goat_remains"."interactions"]
+
+["resource_profiles"."goat_remains"."interactions"."collect_bones"]
+"supply" = "bones"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "skin"
+"tool_wear" = 1
+
+["resource_profiles"."goat_remains"."interactions"."collect_hide"]
+"supply" = "hide"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "skin"
+"tool_wear" = 1
+
+["resource_profiles"."horse_remains"]
+"name" = "Horse Remains"
+"default_interaction" = "collect_hide"
+"spent_when_empty" = true
+"expires_after_ms" = 172800000
+
+["resource_profiles"."horse_remains"."supplies"]
+
+["resource_profiles"."horse_remains"."supplies"."bones"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "raw_bone", "quantity" = 2 }]
+
+["resource_profiles"."horse_remains"."supplies"."hide"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "raw_hide", "quantity" = 2 }]
+
+["resource_profiles"."horse_remains"."interactions"]
+
+["resource_profiles"."horse_remains"."interactions"."collect_bones"]
+"supply" = "bones"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "skin"
+"tool_wear" = 1
+
+["resource_profiles"."horse_remains"."interactions"."collect_hide"]
+"supply" = "hide"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "skin"
+"tool_wear" = 1
+
+["resource_profiles"."chicken_remains"]
+"name" = "Chicken Remains"
+"default_interaction" = "collect_feathers"
+"spent_when_empty" = true
+"expires_after_ms" = 172800000
+
+["resource_profiles"."chicken_remains"."supplies"]
+
+["resource_profiles"."chicken_remains"."supplies"."bones"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "raw_bone", "quantity" = 1 }]
+
+["resource_profiles"."chicken_remains"."supplies"."feathers"]
+"unit" = "opportunity"
+"capacity" = 1
+"outputs" = [{ "item" = "feather", "quantity" = 4 }]
+
+["resource_profiles"."chicken_remains"."interactions"]
+
+["resource_profiles"."chicken_remains"."interactions"."collect_bones"]
+"supply" = "bones"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0
+"tool" = "skin"
+"tool_wear" = 1
+
+["resource_profiles"."chicken_remains"."interactions"."collect_feathers"]
+"supply" = "feathers"
+"quantity" = 1
+"policy" = "whole"
+"range" = 2.0

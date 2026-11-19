@@ -62,8 +62,8 @@ not configuration steps required to build a game.
 | Combat kind | `[combat.kinds.fire]` | damage bonuses and reductions |
 
 The bundled `eldiron.official` defaults are compiled from `rules.graph.json`.
-Each project owns a complete editable rules document and preserves its original
-for recovery.
+Projects select the bundled catalogue and decide which content players encounter
+through their worlds and character options.
 
 Ruleset timing values are measured in seconds. Cooldowns, spell durations, FX
 durations, resource respawns, corpse lifetimes, and NPC respawn delays all use
@@ -421,6 +421,7 @@ attribute that naturally supports that work.
 | `armorsmithing` | `STR` | 0-100 | armor and repairs |
 | `tailoring` | `DEX` | 0-100 | cloth, leather, dyes, patterns |
 | `woodworking` | `DEX` | 0-100 | wooden handles, shields, furniture |
+| `boneworking` | `DEX` | 0-100 | bone plates, bone armor and repair |
 
 Simple recipes are available immediately. Better skill values create better
 outputs instead of blocking the attempt. A character can expose skill points as
@@ -487,14 +488,116 @@ Class starting loadouts are applied only when a character does not define its
 own startup item attributes. This keeps the official defaults useful while still
 allowing special templates.
 
+### Animals and hides
+
+Use **Project Add → Add Animal**. Its **Entity Nodes** graph opens with
+**Entity → Animal** connected; choose a species there. Leave Entity race/class empty; Animal
+supplies them. Deer, pigs, cattle, sheep, goats, horses and chickens use ordinary
+character templates with species-specific MZ meshes and keyed animations.
+Author their **Behavior Nodes** exactly like other NPCs; for wandering, connect
+**Routine → Random Walk**. Species selection does not replace behavior. Their MZ
+sources generate directional 2D sprites and rigged 3D meshes. Choose **Appearance
+→ Edit model** to edit the construction, rig and clips.
+
+Hides come from actual animal carcasses. Hunt an animal, then use its remains
+with an owned skinning tool such as the stone knife. Deer, pigs, sheep and goats
+provide one raw hide; cattle and horses provide two. Chickens provide feathers.
+The new livestock carcasses also contain finite bones. Skinning does not erase
+the other supply, and repeated use or reload never restores consumed stock.
+Carcasses use the animal's own resting mesh and expire after two simulated days.
+
+The Animal class supplies no humanoid starter clothes and disables automatic NPC
+respawning. Its ordinary behavior graph controls wandering and resting. The
+supplied MZ clips include Idle, Walk, Run, Graze, Attack and Dead; the stock
+routine uses Idle and Walk. Breeding, milk, wool, eggs and riding are future
+gameplay extensions.
+
+### Leather armor, learning and repair
+
+The supplied leather family covers all five armor slots. Its recipes appear in
+**Crafting & Knowledge** without adding them to a class starter bar. Existing
+leather category permissions apply; the Leather Vest retains its definition ID.
+
+| Piece | Slot | Protection | Leather | Twisted cord |
+| --- | --- | --- | --- | --- |
+| Leather Hood | head | 1 | 1 | 1 |
+| Leather Vest | torso | 2 | 3 | 2 |
+| Leather Leggings | legs | 2 | 2 | 2 |
+| Leather Gloves | hands | 1 | 1 | 1 |
+| Leather Boots | feet | 1 | 1 | 1 |
+
+The complete set provides seven protection and consumes eight leather and seven
+cord. Four animal hides, eight bark and sixteen fresh water produce that leather;
+fiber from wild flax supplies the cord. Casual Leather Shoes remain separate
+from the armor boots.
+
+Beginner armor recipes are open at Leatherworking 0. They require a usable owned
+`sew_leather` tool and a deployed `leatherwork` station within two units. Make the
+**Flint Awl** from one flint, one branch and one cord with a wood-carving tool.
+Build the **Leather Workbench** from six branches and four cords using that same
+capability. The stone knife supplies it. No bones are needed for this chain.
+Each piece starts at 100 quality and condition; crafting costs one awl condition.
+All pieces have native MZ icon, world model and worn appearance bindings.
+
+A **Leatherworker** or an owned **Leatherworker's Handbook** teaches Advanced
+Leatherworking at skill 10. This permanently unlocks **Cut Leather Straps in a
+Batch**: two leather become four straps with one sewing-tool use at the bench.
+It has the same yield as two beginner cuts, with less tool wear. Use a manual
+normally; single-lesson manuals are reusable and need no class-bar entry. The
+journal records the teacher or exact manual that supplied the knowledge.
+
+**Repair Leather Armor** consumes one leather and one cord, costs one sewing-tool
+condition and needs the deployed bench. It restores 25 condition, capped at 100,
+on the exact owned family member. It retains quality, custom properties, name,
+item ID and attachment IDs. Broken leather equipment contributes no protection
+or positive-condition magic; repair reactivates them. Physical damage that
+actually reduces health wears the equipped leather torso by one condition.
+
+### Fox inscription and compatible enchantments
+
+Learn **Fox Inscription** at Leatherworking 10 from a Leatherworker, an Inscriber
+or an owned copy of **Patterns of the Fox**. Knowledge is permanent and survives
+transferring the manual, reconnecting and world reload.
+
+| Operation | World-sourced inputs | Reusable requirements |
+| --- | --- | --- |
+| Cut Fox Sigil Inlay | 1 leather, 1 tree resin, 1 fresh water | Sewing tool and leather workbench; 1 tool condition |
+| Inscribe the Fox | 1 fox inlay, 1 tree resin, 1 fresh water | Inscribing tool and deployed inscription station; 2 tool condition |
+
+The awl and stone knife can inscribe. Both leather and bone workbenches serve as
+inscription stations. Water is consumed from owned filled vessels; the vessels
+are retained. **Fox's Grace** grants +2 DEX while equipped and usable. A vest
+becomes **Leather Vest of the Fox**.
+
+Bear and Fox are supplied examples of the shared enchantment system. Their
+compatibility covers registered cloth, leather, chain, bone armor, shields,
+focus items and weapon categories. The journal offers compatible owned targets.
+Distinct effects coexist: **Leather Vest of the Bear and the Fox** grants both
+Bear's Vigor and Fox's Grace. Repeating the same definition is rejected without
+spending inputs. There is no one-effect or one-suffix gameplay rule. Additional
+effects use ordinary definitions, compatibility, recipes and knowledge grants.
+
+An optional thematic `epithet` composes the name independently of the effect ID.
+Removing an attachment restores the remaining epithets or base name. Older
+attachments retain their IDs when another inscription is applied. The legacy
+Bear action/recipe ID remains `inscribe_bear_cuirass` for saved commands, while
+its compatibility now extends beyond the cuirass. Its bone-carving tool and
+bone-workbench requirements remain compatible with existing saved equipment.
+
+The public multiplayer catalogue includes the declarative item quantities,
+crafting requirements, learning grants, armor families and passive enchantment
+metadata used by the journal's shared planner. It excludes behavior handlers,
+world resource stock and combat execution rules. The server still owns every
+mutation and its costs.
+
 ### World-to-bone armor production
 
 The supplied rules now include a complete bone armor chain. Creators place its
 sources and encounters; no armor-family enable switch or ruleset editing is
 required. Current default classes expose the recipes in the **Actions** catalogue.
 These beginner recipes are open from skill zero and need no paid lesson or
-vendor stock. Projects retain their own rules, so this content is included in
-new projects; opening an older project does not replace its rules automatically.
+vendor stock. Projects using the official ruleset receive these definitions from
+the current bundled catalogue.
 
 An empty character can start by gathering loose flint, fallen branches and wild
 flax by hand. Twist fiber into cord and make a stone knife. Use the knife to
@@ -590,10 +693,10 @@ their previous equipment behavior unless explicitly updated.
 
 ### Passive equipment bonuses and enchantments
 
-The supplied **Bone Cuirass of Strength** is a bone-family variant with the same
+The supplied **Bone Cuirass of the Bear** is a bone-family variant with the same
 4 protection and a passive **+2 STR** enchantment. Creators can place it like any
-other supplied item or use it in authored starting equipment and loot. It does
-not add a free enchanting recipe or an unexplained reagent supply.
+other supplied item or use it in authored starting equipment and loot. It can
+also be created through the world-sourced inscription chain below.
 
 Equipment, passive enchantments and conditions now feed one effective-value
 calculation. Saved character values remain separate. For a character with base
@@ -609,7 +712,7 @@ STR 12 and ARMOR 5:
 
 Derived stats read effective dependencies. Combat consumes the same result and
 does not add projected equipment a second time. Quality keeps its existing
-weapon behavior; it does not scale this armor or its Strength enchantment.
+weapon behavior; it does not scale this armor or its Bear’s Vigor enchantment.
 
 Item tooltips describe enchantments and their broken-state activation. Text
 `stats` includes contribution explanations. Screen text can use an expression
@@ -623,14 +726,128 @@ another copy. Enchanted item instances do not merge into stacks.
 
 This first implementation supports passive numeric additions, multipliers and
 bounds. Distinct item sources combine deterministically; one item cannot carry
-the same enchantment definition twice. Player enchanting/disenchanting recipes,
-charged triggers, temporary talent grants and advanced stacking policies remain
-separate work. New projects receive the supplied declarations; project-owned
-older rules keep their existing declarations until intentionally updated.
+the same enchantment definition twice. Disenchanting, charged triggers,
+temporary talent grants and advanced stacking policies remain
+separate work. Projects using the official ruleset receive the supplied
+declarations from the bundled catalogue.
 
 The supplied materials, tools, stations and bone pieces also have editable
 native inventory icons bound to the project palette. Their appearance can be
 customized through the normal Appearance workspace.
+
+### Learning and recipe knowledge
+
+Skill measures practice; knowledge unlocks particular recipes. Beginner bone
+recipes stay open, so a character with no profession or starting possessions
+can build tools and train. Learning does not give materials or crafted goods.
+
+**Advanced Boneworking** unlocks **Shape Bone Plates in a Batch**. It requires
+Boneworking 10 to learn and to use. Three raw bones and three water units in owned
+vessels produce three plates, using a usable bone-carving tool and a deployed
+bone workbench within 2 units. A successful batch costs one tool condition;
+three ordinary one-plate crafts cost three. Material yield is unchanged.
+
+The same knowledge has several acquisition paths:
+
+- A nearby NPC with the **Boneworker** profession offers the lesson through
+  **Learn Advanced Boneworking**. A conversation can invoke it with **Teach**.
+- An owned **Boneworking Manual** offers **Study Boneworking Manual**. The
+  manual is reusable and can be passed to another character afterward.
+- New Rangers start with this knowledge and Boneworking 10. An explicit
+  character `starting_knowledge` list overrides the class, including an empty list.
+
+Learning creates a permanent, uniquely identified acquisition recording its
+source. The journal survives book transfer, teacher removal, class changes,
+save/reload and reconnects. Starting grants apply once; changing a starting
+configuration never replenishes an existing journal. Repeating a learned
+lesson adds no record and pays no lesson costs. The bundled lesson is free.
+
+The **Boneworking Guidance** enchantment demonstrates temporary access to the
+same knowledge while eligible equipment is worn. Removing or breaking that
+source removes its grant. Studying or learning independently still creates a
+permanent record. Temporary access never writes to the journal and does not
+replace the recipe's skill, materials, tool or station requirements.
+
+Action descriptions show knowledge and skill requirements. Manual tooltips
+explain their lesson, and character `stats` lists permanent and temporary
+knowledge with its source. Creators place the manual or teacher in the world;
+there is no separate content activation step.
+
+### Inscribe the Bear
+
+The **Bone Cuirass of the Bear** can be made from an ordinary crafted cuirass.
+Its enchantment, **Bear's Vigor**, grants +2 STR while worn and usable. The name
+expresses the enchantment's theme; its numeric effect is described separately.
+
+Learn **Bear Inscription** from a nearby **Inscriber**, or study an owned copy of
+**Patterns of the Bear**. Both require Boneworking 10 and permanently teach the
+inlay and inscription recipes. All classes and classless characters can learn
+them. Basic plate shaping provides the practice needed to reach that skill.
+
+| Step | Inputs | Result and requirements |
+| --- | --- | --- |
+| Gather | Skeleton remains, a tree and a river | Raw bones, tree resin and water in a vessel; resin collection requires a pruning-capable tool |
+| Prepare bone | 1 raw bone + 1 water | 1 bone plate; 1 carving-tool condition |
+| Carve Bear Sigil Inlay | 1 plate + 1 resin + 1 water | 1 inlay; 1 carving-tool condition and nearby deployed bone workbench |
+| Inscribe the Bear | 1 inlay + 1 resin + 1 water | Enchants compatible owned equipment; 2 bone-carving-tool condition and a nearby deployed bone workbench |
+
+The existing knife and workbench can themselves be made from hand-gathered
+materials. The cuirass uses the established bone, hide, bark and water chain.
+Teachers and manuals provide knowledge, not ingredients. No vendor creates a
+reagent supply. The bundled inscription has no additional mana or currency cost.
+
+Select an ordinary **Bone Cuirass** in inventory or equipment. Inscription keeps
+its item ID, definition ID, quality, condition and other properties, adds one
+uniquely identified attachment and names it **Bone Cuirass of the Bear**. It does
+not create a replacement item or refill its condition. Broken pieces must first
+be repaired. The supplied pre-enchanted variant remains available for placement.
+
+Missing knowledge, skill, inputs, water, tool condition or station access changes
+nothing. Foreign items, incompatible item categories, malformed attachment state and an
+already attached Bear enchantment are rejected. Costs, tool wear, training and
+the attachment commit together. Retried committed requests cannot apply or
+charge the enchantment twice.
+
+The bonus activates only while the piece is equipped and has positive condition.
+Repair retains the attachment and its identity. Transfer, reconnect and saves
+retain both the enchantment and the authored item name; learned knowledge stays
+with the original learner.
+
+### Crafting and knowledge journal
+
+Open **Crafting & Knowledge** from the game toolbar. Existing screens can use
+the **Journal** button in Actions or Spellbook. Creators can also bind
+`ui.journal` to a screen button or an input binding.
+
+**Recipes** lists recipes that are open by default or granted by current
+knowledge. Search by name, craft or ingredient, and use the craft selector to
+browse a profession's work. Large lists and selectors use pages. A known recipe
+can still require more skill, materials, a tool or a station.
+
+Selecting a recipe only inspects it. The details show readiness, available and
+required ingredients, water held in owned vessels, and the expected result.
+Tools, vessels and mutation targets use top-level inventory or equipment,
+matching the crafting operation's normal access rules.
+Crafting, repair and enchanting use the same planner as the host. Moving away
+from a station, losing knowledge or using up an ingredient refreshes the preview.
+
+Repair and inscription require an explicit choice of an eligible owned item in
+inventory or equipment. The preview retains its exact identity. If that item
+leaves the inventory, the journal requires a new choice; it never substitutes
+another piece. Press **Craft**, **Repair** or **Enchant** to submit the operation.
+Reading, searching, choosing a target and previewing spend nothing. The host
+checks current requirements again before committing a request.
+
+Drag a recipe onto an action-bar slot, or choose **Pin to action bar**, select
+the recipe and then the slot. Known recipes can be pinned independently of a
+class's initial shortcuts. Pins belong to the character and survive reconnects
+and saves. A pin grants no knowledge, materials or crafting permission.
+
+**Knowledge** lists permanently learned patterns and their acquisition source,
+alongside temporary grants from currently active equipment. Its selector can
+show either lifetime separately. Removing equipment never erases independently
+learned knowledge. The journal uses the supplied content; creators do not need
+to enable recipes in a ruleset editor.
 
 ## Intents
 

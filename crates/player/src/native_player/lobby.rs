@@ -2,6 +2,7 @@
 use rusterix::{Rect, Sector, Value};
 use shared::{project::Project, screen::Screen};
 pub const ACCOUNT: &str = "__eldiron_account_settings";
+pub const EXTERNAL: &str = "__eldiron_external_login";
 pub const NAME: &str = "__eldiron_online_lobby";
 pub fn install(project: &mut Project) {
     let mut screen = Screen::new();
@@ -124,7 +125,12 @@ pub fn install(project: &mut Project) {
         add(
             id,
             name,
-            Rect::new(x, y + dy, if id == 14 { 216. } else { 440. }, 34.),
+            Rect::new(
+                x,
+                y + dy,
+                if id == 14 || id == 13 { 216. } else { 440. },
+                34.,
+            ),
             &format!("[ui]\nrole='button'\ncommand='{command}'\nlabel='{label}'\nshow_icon=false"),
         );
     }
@@ -134,8 +140,15 @@ pub fn install(project: &mut Project) {
         Rect::new(x + 224., y + 452., 216., 34.),
         "[ui]\nrole='button'\ncommand='game.account'\nlabel='Account'\nshow_icon=false",
     );
+    add(
+        16,
+        "OnlineExternal",
+        Rect::new(x + 224., y + 412., 216., 34.),
+        "[ui]\nrole='button'\ncommand='game.external'\nlabel='Other login methods'\nshow_icon=false",
+    );
     project.screens.insert(screen.id, screen);
     install_account(project);
+    install_external(project);
 }
 
 fn install_account(project: &mut Project) {
@@ -244,6 +257,128 @@ fn install_account(project: &mut Project) {
         ),
         (11, "Logout", 332., "logout", "Log out"),
         (12, "AccountBack", 372., "account_back", "Back"),
+        (
+            13,
+            "OnlineLinkIdentity",
+            412.,
+            "external",
+            "Link another login method",
+        ),
+    ] {
+        add(
+            id,
+            name,
+            dy,
+            34.,
+            format!(
+                "[ui]\nrole='button'\ncommand='game.{command}'\nlabel='{label}'\nshow_icon=false"
+            ),
+        );
+    }
+    project.screens.insert(screen.id, screen);
+}
+
+fn install_external(project: &mut Project) {
+    let mut screen = Screen::new();
+    screen.name = EXTERNAL.into();
+    screen.map.name = EXTERNAL.into();
+    screen.settings = "[layout]\nmode='responsive'".into();
+    let c = eldiron_runtime::PlayerSettings::parse(&project.config).unwrap();
+    let (w, h) = (c.viewport.0 as f32, c.viewport.1 as f32);
+    let (x, y) = ((w - 440.).max(0.) / 2., (h - 470.).max(0.) / 2.);
+    let (sx, sy) = rusterix::utils::align_screen_to_grid(w, h, c.grid_size);
+    screen.map.subdivisions = c.grid_size * 2.;
+    let mut add = |id, name: &str, dy: f32, height: f32, data: String| {
+        let (left, width) = match name {
+            "ExternalContinue" => (x, 216.),
+            "ExternalUnlink" => (x + 224., 216.),
+            _ => (x, 440.),
+        };
+        let vertices = [
+            (left, y + dy),
+            (left + width, y + dy),
+            (left + width, y + dy + height),
+            (left, y + dy + height),
+        ]
+        .map(|(x, y)| {
+            screen
+                .map
+                .add_vertex_at(x / c.grid_size + sx, y / c.grid_size + sy)
+        });
+        let lines = (0..4)
+            .map(|i| {
+                screen
+                    .map
+                    .create_linedef_manual(vertices[i], vertices[(i + 1) % 4])
+            })
+            .collect();
+        let mut sector = Sector::new(id, lines);
+        sector.name = name.into();
+        sector.properties.set("data", Value::Str(data));
+        screen.map.sectors.push(sector);
+    };
+    for (id, name, dy, height, label, size) in [
+        (1, "ExternalTitle", 0., 30., "External login", 26.),
+        (
+            2,
+            "OnlineStatus",
+            34.,
+            64.,
+            "Choose a provider to continue.",
+            16.,
+        ),
+        (3, "OnlineProvider", 100., 26., "", 18.),
+        (
+            6,
+            "ExternalPasswordLabel",
+            206.,
+            22.,
+            "Current password (linking only)",
+            16.,
+        ),
+        (8, "OnlineExternalCode", 264., 30., "", 24.),
+        (9, "OnlineExternalUri", 300., 50., "", 14.),
+    ] {
+        add(
+            id,
+            name,
+            dy,
+            height,
+            format!("[ui]\nrole='text'\ntext='{label}'\nfont_size={size}"),
+        );
+    }
+    add(
+        7,
+        "ExternalPassword",
+        229.,
+        30.,
+        "[ui]\nrole='input'\nbind='online.current_password'\nsecret=true\nfont_size=19.0".into(),
+    );
+    for (id, name, dy, command, label) in [
+        (4, "ExternalNext", 128., "external_next", "Next provider"),
+        (5, "ExternalContinue", 168., "external_begin", "Continue"),
+        (
+            13,
+            "ExternalUnlink",
+            168.,
+            "external_unlink",
+            "Unlink provider",
+        ),
+        (
+            10,
+            "ExternalCopyLink",
+            360.,
+            "external_copy_link",
+            "Copy verification link",
+        ),
+        (
+            11,
+            "ExternalCopyCode",
+            400.,
+            "external_copy_code",
+            "Copy code",
+        ),
+        (12, "ExternalBack", 440., "external_back", "Cancel / Back"),
     ] {
         add(
             id,

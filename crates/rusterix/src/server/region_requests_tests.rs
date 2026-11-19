@@ -31,6 +31,82 @@ fn item(id: u32) -> Item {
     item.id = id;
     item
 }
+
+#[test]
+fn terrain_walk_uses_host_time_and_camera_switches_require_project_permission() {
+    let (mut region, ctx) = fixture();
+    let request = GameRequest::Terrain {
+        position: [0.3, 3.],
+        intent: String::new(),
+    };
+    assert_eq!(
+        region.prepare_game_request(1, &request, None),
+        Err(RequestError::Forbidden)
+    );
+    {
+        let mut ctx = ctx.lock().unwrap();
+        ctx.config =
+            "[game]\nauto_walk_2d=true\n[multiplayer.gameplay]\nallowed_cameras=['firstp_mouse']"
+                .parse()
+                .unwrap();
+        ctx.map.entities.retain(|e| e.id == 1);
+        ctx.map.entities[0].set_attribute("player_camera", Value::PlayerCamera(PlayerCamera::D2));
+    }
+    let start = ctx.lock().unwrap().map.entities[0].position;
+    execute(&mut region, 1, request, None).unwrap();
+    assert_eq!(ctx.lock().unwrap().map.entities[0].position, start);
+    assert!(matches!(
+        ctx.lock().unwrap().map.entities[0].action,
+        EntityAction::Goto(..)
+    ));
+    region.movement_tick();
+    assert_ne!(ctx.lock().unwrap().map.entities[0].position, start);
+    assert_eq!(
+        region.prepare_game_request(1, &GameRequest::Camera(PlayerCamera::D2Grid), None),
+        Err(RequestError::Forbidden)
+    );
+    execute(
+        &mut region,
+        1,
+        GameRequest::Camera(PlayerCamera::D3FirstPMouse),
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        ctx.lock().unwrap().map.entities[0]
+            .attributes
+            .get("player_camera"),
+        Some(&Value::PlayerCamera(PlayerCamera::D3FirstPMouse))
+    );
+}
+#[test]
+fn damage_tags_both_combatants_using_shared_simulation_time() {
+    let (_, ctx) = fixture();
+    let mut ctx = ctx.lock().unwrap();
+    ctx.health_attr = "HP".into();
+    for entity in &mut ctx.map.entities {
+        entity.set_attribute("HP", Value::Int(20));
+    }
+    ctx.world.advance_resource_time(Duration::from_secs(2));
+    assert!(apply_damage_direct(&mut ctx, 1, 2, 3, "physical", None));
+    assert_eq!(ctx.map.entities[0].attributes.get_int("HP"), Some(17));
+    for id in [1, 2] {
+        assert_eq!(
+            ctx.find_entity(id)
+                .unwrap()
+                .attributes
+                .get("__last_combat_ms"),
+            Some(&Value::Int64(2000))
+        );
+    }
+    assert!(
+        ctx.find_entity(3)
+            .unwrap()
+            .attributes
+            .get("__last_combat_ms")
+            .is_none()
+    );
+}
 fn execute(
     region: &mut RegionInstance,
     actor: u32,
@@ -56,6 +132,60 @@ fn take(id: u32) -> GameRequest {
     }
 }
 #[test]
+fn damage_marks_both_combatants_on_shared_simulation_time_and_crafting_is_declared() {
+    let (region, ctx) = fixture();
+    let mut ctx = ctx.lock().unwrap();
+    ctx.health_attr = "HP".into();
+    for entity in &mut ctx.map.entities {
+        entity.set_attribute("HP", Value::Int(20));
+    }
+    ctx.world.advance_resource_time(Duration::from_secs(5));
+    assert!(apply_damage_direct(&mut ctx, 1, 2, 3, "physical", None));
+    for id in [1, 2] {
+        assert_eq!(
+            ctx.find_entity(id)
+                .unwrap()
+                .attributes
+                .get("__last_combat_ms"),
+            Some(&Value::Int64(5000))
+        );
+    }
+    assert_eq!(
+        ctx.find_entity(1).unwrap().attributes.get_int("HP"),
+        Some(17)
+    );
+    ctx.rules = "[recipes.bowl]\nname='Bowl'".parse().unwrap();
+    drop(ctx);
+    assert_eq!(
+        region
+            .prepare_game_request(
+                1,
+                &GameRequest::Craft {
+                    recipe: "bowl".into()
+                },
+                None
+            )
+            .unwrap(),
+        vec![EntityAction::TextCommand("craft bowl".into())]
+    );
+    assert_eq!(
+        region.prepare_game_request(
+            1,
+            &GameRequest::Craft {
+                recipe: "missing".into()
+            },
+            None
+        ),
+        Err(RequestError::Unsupported)
+    );
+    assert!(
+        !GameRequest::Craft {
+            recipe: "bowl\nadmin".into()
+        }
+        .bounded()
+    );
+}
+#[test]
 fn inventory_is_owned_and_contested_pickup_happens_once() {
     let (mut region, ctx) = fixture();
     ctx.lock().unwrap().map.items.push(item(10));
@@ -79,6 +209,76 @@ fn inventory_is_owned_and_contested_pickup_happens_once() {
     assert!(ctx.map.entities[0].get_item(10).is_some());
     assert!(ctx.map.entities[1].get_item(10).is_none());
     assert!(ctx.map.items.is_empty());
+}
+#[test]
+fn companion_transfers_require_live_npc_membership_and_recheck_on_consumption() {
+    let (mut region, ctx) = fixture();
+    {
+        let mut ctx = ctx.lock().unwrap();
+        ctx.map.entities[0].set_attribute("__frame_motion", Value::Bool(true));
+        ctx.map.entities[0].inventory[0] = Some(item(10));
+        ctx.map.entities[2].set_attribute("party_member", Value::Bool(true));
+        ctx.map.entities[2].set_attribute("party_leader_id", Value::UInt(1));
+    }
+    let give = GameRequest::Transfer {
+        source: ItemSource::Direct(ItemAddress {
+            item: 10,
+            owner: ItemOwner::Owned,
+        }),
+        destination: ItemDestination::FollowerInventory {
+            entity: 3,
+            index: Some(0),
+        },
+    };
+    execute(&mut region, 1, give, None).unwrap();
+    assert!(ctx.lock().unwrap().map.entities[0].get_item(10).is_none());
+    assert!(ctx.lock().unwrap().map.entities[2].get_item(10).is_some());
+    let take = GameRequest::Transfer {
+        source: ItemSource::Direct(ItemAddress {
+            item: 10,
+            owner: ItemOwner::Follower(3),
+        }),
+        destination: ItemDestination::Inventory(Some(1)),
+    };
+    assert_eq!(
+        region.prepare_game_request(2, &take, None),
+        Err(RequestError::Forbidden)
+    );
+    let actions = region.prepare_game_request(1, &take, None).unwrap();
+    ctx.lock().unwrap().map.entities[2].set_attribute("party_leader_id", Value::UInt(2));
+    for action in actions {
+        region
+            .to_sender
+            .send(RegionMessage::UserAction(1, action))
+            .unwrap();
+    }
+    region.redraw_tick();
+    assert!(
+        ctx.lock().unwrap().map.entities[2].get_item(10).is_some(),
+        "stale membership cannot take a companion item"
+    );
+    ctx.lock().unwrap().map.entities[2].set_attribute("party_leader_id", Value::UInt(1));
+    execute(&mut region, 1, take, None).unwrap();
+    assert!(ctx.lock().unwrap().map.entities[0].get_item(10).is_some());
+    let mut ctx = ctx.lock().unwrap();
+    ctx.map.entities[1].set_attribute("party_member", Value::Bool(true));
+    ctx.map.entities[1].set_attribute("party_leader_id", Value::UInt(1));
+    drop(ctx);
+    let foreign = GameRequest::Transfer {
+        source: ItemSource::Direct(ItemAddress {
+            item: 10,
+            owner: ItemOwner::Owned,
+        }),
+        destination: ItemDestination::FollowerInventory {
+            entity: 2,
+            index: None,
+        },
+    };
+    assert_eq!(
+        region.prepare_game_request(1, &foreign, None),
+        Err(RequestError::Forbidden),
+        "a player's party membership never grants inventory writes"
+    );
 }
 #[test]
 fn containers_require_live_access_and_range_is_rechecked() {

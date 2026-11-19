@@ -499,6 +499,19 @@ impl super::Server {
         {
             return Err("Saved character missing".into());
         }
+        {
+            let mut ctx = context.lock().unwrap();
+            let hidden = ctx.find_entity(entity).is_some_and(|e| {
+                e.attributes.get_bool_default("__logout_hidden", false) && e.get_mode() != "dead"
+            });
+            if hidden {
+                ctx.restore_stashed_entity(entity);
+            }
+            if let Some(body) = ctx.map.entities.iter_mut().find(|e| e.id == entity) {
+                body.attributes.remove("__logout_hidden");
+                body.attributes.remove("__disconnected_at_ms");
+            }
+        }
         self.connections.insert(
             connection,
             super::PlayerConnectionState::Active(super::PlayerControl {

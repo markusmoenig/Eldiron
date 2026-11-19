@@ -9,11 +9,26 @@ for the [Ruleset Contract](./ruleset_contract).
 
 Audit date: **2026-07-26**
 
-Catalogue, internal editor visibility, world resources, bone production and repair status updated:
+Catalogue, internal editor visibility, world resources, bone production, repair and fauna status updated:
 **2026-11-18**. This is a scoped update; other sections retain their existing
 audit baseline.
 
 Bundled baseline: **`eldiron.official` 1.0.0, schema 1, draft**
+
+The supplied leather family now covers five slots with world-sourced hides,
+permanent advanced patterns, reusable manuals, identity-preserving repair and
+Fox inscription. Bear and Fox apply to compatible registered equipment and
+coexist on one item. Focused coverage exercises both host modes, request replay,
+world reload, MZ appearances and public-client journal metadata parity.
+
+
+Fauna now supplies seven placeable species: deer, pigs, cattle, sheep, goats,
+horses and chickens. Creator creates editable character templates and wandering
+graphs; MZ owns their meshes, rigs and six motion clips. Actual animal deaths
+produce finite species-shaped carcasses. A focused solo/dedicated scenario covers
+hunting, skinning with a world-crafted knife, tanning, stable carcass identities
+and exhausted stock after reload. Breeding and renewable live-animal produce
+remain outside this baseline.
 
 The bundled ruleset passes its current structural/reference validator with zero
 errors and zero warnings. That result does not mean every declared field is
@@ -139,6 +154,9 @@ The goal is reached when:
 | Map-bound world resources | Typed profiles, exposed placement overrides, independent logical sources and cross-region shared pools; trees, rivers, finite wells and remains | Definition, state, Authoring, local runtime and dedicated-host tests | Functional |
 | Resource extraction and lifecycle | Atomic stock/output/tool-wear/skill updates, vessel filling, running simulation clock, recovery, expiry and optional exploitation suspension; persisted source identity and public resource views | Save/reload, contention, retry and lifecycle tests | Functional |
 | Complete world-to-bone-armor production | Supplied hand-gathered bootstrap sources, knife/bowl/stations, hide and bone processing, liquid vessel debits and all five armor recipes/actions; no prepared starting materials required | Complete local/dedicated save/reload flow, wire-level host production with retries, rollback tests | Functional vertical slice |
+| Persistent recipe knowledge | Versioned acquisition journal with UUIDs and class/character/teacher/book provenance; one-time starting grants, NPC Teach node, owned manuals and separate active equipment grants. Advanced Boneworking unlocks batch shaping; beginner recipes remain open | Focused definition, journal, lesson rollback, UI and Creator storage tests; local/dedicated runtime replication, book transfer, save/reconnect and durable retry scenario | Functional recipe-learning slice; general talent grants and other learning services remain separate |
+| World-sourced gameplay enchanting | Bear inscription knowledge, Inscriber/manual acquisition, bone/resin/water inlay production and exact owned-cuirass mutation. Thematic names retain stable definition IDs; attachment identity, quality, condition and opaque properties survive repair and transfer | Focused schema/rollback/UI/icon tests and one empty-character solo/dedicated production, owner-replication, transfer, save/reconnect and receipt replay scenario | Functional immediate passive-enchantment slice; disenchanting, charges and triggers remain separate |
+| Crafting and knowledge journal | GPU HUD with searchable known recipes, craft filters, source/lifetime explanations, exact owned-target menus, planner-backed stock/result previews and persistent action-bar pins. Shared authoritative checks run on isolated inspection snapshots; requests revalidate at the host | Focused planner parity/read-only, large-list model, native input and GPU retention tests; one owner-replica solo/dedicated pin/craft, stale preview, save/reconnect and receipt replay scenario | Functional immediate-crafting journal; no global recipe activation UI or new networking DTO |
 | Resource lifecycle visuals | Optional authored tile mappings and semantic phase/supply replication | Runtime replication coverage | Partial; mesh/collision replacement and reusable asset binding inheritance remain planned |
 | Resource regeneration | Arbitrarily named `[resource_regen.<attribute>]` entries run in real-time seconds and name their maximum attribute; the official rules use MP | Runtime tests cover configured resources, caps, and active-state gating | Complete |
 

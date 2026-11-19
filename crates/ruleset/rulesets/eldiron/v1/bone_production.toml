@@ -85,7 +85,7 @@
 "category" = "world_tool"
 
 ["items"."tools"."stone_knife"."attributes"]
-"tool_capabilities" = ["prune", "skin", "carve_bone", "carve_wood", "cut_leather"]
+"tool_capabilities" = ["prune", "skin", "carve_bone", "carve_wood", "cut_leather", "inscribe"]
 "condition" = 100
 
 ["items"."stations"."tanning_frame"]
@@ -107,7 +107,7 @@
 "category" = "world_station"
 
 ["items"."stations"."bone_workbench"."attributes"]
-"station_capabilities" = ["bonework"]
+"station_capabilities" = ["bonework", "inscribe"]
 "condition" = 100
 
 ["items"."armor"."bone_helm"]
@@ -579,20 +579,22 @@ variants = ["strength_bone_cuirass"]
 "slot" = "torso"
 "condition_cost" = 1
 
-[enchantments.strength]
-name = "Strength"
-requires_positive_condition = true
-allowed_categories = ["bone_armor"]
-modifiers = [{ attribute = "STR", add = 2 }]
+["enchantments"."strength"]
+"name" = "Bear's Vigor"
+"requires_positive_condition" = true
+"allowed_categories" = ["cloth", "leather", "chain", "shield", "focus", "bone_armor", "sword", "axe", "mace", "spear", "bow"]
+"modifiers" = [{ "attribute" = "STR", "add" = 2 }]
+"epithet" = "the Bear"
 
 [items.armor.strength_bone_cuirass]
 appearance_icon = "icon/strength_bone_cuirass/on"
-name = "Bone Cuirass of Strength"
-description = "Bone plates bound with leather, bearing a passive Strength enchantment."
+name = "Bone Cuirass of the Bear"
+description = "Bone plates bound with leather, bearing the sigil and vigor of the bear."
 slot = "torso"
 category = "bone_armor"
 rarity = "uncommon"
 enchantments = ["strength"]
 
-[items.armor.strength_bone_cuirass.attributes]
-ARMOR = 4
+["items"."armor"."strength_bone_cuirass"."attributes"]
+"ARMOR" = 4
+"enchantment_base_name" = "Bone Cuirass"

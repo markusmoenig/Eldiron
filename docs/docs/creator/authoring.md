@@ -98,6 +98,69 @@ Right now the authoring metadata is already used by:
 - authored sector description messages in regular gameplay
 - `look` for characters and items in 2D, 3D, and text play when no behavior response supplies a description
 
+## Place a Boneworking lesson
+
+Place the supplied **Boneworking Manual** where a character can obtain it.
+Studying the owned book with **Study Boneworking Manual** requires Boneworking
+10 and permanently teaches the batch bone-plate recipe. Passing the book to
+another character does not remove the first character's knowledge. Books supply
+knowledge; the recipe still needs world-sourced materials, tools and a station.
+
+For a teacher, configure a character's attributes through **Entity Nodes** with
+`profession = "Boneworker"`. An explicit `teaching = ["advanced_boneworking"]`
+attribute can offer that lesson independently of profession. These are entity
+settings, rather than descriptive Authoring metadata.
+
+The learner can use **Learn Advanced Boneworking** on that nearby NPC. To teach
+as part of a conversation, connect the chosen dialogue branch to **Teach** and
+select `learn_boneworking`. The event's subject is the learner; the graph's NPC
+is the teacher. Use **Done** and **Failed** for appropriate dialogue responses.
+The shared action checks the offered lesson, range, learner skill and costs
+again when invoked. Hiding a dialogue option alone does not enforce a lesson.
+
+New Rangers already know this lesson and have Boneworking 10. Other characters
+can learn through either source regardless of class or profession. Existing
+basic bone recipes require no lesson.
+
+## Place Bear inscription
+
+Place the supplied **Patterns of the Bear** manual where it can be obtained,
+or configure a character with `profession = "Inscriber"`. A Teach node can
+choose `learn_bear_inscription`; the manual uses **Study Patterns of the Bear**.
+Both teach the same permanent knowledge at Boneworking 10. No ruleset editor or
+content activation setting is required.
+
+Provide accessible skeleton remains, trees for resin, river or well access,
+and the established sources for a knife, bowl, workbench and ordinary bone
+cuirass. The learned **Carve Bear Sigil Inlay** action creates the inlay from
+bone plate, resin and water. **Inscribe the Bear** then targets one owned bone
+cuirass, consuming the inlay, another resin and water. Both use an owned carving
+tool and a nearby deployed bone workbench. Repair a broken target first.
+
+The result is **Bone Cuirass of the Bear**, with +2 STR while equipped and usable.
+Its identity, quality and condition are retained. The pre-enchanted supplied
+variant can also be placed directly. Item artwork remains editable native MZ;
+the inlay shows a carved bear paw and the manual uses parchment and leather.
+
+## Expose the crafting journal
+
+The default game toolbar includes **Crafting & Knowledge**. Custom screen buttons
+and character input bindings can use `ui.journal`; existing Actions and Spellbook
+panels also provide a **Journal** button. No ruleset editor or recipe activation
+setting is required.
+
+The journal discovers open and currently known recipes from the project's
+supplied rules. Place the world resources, teachers, manuals, tools and stations
+that make those recipes usable in your game. Players can search by recipe,
+ingredient or craft, inspect current requirements, choose an exact owned piece
+for repair or inscription, and pin recipes to their own action bar. Adding
+supplied recipes does not require copying every recipe into every class's
+starting shortcuts.
+
+The Knowledge tab explains permanent acquisitions and active equipment grants.
+The same screen works with solo and online character snapshots; previews are
+read-only and every craft is validated by the host when performed.
+
 ## Bind world resources
 
 A tree image does not automatically provide wood. A placement's `[resource]` binding names a profile from the project's supplied ruleset. The profile owns the supplies, registered output items, interaction requirements and recovery policy; the placement can override only the settings that profile exposes. Choose an existing profile in Authoring; opening a ruleset editor is not required.

@@ -1,7 +1,11 @@
 #[path = "account_security.rs"]
 mod account_security;
+#[path = "external_identity.rs"]
+mod external_identity;
 #[path = "gameplay.rs"]
 mod gameplay;
+#[path = "logout.rs"]
+mod logout;
 #[path = "host_operations.rs"]
 mod operations_impl;
 #[path = "scheduling.rs"]
@@ -68,6 +72,31 @@ pub enum Command {
         security_revision: u64,
         hash: String,
     },
+    ExternalContext {
+        peer: PeerId,
+        reply: oneshot::Sender<Result<external_identity::Context, RejectCode>>,
+    },
+    ExternalChallenge {
+        peer: PeerId,
+        attempt: Uuid,
+        challenge: crate::oidc::Challenge,
+    },
+    ExternalVerified {
+        peer: PeerId,
+        context: external_identity::Context,
+        identity: crate::oidc::VerifiedIdentity,
+        placeholder_hash: String,
+    },
+    ExternalFailed {
+        peer: PeerId,
+        attempt: Uuid,
+    },
+    ExternalUnlinkVerified {
+        peer: PeerId,
+        account: Uuid,
+        security_revision: u64,
+        issuer: String,
+    },
     Close(PeerId),
     Content {
         key: String,
@@ -75,6 +104,7 @@ pub enum Command {
     },
 }
 struct Peer {
+    external_attempt: Option<Uuid>,
     output: mpsc::Sender<Vec<u8>>,
     hello: bool,
     account: Option<Uuid>,
@@ -120,6 +150,8 @@ struct StagedOutput {
     closed: std::collections::HashSet<PeerId>,
 }
 pub struct Host {
+    pub(crate) identity: Option<Arc<crate::oidc::Broker>>,
+    logout: logout::LogoutPolicy,
     staging: Option<StagedOutput>,
     scheduling: rusterix::server::scheduling::RegionSchedulingPolicy,
     started: Instant,
@@ -196,6 +228,8 @@ impl Host {
     ) -> Result<Self, SaveError> {
         let spatial = spatial::configuration(&project)?;
         let scheduling = scheduling::configuration(&project)?;
+        let logout = logout::configuration(&project)?;
+        gameplay::validate_configuration(&project)?;
         let content_revision =
             eldiron_network::project_content_revision(&project).map_err(failure)?;
         let (mut world, directory) = if let Some(store) = store {
@@ -218,7 +252,9 @@ impl Host {
             .server
             .set_region_scheduling(scheduling.clone())
             .map_err(failure)?;
-        Ok(Self {
+        let host = Self {
+            identity: None,
+            logout,
             scheduling,
             staging: None,
             started: Instant::now(),
@@ -238,7 +274,9 @@ impl Host {
             spatial,
             content_revision,
             demo_spawns: 0,
-        })
+        };
+        host.initialize_logout();
+        Ok(host)
     }
     fn send(&mut self, peer: PeerId, msg: ServerMessage) {
         let started = self.observing.then(Instant::now);
@@ -409,6 +447,7 @@ impl Host {
                     }
                 }
             }
+            self.mark_disconnected(connection);
             self.world.game().close_player_connection(connection);
         }
     }
@@ -474,6 +513,8 @@ impl Host {
             Command::Register { .. }
             | Command::Verified { .. }
             | Command::PasswordVerified { .. }
+            | Command::ExternalVerified { .. }
+            | Command::ExternalUnlinkVerified { .. }
             | Command::Close(_) => true,
             Command::Message { message, .. } => !matches!(
                 message,
@@ -501,6 +542,7 @@ impl Host {
                     self.peers.insert(
                         peer,
                         Peer {
+                            external_attempt: None,
                             output,
                             hello: false,
                             account: None,
@@ -527,6 +569,58 @@ impl Host {
                 }
             }
             Command::Close(peer) => self.disconnect(peer),
+            Command::ExternalContext { peer, reply } => {
+                let _ = reply.send(self.external_context(peer));
+            }
+            Command::ExternalUnlinkVerified {
+                peer,
+                account,
+                security_revision,
+                issuer,
+            } => {
+                self.unlink_external(peer, account, security_revision, &issuer)
+                    .await?
+            }
+            Command::ExternalChallenge {
+                peer,
+                attempt,
+                challenge,
+            } => {
+                if self
+                    .peers
+                    .get(&peer)
+                    .is_some_and(|p| p.external_attempt == Some(attempt))
+                {
+                    self.send(
+                        peer,
+                        ServerMessage::ExternalChallenge {
+                            provider: challenge.provider,
+                            verification_uri: challenge.verification_uri,
+                            user_code: challenge.user_code,
+                            expires_in: challenge.expires_in,
+                        },
+                    );
+                }
+            }
+            Command::ExternalVerified {
+                peer,
+                context,
+                identity,
+                placeholder_hash,
+            } => {
+                self.external_verified(peer, context, identity, placeholder_hash)
+                    .await?
+            }
+            Command::ExternalFailed { peer, attempt } => {
+                if let Some(p) = self
+                    .peers
+                    .get_mut(&peer)
+                    .filter(|p| p.external_attempt == Some(attempt))
+                {
+                    p.external_attempt = None;
+                    self.reject(peer, RejectCode::InvalidCredentials);
+                }
+            }
             Command::Content { key, reply } => {
                 let content = self.content.get(&key).cloned();
                 if content.is_none() {
@@ -596,6 +690,7 @@ impl Host {
                     username: username.clone(),
                     password_hash: hash,
                     security_revision: 0,
+                    local_password: true,
                 };
                 directory.accounts.insert(username, account.clone());
                 let World::Saved(session) = &mut self.world else {
@@ -645,6 +740,12 @@ impl Host {
                         mode: self.world.mode(),
                         content_revision: self.content_revision.clone(),
                         account_management: self.world.mode() == HostMode::Persistent,
+                        gameplay_extensions: true,
+                        identity_providers: self
+                            .identity
+                            .as_ref()
+                            .map(|broker| broker.descriptions())
+                            .unwrap_or_default(),
                     },
                 );
             }
@@ -834,6 +935,9 @@ impl Host {
                     self.reject(peer, RejectCode::CharacterUnavailable);
                 } else {
                     self.peers.get_mut(&peer).unwrap().connection = Some(conn);
+                    if matches!(self.logout, logout::LogoutPolicy::SafeDespawn { .. }) {
+                        session.checkpoint().await?;
+                    }
                     self.activate(conn)?;
                 }
             }
@@ -874,6 +978,13 @@ impl Host {
                 }
             }
             ClientMessage::LogoutAll => self.logout_all(peer).await?,
+            ClientMessage::CancelExternalLogin => {
+                if let Some(p) = self.peers.get_mut(&peer) {
+                    p.external_attempt = None;
+                }
+            }
+            ClientMessage::ExternalLogin { .. } => self.reject(peer, RejectCode::Unavailable),
+            ClientMessage::UnlinkExternal { .. } => self.reject(peer, RejectCode::Unavailable),
             ClientMessage::ChangePassword { .. } => self.send(
                 peer,
                 ServerMessage::AccountUpdated(AccountUpdate::Rejected(RejectCode::WrongMode)),
@@ -984,7 +1095,12 @@ impl Host {
                     || p.last.elapsed() > Duration::from_secs(45)
                     || p.account.is_none()
                         && p.connection.is_none()
-                        && p.opened.elapsed() > Duration::from_secs(15)
+                        && p.opened.elapsed()
+                            > Duration::from_secs(if p.external_attempt.is_some() {
+                                600
+                            } else {
+                                15
+                            })
             })
             .map(|(id, _)| *id)
             .collect();
@@ -1018,6 +1134,7 @@ impl Host {
                 session.advance(elapsed).await?;
             }
         }
+        self.settle_logout().await?;
         self.flush_frames()?;
         self.housekeeping().await?;
         if let Some(started) = started {

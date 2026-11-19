@@ -163,20 +163,17 @@ impl IsometricMaterialSources {
             let height = u32::try_from(texture.height)
                 .map_err(|_| RenderError("isometric source height overflow".into()))?;
             data[3 + page] = [data.len() as u32, width, height, 0];
-            for y in 0..height {
-                for x in 0..width {
-                    let (rgba, material) =
-                        tile.source_surface_texel(index, x, y).ok_or_else(|| {
-                            RenderError("invalid isometric material source texel".into())
-                        })?;
-                    data.push([
-                        u32::from_le_bytes(rgba),
-                        material[0].to_bits(),
-                        material[1].to_bits(),
-                        material[3].to_bits(),
-                    ]);
-                }
-            }
+            let texels = tile
+                .source_surface_texels(index)
+                .ok_or_else(|| RenderError("invalid isometric material source texels".into()))?;
+            data.extend(texels.map(|(rgba, material)| {
+                [
+                    u32::from_le_bytes(rgba),
+                    material[0].to_bits(),
+                    material[1].to_bits(),
+                    material[3].to_bits(),
+                ]
+            }));
         }
         let raw: &[u8] = bytemuck::cast_slice(&data);
         let bytes = raw.len() as u64;

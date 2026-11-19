@@ -1,0 +1,94 @@
+# Readable reference for the canonical graph: persistent learning and open beginner recipes.
+
+
+["knowledge"."boneworking_patterns"]
+"name" = "Advanced Boneworking"
+"description" = "Knowledge of efficient batch bone-plate shaping."
+"recipes" = ["shape_bone_batch"]
+
+
+["teaching"."advanced_boneworking"]
+"name" = "Advanced Boneworking"
+"description" = "Learn efficient bone-plate shaping from a Boneworker or manual."
+"knowledge" = ["boneworking_patterns"]
+"skill" = "boneworking"
+"required_skill" = 10
+
+
+["professions"."Boneworker"]
+"name" = "Boneworker"
+"description" = "A craftsperson who can teach advanced boneworking."
+"teaching" = ["advanced_boneworking"]
+"skills" = ["boneworking"]
+
+
+["recipes"."shape_bone_batch"]
+"name" = "Shape Bone Plates in a Batch"
+"skill" = "boneworking"
+"required_skill" = 10
+"recommended_skill" = 20
+"difficulty" = 20
+"fixed_quality" = 100
+"consumes" = [{ "item" = "raw_bone", "quantity" = 3 }, { "item" = "fresh_water", "quantity" = 3 }]
+"produces" = [{ "item" = "bone_plate", "quantity" = 3 }]
+
+["recipes"."shape_bone_batch"."tool"]
+"capability" = "carve_bone"
+"condition_cost" = 1
+
+["recipes"."shape_bone_batch"."station"]
+"capability" = "bonework"
+"range" = 2.0
+
+
+["actions"."learn_boneworking"]
+"name" = "Learn Advanced Boneworking"
+"description" = "Ask a nearby Boneworker to teach efficient bone-plate shaping."
+"kind" = "learn"
+"lesson" = "advanced_boneworking"
+"target" = "any_entity"
+"range" = 2.0
+"cooldown" = 0.0
+
+["actions"."study_boneworking"]
+"name" = "Study Boneworking Manual"
+"description" = "Study an owned manual to learn advanced boneworking permanently."
+"kind" = "learn"
+"lesson" = "advanced_boneworking"
+"target" = "inventory_item"
+"range" = 2.0
+"cooldown" = 0.0
+
+["actions"."craft_shape_bone_batch"]
+"name" = "Shape Bone Plates in a Batch"
+"kind" = "craft"
+"recipe" = "shape_bone_batch"
+"target" = "self"
+"cooldown" = 0.0
+
+
+["items"."books"]
+
+["items"."books"."boneworking_manual"]
+"name" = "Boneworking Manual"
+"description" = "Patterns for shaping three bone plates together. Study it with Boneworking 10."
+"slot" = "tool"
+"category" = "book"
+"appearance_icon" = "icon/boneworking_manual/on"
+"teaching" = ["advanced_boneworking"]
+
+["items"."books"."boneworking_manual"."attributes"]
+"condition" = 100
+
+
+["enchantments"."boneworking_guidance"]
+"name" = "Boneworking Guidance"
+"requires_positive_condition" = true
+"allowed_categories" = ["bone_armor"]
+"modifiers" = []
+"knowledge_grants" = ["boneworking_patterns"]
+
+
+["messages"."learning"]
+"learned_key" = "learning.learned"
+"already_known_key" = "learning.already_known"

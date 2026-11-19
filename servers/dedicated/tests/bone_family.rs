@@ -101,6 +101,7 @@ async fn generated_bone_family_crosses_the_host_codec_with_private_ownership_and
         .apply(&mut document)
         .unwrap();
     project.rules_document.current = document.to_toml().unwrap();
+    project.preview_workbench_rules();
     let mut host = Host::open(project, None).await.unwrap();
     let (alice, mut a, stream, frame) = join(&mut host, "Armor crafter").await;
     let (bob, mut b, other_stream, other_frame) = join(&mut host, "Other player").await;

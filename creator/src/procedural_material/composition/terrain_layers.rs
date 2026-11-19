@@ -3,7 +3,7 @@
 use super::*;
 use rusterix::chunkbuilder::terrain_material::{self, Outputs};
 use rusterix::{PixelSource, Value, ValueContainer};
-use shared::material_composition::CompositionGeometry;
+use shared::material_composition::{CompositionGeometry, CompositionPathWidth};
 use std::collections::BTreeSet;
 
 pub(super) fn authored(project: &Project) -> bool {
@@ -15,6 +15,13 @@ pub(super) fn authored(project: &Project) -> bool {
 fn has_source(p: &ValueContainer) -> bool {
     p.get_source("terrain_material_source").is_some()
         || p.get_source("terrain_material_verge_source").is_some()
+}
+fn same_style(a: &CompositionLayer, b: &CompositionLayer) -> bool {
+    a.material == b.material
+        && a.shape == b.shape
+        && a.feather == b.feather
+        && a.wobble == b.wobble
+        && a.wobble_scale == b.wobble_scale
 }
 fn layers(map: &Map) -> Vec<CompositionLayer> {
     let mut shapes: Vec<_> = map
@@ -38,7 +45,7 @@ fn layers(map: &Map) -> Vec<CompositionLayer> {
         }))
         .collect();
     shapes.sort_by_key(|(order, line, id, _)| (*order, *line, *id));
-    let mut groups: Vec<(i32, CompositionLayer)> = vec![];
+    let mut groups: Vec<(i32, Option<CompositionPathWidth>, CompositionLayer)> = vec![];
     for (order, line, id, p) in shapes {
         for verge in if line { vec![true, false] } else { vec![false] } {
             let key = if verge {
@@ -50,21 +57,19 @@ fn layers(map: &Map) -> Vec<CompositionLayer> {
                 continue;
             };
             let mut layer = CompositionLayer::split(*material);
+            let width_source = line.then_some(if verge {
+                CompositionPathWidth::Verge
+            } else {
+                CompositionPathWidth::Road
+            });
             layer.shape = if line {
                 CompositionShape::MapPath
             } else {
                 CompositionShape::MapArea
             };
-            layer.position = if line {
-                p.get_float_default(
-                    if verge {
-                        "terrain_material_verge_width"
-                    } else {
-                        "terrain_material_width"
-                    },
-                    if verge { 3.2 } else { 1.35 },
-                )
-                .clamp(0.1, 64.)
+            layer.position = if let Some(source) = width_source {
+                let (key, default) = source.property();
+                p.get_float_default(key, default).clamp(0.1, 64.)
             } else {
                 p.get_float_default("terrain_material_inset", 0.)
                     .clamp(0., 64.)
@@ -78,15 +83,13 @@ fn layers(map: &Map) -> Vec<CompositionLayer> {
             layer.wobble_scale = p
                 .get_float_default("terrain_material_noise_scale", 2.7)
                 .clamp(0.1, 16.);
-            let same = |l: &CompositionLayer| {
-                l.material == layer.material
-                    && l.shape == layer.shape
-                    && l.position == layer.position
-                    && l.feather == layer.feather
-                    && l.wobble == layer.wobble
-                    && l.wobble_scale == layer.wobble_scale
-            };
-            if let Some((_, existing)) = groups.iter_mut().find(|(o, l)| *o == order && same(l)) {
+            if let Some((_, _, existing)) = groups
+                .iter_mut()
+                .find(|(o, source, l)| {
+                    *o == order && *source == width_source && l.position == layer.position
+                        && same_style(l, &layer)
+                })
+            {
                 let geometry = existing.geometry.as_mut().unwrap();
                 if line {
                     geometry.linedefs.push(id);
@@ -98,12 +101,33 @@ fn layers(map: &Map) -> Vec<CompositionLayer> {
                     map: map.id,
                     linedefs: if line { vec![id] } else { vec![] },
                     sectors: if line { vec![] } else { vec![id] },
+                    path_width_source: None,
                 });
-                groups.push((order, layer));
+                groups.push((order, width_source, layer));
             }
         }
     }
-    groups.into_iter().map(|(_, l)| l).collect()
+    // Coalesce only neighbouring overlays, preserving other materials'
+    // precedence even when several have the same authored order.
+    let mut combined: Vec<(i32, Option<CompositionPathWidth>, CompositionLayer)> = vec![];
+    for (order, source, layer) in groups {
+        if let Some((prev_order, prev_source, previous)) = combined.last_mut()
+            && source.is_some()
+            && order == *prev_order
+            && source == *prev_source
+            && same_style(previous, &layer)
+        {
+            let left = previous.geometry.as_mut().unwrap();
+            let right = &layer.geometry.as_ref().unwrap().linedefs;
+            if left.linedefs.len() + right.len() <= super::map_shapes::MAX_EDGES {
+                left.linedefs.extend(right);
+                left.path_width_source = source;
+                continue;
+            }
+        }
+        combined.push((order, source, layer));
+    }
+    combined.into_iter().map(|(_, _, l)| l).collect()
 }
 pub(super) fn sync(project: &mut Project) {
     let mut wanted = BTreeSet::new();
@@ -308,6 +332,7 @@ mod tests {
             );
             props.set("terrain_material_soft_edge", Value::Float(0.2));
             props.set("terrain_material_noisy_edge", Value::Float(0.));
+            props.set("terrain_material_width", Value::Float([0.9, 1.6][i]));
         }
         let props = &mut map.find_sector_mut(area).unwrap().properties;
         props.set(
@@ -338,6 +363,8 @@ mod tests {
             sample(&p, result, [0., 1.], Channel::BaseColor),
             vec![0., 1., 0.]
         );
+        assert_eq!(sample(&p, result, [-2., 0.65], Channel::BaseColor), vec![0., 1., 0.]);
+        assert_eq!(sample(&p, result, [2., 0.65], Channel::BaseColor), vec![1., 0., 0.]);
         assert_eq!(
             sample(&p, result, [0., 3.], Channel::BaseColor),
             vec![0.4; 3]

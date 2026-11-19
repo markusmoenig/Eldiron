@@ -738,6 +738,7 @@ fn account_settings_change_password_clear_secrets_and_rejoin_saved_body() {
     p.config="[viewport]\nwidth=960\nheight=540\ngrid_size=32\n[game]\nstart_region='Account UI'\nauto_create_player=false\n[ruleset]\nsource='project'".into();
     p.rules_document.current = String::new();
     p.rules_document.original = String::new();
+    p.preview_workbench_rules();
     let mut c = shared::character::Character::new();
     c.name = "Hero".into();
     c.data = "[attributes]\nplayer=true\ninventory_slots=8".into();

@@ -174,6 +174,8 @@ fn packet_and_byte_limits_fail_explicitly_without_dropping_queued_events() {
             mode: HostMode::Demo,
             content_revision: "x".repeat(100_000),
             account_management:false,
+            gameplay_extensions:false,
+            identity_providers:vec![],
         };
         // These envelopes pass the same transport decoder as real messages.
         codec::decode_server(&codec::encode_server(&packet).unwrap()).unwrap();

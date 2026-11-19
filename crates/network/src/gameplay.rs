@@ -3,6 +3,7 @@
 use crate::*;
 pub use eldiron_runtime::requests::{
     GameRequest, ItemAddress, ItemDestination, ItemOwner, ItemSource, RequestError, RequestOutcome,
+    SelfInspection,
 };
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -65,6 +66,17 @@ pub fn request_from_action(
     let owner = |owner: Option<u32>| match owner {
         None => ItemOwner::World,
         Some(id) if id == actor => ItemOwner::Owned,
+        Some(id)
+            if map.entities.iter().any(|e| {
+                e.id == id
+                    && !e.is_player()
+                    && e.get_mode() != "dead"
+                    && e.attributes.get_bool_default("party_member", false)
+                    && e.attributes.get_uint("party_leader_id") == Some(actor)
+            }) =>
+        {
+            ItemOwner::Follower(id)
+        }
         Some(id) => ItemOwner::Corpse(id),
     };
     let direct = |item: u32, provided: Option<u32>| {
@@ -88,8 +100,24 @@ pub fn request_from_action(
                        index: Option<usize>,
                        slot: &Option<String>|
      -> Result<ItemDestination, RequestError> {
-        if target.is_some_and(|id| id != actor) || index.is_some() && slot.is_some() {
+        if index.is_some() && slot.is_some() {
             return Err(RequestError::Forbidden);
+        }
+        if let Some(id) = target.filter(|id| *id != actor) {
+            if !matches!(owner(Some(id)), ItemOwner::Follower(_)) {
+                return Err(RequestError::Forbidden);
+            }
+            return Ok(if let Some(slot) = slot {
+                ItemDestination::FollowerEquipment {
+                    entity: id,
+                    slot: slot.clone(),
+                }
+            } else {
+                ItemDestination::FollowerInventory {
+                    entity: id,
+                    index: index.map(|i| u32::try_from(i).unwrap_or(u32::MAX)),
+                }
+            });
         }
         Ok(if let Some(slot) = slot {
             ItemDestination::Equipment(slot.clone())
@@ -99,6 +127,12 @@ pub fn request_from_action(
     };
     let request = match action {
         A::Intent(intent) => GameRequest::Intent(intent.clone()),
+        A::SetPlayerCamera(camera) => GameRequest::Camera(*camera),
+        A::TextCommand(text) => match text.trim().to_ascii_lowercase().as_str() {
+            "inventory" | "inv" | "i" => GameRequest::InspectSelf(SelfInspection::Inventory),
+            "stats" => GameRequest::InspectSelf(SelfInspection::Stats),
+            _ => return Err(RequestError::Unsupported),
+        },
         A::ResourceInteract(request) => GameRequest::Resource(request.clone()),
         A::EntityClicked(target, _, intent) => GameRequest::Entity {
             target: *target,
@@ -232,6 +266,7 @@ pub fn request_from_action(
 /// predicted for these requests. Only movement has a prediction history.
 #[derive(Default)]
 pub struct ActionClient {
+    extensions: bool,
     stream: Option<Uuid>,
     next: u64,
     ready: bool,
@@ -244,6 +279,9 @@ pub struct ActionClient {
     retry_after: std::time::Duration,
 }
 impl ActionClient {
+    pub fn set_gameplay_extensions(&mut self, supported: bool) {
+        self.extensions = supported;
+    }
     pub fn disconnect(&mut self) {
         self.ready = false;
         self.frame_ready = false;
@@ -256,7 +294,9 @@ impl ActionClient {
             return;
         }
         if self.stream != Some(stream) {
+            let extensions = self.extensions;
             *self = Self::default();
+            self.extensions = extensions;
         }
         self.stream = Some(stream);
         self.next = next;
@@ -291,6 +331,9 @@ impl ActionClient {
         self.offers = offers.into_iter().take(256).collect();
     }
     pub fn enqueue(&mut self, request: GameRequest) -> Result<(), RequestError> {
+        if !self.extensions && request.requires_extensions() {
+            return Err(RequestError::Unsupported);
+        }
         if !self.ready || !self.frame_ready || self.context.is_none() {
             return Err(RequestError::NotControlled);
         }
@@ -309,6 +352,15 @@ impl ActionClient {
     ) -> Result<(), RequestError> {
         let request = request_from_action(action, map, actor, &self.offers, intent)?;
         self.enqueue(request)
+    }
+    pub fn enqueue_text(
+        &mut self,
+        text: &str,
+        map: &rusterix::Map,
+        actor: u32,
+        rules: &toml::Table,
+    ) -> Result<(), RequestError> {
+        self.enqueue(crate::text_requests::request(text, map, actor, rules)?)
     }
     pub fn advance(&mut self, elapsed: std::time::Duration) -> Option<ClientMessage> {
         if !self.ready {
@@ -372,6 +424,78 @@ impl ActionClient {
 mod tests {
     use super::*;
     use std::time::Duration;
+    #[test]
+    fn gameplay_extensions_are_opt_in_and_survive_character_stream_activation() {
+        let mut client = client();
+        assert_eq!(
+            client.enqueue(GameRequest::Camera(rusterix::PlayerCamera::D2)),
+            Err(RequestError::Unsupported)
+        );
+        client.set_gameplay_extensions(true);
+        client.stream_ready(Uuid::new_v4(), 1);
+        client.context(Uuid::new_v4(), 1, Some(Uuid::new_v4()));
+        client.frame_ready = true;
+        client
+            .enqueue(GameRequest::Camera(rusterix::PlayerCamera::D2))
+            .unwrap();
+        let request = request_from_action(
+            &rusterix::EntityAction::TextCommand("inventory".into()),
+            &rusterix::Map::default(),
+            1,
+            &[],
+            None,
+        )
+        .unwrap();
+        assert_eq!(request, GameRequest::InspectSelf(SelfInspection::Inventory));
+        client.enqueue(request).unwrap();
+        assert!(
+            request_from_action(
+                &rusterix::EntityAction::TextCommand("grant_admin".into()),
+                &rusterix::Map::default(),
+                1,
+                &[],
+                None
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn companion_drag_routes_only_server_assigned_npc_inventory() {
+        let mut map = rusterix::Map::default();
+        let mut follower = rusterix::Entity::default();
+        follower.id = 3;
+        follower.set_attribute("party_member", rusterix::Value::Bool(true));
+        follower.set_attribute("party_leader_id", rusterix::Value::UInt(1));
+        map.entities.push(follower);
+        let action = rusterix::EntityAction::MoveItem {
+            item_id: 10,
+            owner_entity_id: Some(1),
+            target_entity_id: Some(3),
+            to_inventory_index: Some(0),
+            to_equipped_slot: None,
+        };
+        let request = request_from_action(&action, &map, 1, &[], None).unwrap();
+        assert_eq!(
+            request,
+            GameRequest::Transfer {
+                source: ItemSource::Direct(ItemAddress {
+                    item: 10,
+                    owner: ItemOwner::Owned
+                }),
+                destination: ItemDestination::FollowerInventory {
+                    entity: 3,
+                    index: Some(0)
+                }
+            }
+        );
+        let mut client = client();
+        assert_eq!(client.enqueue(request), Err(RequestError::Unsupported));
+        map.entities[0].set_attribute("player", rusterix::Value::Bool(true));
+        assert_eq!(
+            request_from_action(&action, &map, 1, &[], None),
+            Err(RequestError::Forbidden)
+        );
+    }
     fn client() -> ActionClient {
         let mut client = ActionClient::default();
         client.stream_ready(Uuid::new_v4(), 1);

@@ -174,7 +174,7 @@ clothing = ["wool_trousers", "leather_shoes"]
 inventory = []
 
 [classes.Warrior.action_bar]
-crafting = ["rules.craft_twist_cord", "rules.craft_make_stone_knife", "rules.craft_carve_bowl", "rules.craft_build_tanning_frame", "rules.craft_build_bone_workbench", "rules.craft_tan_hide", "rules.craft_cut_straps", "rules.craft_shape_bone", "rules.craft_bone_helm", "rules.craft_bone_cuirass", "rules.craft_bone_greaves", "rules.craft_bone_gauntlets", "rules.craft_bone_boots", "rules.repair_bone_armor"]
+crafting = ["rules.craft_twist_cord", "rules.craft_make_stone_knife", "rules.craft_carve_bowl", "rules.craft_build_tanning_frame", "rules.craft_build_bone_workbench", "rules.craft_tan_hide", "rules.craft_cut_straps", "rules.craft_shape_bone", "rules.craft_bone_helm", "rules.craft_bone_cuirass", "rules.craft_bone_greaves", "rules.craft_bone_gauntlets", "rules.craft_bone_boots", "rules.repair_bone_armor", "rules.learn_boneworking", "rules.study_boneworking", "rules.craft_shape_bone_batch", "rules.learn_bear_inscription", "rules.study_bear_inscription", "rules.craft_bear_inlay", "rules.inscribe_bear_cuirass"]
 
 main = [
   "rules.basic_attack",
@@ -251,7 +251,7 @@ clothing = ["wool_trousers", "leather_shoes"]
 inventory = ["blessed_herb", "moonwater"]
 
 [classes.Cleric.action_bar]
-crafting = ["rules.craft_twist_cord", "rules.craft_make_stone_knife", "rules.craft_carve_bowl", "rules.craft_build_tanning_frame", "rules.craft_build_bone_workbench", "rules.craft_tan_hide", "rules.craft_cut_straps", "rules.craft_shape_bone", "rules.craft_bone_helm", "rules.craft_bone_cuirass", "rules.craft_bone_greaves", "rules.craft_bone_gauntlets", "rules.craft_bone_boots", "rules.repair_bone_armor"]
+crafting = ["rules.craft_twist_cord", "rules.craft_make_stone_knife", "rules.craft_carve_bowl", "rules.craft_build_tanning_frame", "rules.craft_build_bone_workbench", "rules.craft_tan_hide", "rules.craft_cut_straps", "rules.craft_shape_bone", "rules.craft_bone_helm", "rules.craft_bone_cuirass", "rules.craft_bone_greaves", "rules.craft_bone_gauntlets", "rules.craft_bone_boots", "rules.repair_bone_armor", "rules.learn_boneworking", "rules.study_boneworking", "rules.craft_shape_bone_batch", "rules.learn_bear_inscription", "rules.study_bear_inscription", "rules.craft_bear_inlay", "rules.inscribe_bear_cuirass"]
 
 main = [
   "rules.basic_attack",
@@ -268,6 +268,7 @@ main = [
 ]
 
 [classes.Ranger]
+starting_knowledge = ["boneworking_patterns"]
 description = "Mobile hunter trained for bows, light armor, and wilderness survival."
 role = "ranged"
 primary_attributes = ["DEX", "VIT"]
@@ -275,6 +276,7 @@ allowed_weapons = ["bow", "sword", "axe"]
 allowed_armor = ["cloth", "leather", "focus", "bone_armor"]
 
 [classes.Ranger.attributes]
+skill_boneworking = 10
 HP = 14
 MAX_HP = 14
 MP = 0
@@ -324,7 +326,7 @@ clothing = ["wool_trousers", "leather_shoes"]
 inventory = ["wooden_arrows"]
 
 [classes.Ranger.action_bar]
-crafting = ["rules.craft_twist_cord", "rules.craft_make_stone_knife", "rules.craft_carve_bowl", "rules.craft_build_tanning_frame", "rules.craft_build_bone_workbench", "rules.craft_tan_hide", "rules.craft_cut_straps", "rules.craft_shape_bone", "rules.craft_bone_helm", "rules.craft_bone_cuirass", "rules.craft_bone_greaves", "rules.craft_bone_gauntlets", "rules.craft_bone_boots", "rules.repair_bone_armor"]
+crafting = ["rules.craft_twist_cord", "rules.craft_make_stone_knife", "rules.craft_carve_bowl", "rules.craft_build_tanning_frame", "rules.craft_build_bone_workbench", "rules.craft_tan_hide", "rules.craft_cut_straps", "rules.craft_shape_bone", "rules.craft_bone_helm", "rules.craft_bone_cuirass", "rules.craft_bone_greaves", "rules.craft_bone_gauntlets", "rules.craft_bone_boots", "rules.repair_bone_armor", "rules.learn_boneworking", "rules.study_boneworking", "rules.craft_shape_bone_batch", "rules.learn_bear_inscription", "rules.study_bear_inscription", "rules.craft_bear_inlay", "rules.inscribe_bear_cuirass"]
 
 main = [
   "rules.basic_attack",
@@ -340,4 +342,4 @@ main = [
 ]
 
 [classes.Citizen.action_bar]
-crafting = ["rules.craft_twist_cord", "rules.craft_make_stone_knife", "rules.craft_carve_bowl", "rules.craft_build_tanning_frame", "rules.craft_build_bone_workbench", "rules.craft_tan_hide", "rules.craft_cut_straps", "rules.craft_shape_bone", "rules.craft_bone_helm", "rules.craft_bone_cuirass", "rules.craft_bone_greaves", "rules.craft_bone_gauntlets", "rules.craft_bone_boots", "rules.repair_bone_armor"]
+crafting = ["rules.craft_twist_cord", "rules.craft_make_stone_knife", "rules.craft_carve_bowl", "rules.craft_build_tanning_frame", "rules.craft_build_bone_workbench", "rules.craft_tan_hide", "rules.craft_cut_straps", "rules.craft_shape_bone", "rules.craft_bone_helm", "rules.craft_bone_cuirass", "rules.craft_bone_greaves", "rules.craft_bone_gauntlets", "rules.craft_bone_boots", "rules.repair_bone_armor", "rules.learn_boneworking", "rules.study_boneworking", "rules.craft_shape_bone_batch", "rules.learn_bear_inscription", "rules.study_bear_inscription", "rules.craft_bear_inlay", "rules.inscribe_bear_cuirass"]

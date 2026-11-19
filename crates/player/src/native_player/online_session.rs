@@ -16,6 +16,12 @@ pub(super) struct OnlineSession {
     pub(super) mode: Option<HostMode>,
     pub(super) account: bool,
     account_management: bool,
+    identity_providers: Vec<eldiron_network::IdentityProvider>,
+    provider_index: usize,
+    external_pending: bool,
+    external_uri: String,
+    external_code: String,
+    pub(super) external_clipboard: Option<String>,
     pub(super) characters: Vec<CharacterSummary>,
     selected: usize,
     content: HashMap<RegionContentRef, PhysicsContent>,
@@ -29,6 +35,12 @@ pub(super) struct OnlineSession {
     input_cadence: eldiron_network::InputCadence,
 }
 impl OnlineSession {
+    fn clear_external(&mut self) {
+        self.external_pending = false;
+        self.external_uri.clear();
+        self.external_code.clear();
+        self.external_clipboard = None;
+    }
     pub fn for_project(project: &Project) -> std::result::Result<Option<Self>, String> {
         let LaunchPlan::Remote(settings) =
             ProjectPlaySettings::parse(&project.config)?.launch(LaunchPurpose::Player)?
@@ -58,6 +70,12 @@ impl OnlineSession {
             mode: None,
             account: false,
             account_management: false,
+            identity_providers: vec![],
+            provider_index: 0,
+            external_pending: false,
+            external_uri: String::new(),
+            external_code: String::new(),
+            external_clipboard: None,
             characters: vec![],
             selected: 0,
             content: HashMap::new(),
@@ -127,7 +145,107 @@ impl PlayerApplication {
             .unwrap_or_else(|| "Adventurer".into());
         let result = (|| -> std::result::Result<(), String> {
             match command {
+                "external" => {
+                    if online.identity_providers.is_empty() {
+                        return Err("This server has no external login providers".into());
+                    }
+                    online.status = if online.account {
+                        "Linking requires your current password and provider authorization."
+                    } else {
+                        "Choose a provider, then select Continue."
+                    }
+                    .into();
+                }
+                "external_next" => {
+                    if !online.external_pending && !online.identity_providers.is_empty() {
+                        online.provider_index =
+                            (online.provider_index + 1) % online.identity_providers.len();
+                    }
+                }
+                "external_begin" => {
+                    if online.external_pending {
+                        return Err("Finish or cancel the current login first".into());
+                    }
+                    let provider = online
+                        .identity_providers
+                        .get(online.provider_index)
+                        .ok_or("No external login provider")?
+                        .id
+                        .clone();
+                    let current_password = if online.account {
+                        let password = self
+                            .screen
+                            .elements
+                            .ui_state
+                            .get("online.current_password")
+                            .cloned()
+                            .unwrap_or_default();
+                        if !(12..=256).contains(&password.len()) {
+                            self.clear_account_secrets();
+                            return Err(
+                                "Enter your current password to link this login method.".into()
+                            );
+                        }
+                        Some(Secret(password))
+                    } else {
+                        None
+                    };
+                    self.clear_account_secrets();
+                    online.send(ClientMessage::ExternalLogin {
+                        provider,
+                        current_password,
+                    })?;
+                    online.external_pending = true;
+                    online.status = "Requesting provider authorization…".into();
+                }
+                "external_unlink" => {
+                    if !online.account || online.external_pending {
+                        return Err(
+                            "Log in and cancel any pending provider flow before unlinking.".into(),
+                        );
+                    }
+                    let provider = online
+                        .identity_providers
+                        .get(online.provider_index)
+                        .ok_or("No external login provider")?
+                        .id
+                        .clone();
+                    let password = self
+                        .screen
+                        .elements
+                        .ui_state
+                        .get("online.current_password")
+                        .cloned()
+                        .unwrap_or_default();
+                    self.clear_account_secrets();
+                    if !(12..=256).contains(&password.len()) {
+                        return Err(
+                            "Enter your current password to remove this login method.".into()
+                        );
+                    }
+                    online.send(ClientMessage::UnlinkExternal {
+                        provider,
+                        current_password: Secret(password),
+                    })?;
+                    online.status = "Removing login method…".into();
+                }
+                "external_copy_link" => {
+                    if !online.external_uri.is_empty() {
+                        online.external_clipboard = Some(online.external_uri.clone());
+                    }
+                }
+                "external_copy_code" => {
+                    if !online.external_code.is_empty() {
+                        online.external_clipboard = Some(online.external_code.clone());
+                    }
+                }
+                "external_back" => {
+                    let _ = online.send(ClientMessage::CancelExternalLogin);
+                    online.clear_external();
+                    online.status = "External login cancelled.".into();
+                }
                 "connect" => {
+                    online.clear_external();
                     online.link.take();
                     online.actions.disconnect();
                     online.input_cadence = Default::default();
@@ -247,6 +365,7 @@ impl PlayerApplication {
                     }
                 }
                 "logout" => {
+                    online.clear_external();
                     self.clear_account_secrets();
                     let _ = online.send(ClientMessage::Logout);
                     online.link.take();
@@ -265,6 +384,17 @@ impl PlayerApplication {
         }
         let account_navigation = if result.is_ok() && command == "account" {
             Some(lobby::ACCOUNT.to_string())
+        } else if result.is_ok() && command == "external" {
+            Some(lobby::EXTERNAL.to_string())
+        } else if command == "external_back" {
+            Some(
+                if online.account {
+                    lobby::ACCOUNT
+                } else {
+                    lobby::NAME
+                }
+                .to_string(),
+            )
         } else if command == "account_back" {
             Some(if online.playing {
                 online.play_screen.clone()
@@ -303,11 +433,24 @@ impl PlayerApplication {
             client.authority().controlled_entity(),
         ) {
             for action in queued {
-                if let Err(error) =
+                let result = if let rusterix::EntityAction::TextCommand(text) = &action {
+                    online.actions.enqueue_text(
+                        text,
+                        map,
+                        actor,
+                        self.player
+                            .runtime
+                            .assets
+                            .rules_table()
+                            .as_deref()
+                            .unwrap_or(&toml::Table::new()),
+                    )
+                } else {
                     online
                         .actions
                         .enqueue_action(&action, map, actor, Some(&self.screen.intent))
-                {
+                };
+                if let Err(error) = result {
                     notification = Some(error);
                 }
             }
@@ -353,6 +496,7 @@ impl PlayerApplication {
             let result = (|| -> std::result::Result<(), String> {
                 match event {
                     online::Event::Failed(error) => {
+                        online.clear_external();
                         self.clear_account_secrets();
                         online.link.take();
                         online.actions.disconnect();
@@ -378,6 +522,7 @@ impl PlayerApplication {
                     }
                     online::Event::Packet(message) => match message {
                         ServerMessage::AccountUpdated(update) => {
+                            online.clear_external();
                             self.clear_account_secrets();
                             match update {
                                 eldiron_network::AccountUpdate::Rejected(code) => {
@@ -394,6 +539,14 @@ impl PlayerApplication {
                                     online.input_cadence = Default::default();
                                     self.player.reset_remote();
                                     online.status = if success
+                                        == eldiron_network::AccountUpdate::IdentityLinked
+                                    {
+                                        "Login method linked. Log in again to continue.".into()
+                                    } else if success
+                                        == eldiron_network::AccountUpdate::IdentityUnlinked
+                                    {
+                                        "Login method removed. Log in with your password.".into()
+                                    } else if success
                                         == eldiron_network::AccountUpdate::PasswordChanged
                                     {
                                         "Password changed. Log in with your new password.".into()
@@ -439,6 +592,8 @@ impl PlayerApplication {
                             mode,
                             content_revision,
                             account_management,
+                            gameplay_extensions,
+                            identity_providers,
                         } => {
                             if version != eldiron_network::PROTOCOL_VERSION
                                 || content_revision != online.content_revision
@@ -446,6 +601,9 @@ impl PlayerApplication {
                                 return Err("Server and project content differ; install the matching game release".into());
                             }
                             online.account_management = account_management;
+                            online.actions.set_gameplay_extensions(gameplay_extensions);
+                            online.identity_providers = identity_providers;
+                            online.provider_index = 0;
                             online.mode = Some(mode);
                             online.status = if mode == HostMode::Demo {
                                 "Online demo — choose a name and press Play".into()
@@ -461,6 +619,10 @@ impl PlayerApplication {
                         ServerMessage::Authorized {
                             token, characters, ..
                         } => {
+                            if online.external_pending {
+                                navigate = Some(lobby::NAME.into());
+                            }
+                            online.clear_external();
                             online.account = true;
                             online.resume = Some(token);
                             online.characters = characters;
@@ -477,6 +639,25 @@ impl PlayerApplication {
                         ServerMessage::Characters(characters) => {
                             online.characters = characters;
                             online.selected = 0;
+                        }
+                        ServerMessage::ExternalChallenge {
+                            provider,
+                            verification_uri,
+                            user_code,
+                            expires_in,
+                        } => {
+                            if online.external_pending
+                                && online
+                                    .identity_providers
+                                    .get(online.provider_index)
+                                    .is_some_and(|p| p.id == provider)
+                            {
+                                online.external_uri = verification_uri;
+                                online.external_code = user_code.0;
+                                online.status = format!(
+                                    "Visit the link in your browser and enter this code. Expires in {expires_in} seconds."
+                                );
+                            }
                         }
                         ServerMessage::CharacterCreated { character, .. } => {
                             online.request = None;
@@ -555,6 +736,7 @@ impl PlayerApplication {
                             online.request_baseline();
                         }
                         ServerMessage::Rejected { code } => {
+                            online.clear_external();
                             online.status = format!("Server: {code:?}");
                             if code == RejectCode::InvalidCredentials {
                                 online.resume = None;
@@ -566,6 +748,7 @@ impl PlayerApplication {
                 Ok(())
             })();
             if let Err(error) = result {
+                online.clear_external();
                 self.clear_account_secrets();
                 online.link.take();
                 online.actions.disconnect();
@@ -625,6 +808,51 @@ impl PlayerApplication {
         for widget in self.screen.elements.text_widgets.values_mut() {
             if widget.name == "OnlineStatus" {
                 widget.text = online.status.clone();
+            }
+            if widget.name == "OnlineProvider" {
+                widget.text = online
+                    .identity_providers
+                    .get(online.provider_index)
+                    .map(|p| format!("Provider: {}", p.label))
+                    .unwrap_or_default();
+            }
+            if widget.name == "OnlineExternalCode" {
+                widget.text = online.external_code.clone();
+            }
+            if widget.name == "OnlineExternalUri" {
+                widget.text = online.external_uri.clone();
+            }
+        }
+        for name in ["OnlineExternal", "OnlineLinkIdentity"] {
+            if online.identity_providers.is_empty() {
+                if !self
+                    .screen
+                    .elements
+                    .widgets_to_hide
+                    .iter()
+                    .any(|n| n == name)
+                {
+                    self.screen.elements.widgets_to_hide.push(name.into());
+                }
+            } else {
+                self.screen.elements.widgets_to_hide.retain(|n| n != name);
+            }
+        }
+        for name in [
+            "ExternalPassword",
+            "ExternalPasswordLabel",
+            "ExternalUnlink",
+        ] {
+            if online.account {
+                self.screen.elements.widgets_to_hide.retain(|n| n != name);
+            } else if !self
+                .screen
+                .elements
+                .widgets_to_hide
+                .iter()
+                .any(|n| n == name)
+            {
+                self.screen.elements.widgets_to_hide.push(name.into());
             }
         }
         if online.account && online.account_management {

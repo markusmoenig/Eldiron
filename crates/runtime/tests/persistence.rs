@@ -1204,6 +1204,7 @@ fn private_metadata_commits_fail_closed_without_publishing_an_uncommitted_head()
         for mode in [1,2] {
             let mut project=Project::new();project.regions[0].name="Private metadata".into();project.regions[0].map.name="Private metadata".into();
             project.config="[game]\nstart_region='Private metadata'\nauto_create_player=false\n[ruleset]\nsource='project'".into();project.rules_document.current=String::new();project.rules_document.original=String::new();
+            project.preview_workbench_rules();
             let fault=Arc::new(AtomicU8::new(0));
             let mut session=DurableSession::open(project,FaultStore{inner:Default::default(),fault:fault.clone()},SavePurpose::Dedicated,SessionOptions{create_local_player:false,..Default::default()}).await.unwrap();
             let revision=session.saved().revision;

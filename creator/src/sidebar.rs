@@ -299,6 +299,44 @@ impl Sidebar {
         true
     }
 
+    fn project_add_menu() -> TheContextMenu {
+        TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new("Add Region".to_string(), TheId::named("Add Region")),
+                TheContextMenuItem::new("Add Character".to_string(), TheId::named("Add Character")),
+                TheContextMenuItem::new("Add Animal".to_string(), TheId::named("Add Animal")),
+                TheContextMenuItem::new("Add Item".to_string(), TheId::named("Add Item")),
+                TheContextMenuItem::new(fl!("tileset_add"), TheId::named("Add Tileset")),
+                TheContextMenuItem::new("Add Screen".to_string(), TheId::named("Add Screen")),
+                TheContextMenuItem::new("Add Avatar".to_string(), TheId::named("Add Avatar")),
+                TheContextMenuItem::new(
+                    "Add Font Asset".to_string(),
+                    TheId::named("Add Font Asset"),
+                ),
+                TheContextMenuItem::new(
+                    "Add Audio Asset".to_string(),
+                    TheId::named("Add Audio Asset"),
+                ),
+            ],
+            ..Default::default()
+        }
+    }
+
+    fn animal_creation(project: &Project) -> Result<ProjectUndoAtom, String> {
+        let rules = project.rules_source()?.parse::<shared::entity_graph::RulesTable>()
+            .map_err(|error| error.to_string())?;
+        let mut character = Character::default();
+        character.name = "NewAnimal".into();
+        character.map.name = character.name.clone();
+        character.data = "[attributes]\nplayer = false\n".into();
+        let configuration = shared::entity_graph::import_character(
+            "[attributes]\nanimal = ''\nplayer = false\n", &rules,
+        )?;
+        Ok(ProjectUndoAtom::AddAnimal(
+            character, serde_json::to_value(configuration).map_err(|error| error.to_string())?,
+        ))
+    }
+
     pub fn init_ui(
         &mut self,
         ui: &mut TheUI,
@@ -435,25 +473,7 @@ impl Sidebar {
         let mut add_button = TheTraybarButton::new(TheId::named("Project Add"));
         add_button.set_icon_name("icon_role_add".to_string());
         add_button.set_status_text(&fl!("status_project_add_button"));
-        add_button.set_context_menu(Some(TheContextMenu {
-            items: vec![
-                TheContextMenuItem::new("Add Region".to_string(), TheId::named("Add Region")),
-                TheContextMenuItem::new("Add Character".to_string(), TheId::named("Add Character")),
-                TheContextMenuItem::new("Add Item".to_string(), TheId::named("Add Item")),
-                TheContextMenuItem::new(fl!("tileset_add"), TheId::named("Add Tileset")),
-                TheContextMenuItem::new("Add Screen".to_string(), TheId::named("Add Screen")),
-                TheContextMenuItem::new("Add Avatar".to_string(), TheId::named("Add Avatar")),
-                TheContextMenuItem::new(
-                    "Add Font Asset".to_string(),
-                    TheId::named("Add Font Asset"),
-                ),
-                TheContextMenuItem::new(
-                    "Add Audio Asset".to_string(),
-                    TheId::named("Add Audio Asset"),
-                ),
-            ],
-            ..Default::default()
-        }));
+        add_button.set_context_menu(Some(Self::project_add_menu()));
 
         let mut remove_button = TheTraybarButton::new(TheId::named("Project Remove"));
         remove_button.set_icon_name("icon_role_remove".to_string());
@@ -2881,6 +2901,15 @@ impl Sidebar {
                             );
                         }
                     }
+                } else if id.name == "Add Animal" {
+                    match Self::animal_creation(project) {
+                        Ok(atom) => {
+                            atom.redo(project, ui, ctx, server_ctx);
+                            server_ctx.history.write().add_undo(atom, ctx);
+                            redraw = true;
+                        }
+                        Err(error) => ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error)),
+                    }
                 } else if id.name == "Add Character" {
                     // Add Character
                     let atom = ProjectUndoAtom::AddCharacter(Character::default());
@@ -3862,6 +3891,10 @@ impl Sidebar {
         #[cfg(feature = "native-render")]
         { self.minimap_geometry.deactivate(ui); self.minimap_scene.deactivate(ui); self.minimap_palette.deactivate(ui); }
         self.reset_for_project_switch();
+        if let Some(button) = ui.get_widget("Project Add") {
+            button.set_context_menu(Some(Self::project_add_menu()));
+        }
+
 
         _ = server_ctx.reference.write()
             .scene_handler
@@ -3944,25 +3977,12 @@ impl Sidebar {
 
         // ui.set_widget_value("ConfigEdit", ctx, TheValue::Text(project.config.clone()));
         server_ctx.config.read_config(&project.config);
-        {
-            let mut rusterix = server_ctx.reference.write();
-            rusterix.assets.palette = project.palette.clone();
-            rusterix.assets.palette_material_ids = palette_material_ids(project);
-            rusterix.set_tiles(project.tiles.clone(), true);
-        }
-
-        // ctx.ui.send(TheEvent::Custom(
-        //     TheId::named("Update Tilepicker"),
-        //     TheValue::Empty,
-        // ));
-
-        // ctx.ui.send(TheEvent::Custom(
-        //     TheId::named("Update Materialpicker"),
-        //     TheValue::Empty,
-        // ));
 
         self.show_actions(ui, ctx, project, server_ctx);
-        self.update_tiles(ui, ctx, project, &server_ctx.jobs, &server_ctx.reference);
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Tilepicker"),
+            TheValue::Empty,
+        ));
 
         server_ctx.tools.write().get_current_tool().tool_event(
             ToolEvent::Activate,
@@ -5305,6 +5325,52 @@ impl Sidebar {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn animals_use_the_character_workflow_and_have_character_models() {
+        let project = Project::default();
+        let menu = Sidebar::project_add_menu();
+        assert!(menu.items.iter().any(|item| item.id.name == "Add Character"));
+        let animal = menu.items.iter().find(|item| item.id.name == "Add Animal").unwrap();
+        assert!(animal.sub_menu.is_none());
+        let models = crate::appearance_workspace::data::character_models(&project);
+        for animal in ["deer", "pig", "cow", "sheep", "goat", "horse", "chicken"] {
+            assert!(models.contains(&animal.into()));
+        }
+        assert!(!models.iter().any(|model| model.ends_with("_remains")));
+        assert!(!models.contains(&"hunting_bow".into()));
+    }
+
+    #[test]
+    fn add_animal_opens_species_configuration_and_undo_restores_the_same_graph() {
+        let mut project = Project::default();
+        let atom = Sidebar::animal_creation(&project).unwrap();
+        let ProjectUndoAtom::AddAnimal(character, configuration) = &atom else {
+            panic!("animal creation must preserve its initial configuration");
+        };
+        let id = character.id;
+        let key = shared::entity_graph::character_key(id);
+        let doc: theframework::thegraph::GraphDocument =
+            serde_json::from_value(configuration.clone()).unwrap();
+        assert!(doc.nodes.iter().any(|node| node.definition.as_deref() == Some("entity_animal")));
+        assert!(!doc.connections.is_empty());
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(1000, 700, 1.);
+        ui.init(&mut ctx);
+        let mut server = CreatorContext::default();
+        let mut sidebar = Sidebar::new();
+        sidebar.init_ui(&mut ui, &mut ctx, &mut server);
+        sidebar.load_from_project(&mut ui, &mut ctx, &mut server, &mut project);
+        atom.redo(&mut project, &mut ui, &mut ctx, &mut server);
+        assert_eq!(server.shared.pc, ProjectContext::CharacterData(id));
+        assert_eq!(project.node_graphs[&key], *configuration);
+        assert!(project.characters[&id].source.is_empty());
+        atom.undo(&mut project, &mut ui, &mut ctx, &mut server);
+        assert!(!project.characters.contains_key(&id));
+        assert!(!project.node_graphs.contains_key(&key));
+        atom.redo(&mut project, &mut ui, &mut ctx, &mut server);
+        assert_eq!(project.node_graphs[&key], *configuration);
+    }
 
     #[test]
     fn rules_navigation_requires_an_internal_build_and_preserves_the_document() {

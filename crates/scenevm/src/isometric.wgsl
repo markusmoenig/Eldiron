@@ -191,6 +191,12 @@ fn visibility(point:vec3<f32>,normal:vec3<f32>,direction:vec3<f32>,distance:f32,
     }
     return visible;
 }
+fn material_highlight(normal:vec3<f32>, direction:vec3<f32>, rough:f32, metal:f32) -> f32 {
+    let half_vector=direction+vec3<f32>(-0.61237246,0.5,0.61237246);
+    if dot(half_vector,half_vector)<=0.000001 {return 0.0;}
+    return pow(max(dot(normal,normalize(half_vector)),0.0),2.0+(1.0-rough)*62.0)
+        *(0.04+metal*0.6)*(1.0-rough*0.75);
+}
 @compute @workgroup_size(8,8)
 fn main(@builtin(global_invocation_id) id:vec3<u32>) {
     if id.x>=u.counts.x||id.y>=u.counts.y{return;}
@@ -200,12 +206,17 @@ fn main(@builtin(global_invocation_id) id:vec3<u32>) {
     let has_surface=surface.y!=0x7f800000u;
     let pixel=vec2<f32>(id.xy)+0.5;let height=select(0.0,bitcast<f32>(surface.y&0xffffff00u),has_surface);let point=world_at(pixel,height);
     var rgb=pow(rgba.rgb,vec3<f32>(2.2));
-    if has_surface && (surface.y&255u)!=1u {
-        let tint=(surface.y&255u)==2u;
+    if has_surface && (surface.y&3u)!=1u {
+        let tint=(surface.y&3u)==2u;
         let normal=decode_normal(surface.x);let rough=f32((surface.x>>16u)&15u)/15.0;let metal=f32((surface.x>>20u)&15u)/15.0;let emission=f32(surface.x>>24u)/255.0;
-        var illumination=u.ambient.xyz;var specular=vec3<f32>(0.0);
+        let ambient_visibility=1.0-f32((surface.y>>2u)&63u)/63.0;
+        var illumination=u.ambient.xyz*ambient_visibility;var specular=vec3<f32>(0.0);
         let sun=select(max(dot(normal,u.sun.xyz),0.0),max(u.sun.y,0.0),tint);
-        if sun>0.0&&any(u.sun_color.xyz>vec3<f32>(0.0)){illumination+=u.sun_color.xyz*sun*visibility(point,normal,u.sun.xyz,u.shadow.x,-1);}
+        if sun>0.0&&any(u.sun_color.xyz>vec3<f32>(0.0)) {
+            let radiance=u.sun_color.xyz*visibility(point,normal,u.sun.xyz,u.shadow.x,-1);
+            illumination+=radiance*sun;
+            if !tint {specular+=radiance*material_highlight(normal,u.sun.xyz,rough,metal);}
+        }
         for(var i=0u;i<u.counts.z;i++) {
             let light=lights[i];let v=light.position.xyz-point;let d2=max(dot(v,v),0.01);let distance=sqrt(d2);
             if distance>=light.parameters.y {continue;}
@@ -214,8 +225,7 @@ fn main(@builtin(global_invocation_id) id:vec3<u32>) {
             let fall=select(linear_fall,linear_fall*linear_fall*(3.0-2.0*linear_fall),light.parameters.w>0.0);
             let radiance=light.color.xyz*(light.parameters.x*fall/d2)*visibility(point,normal,direction,distance,i32(i));
             illumination+=radiance*diffuse;
-            let half_vector=direction+vec3<f32>(-0.61237246,0.5,0.61237246);
-            if !tint && dot(half_vector,half_vector)>0.000001 {specular+=radiance*pow(max(dot(normal,normalize(half_vector)),0.0),2.0+(1.0-rough)*62.0)*(0.04+metal*0.6)*(1.0-rough*0.75);}
+            if !tint {specular+=radiance*material_highlight(normal,direction,rough,metal);}
         }
         rgb=rgb*(illumination+emission)+specular;
     }

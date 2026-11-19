@@ -5412,6 +5412,7 @@ impl Editor {
         update_server_icons: &mut bool,
         redraw: &mut bool,
     ) {
+        let mut profile = crate::misc::FrameProfile::new();
         self.update_counter = 0;
         self.sidebar.startup = true;
 
@@ -5421,8 +5422,10 @@ impl Editor {
 
         {
             let mut rusterix = self.server_ctx.reference.write();
-            rusterix.assets.config = self.documents.project.config.clone();
-            sync_editor_visual_assets(&mut rusterix, &self.documents.project);
+            eldiron_presentation::project_bridge::sync_editor_content_assets(
+                &mut rusterix,
+                &self.documents.project,
+            );
             rusterix
                 .scene_handler
                 .sync_base_render_settings(&self.documents.project.config);
@@ -5433,6 +5436,7 @@ impl Editor {
                 rusterix.server.set_time(&map.id, self.documents.project.time);
             }
         }
+        profile.lap("activate_content_assets");
 
         // Activation already published these assets. Do not compile the same
         // icon/model library again on the first redraw.
@@ -5465,7 +5469,7 @@ impl Editor {
 
         self.sidebar
             .load_from_project(ui, ctx, &mut self.server_ctx, &mut self.documents.project);
-        self.mapeditor.load_from_project(ui, ctx, &self.documents.project, &self.server_ctx.reference);
+        self.mapeditor.reset_project_selection();
         if let Some(widget) = ui.get_widget("Editor View Switch")
             && let Some(group) = widget.as_group_button()
         {
@@ -5485,6 +5489,7 @@ impl Editor {
         }
         *update_server_icons = true;
         *redraw = true;
+        profile.lap("activate_sidebar_and_view");
 
         self.server_ctx.reference.publish_palette(&self.documents.project.palette);
         {
@@ -5498,7 +5503,6 @@ impl Editor {
                 .collect();
             rusterix.assets.palette_material_ids =
                 crate::undo::project_helper::palette_material_ids(&self.documents.project);
-            rusterix.set_tiles(self.documents.project.tiles.clone(), true);
         }
         self.server_ctx.jobs.scene_mut().set_palette(
             self.documents.project.palette.clone(),
@@ -5513,6 +5517,7 @@ impl Editor {
         // Project activation is a hard scene boundary. Rebuild even when two
         // tabs were cloned from the same project and therefore reuse map UUIDs.
         crate::utils::editor_scene_full_rebuild(&self.documents.project, &self.server_ctx);
+        profile.lap("activate_scene_assets");
         if self.server_ctx.shared.editor_view_mode != EditorViewMode::D2 {
             self.server_ctx.tools.write()
                 .update_geometry_overlay_3d(&mut self.documents.project, &mut self.server_ctx);
@@ -7904,17 +7909,14 @@ impl Editor {
     }
 }
 
-impl TheTrait for Editor {
-    fn native_ui_rendering(&self) -> bool {
-        true
+impl Editor {
+    #[cfg(feature = "native-render")]
+    pub(crate) fn for_project_open() -> Self {
+        // The first successful open replaces this placeholder document.
+        Self::with_project(Project::new())
     }
 
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        let project = Self::load_empty_project_template();
-
+    fn with_project(project: Project) -> Self {
         #[cfg(all(
             feature = "self-update",
             any(target_os = "windows", target_os = "linux", target_os = "macos")
@@ -8002,6 +8004,16 @@ impl TheTrait for Editor {
             selected_example_manifest_id: None,
             iso_paint_render_cache: SharedIsoPaintRenderCache::default(),
         }
+    }
+}
+
+impl TheTrait for Editor {
+    fn native_ui_rendering(&self) -> bool {
+        true
+    }
+
+    fn new() -> Self {
+        Self::with_project(Self::load_empty_project_template())
     }
 
     fn init(&mut self, _ctx: &mut TheContext) {

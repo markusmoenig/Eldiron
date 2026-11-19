@@ -158,3 +158,15 @@ frame sequences. An optional `--before <recipe>` adds an earlier MZ recipe to th
 comparison without changing any project. For the actual scene paths, use
 `appearance_scene` with `--clothing --orc --default-palette` and either starter
 project.
+
+## Leather armor family
+
+`leather_hood`, `leather_leggings`, `leather_gloves` and `leather_boots` add
+standalone world meshes alongside the existing vest. Their `garment_*` recipes
+select fitted wearer surfaces, preserve skin weights and use the shared leather
+materials. The hood binds the hair cap and neck, leggings bind pelvis and legs,
+gloves bind palms and thumbs, and boots bind the existing foot surfaces.
+
+The leather workbench, flint awl, fox inlay and two manuals also have editable
+world meshes. Their separate inventory artwork uses ordinary palette-bound MZ
+shape, color, transform and composition rows under `../procedural_icons`.

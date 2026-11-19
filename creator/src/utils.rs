@@ -914,7 +914,11 @@ pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &CreatorContext)
     let (tile_list, tile_indices) = {
         let mut rusterix = server_ctx.reference.write();
         rusterix.set_block_props(project.block_props.clone());
-        rusterix.set_tiles_for_maps(project.tiles.clone(), true, material_maps);
+        if editor_uses_iso_source_tiles(project, server_ctx) {
+            rusterix.set_tiles_for_maps_cpu(project.tiles.clone(), material_maps);
+        } else {
+            rusterix.set_tiles_for_maps(project.tiles.clone(), true, material_maps);
+        }
         (
             rusterix.assets.tile_list.clone(),
             rusterix.assets.tile_indices.clone(),
@@ -928,16 +932,19 @@ pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &CreatorContext)
     server_ctx.reference.write().set_dirty();
 }
 
+fn editor_uses_iso_source_tiles(project: &Project, server_ctx: &CreatorContext) -> bool {
+    server_ctx.shared.editor_view_mode == EditorViewMode::D2
+        && server_ctx.shared.editing_surface.is_none()
+        && project
+            .get_map(&server_ctx.shared)
+            .is_some_and(|map| map.camera == MapCamera::TwoDIso)
+}
+
 /// Install procedural bake results without clearing or rebuilding the visible map.
 pub fn editor_scene_refresh_material_textures(project: &Project, server_ctx: &CreatorContext) {
     let (tiles, indices) = {
         let mut rusterix = server_ctx.reference.write();
-        if server_ctx.shared.editor_view_mode == EditorViewMode::D2
-            && server_ctx.shared.editing_surface.is_none()
-            && project
-                .get_map(&server_ctx.shared)
-                .is_some_and(|map| map.camera == MapCamera::TwoDIso)
-        {
+        if editor_uses_iso_source_tiles(project, server_ctx) {
             rusterix.refresh_tile_textures_cpu(project.tiles.clone());
         } else {
             rusterix.refresh_tile_textures(project.tiles.clone(), true);

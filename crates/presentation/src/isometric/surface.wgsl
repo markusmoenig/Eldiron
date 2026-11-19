@@ -121,5 +121,5 @@ fn raster(@builtin(global_invocation_id) id:vec3<u32>) {
         owners[dst]=p.contact.x;
     }
     if p.canvas.z!=0u {terrain[dst]=vec2<f32>(depth,world.y);surfaces[dst]=packed(p.normal.xyz,world.y,rme);}
-    else {surfaces[dst]=packed(vec3<f32>(0.0,1.0,0.0),world.y,vec3<f32>(0.95,0.0,0.0));}
+    else {surfaces[dst]=packed(vec3<f32>(0.0,1.0,0.0),world.y,rme);}
 }

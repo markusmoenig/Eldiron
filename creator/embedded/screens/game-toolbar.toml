@@ -120,6 +120,7 @@ buttons = [
   { command = "ui.equipment" },
   { command = "ui.inventory" },
   { command = "ui.spellbook" },
+  { command = "ui.journal" },
 ]
 
 [[ui.groups]]

@@ -68,11 +68,14 @@ fn one() -> f32 {
 #[serde(deny_unknown_fields)]
 struct Enchantment {
     name: String,
+    epithet: Option<String>,
     #[serde(default = "yes")]
     requires_positive_condition: bool,
     #[serde(default)]
     allowed_categories: Vec<String>,
     modifiers: Vec<Modifier>,
+    #[serde(default)]
+    knowledge_grants: Vec<String>,
 }
 fn yes() -> bool {
     true
@@ -82,9 +85,11 @@ fn yes() -> bool {
 pub struct ResolvedEnchantment {
     pub id: String,
     pub name: String,
+    pub epithet: Option<String>,
     pub requires_positive_condition: bool,
     pub allowed_categories: BTreeSet<String>,
     pub modifiers: Vec<crate::ResolvedConditionModifier>,
+    pub knowledge_grants: BTreeSet<String>,
 }
 
 pub fn resolve_enchantments(root: &Table) -> Result<BTreeMap<String, ResolvedEnchantment>, String> {
@@ -103,10 +108,14 @@ pub fn resolve_enchantments(root: &Table) -> Result<BTreeMap<String, ResolvedEnc
         if id.trim().is_empty()
             || id.len() > 128
             || parsed.name.trim().is_empty()
-            || parsed.modifiers.is_empty()
+            || parsed
+                .epithet
+                .as_ref()
+                .is_some_and(|s| s.trim().is_empty() || s != s.trim() || s.len() > 128)
+            || (parsed.modifiers.is_empty() && parsed.knowledge_grants.is_empty())
         {
             return Err(format!(
-                "enchantments.{id} needs an identity, name and modifiers"
+                "enchantments.{id} needs an identity, name and modifiers or knowledge grants"
             ));
         }
         for category in &parsed.allowed_categories {
@@ -125,6 +134,19 @@ pub fn resolve_enchantments(root: &Table) -> Result<BTreeMap<String, ResolvedEnc
             }
         }
         let mut targets = BTreeSet::new();
+        let mut grants = BTreeSet::new();
+        for knowledge in &parsed.knowledge_grants {
+            if !grants.insert(knowledge.clone())
+                || root
+                    .get("knowledge")
+                    .and_then(|v| v.get(knowledge))
+                    .is_none()
+            {
+                return Err(format!(
+                    "enchantments.{id} has duplicate or unknown knowledge grants"
+                ));
+            }
+        }
         let mut modifiers = Vec::new();
         for m in parsed.modifiers {
             if !declared_attribute(root, &m.attribute)
@@ -151,9 +173,11 @@ pub fn resolve_enchantments(root: &Table) -> Result<BTreeMap<String, ResolvedEnc
             ResolvedEnchantment {
                 id: id.clone(),
                 name: parsed.name,
+                epithet: parsed.epithet,
                 requires_positive_condition: parsed.requires_positive_condition,
                 allowed_categories: parsed.allowed_categories.into_iter().collect(),
                 modifiers,
+                knowledge_grants: grants,
             },
         );
     }

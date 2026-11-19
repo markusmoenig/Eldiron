@@ -61,7 +61,11 @@ pub struct TerrainContact {
     pub unit: f32,
 }
 impl TerrainContact {
-    pub fn hides(&self, depth: f32, height: f32, pixel_y: f32) -> bool {
+    pub fn hides(&self, depth: f32, height: f32, pixel_y: f32, surface_height: Option<f32>) -> bool {
+        if let Some(surface_height) = surface_height {
+            // Height increases toward the camera along the ray for this pixel.
+            return depth.is_finite() && height > surface_height + 0.06;
+        }
         height > self.foot_height + 0.06
             && depth
                 > self.foot_depth + (self.foot_y - pixel_y - 0.5) / self.unit * 0.6666667 + 0.02
@@ -101,10 +105,10 @@ impl<'a> Sprite<'a> {
         if let Some(avatar) = self.avatar {
             return Some(SpriteImage {
                 data: &avatar.pixels,
-                width: 128,
-                height: 128,
-                anchor: Vec2::new(64., 100.),
-                unit: 32.,
+                width: avatar.size[0],
+                height: avatar.size[1],
+                anchor: Vec2::from(avatar.anchor),
+                unit: avatar.pixels_per_unit,
                 surface: avatar.surface.as_deref(),
                 bitmap: false,
                 prelit: false,

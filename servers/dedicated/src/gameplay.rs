@@ -3,6 +3,43 @@ use eldiron_runtime::{
     persistence::{ActionJournal, SaveError},
     requests::RequestOutcome,
 };
+pub(super) fn validate_configuration(project: &Project) -> Result<(), SaveError> {
+    let config = project.config.parse::<toml::Table>().map_err(failure)?;
+    if let Some(table) = config.get("multiplayer").and_then(|v| v.get("gameplay")) {
+        let table = table
+            .as_table()
+            .ok_or_else(|| failure("[multiplayer.gameplay] must be a table"))?;
+        if table.keys().any(|key| key != "allowed_cameras") {
+            return Err(failure("Unknown multiplayer.gameplay setting"));
+        }
+        if let Some(cameras) = table.get("allowed_cameras") {
+            let cameras = cameras
+                .as_array()
+                .filter(|c| c.len() <= 8)
+                .ok_or_else(|| failure("allowed_cameras must list at most eight camera modes"))?;
+            let mut unique = std::collections::HashSet::new();
+            for camera in cameras {
+                let camera = camera
+                    .as_str()
+                    .ok_or_else(|| failure("Camera modes must be strings"))?;
+                if !matches!(
+                    camera,
+                    "2d" | "2d_grid"
+                        | "2d_iso"
+                        | "2d_iso_grid"
+                        | "iso"
+                        | "firstp"
+                        | "firstp_grid"
+                        | "firstp_mouse"
+                ) || !unique.insert(camera)
+                {
+                    return Err(failure("Unknown or duplicate allowed camera mode"));
+                }
+            }
+        }
+    }
+    Ok(())
+}
 fn apply(
     game: &mut GameSession,
     conn: PlayerConnectionId,

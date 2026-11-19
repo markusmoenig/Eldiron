@@ -24,6 +24,8 @@ pub use bindings::*;
 pub use button_policy::*;
 mod catalog_layout;
 pub use catalog_layout::*;
+mod journal;
+pub use journal::*;
 mod choice_controller;
 mod container_layout;
 mod equipment_layout;

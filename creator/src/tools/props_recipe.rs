@@ -56,7 +56,6 @@ pub fn preview_snapshot(project: &Project) -> Project {
     host.palette = project.palette.clone();
     host.config = project.config.clone();
     host.rules = project.rules.clone();
-    host.rules_document = project.rules_document.clone();
     // Only direct bitmap inputs are needed. Copying every painted world page
     // here made opening a browser depend on the size of the entire map.
     fn bitmap_inputs(doc: &Document, project: &Project, ids: &mut std::collections::HashSet<Uuid>) {

@@ -678,6 +678,15 @@ pub fn create_remains(ctx: &mut RegionCtx, entity_id: u32) -> Result<Option<Uuid
         return Uuid::parse_str(id).map(Some).map_err(|e| e.to_string());
     }
     let position = entity.position;
+    let remains_geometry = entity
+        .attributes
+        .get_str("remains_geometry")
+        .map(str::to_owned);
+    let remains_yaw = entity
+        .orientation
+        .x
+        .atan2(entity.orientation.y)
+        .to_degrees();
     let id = Uuid::new_v4();
     let binding = ResourceBinding {
         profile,
@@ -765,6 +774,10 @@ pub fn create_remains(ctx: &mut RegionCtx, entity_id: u32) -> Result<Option<Uuid
         item.set_attribute(key, value);
     }
     item.set_attribute("corpse_entity_id", Value::UInt(entity_id));
+    if let Some(geometry) = remains_geometry {
+        item.set_attribute("appearance_geometry", Value::Str(geometry));
+        item.set_attribute("appearance_yaw", Value::Float(remains_yaw));
+    }
     if let Some(index) = existing_corpse {
         ctx.map.items[index] = item;
     } else {

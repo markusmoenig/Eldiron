@@ -267,17 +267,10 @@ impl Worker {
                             });
                         }
                         let tile_size = super::pixel_style::bake_size(job.pixels_per_tile);
-                        let page_count = layout
-                            .as_ref()
-                            .map_or(1, |p| u64::from(p.size[0]) * u64::from(p.size[1]));
                         let repeat_size = repeat.map(|period| period.map(|v| (v * tile_size as f32).ceil().max(1.) as usize));
                         if repeat_size.is_some_and(|s| s.iter().any(|v| *v > 8192)) { return Err("Repeating material period exceeds the 8192 pixel texture limit".into()); }
                         let texels = repeat_size.map_or(tile_size * tile_size, |s| s[0] * s[1]);
-                        if page_count * u64::from(animation.frames) * (texels * 8) as u64
-                            > 64 * 1024 * 1024
-                        {
-                            return Err("Animated material pages exceed the 64 MB bake budget; reduce resolution, frame count or surface coverage".into());
-                        }
+                        super::composition::surface_pages::fit_bake_budget(&mut layout, texels, animation.frames)?;
                         let key = super::pixel_style::bake_key(&job.bundle, job.pixels_per_tile);
                         let cached_pages = page_cache
                             .as_ref()

@@ -232,6 +232,87 @@ fn ui_metadata_keeps_action_catalog_requirements_without_rule_effects() {
 }
 
 #[test]
+fn leather_journal_public_metadata_matches_authoritative_requirements_and_naming() {
+    use rusterix::server::region::crafting::preview::RecipeInspector;
+    use rusterix::{Entity, Item as RuntimeItem, effective_values::ValueRules, learning};
+    let mut original = crate::rulesets::latest_official_ruleset()
+        .parse::<toml::Table>()
+        .unwrap();
+    original["items"]["materials"]["tree_resin"]["attributes"]
+        .as_table_mut()
+        .unwrap()
+        .insert(
+            "on_use".into(),
+            toml::Value::String("PRIVATE_CRAFT_HANDLER".into()),
+        );
+    let source = toml::to_string(&original).unwrap();
+    let public = projection::policy::rules(&source).unwrap();
+    assert!(!public.contains("PRIVATE_CRAFT_HANDLER"));
+    assert_eq!(projection::policy::rules(&public).unwrap(), public);
+    let root = public.parse::<toml::Table>().unwrap();
+    assert!(root.get("resource_profiles").is_none());
+    assert!(root.get("behavior").is_none());
+    assert_eq!(
+        root["enchantments"]["fox"]["epithet"].as_str(),
+        Some("the Fox")
+    );
+    let rules = ValueRules::resolve(&original).unwrap();
+    ValueRules::resolve(&root).unwrap();
+    let templates = crate::rulesets::ruleset_item_templates_from_source(&source).unwrap();
+    let mut actor = Entity::new();
+    actor.id = 1;
+    actor.inventory = vec![None; 16];
+    actor.set_attribute("HP", Value::Int(100));
+    actor.set_attribute("DEX", Value::Int(10));
+    actor.set_attribute("skill_leatherworking", Value::Int(10));
+    learning::acquire(
+        &mut actor,
+        &rules,
+        &["fox_inscription".into()],
+        learning::Origin::Character,
+    )
+    .unwrap();
+    let mut vest = 0;
+    for (index, id) in [
+        "leather_vest",
+        "fox_inlay",
+        "tree_resin",
+        "wooden_bowl",
+        "flint_awl",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut item = RuntimeItem::default();
+        rusterix::server::data::apply_item_data(
+            &mut item,
+            &templates.iter().find(|t| t.id == id).unwrap().data,
+        );
+        item.id = index as u32 + 2;
+        if id == "leather_vest" {
+            vest = item.id;
+        }
+        if id == "wooden_bowl" {
+            item.set_attribute("liquid_item", Value::Str("fresh_water".into()));
+            item.set_attribute("liquid_quantity", Value::Int(4));
+        }
+        actor.add_item(item).unwrap();
+    }
+    let mut station = RuntimeItem::default();
+    station.position = actor.position;
+    station.set_attribute(
+        "station_capabilities",
+        Value::StrArray(vec!["inscribe".into(), "leatherwork".into()]),
+    );
+    let mut full = RecipeInspector::new(original).unwrap();
+    let mut remote = RecipeInspector::new(root).unwrap();
+    full.bind(&actor, &[station.clone()], false);
+    remote.bind(&actor, &[station], false);
+    let expected = full.inspect("inscribe_fox", Some(vest));
+    assert!(expected.ready, "{expected:?}");
+    assert_eq!(remote.inspect("inscribe_fox", Some(vest)), expected);
+}
+#[test]
 fn saved_generated_tiles_keep_explicit_baked_material_pixels() {
     let mut project = source();
     let tile = project.tiles.values_mut().next().unwrap();

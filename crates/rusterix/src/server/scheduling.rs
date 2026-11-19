@@ -109,7 +109,10 @@ impl Server {
                 || !ctx.to_execute_entity.is_empty()
                 || !ctx.to_execute_item.is_empty()
                 || !ctx.to_execute_world.is_empty();
-            let awake = !eligible || occupied.contains(&region.id) || pending || ctx.debug_mode;
+            let logout_grace = ctx.map.entities.iter().any(|e| e.is_player() && e.get_mode() != "dead"
+                && e.attributes.get("__disconnected_at_ms").is_some()
+                && !e.attributes.get_bool_default("__logout_hidden",false));
+            let awake = !eligible || occupied.contains(&region.id) || pending || ctx.debug_mode || logout_grace;
             drop(ctx);
             region.idle.eligible = eligible;
             if awake {

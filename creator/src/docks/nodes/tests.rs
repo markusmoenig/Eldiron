@@ -1,5 +1,56 @@
 use super::*;
 
+#[test]
+fn learning_teach_node_offers_teacher_actions_and_survives_project_storage() {
+    let mut project = Project::new();
+    let definitions = catalog::definitions_for_project(&project);
+    let teach = definitions.instantiate("teach", [0., 0.]).unwrap();
+    let GraphControlValue::Choice { options, .. } = &teach
+        .rows
+        .iter()
+        .find(|row| row.key.as_deref() == Some("action"))
+        .unwrap()
+        .value
+    else {
+        panic!("lesson picker")
+    };
+    assert!(options.iter().any(|id| id == "learn_boneworking"));
+    assert!(options.iter().any(|id| id == "learn_bear_inscription"));
+    assert!(!options.iter().any(|id| id == "study_bear_inscription"));
+    assert!(
+        !options
+            .iter()
+            .any(|id| id == "study_boneworking" || id == "basic_attack")
+    );
+    assert_eq!(
+        teach
+            .ports
+            .iter()
+            .filter_map(|port| port.key.as_deref())
+            .collect::<Vec<_>>(),
+        vec!["in", "done", "failed"]
+    );
+    assert!(node_available(
+        ProjectContext::CharacterCode(Uuid::new_v4()),
+        "teach"
+    ));
+    assert!(!node_available(
+        ProjectContext::ItemCode(Uuid::new_v4()),
+        "teach"
+    ));
+    let mut dock = NodesDock::new();
+    dock.owner = Some("behavior/character/learning-tutor".into());
+    dock.doc.nodes.push(teach);
+    dock.store(&mut project, true, &CreatorReference::default());
+    let restored: Project =
+        serde_json::from_value(serde_json::to_value(&project).unwrap()).unwrap();
+    let graph: GraphDocument = serde_json::from_value(
+        restored.node_graphs["behavior/character/learning-tutor"]["branches"][0].clone(),
+    )
+    .unwrap();
+    assert_eq!(graph, dock.doc);
+}
+
 fn add(dock: &mut NodesDock, id: &str) {
     dock.pick(
         GraphPickerItem {
@@ -1922,6 +1973,10 @@ fn entity_configuration_uses_a_separate_catalog_and_preserves_player_selection_d
     let pc = ProjectContext::CharacterData(id);
     assert_eq!(NodesDock::owner(pc), Some(format!("entity/character/{id}")));
     assert!(node_available(pc, "entity"));
+    assert!(node_available(pc, "entity_animal"));
+    assert!(!node_available(ProjectContext::ItemData(id), "entity_animal"));
+    assert!(!node_available(ProjectContext::CharacterCode(id), "entity_animal"));
+    assert!(node_available(ProjectContext::CharacterCode(id), "random_walk"));
     assert!(node_available(pc, "entity_inputs"));
     assert!(!node_available(pc, "entity_identity"));
     assert!(node_available(pc, "entity_input"));

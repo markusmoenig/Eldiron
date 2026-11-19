@@ -346,9 +346,6 @@ impl CreatorPlaySession {
                 if self.visual_key != key {
                     g.assets.publish_visual_sources_from(&bridge.assets);
                     g.assets.visual_source_revision = key;
-                    g.project
-                        .rules_document
-                        .clone_from(&authored.rules_document);
                     g.project.authoring.clone_from(&authored.authoring);
                     g.project.config.clone_from(&authored.config);
                     g.project.locales.clone_from(&authored.locales);

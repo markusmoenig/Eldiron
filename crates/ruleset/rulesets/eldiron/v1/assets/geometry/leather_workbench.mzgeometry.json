@@ -1,0 +1,266 @@
+{
+  "version": 1,
+  "id": "ruleset-leather_workbench",
+  "label": "Leather Workbench",
+  "rows": [
+    {
+      "id": "top-mat",
+      "label": "Top Mat",
+      "tiles": [
+        {
+          "id": "top-mat-0",
+          "op": {
+            "type": "material",
+            "palette": 19,
+            "roughness": 0.85,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "top",
+      "label": "Top",
+      "tiles": [
+        {
+          "id": "top-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.9,
+              0.08,
+              0.55
+            ]
+          }
+        },
+        {
+          "id": "top-1",
+          "op": {
+            "type": "assign_material",
+            "row": "top-mat"
+          }
+        },
+        {
+          "id": "top-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.7,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "left-leg-mat",
+      "label": "Left Leg Mat",
+      "tiles": [
+        {
+          "id": "left-leg-mat-0",
+          "op": {
+            "type": "material",
+            "palette": 17,
+            "roughness": 0.85,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "left-leg",
+      "label": "Left Leg",
+      "tiles": [
+        {
+          "id": "left-leg-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.08,
+              0.66,
+              0.4
+            ]
+          }
+        },
+        {
+          "id": "left-leg-1",
+          "op": {
+            "type": "assign_material",
+            "row": "left-leg-mat"
+          }
+        },
+        {
+          "id": "left-leg-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.32,
+              0.33,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "right-leg-mat",
+      "label": "Right Leg Mat",
+      "tiles": [
+        {
+          "id": "right-leg-mat-0",
+          "op": {
+            "type": "material",
+            "palette": 17,
+            "roughness": 0.85,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "right-leg",
+      "label": "Right Leg",
+      "tiles": [
+        {
+          "id": "right-leg-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.08,
+              0.66,
+              0.4
+            ]
+          }
+        },
+        {
+          "id": "right-leg-1",
+          "op": {
+            "type": "assign_material",
+            "row": "right-leg-mat"
+          }
+        },
+        {
+          "id": "right-leg-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.32,
+              0.33,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "leather-mat",
+      "label": "Leather Mat",
+      "tiles": [
+        {
+          "id": "leather-mat-0",
+          "op": {
+            "type": "material",
+            "palette": 20,
+            "roughness": 0.85,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "leather",
+      "label": "Leather",
+      "tiles": [
+        {
+          "id": "leather-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.4,
+              0.02,
+              0.3
+            ]
+          }
+        },
+        {
+          "id": "leather-1",
+          "op": {
+            "type": "assign_material",
+            "row": "leather-mat"
+          }
+        },
+        {
+          "id": "leather-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.12,
+              0.75,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "model",
+      "label": "Model",
+      "tiles": [
+        {
+          "id": "model-0",
+          "op": {
+            "type": "assemble",
+            "rows": [
+              "top",
+              "left-leg",
+              "right-leg",
+              "leather"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "model"
+}

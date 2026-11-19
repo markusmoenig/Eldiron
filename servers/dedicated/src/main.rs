@@ -21,6 +21,7 @@ async fn run() -> Result<(), String> {
     let mut origins = vec![];
     let mut operations = eldiron_server::operations::Operations::default();
     let mut max_players = 64usize;
+    let mut identity_config = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -32,6 +33,12 @@ async fn run() -> Result<(), String> {
             "--tls-cert" => cert = Some(PathBuf::from(args.next().ok_or("Missing certificate")?)),
             "--tls-key" => key = Some(PathBuf::from(args.next().ok_or("Missing private key")?)),
             "--origin" => origins.push(args.next().ok_or("Missing browser origin")?),
+            "--identity-config" => {
+                identity_config = Some(PathBuf::from(
+                    args.next()
+                        .ok_or("Missing private identity configuration")?,
+                ))
+            }
             "--max-players" => {
                 max_players = args
                     .next()
@@ -65,7 +72,7 @@ async fn run() -> Result<(), String> {
             }
             "--help" => {
                 println!(
-                    "eldiron-server --project game.eldiron (--demo | --state world.save) [--bind 127.0.0.1:8443] (--tls-cert cert.pem --tls-key key.pem | --insecure-loopback) [--origin https://demo.example] [--max-players 1..64] [--metrics-file private/metrics.json] [--backup-dir private/backups --backup-seconds 300 --backup-retain 8]"
+                    "eldiron-server --project game.eldiron (--demo | --state world.save) [--bind 127.0.0.1:8443] (--tls-cert cert.pem --tls-key key.pem | --insecure-loopback) [--origin https://demo.example] [--max-players 1..64] [--identity-config private/identity.toml] [--metrics-file private/metrics.json] [--backup-dir private/backups --backup-seconds 300 --backup-retain 8]"
                 );
                 return Ok(());
             }
@@ -118,6 +125,9 @@ async fn run() -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     host.set_player_limit(max_players)
         .map_err(|e| e.to_string())?;
+    if let Some(path) = identity_config {
+        host.configure_identity(eldiron_server::oidc::Broker::load(path).await?)?;
+    }
     if operations.metrics_file.is_some() || operations.backup_dir.is_some() {
         host.configure_operations(operations)
             .map_err(|e| e.to_string())?;

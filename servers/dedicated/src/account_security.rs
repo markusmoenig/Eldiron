@@ -19,7 +19,7 @@ impl Host {
             .cloned()
             .ok_or(RejectCode::InvalidCredentials)
     }
-    async fn publish_security(&mut self, directory: Directory) -> Result<(), SaveError> {
+    pub(super) async fn publish_security(&mut self, directory: Directory) -> Result<(), SaveError> {
         let data = serde_json::to_value(&directory).map_err(failure)?;
         let World::Saved(session) = &mut self.world else {
             return Err(failure("Account changes require persistent storage"));
@@ -28,7 +28,7 @@ impl Host {
         *self.directory.write().unwrap() = directory;
         Ok(())
     }
-    fn revoke_account(&mut self, account: Uuid) {
+    pub(super) fn revoke_account(&mut self, account: Uuid) {
         self.tokens.retain(|_, t| t.account != account);
         let peers: Vec<_> = self
             .peers
@@ -49,7 +49,7 @@ impl Host {
     ) -> Result<(), SaveError> {
         let valid = self
             .password_context(peer)
-            .is_ok_and(|a| a.id == account && a.security_revision == revision);
+            .is_ok_and(|a| a.id == account && a.security_revision == revision && a.local_password);
         if !valid {
             self.send(
                 peer,

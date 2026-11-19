@@ -4,6 +4,7 @@ pub mod crafting;
 pub mod domain_metadata;
 pub mod equipment_family;
 pub mod equipment_lifecycle;
+pub mod knowledge;
 pub mod world_resources;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -12,6 +13,7 @@ use std::{
 use theframework_core::{TheColor, ThePalette};
 use toml::{Table, Value};
 
+pub mod animals;
 pub mod behavior;
 pub mod cli;
 pub mod document;
@@ -101,6 +103,10 @@ static OFFICIAL_TOML_REFERENCE: LazyLock<String> = LazyLock::new(|| {
         OFFICIAL_ELDIRON_V1_EQUIPMENT,
         include_str!("../rulesets/eldiron/v1/world_resources.toml"),
         include_str!("../rulesets/eldiron/v1/bone_production.toml"),
+        include_str!("../rulesets/eldiron/v1/learning.toml"),
+        include_str!("../rulesets/eldiron/v1/enchanting.toml"),
+        include_str!("../rulesets/eldiron/v1/animals.toml"),
+        include_str!("../rulesets/eldiron/v1/leatherworking.toml"),
         OFFICIAL_ELDIRON_V1_FX,
         OFFICIAL_ELDIRON_V1_ICONS,
         OFFICIAL_ELDIRON_V1_INVOCATIONS,
@@ -481,6 +487,18 @@ pub fn bundled_icon_material_assets_for_ruleset(
         icon!("ui_equipment", "icon"),
         icon!("ui_inventory", "icon"),
         icon!("ui_spellbook", "icon"),
+        icon!("boneworking_manual", "icon"),
+        icon!("bear_inscription_manual", "icon"),
+        icon!("bear_inlay", "icon"),
+        icon!("leather_hood", "icon"),
+        icon!("leather_leggings", "icon"),
+        icon!("leather_gloves", "icon"),
+        icon!("leather_boots", "icon"),
+        icon!("flint_awl", "icon"),
+        icon!("leather_workbench", "icon"),
+        icon!("fox_inlay", "icon"),
+        icon!("leatherworking_manual", "icon"),
+        icon!("fox_inscription_manual", "icon"),
         icon!("ui_actions", "icon"),
         icon!("look", "icon"),
         icon!("use", "icon"),
@@ -1012,6 +1030,222 @@ pub fn bundled_appearance_assets_for_ruleset(
             asset_id: "4d5a4745-4f4d-4554-c541-840bbf934454",
             source: include_str!(
                 "../rulesets/eldiron/v1/assets/geometry/worn_ritual_censer.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "deer",
+            asset_id: "4d5a4745-4f4d-4554-a5c9-0867425feb95",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/deer.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "deer_remains",
+            asset_id: "4d5a4745-4f4d-4554-630c-ec7c6f2e1503",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/deer_remains.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "pig",
+            asset_id: "4d5a4745-4f4d-4554-77af-6f19565fff6f",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/pig.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "pig_remains",
+            asset_id: "4d5a4745-4f4d-4554-1f06-38e1f320b78d",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/pig_remains.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "cow",
+            asset_id: "4d5a4745-4f4d-4554-f604-f8190d017010",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/cow.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "cow_remains",
+            asset_id: "4d5a4745-4f4d-4554-6196-ce211822b8e2",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/cow_remains.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "sheep",
+            asset_id: "4d5a4745-4f4d-4554-4d0a-fd4928726334",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/sheep.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "sheep_remains",
+            asset_id: "4d5a4745-4f4d-4554-dbb5-c80ed01f7706",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/sheep_remains.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "goat",
+            asset_id: "4d5a4745-4f4d-4554-9cf9-ea720eaf0f1e",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/goat.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "goat_remains",
+            asset_id: "4d5a4745-4f4d-4554-08af-2c1b656581e8",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/goat_remains.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "horse",
+            asset_id: "4d5a4745-4f4d-4554-30bb-947b3d7851c6",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/horse.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "horse_remains",
+            asset_id: "4d5a4745-4f4d-4554-360a-b703cf4e4d50",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/horse_remains.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "chicken",
+            asset_id: "4d5a4745-4f4d-4554-ebb6-ba9f1bb36afc",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/chicken.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "chicken_remains",
+            asset_id: "4d5a4745-4f4d-4554-80c3-5cf13b97fb4e",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/animals/chicken_remains.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "leather_hood",
+            asset_id: "4d5a4745-4f4d-4554-54df-9c197edd9cd9",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/leather_hood.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "leather_leggings",
+            asset_id: "4d5a4745-4f4d-4554-b1e0-02f43dc0410b",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/leather_leggings.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "leather_gloves",
+            asset_id: "4d5a4745-4f4d-4554-193d-b2b60c940ab5",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/leather_gloves.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "leather_boots",
+            asset_id: "4d5a4745-4f4d-4554-6162-9a1b75053afc",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/leather_boots.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "flint_awl",
+            asset_id: "4d5a4745-4f4d-4554-40cd-c862ba6b5bdf",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/flint_awl.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "leather_workbench",
+            asset_id: "4d5a4745-4f4d-4554-02fe-da7901b454e4",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/leather_workbench.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "fox_inlay",
+            asset_id: "4d5a4745-4f4d-4554-d8eb-8f045382f6c2",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/fox_inlay.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "leatherworking_manual",
+            asset_id: "4d5a4745-4f4d-4554-ee68-52170c25dd78",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/leatherworking_manual.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "fox_inscription_manual",
+            asset_id: "4d5a4745-4f4d-4554-b941-2ce7e0f71816",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/fox_inscription_manual.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "garment_leather_hood",
+            asset_id: "4d5a4745-4f4d-4554-59cb-37f1b74d2062",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/garment_leather_hood.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "garment_leather_leggings",
+            asset_id: "4d5a4745-4f4d-4554-bb47-35bcf8029be0",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/garment_leather_leggings.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "garment_leather_gloves",
+            asset_id: "4d5a4745-4f4d-4554-7b0f-e6b298f0429a",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/garment_leather_gloves.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "garment_leather_boots",
+            asset_id: "4d5a4745-4f4d-4554-a486-7085b6bec2bd",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/garment_leather_boots.mzgeometry.json"
             ),
             equipment: &[],
         },
@@ -2774,6 +3008,7 @@ pub struct ResolvedAction {
     pub item_source: Option<ResolvedActionItemSource>,
     pub effects: Vec<ResolvedActionEffect>,
     pub recipe: Option<String>,
+    pub lesson: Option<String>,
     pub invocations: Vec<ResolvedActionInvocation>,
     pub presentation: ResolvedActionPresentation,
 }
@@ -3205,6 +3440,7 @@ impl ResolvedAction {
             item_source,
             effects,
             recipe: table_string(table, "recipe"),
+            lesson: table_string(table, "lesson"),
             invocations,
             presentation,
         })
@@ -6211,7 +6447,9 @@ pub fn validate_ruleset(root: &Table) -> RulesetValidationReport {
     validate_item_rules(&mut report, root, &damage_kinds);
     equipment_family::validate_families(root, &mut report);
     contributions::validate(root, &mut report);
+    knowledge::validate(root, &mut report);
     world_resources::validate(root, &mut report);
+    animals::validate(root, &mut report);
     validate_condition_rules(&mut report, root, &damage_kinds);
     validate_derived_stat_rules(&mut report, root);
     validate_ability_and_spell_rules(&mut report, root, &damage_kinds);
@@ -6360,6 +6598,7 @@ fn ruleset_item_template_data(
         "max_stack",
         "ammunition_quantity",
         "enchantments",
+        "teaching",
     ] {
         if let Some(value) = item.get(key) {
             attributes.insert(key.to_string(), value.clone());
@@ -6627,7 +6866,7 @@ mod tests {
         assert!(resolved.table().get("items").is_some());
 
         let actions = resolved.actions().unwrap();
-        assert_eq!(actions.len(), 51);
+        assert_eq!(actions.len(), 73);
         let basic_attack = actions.get("basic_attack").unwrap();
         assert_eq!(basic_attack.kind, ResolvedActionKind::Attack);
         assert_eq!(

@@ -25,8 +25,10 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
             && matches!(
                 key,
                 "entity_player" | "entity_input" | "entity_inputs" | "entity_equipment"
+                    | "entity_animal"
             ))
-            || (matches!(pc, ProjectContext::ItemData(_)) && matches!(key, "entity_ruleset_item" | "entity_item_state"));
+            || (matches!(pc, ProjectContext::ItemData(_))
+                && matches!(key, "entity_ruleset_item" | "entity_item_state"));
     }
     match key {
         "event" | "on_event" | "filter" | "time_range" => true,
@@ -43,7 +45,7 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
         "on_area" => matches!(pc, ProjectContext::RegionArea(_, _)),
         "on_enter_area" => !matches!(pc, ProjectContext::RegionArea(_, _)),
         "player_camera" | "routine" | "random_walk" | "resume_routine" | "go_to" | "lookout"
-        | "engage" | "use_action" | "join_party" | "leave_party" | "health_check"
+        | "engage" | "use_action" | "teach" | "join_party" | "leave_party" | "health_check"
         | "set_target" | "respawn_character" => matches!(
             pc,
             ProjectContext::Character(_)
@@ -75,6 +77,7 @@ pub fn node_help(key: &str) -> String {
         "lookout" => fl!("node_lookout_help"),
         "engage" => fl!("node_engage_help"),
         "use_action" => fl!("node_use_action_help"),
+        "teach" => fl!("node_teach_help"),
         "respawn_character" => fl!("node_respawn_character_help"),
         "set_target" => fl!("node_set_target_help"),
         "join_party" => fl!("node_join_party_help"),

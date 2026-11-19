@@ -292,14 +292,33 @@ pub fn character_models(p: &Project) -> Vec<String> {
             _ => false,
         })
     }
-    let builtins = shared::rulesets::bundled_appearance_assets_for_ruleset(
-        shared::rulesets::OFFICIAL_RULESET_ID,
-        shared::rulesets::OFFICIAL_RULESET_VERSION,
-    )
-    .iter()
-    .map(|a| a.asset_id.to_string())
-    .collect::<BTreeSet<_>>();
-    let mut models = vec!["humanoid".into(), "orc".into(), "skeleton".into()];
+    let selection = shared::rulesets::selected_ruleset_config(&p.config);
+    let definitions = if selection.source == "project" {
+        Vec::new()
+    } else {
+        shared::rulesets::bundled_appearance_assets_for_ruleset(&selection.id, &selection.version)
+    };
+    let builtins = definitions
+        .iter()
+        .map(|a| a.asset_id.to_string())
+        .collect::<BTreeSet<_>>();
+    let declared_avatars = p
+        .rules_source()
+        .ok()
+        .and_then(|source| source.parse::<toml::Table>().ok())
+        .and_then(|rules| rules.get("assets")?.get("avatars")?.as_table().cloned())
+        .map(|table| table.into_iter().map(|(id, _)| id).collect::<BTreeSet<_>>())
+        .unwrap_or_default();
+    let mut models = definitions
+        .iter()
+        .filter(|asset| declared_avatars.contains(asset.id))
+        .filter_map(|asset| {
+            Document::load(asset.source)
+                .ok()
+                .filter(rigged)
+                .map(|_| asset.id.to_owned())
+        })
+        .collect::<Vec<_>>();
     models.extend(
         p.procedural_appearances
             .iter()

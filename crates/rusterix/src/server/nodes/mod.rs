@@ -9,8 +9,8 @@ use theframework_core::prelude::Uuid;
 
 mod builtins;
 mod lifecycle;
-pub mod persistence;
 mod party;
+pub mod persistence;
 pub use builtins::time_range_contains;
 pub mod conversation;
 pub use conversation::{CONSEQUENCE_PORTS, CONSEQUENCE_SLOTS, Choice, Conversation, Step, Then};
@@ -116,6 +116,10 @@ pub trait WorldServices {
         _subject: Option<u32>,
     ) -> Result<(), String> {
         Err("Use Action requires a character".into())
+    }
+
+    fn teach(&mut self, _actor: &Actor, _action: &str, _learner: u32) -> Result<(), String> {
+        Err("Teach requires a character and a learner".into())
     }
 
     fn join_party(&mut self, _actor: &Actor, _leader: u32) -> Result<bool, String> {

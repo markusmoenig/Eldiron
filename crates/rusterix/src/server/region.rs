@@ -4,6 +4,8 @@ pub mod resources;
 pub mod crafting;
 #[path = "region_requests.rs"]
 pub mod requests;
+#[path = "region_learning.rs"]
+mod learning_actions;
 #[path = "node_combat.rs"]
 mod node_combat;
 use crate::server::message::{DialogChoice, NodeChoice};
@@ -573,6 +575,9 @@ pub fn apply_ruleset_character_defaults(rules: &toml::Table, entity: &mut Entity
 
     apply_ruleset_class_loadout_defaults(rules, entity, &explicit_keys);
     apply_ruleset_class_progression(rules, entity, &explicit_keys);
+    if let Err(error) = crate::learning::initialize_starting(rules, entity) {
+        entity.set_attribute("knowledge_error", Value::Str(error));
+    }
 }
 
 pub fn ruleset_starting_wealth_for_entity(rules: &toml::Table, entity: &Entity) -> Option<i64> {
@@ -6570,6 +6575,14 @@ impl RegionInstance {
             lines.extend(explanations);
         }
 
+        match ctx.with_value_rules(|rules| crate::learning::summary(rules, entity)) {
+            Ok(Ok(knowledge)) if !knowledge.is_empty() => {
+                lines.push(format!("Knowledge: {}", knowledge.join("; ")));
+            }
+            Ok(Err(error)) => lines.push(error),
+            _ => {}
+        }
+
         if lines.is_empty() {
             "No ruleset stats.".to_string()
         } else {
@@ -9972,6 +9985,14 @@ impl RegionInstance {
                             owner_entity_id,
                         ) => {
                             with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
+                                if !requests::remote_inventory_owner_allowed(
+                                    ctx,
+                                    entity_id,
+                                    owner_entity_id,
+                                    false,
+                                ) {
+                                    return;
+                                }
                                 let resource_intent = explicit_intent.as_deref().or_else(||ctx.map.entities.iter().find(|e|e.id==entity_id).and_then(|e|e.attributes.get_str("intent"))).unwrap_or("").to_string();
                                 if resources::item_click(ctx, entity_id, clicked_item_id, &resource_intent) { return; }
 
@@ -10119,6 +10140,21 @@ impl RegionInstance {
                                 }
 
                                 // Optional item-level shortcuts for common intents.
+                                if intent_lower == "use"
+                                    && learning_actions::use_book(
+                                        ctx,
+                                        entity_id,
+                                        clicked_item_id,
+                                        owner_entity_id,
+                                    )
+                                {
+                                    if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                        && !keep_intent
+                                    {
+                                        entity.set_attribute("intent", Value::Str(String::new()));
+                                    }
+                                    return;
+                                }
                                 let item_attrs = ctx
                                     .map
                                     .items
@@ -10522,6 +10558,14 @@ impl RegionInstance {
                             owner_entity_id,
                         } => {
                             with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
+                                if !requests::remote_inventory_owner_allowed(
+                                    ctx,
+                                    entity_id,
+                                    owner_entity_id,
+                                    true,
+                                ) {
+                                    return;
+                                }
                                 let container_exists = Self::find_drag_container_location(
                                     ctx,
                                     item_id,
@@ -10551,6 +10595,19 @@ impl RegionInstance {
                             to_equipped_slot,
                         } => {
                             with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
+                                if !requests::remote_inventory_owner_allowed(
+                                    ctx,
+                                    entity_id,
+                                    owner_entity_id,
+                                    false,
+                                ) || !requests::remote_inventory_owner_allowed(
+                                    ctx,
+                                    entity_id,
+                                    target_entity_id,
+                                    false,
+                                ) {
+                                    return;
+                                }
                                 _ = move_item_for_entity(
                                     ctx,
                                     owner_entity_id.unwrap_or(entity_id),
@@ -10570,6 +10627,24 @@ impl RegionInstance {
                             container_owner_entity_id,
                         } => {
                             with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
+                                if !requests::remote_inventory_owner_allowed(
+                                    ctx,
+                                    entity_id,
+                                    owner_entity_id,
+                                    false,
+                                ) || !requests::remote_inventory_owner_allowed(
+                                    ctx,
+                                    entity_id,
+                                    source_container_owner_entity_id,
+                                    true,
+                                ) || !requests::remote_inventory_owner_allowed(
+                                    ctx,
+                                    entity_id,
+                                    container_owner_entity_id,
+                                    true,
+                                ) {
+                                    return;
+                                }
                                 _ = Self::move_item_to_container_for_entity(
                                     ctx,
                                     entity_id,
@@ -10591,6 +10666,19 @@ impl RegionInstance {
                             to_equipped_slot,
                         } => {
                             with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
+                                if !requests::remote_inventory_owner_allowed(
+                                    ctx,
+                                    entity_id,
+                                    container_owner_entity_id,
+                                    true,
+                                ) || !requests::remote_inventory_owner_allowed(
+                                    ctx,
+                                    entity_id,
+                                    target_entity_id,
+                                    false,
+                                ) {
+                                    return;
+                                }
                                 _ = Self::move_container_item_for_entity(
                                     ctx,
                                     entity_id,
@@ -10609,6 +10697,14 @@ impl RegionInstance {
                             position,
                         } => {
                             with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
+                                if !requests::remote_inventory_owner_allowed(
+                                    ctx,
+                                    entity_id,
+                                    owner_entity_id,
+                                    false,
+                                ) {
+                                    return;
+                                }
                                 if owner_entity_id.is_none()
                                     && ctx.map.items.iter().any(|item| item.id == item_id)
                                 {
@@ -10632,6 +10728,14 @@ impl RegionInstance {
                             position,
                         } => {
                             with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
+                                if !requests::remote_inventory_owner_allowed(
+                                    ctx,
+                                    entity_id,
+                                    container_owner_entity_id,
+                                    true,
+                                ) {
+                                    return;
+                                }
                                 _ = Self::drop_container_item_for_entity_at(
                                     ctx,
                                     entity_id,
@@ -10688,8 +10792,7 @@ impl RegionInstance {
                                         let mut seller = ctx.map.entities[seller_index].clone();
                                         let mut buyer = ctx.map.entities[buyer_index].clone();
                                         let item = seller.remove_item(*item_id).ok_or("Item unavailable")?;
-                                        let price = item.get_attribute("worth")
-                                            .and_then(|value| value.to_i32()).unwrap_or(0) as i64;
+                                        let price = item.shop_price();
                                         if price < 0 {
                                             return Err("Invalid item price".into());
                                         }
@@ -12840,6 +12943,23 @@ impl RegionInstance {
                                         .mapmini
                                         .move_towards(position, *target, step_speed, radius, 1.0);
                                     (p, entity.position.y, arrived)
+                                };
+
+                                // Tile navigation can snap an in-bounds target to a tile
+                                // center across the area edge or route a step outside it.
+                                let inside_area =
+                                    if let Some(sector) = ctx.map.find_sector_at(position) {
+                                        sector.is_inside(&ctx.map, new_position)
+                                    } else {
+                                        ctx.map
+                                            .geometry_area_bbox_at(position)
+                                            .is_some_and(|area| area.contains(new_position))
+                                    };
+                                let (new_position, new_y) = if inside_area {
+                                    (new_position, new_y)
+                                } else {
+                                    arrived = false;
+                                    (position, entity.position.y)
                                 };
 
                                 // Keep dynamic blocking (entities/items) behavior:
@@ -16020,6 +16140,17 @@ fn ruleset_command_for_entity(
         .keys()
         .find(|id| id.eq_ignore_ascii_case(action_id))?
         .clone();
+    // The journal exposes known recipes independently of a class's starter
+    // shortcuts. Pinning supplies no materials, skills or action permission.
+    if let Ok(Some(action)) = eldiron_ruleset::resolve_action(rules, &canonical_action_id)
+        && action.kind == ResolvedActionKind::Craft
+        && let Some(recipe) = action.recipe.as_deref()
+    {
+        let values = crate::effective_values::ValueRules::resolve(rules).ok()?;
+        return crate::learning::recipe_access(&values, entity, recipe)
+            .is_ok()
+            .then(|| format!("rules.{canonical_action_id}"));
+    }
     let class_name = entity
         .get_attr_string("class")
         .or_else(|| entity.get_attr_string("class_name"))
@@ -16883,8 +17014,10 @@ fn ruleset_item_from_table(
         crate::server::data::read_light(&mut light, light_table);
         item.set_attribute("light", Value::Light(light));
     }
-    if let Some(value) = item_table.get("enchantments").and_then(toml_value_to_attr) {
-        item.set_attribute("enchantments", value);
+    for key in ["enchantments", "teaching"] {
+        if let Some(value) = item_table.get(key).and_then(toml_value_to_attr) {
+            item.set_attribute(key, value);
+        }
     }
     copy_ruleset_item_damage_attrs(&mut item, item_table);
     copy_ruleset_item_durability_attrs(&mut item, item_table);
@@ -16933,34 +17066,8 @@ fn ruleset_recipe_display_name(ctx: &RegionCtx, recipe_id: &str) -> String {
         .unwrap_or_else(|| recipe_id.replace('_', " "))
 }
 
-fn entity_skill_points(entity: &Entity, skill_id: &str) -> i32 {
-    let normalized = skill_id.trim();
-    if normalized.is_empty() {
-        return 0;
-    }
-    let lower = normalized.to_ascii_lowercase();
-    let upper = normalized.to_ascii_uppercase();
-    let skill_key = format!("skill_{}", lower);
-    let skill_upper_key = format!("SKILL_{}", upper);
-    entity
-        .attributes
-        .get_int(&skill_key)
-        .or_else(|| entity.attributes.get_int(&skill_upper_key))
-        .or_else(|| entity.attributes.get_int(&upper))
-        .or_else(|| entity.attributes.get_int(normalized))
-        .unwrap_or(0)
-        .max(0)
-}
-
-fn entity_meets_recipe_skill(entity: &Entity, recipe: &toml::value::Table) -> bool {
-    let required = rule_number(recipe, "required_skill", 0.0).round().max(0.0) as i32;
-    if required <= 0 {
-        return true;
-    }
-    let Some(skill_id) = rule_string(recipe, "skill") else {
-        return false;
-    };
-    entity_skill_points(entity, skill_id) >= required
+fn entity_skill_points(entity: &Entity, skill: &str) -> i32 {
+    crate::learning::skill_points(entity, skill)
 }
 
 fn recipe_required_spell(recipe: &toml::value::Table) -> Option<&str> {
@@ -16973,20 +17080,25 @@ fn recipe_required_spell(recipe: &toml::value::Table) -> Option<&str> {
         .filter(|value| !value.is_empty())
 }
 
-fn entity_meets_recipe_requirements(
+fn check_recipe_requirements(
     ctx: &RegionCtx,
     entity: &Entity,
     recipe: &toml::value::Table,
-) -> bool {
-    if !entity_meets_recipe_skill(entity, recipe) {
-        return false;
-    }
+) -> Result<(), String> {
+    crate::learning::recipe_skill_access(entity, recipe)?;
     if let Some(spell_id) = recipe_required_spell(recipe)
         && !entity_knows_ruleset_spell(ctx, entity, spell_id)
     {
-        return false;
+        let name = ctx
+            .rules
+            .get("spells")
+            .and_then(|spells| spells.get(spell_id))
+            .and_then(|spell| spell.get("name"))
+            .and_then(toml::Value::as_str)
+            .unwrap_or(spell_id);
+        return Err(format!("Learn {name}"));
     }
-    true
+    Ok(())
 }
 
 fn clamp_ruleset_percent(value: f32) -> i32 {
@@ -19193,6 +19305,38 @@ pub(crate) fn execute_ruleset_action_with_source_and_target(
         .iter()
         .map(|cost| (cost.item.clone(), cost.quantity))
         .collect::<Vec<_>>();
+    if resolved_action.lesson.is_some() {
+        match learning_actions::execute(ctx, actor_id, &resolved_action, target.as_ref()) {
+            Ok(learned) => {
+                let lesson_name = resolved_action
+                    .lesson
+                    .as_ref()
+                    .and_then(|id| ctx.rules.get("teaching").and_then(|v| v.get(id)))
+                    .and_then(|v| v.get("name"))
+                    .and_then(toml::Value::as_str)
+                    .unwrap_or(&action_name)
+                    .to_string();
+                send_ruleset_message(
+                    ctx,
+                    actor_id,
+                    "learning",
+                    if learned { "learned" } else { "already_known" },
+                    if learned {
+                        "learning.learned"
+                    } else {
+                        "learning.already_known"
+                    },
+                    &[("lesson", lesson_name)],
+                    "system",
+                );
+                return true;
+            }
+            Err(reason) => {
+                send_message(ctx, actor_id, reason, "warning");
+                return false;
+            }
+        }
+    }
     if let Some(missing_item) = entity_has_action_consumes(actor, &consumes).filter(|_| {
         resolved_action.kind != ResolvedActionKind::Craft && resolved_action.recipe.is_none()
     }) {
@@ -19283,6 +19427,8 @@ pub(crate) fn execute_ruleset_action_with_source_and_target(
         let recipe_name = ruleset_recipe_display_name(ctx, &recipe_id);
         let repairing =
             ruleset_recipe_table(ctx, &recipe_id).is_some_and(|r| r.contains_key("repair"));
+        let enchanting =
+            ruleset_recipe_table(ctx, &recipe_id).is_some_and(|r| r.contains_key("enchant"));
         let target_name = target
             .as_ref()
             .and_then(RulesetActionTarget::item_id)
@@ -19305,13 +19451,30 @@ pub(crate) fn execute_ruleset_action_with_source_and_target(
                 action_id,
                 resolved_action.cooldown_seconds.max(0.0),
             );
-            if repairing {
+            if repairing || enchanting {
+                let target_name = target
+                    .as_ref()
+                    .and_then(RulesetActionTarget::item_id)
+                    .and_then(|id| {
+                        ctx.map
+                            .entities
+                            .iter()
+                            .find(|e| e.id == actor_id)
+                            .and_then(|e| entity_item_by_id(e, id))
+                    })
+                    .and_then(|item| item.attributes.get_str("name"))
+                    .unwrap_or(&target_name)
+                    .to_string();
                 send_ruleset_message(
                     ctx,
                     actor_id,
                     "recipes",
-                    "repaired",
-                    "recipes.repaired",
+                    if enchanting { "enchanted" } else { "repaired" },
+                    if enchanting {
+                        "recipes.enchanted"
+                    } else {
+                        "recipes.repaired"
+                    },
                     &[("item", target_name)],
                     "success",
                 );
@@ -19328,13 +19491,21 @@ pub(crate) fn execute_ruleset_action_with_source_and_target(
             }
             return true;
         }
-        if repairing {
+        if repairing || enchanting {
             send_ruleset_message(
                 ctx,
                 actor_id,
                 "recipes",
-                "could_not_repair",
-                "recipes.could_not_repair",
+                if enchanting {
+                    "could_not_enchant"
+                } else {
+                    "could_not_repair"
+                },
+                if enchanting {
+                    "recipes.could_not_enchant"
+                } else {
+                    "recipes.could_not_repair"
+                },
                 &[("item", target_name), ("reason", outcome.unwrap_err())],
                 "warning",
             );
@@ -20255,6 +20426,17 @@ pub(crate) fn apply_damage_direct(
         }
     }
 
+    if applied {
+        let now = ctx.world.elapsed_ms();
+        for entity in ctx
+            .map
+            .entities
+            .iter_mut()
+            .filter(|e| e.id == target_id || e.id == from_id)
+        {
+            entity.set_attribute("__last_combat_ms", Value::Int64(now));
+        }
+    }
     if kill {
         ctx.to_execute_entity.retain(|(id, event, payload)| {
             if *id == target_id {

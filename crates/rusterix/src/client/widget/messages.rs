@@ -582,12 +582,7 @@ impl MessagesWidget {
                                             item_name = item
                                                 .get_attr_string("name")
                                                 .unwrap_or("".to_string());
-                                            item_price = item
-                                                .attributes
-                                                .get("worth")
-                                                .and_then(|worth| worth.to_i32())
-                                                .unwrap_or(0)
-                                                as i64;
+                                            item_price = item.shop_price();
                                             break;
                                         }
                                     }

@@ -68,6 +68,7 @@ pub enum CatalogPanelKind {
     #[default]
     Actions,
     Spellbook,
+    Journal,
 }
 
 impl CatalogPanelKind {
@@ -75,6 +76,7 @@ impl CatalogPanelKind {
         match self {
             Self::Actions => "Actions",
             Self::Spellbook => "Spellbook",
+            Self::Journal => "Crafting & Knowledge",
         }
     }
 }

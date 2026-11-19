@@ -219,7 +219,11 @@ pub(super) fn picker_at(
                 .map(|(index, label)| GraphPickerItem {
                     id: index.to_string(),
                     label: if label.is_empty() {
-                        fl!("entity_inherit")
+                        if node.definition.as_deref() == Some("entity_animal") {
+                            fl!("entity_animal_choose_species")
+                        } else {
+                            fl!("entity_inherit")
+                        }
                     } else {
                         label.clone()
                     },

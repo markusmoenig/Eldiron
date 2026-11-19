@@ -209,6 +209,10 @@ fn source_texels_preserve_persisted_bake_precedence_without_mutating_serialized_
     let serialized = serde_json::to_value(&tile).unwrap();
     let restored: Tile = serde_json::from_value(serialized.clone()).unwrap();
     let (r, m, o, e) = baked.get_materials(0, 0);
+    assert!(
+        restored.source_surface_texels(0).unwrap()
+            .eq([([80, 110, 150, 255], [r, m, o, e]); 4])
+    );
     for y in 0..2 {
         for x in 0..2 {
             let source = restored.source_surface_texel(0, x, y).unwrap();
@@ -228,6 +232,10 @@ fn source_texels_preserve_persisted_bake_precedence_without_mutating_serialized_
         expected,
         "authored material preset takes precedence over baked/raw channels"
     );
+    assert!(
+        tile.source_surface_texels(0).unwrap()
+            .eq([([80, 110, 150, 255], expected); 4])
+    );
     tile.material.preset = "default".into();
     tile.material.finish = "natural".into();
     tile.baked_material_data.clear();
@@ -243,6 +251,7 @@ fn source_texels_preserve_persisted_bake_precedence_without_mutating_serialized_
     assert!(tile.source_surface_texel(0, 0, 2).is_none());
     tile.textures[0].data.truncate(3);
     assert!(tile.source_surface_texel(0, 0, 0).is_none());
+    assert!(tile.source_surface_texels(0).is_none());
 }
 
 #[test]

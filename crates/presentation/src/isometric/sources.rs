@@ -138,12 +138,12 @@ impl IsometricSources {
             .map_err(|_| renderkit::RenderError("isometric source width overflow".into()))?;
         let height = u32::try_from(image.height)
             .map_err(|_| renderkit::RenderError("isometric source height overflow".into()))?;
-        let source = GpuSpriteSource::new(
+        let source = GpuSpriteSource::with_surface(
             &self.context,
             width,
             height,
             image.data,
-            image.surface.map(|s| s.data.as_slice()),
+            image.surface.map(|s| (s.data.as_slice(), s.has_baked_ao)),
         )?;
         self.builds += 1;
         let alpha = self.publications.alpha(&key, sprite);

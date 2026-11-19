@@ -34,6 +34,12 @@ A **character template** is a reusable blueprint that defines the **behavior, at
 
 Use **Behavior Nodes** for character reactions and **Entity Nodes** for initial configuration, race/class selection, and player input.
 
+Animals are characters too. Use **+ → Add Animal** to create one and open
+its Entity Nodes graph with **Entity → Animal** already connected. Choose a
+species on Animal. Leave
+the Entity race and class empty so the species supplies them. Author its
+Behavior Nodes just like an NPC, then drag the template onto the map.
+
 **Appearance** opens a full preview with 2D/3D and animation controls. Choose
 clothing and equipment in character setup, including drag-and-drop onto an
 **Equipment** node. Use **Edit model** only when changing the body's geometry or

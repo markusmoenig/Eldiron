@@ -52,6 +52,32 @@ fn mask_blends_all_channels_and_preserves_endpoints() {
     let off = project("Mask", "  mixing blend false\n  mixing mask to 0.5 0.5 0.5");
     assert_eq!(sample(&off, Channel::Opacity, [0.; 2]), vec![0.]);
 }
+
+#[test]
+fn many_masks_share_unchanged_surface_channels() {
+    use std::fmt::Write;
+
+    let mut text = String::from(
+        "project 1\nmaterial \"base\" called \"Base\"\n  default base color to 1 0 0\n  default roughness to 0.6\nmaterial \"overlay\" called \"Overlay\"\n  default base color to 0 0 1\n  default roughness to 0.6\n",
+    );
+    let mut previous = "base".to_owned();
+    for n in 0..12 {
+        let id = format!("layer-{n}");
+        writeln!(text, "material \"{id}\" called \"Layer\"\n  mix \"Mask\"\n  mixing input 1 from material \"{previous}\"\n  mixing input 2 from material \"overlay\"\n  mixing mask to 0.5 0.5 0.5").unwrap();
+        previous = id;
+    }
+    let program = compile(&text).unwrap();
+    assert_eq!(program.nodes.len(), 12);
+    let eval = Evaluator::new(&program);
+    assert_eq!(
+        eval.sample(&previous, Channel::Roughness, [0.; 2]).unwrap(),
+        vec![0.6]
+    );
+    assert_eq!(
+        eval.sample(&previous, Channel::BaseColor, [0.; 2]).unwrap(),
+        vec![1. / 4096., 0., 1. - 1. / 4096.]
+    );
+}
 #[test]
 fn height_overlay_and_uv_follow_original_rules() {
     assert_eq!(

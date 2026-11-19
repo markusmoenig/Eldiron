@@ -9,7 +9,7 @@ use vek::{Vec2, Vec3};
 static NEXT_PHYSICS_REVISION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 fn next_physics_revision() -> u64 {
     NEXT_PHYSICS_REVISION
-        .fetch_update(
+        .try_update(
             std::sync::atomic::Ordering::Relaxed,
             std::sync::atomic::Ordering::Relaxed,
             |n| n.checked_add(1),

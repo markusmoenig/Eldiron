@@ -48,6 +48,7 @@ pub enum ProjectUndoAtom {
         Option<rusterix::BlockPropSurfacePlacement>,
     ), // region, instance, from, to, old/new support relationship
     AddCharacter(Character),
+    AddAnimal(Character, serde_json::Value), // character and Entity configuration
     RemoveCharacter(usize, Character),
     RenameCharacter(Uuid, String, String),
     AddItem(Item),
@@ -360,6 +361,7 @@ impl ProjectUndoAtom {
             }
             MoveRegionItemInstance(_, _, _, _, _, _) => "Move Region Item Instance".into(),
             AddCharacter(character) => format!("Add Character: {}", character.name),
+            AddAnimal(character, _) => format!("Add Animal: {}", character.name),
             RemoveCharacter(_, character) => format!("Remove Character: {}", character.name),
             RenameCharacter(_, old, new) => format!("Rename Character: {} -> {}", old, new),
             AddItem(character) => format!("Add Item: {}", character.name),
@@ -679,12 +681,15 @@ impl ProjectUndoAtom {
                     old_surface.as_ref(),
                 );
             }
-            AddCharacter(character) => {
+            AddCharacter(character) | AddAnimal(character, _) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(region_node) =
                         tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_characters_id)
                     {
                         project.remove_character(&character.id);
+                        if matches!(self, AddAnimal(_, _)) {
+                            project.node_graphs.shift_remove(&shared::entity_graph::character_key(character.id));
+                        }
                         region_node.remove_child_by_uuid(&character.id);
                     }
                 }
@@ -1422,22 +1427,24 @@ impl ProjectUndoAtom {
                     }
                 }
             }
-            AddCharacter(character) => {
+            AddCharacter(character) | AddAnimal(character, _) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(node) =
                         tree_layout.get_node_by_id_mut(&server_ctx.shared.tree_characters_id)
                     {
                         let mut character = character.clone();
 
-                        if let Some(bytes) = crate::Embedded::get("eldrin/character.eldrin") {
-                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                                character.source = source.to_string();
+                        if matches!(self, AddCharacter(_)) {
+                            if let Some(bytes) = crate::Embedded::get("eldrin/character.eldrin") {
+                                if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                    character.source = source.to_string();
+                                }
                             }
-                        }
 
-                        if let Some(bytes) = crate::Embedded::get("toml/character.toml") {
-                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                                character.data = source.to_string();
+                            if let Some(bytes) = crate::Embedded::get("toml/character.toml") {
+                                if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                                    character.data = source.to_string();
+                                }
                             }
                         }
 
@@ -1447,13 +1454,23 @@ impl ProjectUndoAtom {
 
                         let character_id = character.id;
                         project.add_character(character);
+                        if let AddAnimal(_, configuration) = self {
+                            project.node_graphs.insert(
+                                shared::entity_graph::character_key(character_id),
+                                configuration.clone(),
+                            );
+                        }
 
                         set_project_context(
                             ctx,
                             ui,
                             project,
                             server_ctx,
-                            ProjectContext::Character(character_id),
+                            if matches!(self, AddAnimal(_, _)) {
+                                ProjectContext::CharacterData(character_id)
+                            } else {
+                                ProjectContext::Character(character_id)
+                            },
                         );
                         update_region(ctx, &server_ctx.reference);
                     }

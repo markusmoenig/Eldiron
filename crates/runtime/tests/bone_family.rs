@@ -19,6 +19,7 @@ fn project() -> Project {
         .apply(&mut document)
         .unwrap();
     project.rules_document.current = document.to_toml().unwrap();
+    project.preview_workbench_rules();
     project.regions[0].name = "Bone family".into();
     project.regions[0].map.name = "Bone family".into();
     project.config = "[game]\nstart_region='Bone family'\nauto_create_player=false".into();

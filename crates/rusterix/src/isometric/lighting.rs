@@ -338,14 +338,25 @@ impl<'a, 'b> Shading<'a, 'b> {
     fn irradiance(&mut self, point: Vec3<f32>, sample: Sample) -> (Vec3<f32>, Vec3<f32>) {
         let l = self.frame.lighting;
         let n = sample.normal;
-        let mut illumination = l.ambient;
+        let mut illumination = l.ambient * sample.ambient_visibility;
+        let view = Vec3::new(-0.61237246, 0.5, 0.61237246);
+        let highlight = |direction: Vec3<f32>| {
+            let h = direction + view;
+            if h.magnitude_squared() <= 1e-6 {
+                return 0.;
+            }
+            let power = 2. + (1. - sample.roughness) * 62.;
+            n.dot(h.normalized()).max(0.).powf(power)
+                * (0.04 + sample.metallic * 0.6)
+                * (1. - sample.roughness * 0.75)
+        };
+        let mut specular = Vec3::zero();
         let sun = n.dot(l.sun).max(0.);
         if sun > 0. && l.sun_color.magnitude_squared() > 1e-8 {
-            illumination += l.sun_color * sun * self.visible(point, n, l.sun, l.shadow_distance, 0);
+            let radiance = l.sun_color * self.visible(point, n, l.sun, l.shadow_distance, 0);
+            illumination += radiance * sun;
+            specular += radiance * highlight(l.sun);
         }
-        // A small material-dependent highlight preserves metallic/roughness controls.
-        let view = Vec3::new(-0.61237246, 0.5, 0.61237246);
-        let mut specular = Vec3::zero();
         for (i, light) in l.points.iter().enumerate() {
             let delta = light.position - point;
             let d2 = delta.magnitude_squared().max(0.01);
@@ -365,14 +376,7 @@ impl<'a, 'b> Shading<'a, 'b> {
                 * (light.intensity * fall / d2)
                 * self.visible(point, n, direction, distance, i + 1);
             illumination += radiance * diffuse;
-            let h = direction + view;
-            if h.magnitude_squared() > 1e-6 {
-                let power = 2. + (1. - sample.roughness) * 62.;
-                specular += radiance
-                    * n.dot(h.normalized()).max(0.).powf(power)
-                    * (0.04 + sample.metallic * 0.6)
-                    * (1. - sample.roughness * 0.75);
-            }
+            specular += radiance * highlight(direction);
         }
         (illumination, specular)
     }
@@ -451,6 +455,7 @@ pub(super) fn ground(
                 roughness: hit[5],
                 metallic: hit[6],
                 emission: hit[7],
+                ambient_visibility: 1.,
             };
             let position = |x: usize, y: usize, hit: &[f32; 8]| {
                 let at = p.ground(Vec2::new(
@@ -522,7 +527,7 @@ impl Caster<'_> {
 
     // Traverse the alpha-tested mesh's X/Z columns, clipping the ray's height
     // against each occupied interval. Unlike a painted oval this moves with lights.
-    fn blocks(&self, origin: Vec3<f32>, direction: Vec3<f32>, distance: f32) -> bool {
+    pub fn blocks(&self, origin: Vec3<f32>, direction: Vec3<f32>, distance: f32) -> bool {
         let g = self.grid;
         if g.width == 0 || g.height == 0 || g.width > 1024 || g.height > 1024 || self.scale <= 0. {
             return false;
@@ -615,6 +620,7 @@ mod tests {
             roughness: 1.,
             metallic: 0.,
             emission: 0.,
+            ambient_visibility: 1.,
         }
     }
     fn shade(lighting: &Lighting, point: Vec3<f32>, normal: Vec3<f32>) -> [u8; 4] {

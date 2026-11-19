@@ -47,6 +47,7 @@ impl Catalogue {
                     let definition = matches!(
                         domain.as_str(),
                         "actions"
+                            | "animals"
                             | "recipes"
                             | "classes"
                             | "races"
@@ -56,6 +57,8 @@ impl Catalogue {
                             | "abilities"
                             | "conditions"
                             | "enchantments"
+                            | "knowledge"
+                            | "teaching"
                             | "traits"
                             | "resources"
                             | "visual_templates"

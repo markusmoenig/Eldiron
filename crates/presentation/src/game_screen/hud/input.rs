@@ -23,6 +23,44 @@ impl GameScreenController {
     ) -> Option<ScreenInputResponse> {
         let size = self.elements.layout.viewport;
         self.hud.bind(world);
+        if self
+            .hud
+            .focused
+            .is_some_and(|id| id.part == HudPart::JournalSearch)
+            && self.hud.capture.is_none()
+            && self.hud.command_capture.is_none()
+        {
+            let mut edited = false;
+            match event {
+                InputEvent::Text(text) => edited = self.hud.state.journal_text(Some(text), false),
+                InputEvent::Key {
+                    physical: PhysicalKey::Backspace,
+                    pressed: true,
+                    ..
+                } => edited = self.hud.state.journal_text(None, true),
+                InputEvent::Key {
+                    physical: PhysicalKey::Escape | PhysicalKey::Enter,
+                    pressed: true,
+                    ..
+                } => {
+                    self.hud.focused = self.hud.focused.map(|id| HudControlId {
+                        part: HudPart::Body,
+                        ..id
+                    });
+                    return Some(ScreenInputResponse::handled(true));
+                }
+                InputEvent::Key {
+                    physical: PhysicalKey::Tab,
+                    ..
+                } => {}
+                InputEvent::Key { .. } => return Some(ScreenInputResponse::handled(true)),
+                _ => {}
+            }
+            if edited {
+                self.hud.pending_command = None;
+                return Some(ScreenInputResponse::handled(true));
+            }
+        }
         if matches!(event, InputEvent::Focus(false)) {
             self.hud.capture = None;
             self.hud.focused = None;
@@ -103,12 +141,28 @@ impl GameScreenController {
                             capture.bounds,
                             Some(action),
                         ) {
-                            self.hud.state.activate(action, &mut self.elements);
+                            if let model::HudAction::JournalCraft {
+                                command, target, ..
+                            } = action
+                            {
+                                effects
+                                    .extend(self.hud.state.journal_effect(world, command, *target));
+                            } else {
+                                self.hud.state.activate(action, &mut self.elements);
+                            }
                             if matches!(
                                 action,
                                 model::HudAction::CatalogAssign
                                     | model::HudAction::CatalogPage(_)
                                     | model::HudAction::CatalogTab(_)
+                                    | model::HudAction::JournalSearch
+                                    | model::HudAction::JournalClear
+                                    | model::HudAction::JournalTab(_)
+                                    | model::HudAction::JournalFilter(_)
+                                    | model::HudAction::JournalTarget(_)
+                                    | model::HudAction::JournalPopup { .. }
+                                    | model::HudAction::JournalPopupPage(_)
+                                    | model::HudAction::OpenJournal
                             ) {
                                 self.hud.pending_command = None;
                             }
@@ -120,7 +174,10 @@ impl GameScreenController {
                             }
                             if matches!(
                                 action,
-                                model::HudAction::ToggleSort | model::HudAction::PreferencePopup(_)
+                                model::HudAction::ToggleSort
+                                    | model::HudAction::PreferencePopup(_)
+                                    | model::HudAction::JournalPopup { .. }
+                                    | model::HudAction::JournalPopupPage(_)
                             ) && self.hud.state.popup_open()
                             {
                                 self.hud.focused = self
@@ -338,6 +395,13 @@ impl GameScreenController {
                                             | HudPart::CatalogEntry(_)
                                             | HudPart::CatalogTab(_)
                                             | HudPart::Assign
+                                            | HudPart::OpenJournal
+                                            | HudPart::JournalSearch
+                                            | HudPart::JournalClear
+                                            | HudPart::JournalFilter
+                                            | HudPart::JournalTab(_)
+                                            | HudPart::JournalTarget
+                                            | HudPart::JournalCraft
                                             | HudPart::Detail
                                             | HudPart::Preference(_)
                                             | HudPart::ResetPositions

@@ -1,0 +1,532 @@
+{
+  "version": 1,
+  "id": "ruleset-fox_inscription_manual",
+  "label": "Fox Inscription Manual",
+  "rows": [
+    {
+      "id": "color-17",
+      "label": "Color 17",
+      "tiles": [
+        {
+          "id": "color-17-0",
+          "op": {
+            "type": "material",
+            "palette": 17,
+            "roughness": 0.85,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "part-0",
+      "label": "Part 0",
+      "tiles": [
+        {
+          "id": "part-0-0",
+          "op": {
+            "type": "contour",
+            "points": [
+              [
+                -0.27,
+                -0.32
+              ],
+              [
+                0.27,
+                -0.32
+              ],
+              [
+                0.27,
+                0.32
+              ],
+              [
+                -0.27,
+                0.32
+              ]
+            ]
+          }
+        },
+        {
+          "id": "part-0-1",
+          "op": {
+            "type": "extrude",
+            "depth": 0.02
+          }
+        },
+        {
+          "id": "part-0-2",
+          "op": {
+            "type": "assign_material",
+            "row": "color-17"
+          }
+        },
+        {
+          "id": "part-0-3",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0,
+              0.0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "color-23",
+      "label": "Color 23",
+      "tiles": [
+        {
+          "id": "color-23-0",
+          "op": {
+            "type": "material",
+            "palette": 23,
+            "roughness": 0.85,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "part-1",
+      "label": "Part 1",
+      "tiles": [
+        {
+          "id": "part-1-0",
+          "op": {
+            "type": "contour",
+            "points": [
+              [
+                -0.23,
+                -0.28
+              ],
+              [
+                0.23,
+                -0.28
+              ],
+              [
+                0.23,
+                0.28
+              ],
+              [
+                -0.23,
+                0.28
+              ]
+            ]
+          }
+        },
+        {
+          "id": "part-1-1",
+          "op": {
+            "type": "extrude",
+            "depth": 0.02
+          }
+        },
+        {
+          "id": "part-1-2",
+          "op": {
+            "type": "assign_material",
+            "row": "color-23"
+          }
+        },
+        {
+          "id": "part-1-3",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.025,
+              0,
+              0.003
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "color-19",
+      "label": "Color 19",
+      "tiles": [
+        {
+          "id": "color-19-0",
+          "op": {
+            "type": "material",
+            "palette": 19,
+            "roughness": 0.85,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "part-2",
+      "label": "Part 2",
+      "tiles": [
+        {
+          "id": "part-2-0",
+          "op": {
+            "type": "contour",
+            "points": [
+              [
+                -0.26,
+                -0.28
+              ],
+              [
+                0.26,
+                -0.28
+              ],
+              [
+                0.26,
+                0.28
+              ],
+              [
+                -0.26,
+                0.28
+              ]
+            ]
+          }
+        },
+        {
+          "id": "part-2-1",
+          "op": {
+            "type": "extrude",
+            "depth": 0.02
+          }
+        },
+        {
+          "id": "part-2-2",
+          "op": {
+            "type": "assign_material",
+            "row": "color-19"
+          }
+        },
+        {
+          "id": "part-2-3",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.035,
+              0.006
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "color-21",
+      "label": "Color 21",
+      "tiles": [
+        {
+          "id": "color-21-0",
+          "op": {
+            "type": "material",
+            "palette": 21,
+            "roughness": 0.85,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "part-3",
+      "label": "Part 3",
+      "tiles": [
+        {
+          "id": "part-3-0",
+          "op": {
+            "type": "contour",
+            "points": [
+              [
+                -0.025,
+                -0.28
+              ],
+              [
+                0.025,
+                -0.28
+              ],
+              [
+                0.025,
+                0.28
+              ],
+              [
+                -0.025,
+                0.28
+              ]
+            ]
+          }
+        },
+        {
+          "id": "part-3-1",
+          "op": {
+            "type": "extrude",
+            "depth": 0.02
+          }
+        },
+        {
+          "id": "part-3-2",
+          "op": {
+            "type": "assign_material",
+            "row": "color-21"
+          }
+        },
+        {
+          "id": "part-3-3",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.2,
+              0.035,
+              0.009000000000000001
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "part-4",
+      "label": "Part 4",
+      "tiles": [
+        {
+          "id": "part-4-0",
+          "op": {
+            "type": "contour",
+            "points": [
+              [
+                0.12,
+                0.0
+              ],
+              [
+                -0.05999999999999998,
+                0.10392304845413264
+              ],
+              [
+                -0.06000000000000005,
+                -0.1039230484541326
+              ]
+            ]
+          }
+        },
+        {
+          "id": "part-4-1",
+          "op": {
+            "type": "extrude",
+            "depth": 0.02
+          }
+        },
+        {
+          "id": "part-4-2",
+          "op": {
+            "type": "assign_material",
+            "row": "color-21"
+          }
+        },
+        {
+          "id": "part-4-3",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.08,
+              0.012
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "part-5",
+      "label": "Part 5",
+      "tiles": [
+        {
+          "id": "part-5-0",
+          "op": {
+            "type": "contour",
+            "points": [
+              [
+                0.1,
+                0.0
+              ],
+              [
+                -0.04999999999999999,
+                0.08660254037844388
+              ],
+              [
+                -0.050000000000000044,
+                -0.08660254037844384
+              ]
+            ]
+          }
+        },
+        {
+          "id": "part-5-1",
+          "op": {
+            "type": "extrude",
+            "depth": 0.02
+          }
+        },
+        {
+          "id": "part-5-2",
+          "op": {
+            "type": "assign_material",
+            "row": "color-21"
+          }
+        },
+        {
+          "id": "part-5-3",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.12,
+              0.08,
+              0.015
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "part-6",
+      "label": "Part 6",
+      "tiles": [
+        {
+          "id": "part-6-0",
+          "op": {
+            "type": "contour",
+            "points": [
+              [
+                0.15,
+                0.0
+              ],
+              [
+                -0.07499999999999997,
+                0.1299038105676658
+              ],
+              [
+                -0.07500000000000007,
+                -0.12990381056766576
+              ]
+            ]
+          }
+        },
+        {
+          "id": "part-6-1",
+          "op": {
+            "type": "extrude",
+            "depth": 0.02
+          }
+        },
+        {
+          "id": "part-6-2",
+          "op": {
+            "type": "assign_material",
+            "row": "color-21"
+          }
+        },
+        {
+          "id": "part-6-3",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.06,
+              -0.06,
+              0.018000000000000002
+            ],
+            "rotation": [
+              0,
+              0,
+              -180
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "model",
+      "label": "Model",
+      "tiles": [
+        {
+          "id": "model-0",
+          "op": {
+            "type": "assemble",
+            "rows": [
+              "part-0",
+              "part-1",
+              "part-2",
+              "part-3",
+              "part-4",
+              "part-5",
+              "part-6"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "model"
+}

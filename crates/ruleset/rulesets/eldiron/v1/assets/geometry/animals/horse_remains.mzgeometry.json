@@ -1,0 +1,2201 @@
+{
+  "version": 1,
+  "id": "ruleset-animal-horse-remains",
+  "label": "Horse Remains",
+  "rows": [
+    {
+      "id": "color-20",
+      "label": "Color 20",
+      "tiles": [
+        {
+          "id": "color-20-0",
+          "op": {
+            "type": "material",
+            "palette": 20,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "torso",
+      "label": "Torso",
+      "tiles": [
+        {
+          "id": "torso-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.34,
+                  0
+                ],
+                "radius": [
+                  0.045,
+                  0.099
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.24480000000000002,
+                  0
+                ],
+                "radius": [
+                  0.216,
+                  0.4752
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.09520000000000002,
+                  0
+                ],
+                "radius": [
+                  0.294,
+                  0.6468
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.09520000000000002,
+                  0
+                ],
+                "radius": [
+                  0.294,
+                  0.6468
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.24480000000000002,
+                  0
+                ],
+                "radius": [
+                  0.216,
+                  0.4752
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.34,
+                  0
+                ],
+                "radius": [
+                  0.045,
+                  0.099
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "torso-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "torso-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              1.13,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "neck",
+      "label": "Neck",
+      "tiles": [
+        {
+          "id": "neck-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.32250000000000006,
+                  0
+                ],
+                "radius": [
+                  0.02475,
+                  0.021285
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.23220000000000005,
+                  0
+                ],
+                "radius": [
+                  0.1188,
+                  0.102168
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.09030000000000003,
+                  0
+                ],
+                "radius": [
+                  0.1617,
+                  0.139062
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.09030000000000003,
+                  0
+                ],
+                "radius": [
+                  0.1617,
+                  0.139062
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.23220000000000005,
+                  0
+                ],
+                "radius": [
+                  0.1188,
+                  0.102168
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.32250000000000006,
+                  0
+                ],
+                "radius": [
+                  0.02475,
+                  0.021285
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "neck-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "neck-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              1.5034999999999998,
+              0.4917
+            ],
+            "rotation": [
+              -20,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "head",
+      "label": "Head",
+      "tiles": [
+        {
+          "id": "head-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.19375,
+                  0
+                ],
+                "radius": [
+                  0.026737499999999997,
+                  0.0453375
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.13949999999999999,
+                  0
+                ],
+                "radius": [
+                  0.12833999999999998,
+                  0.21762
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.05425000000000001,
+                  0
+                ],
+                "radius": [
+                  0.17468499999999998,
+                  0.296205
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.05425000000000001,
+                  0
+                ],
+                "radius": [
+                  0.17468499999999998,
+                  0.296205
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.13949999999999999,
+                  0
+                ],
+                "radius": [
+                  0.12833999999999998,
+                  0.21762
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.19375,
+                  0
+                ],
+                "radius": [
+                  0.026737499999999997,
+                  0.0453375
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "head-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "head-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              1.758,
+              0.5742
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "color-18",
+      "label": "Color 18",
+      "tiles": [
+        {
+          "id": "color-18-0",
+          "op": {
+            "type": "material",
+            "palette": 18,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "muzzle",
+      "label": "Muzzle",
+      "tiles": [
+        {
+          "id": "muzzle-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.10075,
+                  0
+                ],
+                "radius": [
+                  0.0197625,
+                  0.0197625
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.07254000000000001,
+                  0
+                ],
+                "radius": [
+                  0.09486,
+                  0.09486
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.028210000000000006,
+                  0
+                ],
+                "radius": [
+                  0.129115,
+                  0.129115
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.028210000000000006,
+                  0
+                ],
+                "radius": [
+                  0.129115,
+                  0.129115
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.07254000000000001,
+                  0
+                ],
+                "radius": [
+                  0.09486,
+                  0.09486
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.10075,
+                  0
+                ],
+                "radius": [
+                  0.0197625,
+                  0.0197625
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "muzzle-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-18"
+          }
+        },
+        {
+          "id": "muzzle-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              1.703,
+              0.7757000000000001
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "color-1",
+      "label": "Color 1",
+      "tiles": [
+        {
+          "id": "color-1-0",
+          "op": {
+            "type": "material",
+            "palette": 1,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "left-eye",
+      "label": "Left Eye",
+      "tiles": [
+        {
+          "id": "left-eye-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.0135,
+                  0
+                ],
+                "radius": [
+                  0.001725,
+                  0.0021
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.00972,
+                  0
+                ],
+                "radius": [
+                  0.00828,
+                  0.01008
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.0037800000000000004,
+                  0
+                ],
+                "radius": [
+                  0.011269999999999999,
+                  0.01372
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.0037800000000000004,
+                  0
+                ],
+                "radius": [
+                  0.011269999999999999,
+                  0.01372
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.00972,
+                  0
+                ],
+                "radius": [
+                  0.00828,
+                  0.01008
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.0135,
+                  0
+                ],
+                "radius": [
+                  0.001725,
+                  0.0021
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "left-eye-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-1"
+          }
+        },
+        {
+          "id": "left-eye-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.16740000000000002,
+              1.783,
+              0.6734
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "left-ear",
+      "label": "Left Ear",
+      "tiles": [
+        {
+          "id": "left-ear-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.13175,
+                  0
+                ],
+                "radius": [
+                  0.010462500000000001,
+                  0.004125
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.09486,
+                  0
+                ],
+                "radius": [
+                  0.05022,
+                  0.019799999999999998
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.036890000000000006,
+                  0
+                ],
+                "radius": [
+                  0.068355,
+                  0.026949999999999998
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.036890000000000006,
+                  0
+                ],
+                "radius": [
+                  0.068355,
+                  0.026949999999999998
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.09486,
+                  0
+                ],
+                "radius": [
+                  0.05022,
+                  0.019799999999999998
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.13175,
+                  0
+                ],
+                "radius": [
+                  0.010462500000000001,
+                  0.004125
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "left-ear-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "left-ear-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.186,
+              1.9068,
+              0.5492
+            ],
+            "rotation": [
+              0,
+              0,
+              -35
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "right-eye",
+      "label": "Right Eye",
+      "tiles": [
+        {
+          "id": "right-eye-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.0135,
+                  0
+                ],
+                "radius": [
+                  0.001725,
+                  0.0021
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.00972,
+                  0
+                ],
+                "radius": [
+                  0.00828,
+                  0.01008
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.0037800000000000004,
+                  0
+                ],
+                "radius": [
+                  0.011269999999999999,
+                  0.01372
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.0037800000000000004,
+                  0
+                ],
+                "radius": [
+                  0.011269999999999999,
+                  0.01372
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.00972,
+                  0
+                ],
+                "radius": [
+                  0.00828,
+                  0.01008
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.0135,
+                  0
+                ],
+                "radius": [
+                  0.001725,
+                  0.0021
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "right-eye-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-1"
+          }
+        },
+        {
+          "id": "right-eye-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.16740000000000002,
+              1.783,
+              0.6734
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "right-ear",
+      "label": "Right Ear",
+      "tiles": [
+        {
+          "id": "right-ear-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.13175,
+                  0
+                ],
+                "radius": [
+                  0.010462500000000001,
+                  0.004125
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.09486,
+                  0
+                ],
+                "radius": [
+                  0.05022,
+                  0.019799999999999998
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.036890000000000006,
+                  0
+                ],
+                "radius": [
+                  0.068355,
+                  0.026949999999999998
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.036890000000000006,
+                  0
+                ],
+                "radius": [
+                  0.068355,
+                  0.026949999999999998
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.09486,
+                  0
+                ],
+                "radius": [
+                  0.05022,
+                  0.019799999999999998
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.13175,
+                  0
+                ],
+                "radius": [
+                  0.010462500000000001,
+                  0.004125
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "right-ear-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "right-ear-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.186,
+              1.9068,
+              0.5492
+            ],
+            "rotation": [
+              0,
+              0,
+              35
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "front-left-upper",
+      "label": "Front Left Upper",
+      "tiles": [
+        {
+          "id": "front-left-upper-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.30790000000000006,
+                  0
+                ],
+                "radius": [
+                  0.05160000000000001,
+                  0.05160000000000001
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.12316000000000003,
+                  0
+                ],
+                "radius": [
+                  0.0645,
+                  0.0645
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.12316000000000003,
+                  0
+                ],
+                "radius": [
+                  0.0645,
+                  0.0645
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.30790000000000006,
+                  0
+                ],
+                "radius": [
+                  0.05160000000000001,
+                  0.05160000000000001
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "front-left-upper-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "front-left-upper-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.195,
+              0.6521,
+              0.42900000000000005
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "front-left-lower",
+      "label": "Front Left Lower",
+      "tiles": [
+        {
+          "id": "front-left-lower-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.24209999999999998,
+                  0
+                ],
+                "radius": [
+                  0.03612,
+                  0.03766800000000001
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.09684,
+                  0
+                ],
+                "radius": [
+                  0.045149999999999996,
+                  0.047085
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.09684,
+                  0
+                ],
+                "radius": [
+                  0.045149999999999996,
+                  0.047085
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.24209999999999998,
+                  0
+                ],
+                "radius": [
+                  0.03612,
+                  0.03766800000000001
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "front-left-lower-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "front-left-lower-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.195,
+              0.22709999999999997,
+              0.45400000000000007
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "color-17",
+      "label": "Color 17",
+      "tiles": [
+        {
+          "id": "color-17-0",
+          "op": {
+            "type": "material",
+            "palette": 17,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "front-left-hoof",
+      "label": "Front Left Hoof",
+      "tiles": [
+        {
+          "id": "front-left-hoof-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.11997000000000001,
+              0.09,
+              0.15222
+            ]
+          }
+        },
+        {
+          "id": "front-left-hoof-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-17"
+          }
+        },
+        {
+          "id": "front-left-hoof-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.195,
+              0.045,
+              0.4790000000000001
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "front-right-upper",
+      "label": "Front Right Upper",
+      "tiles": [
+        {
+          "id": "front-right-upper-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.30790000000000006,
+                  0
+                ],
+                "radius": [
+                  0.05160000000000001,
+                  0.05160000000000001
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.12316000000000003,
+                  0
+                ],
+                "radius": [
+                  0.0645,
+                  0.0645
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.12316000000000003,
+                  0
+                ],
+                "radius": [
+                  0.0645,
+                  0.0645
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.30790000000000006,
+                  0
+                ],
+                "radius": [
+                  0.05160000000000001,
+                  0.05160000000000001
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "front-right-upper-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "front-right-upper-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.195,
+              0.6521,
+              0.42900000000000005
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "front-right-lower",
+      "label": "Front Right Lower",
+      "tiles": [
+        {
+          "id": "front-right-lower-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.24209999999999998,
+                  0
+                ],
+                "radius": [
+                  0.03612,
+                  0.03766800000000001
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.09684,
+                  0
+                ],
+                "radius": [
+                  0.045149999999999996,
+                  0.047085
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.09684,
+                  0
+                ],
+                "radius": [
+                  0.045149999999999996,
+                  0.047085
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.24209999999999998,
+                  0
+                ],
+                "radius": [
+                  0.03612,
+                  0.03766800000000001
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "front-right-lower-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "front-right-lower-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.195,
+              0.22709999999999997,
+              0.45400000000000007
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "front-right-hoof",
+      "label": "Front Right Hoof",
+      "tiles": [
+        {
+          "id": "front-right-hoof-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.11997000000000001,
+              0.09,
+              0.15222
+            ]
+          }
+        },
+        {
+          "id": "front-right-hoof-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-17"
+          }
+        },
+        {
+          "id": "front-right-hoof-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.195,
+              0.045,
+              0.4790000000000001
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "rear-left-upper",
+      "label": "Rear Left Upper",
+      "tiles": [
+        {
+          "id": "rear-left-upper-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.30790000000000006,
+                  0
+                ],
+                "radius": [
+                  0.05160000000000001,
+                  0.05160000000000001
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.12316000000000003,
+                  0
+                ],
+                "radius": [
+                  0.0645,
+                  0.0645
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.12316000000000003,
+                  0
+                ],
+                "radius": [
+                  0.0645,
+                  0.0645
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.30790000000000006,
+                  0
+                ],
+                "radius": [
+                  0.05160000000000001,
+                  0.05160000000000001
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "rear-left-upper-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "rear-left-upper-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.195,
+              0.6521,
+              -0.42900000000000005
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "rear-left-lower",
+      "label": "Rear Left Lower",
+      "tiles": [
+        {
+          "id": "rear-left-lower-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.24209999999999998,
+                  0
+                ],
+                "radius": [
+                  0.03612,
+                  0.03766800000000001
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.09684,
+                  0
+                ],
+                "radius": [
+                  0.045149999999999996,
+                  0.047085
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.09684,
+                  0
+                ],
+                "radius": [
+                  0.045149999999999996,
+                  0.047085
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.24209999999999998,
+                  0
+                ],
+                "radius": [
+                  0.03612,
+                  0.03766800000000001
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "rear-left-lower-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "rear-left-lower-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.195,
+              0.22709999999999997,
+              -0.404
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "rear-left-hoof",
+      "label": "Rear Left Hoof",
+      "tiles": [
+        {
+          "id": "rear-left-hoof-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.11997000000000001,
+              0.09,
+              0.15222
+            ]
+          }
+        },
+        {
+          "id": "rear-left-hoof-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-17"
+          }
+        },
+        {
+          "id": "rear-left-hoof-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.195,
+              0.045,
+              -0.379
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "rear-right-upper",
+      "label": "Rear Right Upper",
+      "tiles": [
+        {
+          "id": "rear-right-upper-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.30790000000000006,
+                  0
+                ],
+                "radius": [
+                  0.05160000000000001,
+                  0.05160000000000001
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.12316000000000003,
+                  0
+                ],
+                "radius": [
+                  0.0645,
+                  0.0645
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.12316000000000003,
+                  0
+                ],
+                "radius": [
+                  0.0645,
+                  0.0645
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.30790000000000006,
+                  0
+                ],
+                "radius": [
+                  0.05160000000000001,
+                  0.05160000000000001
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "rear-right-upper-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "rear-right-upper-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.195,
+              0.6521,
+              -0.42900000000000005
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "rear-right-lower",
+      "label": "Rear Right Lower",
+      "tiles": [
+        {
+          "id": "rear-right-lower-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.24209999999999998,
+                  0
+                ],
+                "radius": [
+                  0.03612,
+                  0.03766800000000001
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.09684,
+                  0
+                ],
+                "radius": [
+                  0.045149999999999996,
+                  0.047085
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.09684,
+                  0
+                ],
+                "radius": [
+                  0.045149999999999996,
+                  0.047085
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.24209999999999998,
+                  0
+                ],
+                "radius": [
+                  0.03612,
+                  0.03766800000000001
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "rear-right-lower-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-20"
+          }
+        },
+        {
+          "id": "rear-right-lower-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.195,
+              0.22709999999999997,
+              -0.404
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "rear-right-hoof",
+      "label": "Rear Right Hoof",
+      "tiles": [
+        {
+          "id": "rear-right-hoof-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.11997000000000001,
+              0.09,
+              0.15222
+            ]
+          }
+        },
+        {
+          "id": "rear-right-hoof-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-17"
+          }
+        },
+        {
+          "id": "rear-right-hoof-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.195,
+              0.045,
+              -0.379
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "tail",
+      "label": "Tail",
+      "tiles": [
+        {
+          "id": "tail-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.13,
+                  0
+                ],
+                "radius": [
+                  0.0045,
+                  0.0045
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.0936,
+                  0
+                ],
+                "radius": [
+                  0.021599999999999998,
+                  0.021599999999999998
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.0364,
+                  0
+                ],
+                "radius": [
+                  0.0294,
+                  0.0294
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.0364,
+                  0
+                ],
+                "radius": [
+                  0.0294,
+                  0.0294
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.0936,
+                  0
+                ],
+                "radius": [
+                  0.021599999999999998,
+                  0.021599999999999998
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.13,
+                  0
+                ],
+                "radius": [
+                  0.0045,
+                  0.0045
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "tail-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-17"
+          }
+        },
+        {
+          "id": "tail-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              1.1489999999999998,
+              -0.6940000000000001
+            ],
+            "rotation": [
+              35,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "mane",
+      "label": "Mane",
+      "tiles": [
+        {
+          "id": "mane-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.215,
+                  0
+                ],
+                "radius": [
+                  0.0063750000000000005,
+                  0.0105
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.1548,
+                  0
+                ],
+                "radius": [
+                  0.030600000000000002,
+                  0.0504
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.060200000000000004,
+                  0
+                ],
+                "radius": [
+                  0.04165,
+                  0.06860000000000001
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.060200000000000004,
+                  0
+                ],
+                "radius": [
+                  0.04165,
+                  0.06860000000000001
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.1548,
+                  0
+                ],
+                "radius": [
+                  0.030600000000000002,
+                  0.0504
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.215,
+                  0
+                ],
+                "radius": [
+                  0.0063750000000000005,
+                  0.0105
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "mane-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-17"
+          }
+        },
+        {
+          "id": "mane-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              1.563,
+              0.396
+            ],
+            "rotation": [
+              -25,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "tail-hair",
+      "label": "Tail Hair",
+      "tiles": [
+        {
+          "id": "tail-hair-0",
+          "op": {
+            "type": "loft",
+            "segments": 8,
+            "sections": [
+              {
+                "center": [
+                  0,
+                  -0.265,
+                  0
+                ],
+                "radius": [
+                  0.00975,
+                  0.00975
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.1908,
+                  0
+                ],
+                "radius": [
+                  0.0468,
+                  0.0468
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  -0.07420000000000002,
+                  0
+                ],
+                "radius": [
+                  0.0637,
+                  0.0637
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.07420000000000002,
+                  0
+                ],
+                "radius": [
+                  0.0637,
+                  0.0637
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.1908,
+                  0
+                ],
+                "radius": [
+                  0.0468,
+                  0.0468
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  0.265,
+                  0
+                ],
+                "radius": [
+                  0.00975,
+                  0.00975
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "tail-hair-1",
+          "op": {
+            "type": "assign_material",
+            "row": "color-17"
+          }
+        },
+        {
+          "id": "tail-hair-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.9299999999999999,
+              -0.76
+            ],
+            "rotation": [
+              15,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "body",
+      "label": "Animal body",
+      "tiles": [
+        {
+          "id": "body-0",
+          "op": {
+            "type": "assemble",
+            "rows": [
+              "torso",
+              "neck",
+              "head",
+              "muzzle",
+              "left-eye",
+              "left-ear",
+              "right-eye",
+              "right-ear",
+              "front-left-upper",
+              "front-left-lower",
+              "front-left-hoof",
+              "front-right-upper",
+              "front-right-lower",
+              "front-right-hoof",
+              "rear-left-upper",
+              "rear-left-lower",
+              "rear-left-hoof",
+              "rear-right-upper",
+              "rear-right-lower",
+              "rear-right-hoof",
+              "tail",
+              "mane",
+              "tail-hair"
+            ]
+          }
+        },
+        {
+          "id": "rest-on-side",
+          "op": {
+            "type": "transform",
+            "translation": [
+              1.13,
+              0.42,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              90
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "body"
+}

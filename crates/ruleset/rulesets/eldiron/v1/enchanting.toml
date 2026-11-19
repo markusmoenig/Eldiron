@@ -1,0 +1,126 @@
+# Readable reference for the canonical graph: world-sourced bear inscription.
+
+["knowledge"."bear_inscription"]
+"name" = "Bear Inscription"
+"description" = "The bone-carved sigil of the bear and its binding rite."
+"recipes" = ["carve_bear_inlay", "inscribe_bear_cuirass"]
+
+
+["teaching"."bear_inscription"]
+"name" = "Bear Inscription"
+"description" = "Learn the sigil and binding rite from an Inscriber or Patterns of the Bear."
+"knowledge" = ["bear_inscription"]
+"skill" = "boneworking"
+"required_skill" = 10
+
+
+["professions"."Inscriber"]
+"name" = "Inscriber"
+"description" = "A keeper and teacher of inscription patterns."
+"teaching" = ["bear_inscription", "fox_inscription"]
+"skills" = ["boneworking", "leatherworking"]
+
+["items"."materials"."bear_inlay"]
+"name" = "Bear Sigil Inlay"
+"description" = "A bear sigil carved into bone and sealed with tree resin. Used to bind the vigor of the bear."
+"slot" = "material"
+"category" = "world_material"
+"appearance_icon" = "icon/bear_inlay/on"
+"max_stack" = 100
+
+["items"."materials"."bear_inlay"."attributes"]
+"stackable" = true
+"quantity" = 1
+"quality" = 100
+"condition" = 100
+
+
+["items"."books"."bear_inscription_manual"]
+"name" = "Patterns of the Bear"
+"description" = "A reusable manual of bear sigils and their binding rite. Study with Boneworking 10."
+"slot" = "tool"
+"category" = "book"
+"appearance_icon" = "icon/bear_inscription_manual/on"
+"teaching" = ["bear_inscription"]
+
+["items"."books"."bear_inscription_manual"."attributes"]
+"condition" = 100
+
+
+["recipes"."carve_bear_inlay"]
+"name" = "Carve Bear Sigil Inlay"
+"skill" = "boneworking"
+"required_skill" = 10
+"recommended_skill" = 20
+"difficulty" = 20
+"fixed_quality" = 100
+"consumes" = [{ "item" = "bone_plate", "quantity" = 1 }, { "item" = "tree_resin", "quantity" = 1 }, { "item" = "fresh_water", "quantity" = 1 }]
+"produces" = [{ "item" = "bear_inlay", "quantity" = 1 }]
+
+["recipes"."carve_bear_inlay"."tool"]
+"capability" = "carve_bone"
+"condition_cost" = 1
+
+["recipes"."carve_bear_inlay"."station"]
+"capability" = "bonework"
+"range" = 2.0
+
+
+["recipes"."inscribe_bear_cuirass"]
+"name" = "Inscribe the Bear"
+"skill" = "boneworking"
+"required_skill" = 10
+"recommended_skill" = 20
+"difficulty" = 20
+"consumes" = [{ "item" = "bear_inlay", "quantity" = 1 }, { "item" = "tree_resin", "quantity" = 1 }, { "item" = "fresh_water", "quantity" = 1 }]
+"produces" = []
+
+["recipes"."inscribe_bear_cuirass"."enchant"]
+"definition" = "strength"
+"items" = []
+
+["recipes"."inscribe_bear_cuirass"."tool"]
+"capability" = "carve_bone"
+"condition_cost" = 2
+
+["recipes"."inscribe_bear_cuirass"."station"]
+"capability" = "bonework"
+"range" = 2.0
+
+["actions"."learn_bear_inscription"]
+"name" = "Learn Bear Inscription"
+"description" = "Ask a nearby Inscriber to teach the sigil of the bear."
+"kind" = "learn"
+"lesson" = "bear_inscription"
+"target" = "any_entity"
+"range" = 2.0
+"cooldown" = 0.0
+
+
+["actions"."study_bear_inscription"]
+"name" = "Study Patterns of the Bear"
+"description" = "Study an owned copy of Patterns of the Bear to learn its inscription permanently."
+"kind" = "learn"
+"lesson" = "bear_inscription"
+"target" = "inventory_item"
+"range" = 2.0
+"cooldown" = 0.0
+
+
+["actions"."craft_bear_inlay"]
+"name" = "Carve Bear Sigil Inlay"
+"kind" = "craft"
+"recipe" = "carve_bear_inlay"
+"target" = "self"
+"cooldown" = 0.0
+
+
+["actions"."inscribe_bear_cuirass"]
+"name" = "Inscribe the Bear"
+"description" = "Bind a bear sigil to compatible owned equipment. Distinct enchantments can coexist. Keeps identity, quality and condition."
+"kind" = "craft"
+"recipe" = "inscribe_bear_cuirass"
+"target" = "item"
+"range" = 2.0
+"cooldown" = 0.0
+

@@ -44,7 +44,11 @@ impl NativeCreatorApplication {
             .is_some()
             .then(Instant::now);
         let mut profile = crate::misc::FrameProfile::new();
-        let mut editor = Editor::new();
+        let mut editor = if args.len() > 1 {
+            Editor::for_project_open()
+        } else {
+            Editor::new()
+        };
         editor.enable_native_views();
         profile.lap("native_editor_construct");
         let idle_probe = smoke

@@ -191,6 +191,7 @@ impl Editor {
         ctx: &mut TheContext,
         images: &mut theframework::render_wgpu::UiFrameImages<'_>,
     ) -> Result<Option<NativeViewTokens>, String> {
+        let mut profile = crate::misc::FrameProfile::new();
         // Layout is current here; source/pose requests remain CPU preparation.
         if self.geometry_editor.wants_realtime() {
             self.geometry_editor
@@ -225,8 +226,10 @@ impl Editor {
             self.server_ctx.shared.animation_counter,
         );
         self.prepare_native_bake(ctx, images.registry);
+        profile.lap("native_previews");
         let display = self.prepare_native_display_viewport(ui, ctx, images)?;
         let world = self.prepare_native_world_viewport(ui, ctx, images)?;
+        profile.lap("native_world");
         let play = self.prepare_native_play_viewport(ui, ctx, images.registry)?;
         let minimap = self.sidebar.minimap_geometry.prepare(
             &self.documents.project,
@@ -253,6 +256,7 @@ impl Editor {
                 ready, bridge.client.animation_frame, images.registry,
             )?
         };
+        profile.lap("native_play_and_minimap");
         if self.native_empty_viewport()
             && let Some(view) = crate::utils::map_editor_render_view(ui, &self.server_ctx)
         {

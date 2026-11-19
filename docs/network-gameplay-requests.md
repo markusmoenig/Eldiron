@@ -11,14 +11,16 @@ Protocol **4**, WebSocket subprotocol **`eldiron.v4`**, uses the existing bounde
 | Request | Authoritative checks and behavior |
 | --- | --- |
 | Intent; entity/item interaction | Built-in or authored ruleset intent/action; target existence/visibility; actual distance; shared gameplay eligibility, costs, cooldowns and target policy. Learned spell invocations use declared ruleset actions, not the legacy raw `spell:` shortcut. |
-| Prop interaction; targeted terrain intent | Existing authored part/target; server anchor/range; bounded coordinates and declared intent. No client-supplied event, movement speed or teleport. Empty terrain click-to-walk is not supported by this vocabulary. |
+| Prop interaction; targeted terrain intent | Existing authored part/target; server anchor/range; bounded coordinates and declared intent. No client-supplied event, movement speed or teleport. Empty-intent terrain clicks use project-enabled 2D click-to-walk with server-owned routing and fixed time. |
 | Resource | `ResourceRequest` names an access UUID, interaction, bounded quantity and optional exact owned tool/vessel runtime IDs. The server resolves the source, range, requirements, stock, outputs and costs. Clients cannot name an actor, create outputs, set stock or advance time. |
 | Open container | Own container, nearby world container or nearby corpse container. A live other player's inventory is inaccessible. |
-| Transfer | Inventory/equipment, pickup/drop, root container contents and container-to-container transfers. Actor comes from the connection; destinations in another live character are rejected. Nonowned container contents require the currently opened server container session, with reach checked again. Normal stack, equipment and capacity rules still apply. |
+| Transfer | Inventory/equipment, pickup/drop, root container contents and container-to-container transfers. Actor comes from the connection; destinations in another player are rejected. Explicit NPC-follower addresses require current server-assigned membership and a living non-player companion. Nonowned container contents require the currently opened server container session, with reach checked again. Normal stack, equipment and capacity rules still apply. |
 | Choose | An opaque offer UUID issued privately to this socket. The server looks up the exact original choice and rechecks recipient, active dialogue session, expiry and range. The client cannot choose a callback, item price, reward or arbitrary choice index. |
 | Command slot | Authored slot and command validation through the existing ruleset. |
+| Camera | Current camera or a project-allowed camera; changed movement parameters require a new baseline. |
+| Inspect self; craft | Fixed inventory/stats/look queries, or an existing bounded recipe ID executed by the shared crafting handler. |
 
-IDs refer to the current authoritative region. Requests never name the controlled actor or account. Every request requires a live controlled player and the current world/generation/region. Party/follower inventory writes, arbitrary engine actions, raw text commands, free-form chat and admin events are not remote APIs. A project-specific interaction intent must be declared in the ruleset or actor intent configuration.
+IDs refer to the current authoritative region. Requests never name the controlled actor or account. Every request requires a live controlled player and the current world/generation/region. Server-assigned living NPC companions can supply inventory/container sources and inventory/equipment destinations; membership is checked again by remote action handlers. Other players remain protected even if party metadata is present. Arbitrary engine actions, raw text execution, free-form chat and admin events are not remote APIs. GPU command input resolves visible names and public rule metadata to these typed requests before sending. A project-specific interaction intent must be declared in the ruleset or actor intent configuration.
 
 `Processed` means validation passed and the normal handler consumed the request. It does not promise that an effect occurred: ordinary capacity, eligibility and cooldown failures still use the engine's private warning messages. Envelope denials use a bounded `RequestError`; clients display a local warning. Authoritative private frames carry resulting inventory, wallet, equipment, combat and dialogue state.
 
@@ -80,7 +82,7 @@ Public baselines include `resource_views`; deltas may replace that collection. V
 
 There is one world owner per host. The gameplay API knows character streams and authoritative requests, not billing, deployment credentials, tenant routing or a cloud provider. A future managed deployment can resolve its public endpoint and select a world/account namespace without changing game actions or login ownership. See [the hosting concept](../concepts/eldiron-managed-hosting-concept.md).
 
-The current native file backend writes a complete checkpoint per new action. This favors correctness for small hosted worlds; measured throughput and a transactional database/journal backend are required before claiming MMO-scale combat. Spatial subscriptions and full-region geometry/collision packages are implemented; see [spatial-subscriptions-content.md](spatial-subscriptions-content.md). Partial chunk streaming, complete public visual asset export and provider operations remain separate phases. Renderer chunks do not determine permissions or action routing.
+The native file backend uses bounded incremental journals and action groups, with coherent checkpoints and committed receipt watermarks. See [storage/replication performance](network-performance.md) for measured limits; this is not a capacity guarantee for arbitrary games. Spatial subscriptions and full-region geometry/collision packages are implemented; see [spatial-subscriptions-content.md](spatial-subscriptions-content.md). Public client export and incremental region asset delivery are implemented. Streaming individual chunks within a region and managed provider operations remain separate extensions. Renderer chunks do not determine permissions or action routing.
 
 The WASM connection viewer exposes `DemoClient.request(JSON.stringify(request))` using the same Rust DTO/sequencer. Its `state().action` reports the last action result; the full GPU Player uses its existing combat/inventory/dialogue UI instead.
 
@@ -92,3 +94,78 @@ The WASM connection viewer exposes `DemoClient.request(JSON.stringify(request))`
 - Dedicated-host tests cover private opaque offers, wrong-recipient requests, consumed/replaced choices within one tick and saved pickup retries across restart. Real native WSS clients verify sequence replies and certificate-checked HTTPS content.
 - Graphical Player socket tests exercise intent selection, unequip/re-equip, movement and account reconnect without a local world. Local Player/runtime tests, native/WASM Player and Creator builds, and renderer-boundary checks preserve the embedded and browser paths.
 - `tools/verify_online_browser.mjs` runs two Chromium tabs using the actual Rust WASM adapter, pinned temporary WSS/HTTPS certificates, private shared actors, accepted/denied sequenced requests and fixed movement. This is a connection-viewer check; it does not claim device coverage for every native platform or a full browser GPU gameplay acceptance test.
+
+## Gameplay parity extension
+
+The default-false Welcome capability `gameplay_extensions` gates camera/self-inspection/crafting, empty-intent walking and NPC-companion inventory requests on upgraded servers. Endpoint metadata remains separate from canonical content identity, while camera permissions and logout policy are included. See [the gameplay, visual and combat-logout contract](network-gameplay-parity.md).
+
+## Persistent recipe knowledge
+
+Learning uses existing entity/item action requests: `learn_boneworking` targets
+an available teacher and `study_boneworking` targets the exact owned manual.
+There is no client-supplied acquisition or knowledge-edit request. The host
+checks source, skill, costs and the current permanent journal before committing.
+Crafting checks current recipe access again before spending ingredients or wear.
+
+The versioned `knowledge_journal` travels in ordinary saved and owner-replicated
+entity attributes. Acquisitions have their own UUIDs and stable knowledge IDs;
+teacher/book runtime IDs and creator UUIDs record historical provenance. Moving
+or deleting a source does not revoke learned knowledge. Temporary equipment
+grants remain derived from committed equipment state and never write acquisitions.
+
+Committed player retries reuse existing durable receipts rather than rerunning
+learning or batch crafting, including after reconnect/save restoration. The
+[focused runtime scenario](../crates/runtime/tests/learning.rs) exercises both
+solo and dedicated sessions, owner replication, book transfer, independent
+learners, source removal, reconnect and restored receipt replay. No protocol
+variant, schema version or networking identity migration is added by learning.
+
+## Targeted gameplay enchanting
+
+`inscribe_bear_cuirass` uses the existing owned-item action request and recipe
+transaction. Clients select an exact item address; they do not submit a new
+attachment ID, result item or numeric bonus. The host checks current knowledge,
+skill, ownership, target eligibility, materials, vessel contents, tool condition
+and deployed station access. It commits the attachment, optional authored name,
+costs, wear and training together, or none of them.
+
+The existing `strength` effect ID remains stable while its supplied label is
+**Bear's Vigor** and its supplied item name is **Bone Cuirass of the Bear**.
+An inscribed base cuirass retains its original item/definition identity and gains
+one attachment UUID. Ordinary item state/deltas carry this change; repair,
+ownership transfer and restoration preserve it without storing wearer bonuses
+as actor base stats. Duplicate attachment attempts are rejected without costs.
+
+Player retries use the existing durable receipt path, including after the item
+has changed owners or a checkpoint has been restored. The [focused world-chain
+test](../crates/runtime/tests/enchanting.rs) covers solo and dedicated sessions,
+owner replication, exact item/attachment identity, repair, transfer, reconnect,
+save/reload and receipt replay. No new network DTO or persistence schema is
+introduced by this operation.
+
+## Crafting and knowledge journal
+
+The journal inspects the owning character and visible stations from the same
+replica used for play. It runs the shared immediate recipe planner on isolated
+scratch state, never sending a replacement inventory, learned record or preview
+attachment to the host. Ordinary entity/self or owned-item actions perform
+crafting, repair and enchanting. The host rechecks all requirements at commit;
+an earlier ready preview cannot authorize a stale operation.
+
+Public station snapshots additionally expose `station_capabilities` and their
+usable condition. Private item properties and container stock/contents remain
+filtered. The owning character's knowledge, vessel contents, tools and selected
+items already use private owner state. No new request/response DTO, wire version
+or durable schema is introduced for the journal.
+
+Pins use the existing `CommandSlot` request and character attributes. A known
+craft recipe need not belong to a class's initial action-bar list; pinning still
+grants no knowledge or crafting permission. Existing input scopes, item IDs and
+creator UUIDs prevent an item replacement or changed baseline from inheriting
+a captured operation. Requests and pins retain existing durable retry handling.
+
+The [focused runtime scenario](../crates/presentation/tests/journal_runtime.rs)
+covers solo and dedicated owner snapshots, teacher discovery, public station
+inspection, stale-preview refusal, pin/craft persistence, reconnect and receipt
+replay. Native presentation tests separately exercise selection, exact targets,
+pinning and GPU text/source retention.

@@ -15,12 +15,14 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 type Maps = [Vec<[f32; 4]>; 5];
+
 pub(super) struct Baker {
     context: Arc<GpuContext>,
     canceled: Arc<AtomicBool>,
     runtime: Option<MaterialZ>,
     compiled: Option<MaterialInstance>,
 }
+
 impl Baker {
     pub fn new(context: Arc<GpuContext>, canceled: Arc<AtomicBool>) -> Self {
         Self {
@@ -100,13 +102,8 @@ impl Baker {
         if dimensions.is_some_and(|size| size.iter().any(|v| *v > 8192)) {
             return Err("Repeating material period exceeds the 8192 pixel texture limit".into());
         }
-        let page_count = layout
-            .as_ref()
-            .map_or(1, |p| u64::from(p.size[0]) * u64::from(p.size[1]));
         let texels = dimensions.map_or(side * side, |s| s[0] * s[1]);
-        if page_count * u64::from(animation.frames) * (texels * 8) as u64 > 64 * 1024 * 1024 {
-            return Err("Animated material pages exceed the 64 MB bake budget; reduce resolution, frame count or surface coverage".into());
-        }
+        super::composition::surface_pages::fit_bake_budget(&mut layout, texels, animation.frames)?;
         let origin = asset
             .instances
             .iter()

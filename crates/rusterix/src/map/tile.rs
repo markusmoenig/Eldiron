@@ -282,14 +282,22 @@ impl TileMaterialMeta {
     }
 
     pub fn rmoe_values_for_color(&self, rgba: [u8; 4]) -> Option<[f32; 4]> {
-        let [mut roughness, mut metallic, mut opacity, mut emissive] = self.base_rmoe_values()?;
+        let base = self.base_rmoe_values()?;
         let preset = self.normalized_preset();
+        Some(Self::adjust_rmoe(base, &preset, rgba))
+    }
+
+    fn adjust_rmoe(
+        [mut roughness, mut metallic, mut opacity, mut emissive]: [f32; 4],
+        preset: &str,
+        rgba: [u8; 4],
+    ) -> [f32; 4] {
         let (luma, saturation, alpha) = Self::color_luma_saturation(rgba);
         let dark_detail = 0.5 - luma;
         let bright_detail = luma - 0.5;
         let saturated_detail = saturation - 0.35;
 
-        match preset.as_str() {
+        match preset {
             "stone" => {
                 roughness += dark_detail * 0.18 + saturated_detail * 0.05;
             }
@@ -330,7 +338,7 @@ impl TileMaterialMeta {
             }
         }
 
-        let family = MaterialFamily::from_preset(&preset);
+        let family = MaterialFamily::from_preset(preset);
         if matches!(
             family,
             MaterialFamily::Skin | MaterialFamily::Wax | MaterialFamily::Foliage
@@ -342,12 +350,12 @@ impl TileMaterialMeta {
             opacity *= alpha;
         }
 
-        Some([
+        [
             roughness.clamp(0.02, 1.0),
             metallic.clamp(0.0, 1.0),
             opacity.clamp(0.0, 1.0),
             emissive.clamp(0.0, 1.0),
-        ])
+        ]
     }
 
     pub fn variant_tile_id(base_id: Uuid, preset: &str, finish: &str) -> Uuid {
@@ -525,7 +533,16 @@ impl Tile {
     }
     #[inline]
     pub fn sample_paint_surface(&self, uv: [f32; 2], frame: usize) -> ([u8; 4], [f32; 4]) {
-        let (index, uv) = self.surface_address(uv, frame, crate::RepeatMode::RepeatXY);
+        self.sample_surface(uv, frame, crate::RepeatMode::RepeatXY)
+    }
+
+    pub(crate) fn sample_surface(
+        &self,
+        uv: [f32; 2],
+        frame: usize,
+        repeat: crate::RepeatMode,
+    ) -> ([u8; 4], [f32; 4]) {
+        let (index, uv) = self.surface_address(uv, frame, repeat);
         let Some(texture) = self
             .textures
             .get(index)
@@ -533,11 +550,16 @@ impl Tile {
         else {
             return ([0; 4], [0.95, 0., 1., 0.]);
         };
-        let uv = uv.map(|v| v.rem_euclid(1.));
+        use crate::RepeatMode::*;
+        let uv = [
+            if matches!(repeat, RepeatXY | RepeatX) { uv[0].rem_euclid(1.) } else { uv[0].clamp(0., 1.) },
+            if matches!(repeat, RepeatXY | RepeatY) { uv[1].rem_euclid(1.) } else { uv[1].clamp(0., 1.) },
+        ];
         let x = (uv[0] * (texture.width - 1) as f32).round() as u32;
         let y = (uv[1] * (texture.height - 1) as f32).round() as u32;
         let color = texture.sample_nearest(uv[0], uv[1]);
-        (color, self.source_material(index, texture, x, y, color))
+        let pixel = y as usize * texture.width + x as usize;
+        (color, self.source_material(index, texture, pixel, color))
     }
 
     /// Read an authored source texel and its live material channels for immutable
@@ -558,36 +580,55 @@ impl Tile {
             .checked_add(x as usize)?
             .checked_mul(4)?;
         let color = texture.data.get(at..at.checked_add(4)?)?.try_into().ok()?;
-        Some((color, self.source_material(index, texture, x, y, color)))
+        Some((color, self.source_material(index, texture, at / 4, color)))
+    }
+
+    /// Iterate one whole source page for GPU upload, resolving its material
+    /// preset once. The output follows the same precedence as an individual texel.
+    pub fn source_surface_texels(
+        &self,
+        index: usize,
+    ) -> Option<impl ExactSizeIterator<Item = ([u8; 4], [f32; 4])> + '_> {
+        let texture = self.textures.get(index)?;
+        let len = texture.width.checked_mul(texture.height)?.checked_mul(4)?;
+        let (rgba, _) = texture.data.get(..len)?.as_chunks::<4>();
+        let authored = self
+            .material
+            .base_rmoe_values()
+            .map(|base| (base, self.material.normalized_preset()));
+        Some(rgba.iter().enumerate().map(move |(pixel, color)| {
+            let material = match &authored {
+                Some((base, preset)) => TileMaterialMeta::adjust_rmoe(*base, preset, *color),
+                None => self.baked_source_material(index, texture, pixel),
+            };
+            (*color, material)
+        }))
     }
 
     fn source_material(
         &self,
         index: usize,
         texture: &Texture,
-        x: u32,
-        y: u32,
+        pixel: usize,
         color: [u8; 4],
     ) -> [f32; 4] {
-        let at = (y as usize * texture.width + x as usize) * 2;
-        let material = self
-            .material
+        self.material
             .rmoe_values_for_color(color)
-            .map(|v| (v[0], v[1], v[2], v[3]))
-            .or_else(|| {
-                self.baked_material_data
-                    .get(index)
-                    .and_then(|b| b.get(at..at + 2))
-                    .map(|b| Texture::decode_material_bytes([b[0], b[1]]))
-            })
-            .unwrap_or_else(|| {
-                if texture.data_ext.is_some() {
-                    texture.get_materials(x, y)
-                } else {
-                    (0.95, 0., 1., 0.)
-                }
-            });
-        [material.0, material.1, material.2, material.3]
+            .unwrap_or_else(|| self.baked_source_material(index, texture, pixel))
+    }
+
+    fn baked_source_material(&self, index: usize, texture: &Texture, pixel: usize) -> [f32; 4] {
+        let at = pixel * 2;
+        let packed = self
+            .baked_material_data
+            .get(index)
+            .and_then(|b| b.get(at..at + 2))
+            .or_else(|| texture.data_ext.as_ref()?.get(at * 2..at * 2 + 2));
+        packed.map_or([0.95, 0., 1., 0.], |bytes| {
+            let (roughness, metallic, opacity, emissive) =
+                Texture::decode_material_bytes([bytes[0], bytes[1]]);
+            [roughness, metallic, opacity, emissive]
+        })
     }
 
     /// Parse a comma, semicolon, or newline separated gameplay tag list.

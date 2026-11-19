@@ -8,6 +8,7 @@ pub enum ItemOwner {
     Owned,
     World,
     Corpse(u32),
+    Follower(u32),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -21,6 +22,7 @@ impl ItemAddress {
             ItemOwner::Owned => Some(actor),
             ItemOwner::World => None,
             ItemOwner::Corpse(id) => Some(id),
+            ItemOwner::Follower(id) => Some(id),
         }
     }
 }
@@ -35,11 +37,18 @@ pub enum ItemDestination {
     Equipment(String),
     Container(ItemAddress),
     Ground([f32; 2]),
+    FollowerInventory { entity: u32, index: Option<u32> },
+    FollowerEquipment { entity: u32, slot: String },
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum GameRequest {
     Intent(String),
+    Camera(PlayerCamera),
+    InspectSelf(SelfInspection),
+    Craft {
+        recipe: String,
+    },
     Entity {
         target: u32,
         intent: Option<String>,
@@ -74,6 +83,12 @@ pub enum GameRequest {
     Resource(resources::ResourceRequest),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SelfInspection {
+    Inventory,
+    Stats,
+    Look,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RequestError {
     Invalid,
     NotControlled,
@@ -93,11 +108,46 @@ fn identifier(text: &str, max: usize) -> bool {
     text.len() <= max && !text.chars().any(char::is_control)
 }
 impl GameRequest {
+    pub fn requires_extensions(&self) -> bool {
+        let address = |a: &ItemAddress| matches!(a.owner, ItemOwner::Follower(_));
+        match self {
+            Self::Camera(_) | Self::InspectSelf(_) | Self::Craft { .. } => true,
+            Self::Terrain { intent, .. } => intent.is_empty(),
+            Self::Item { target, .. } | Self::OpenContainer(target) => address(target),
+            Self::Transfer {
+                source,
+                destination,
+            } => {
+                let source = match source {
+                    ItemSource::Direct(a) => address(a),
+                    ItemSource::Container { container, .. } => address(container),
+                };
+                source
+                    || match destination {
+                        ItemDestination::FollowerInventory { .. }
+                        | ItemDestination::FollowerEquipment { .. } => true,
+                        ItemDestination::Container(a) => address(a),
+                        _ => false,
+                    }
+            }
+            _ => false,
+        }
+    }
     /// Decoder and typed local callers share the same cheap structural bounds.
     pub fn bounded(&self) -> bool {
-        let address = |a: &ItemAddress| a.item > 0 && !matches!(a.owner, ItemOwner::Corpse(0));
+        let address = |a: &ItemAddress| {
+            a.item > 0 && !matches!(a.owner, ItemOwner::Corpse(0) | ItemOwner::Follower(0))
+        };
         let intent = |s: &str| identifier(s, 256);
         match self {
+            Self::Camera(_) | Self::InspectSelf(_) => true,
+            Self::Craft { recipe } => {
+                !recipe.is_empty()
+                    && recipe.len() <= 128
+                    && recipe
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+            }
             Self::Intent(s) => intent(s),
             Self::Resource(request) => request.bounded(),
             Self::Entity { target, intent: i } => *target > 0 && i.as_deref().is_none_or(intent),
@@ -135,6 +185,12 @@ impl GameRequest {
                 source
                     && match destination {
                         ItemDestination::Inventory(index) => index.is_none_or(|i| i < 4096),
+                        ItemDestination::FollowerInventory { entity, index } => {
+                            *entity > 0 && index.is_none_or(|i| i < 4096)
+                        }
+                        ItemDestination::FollowerEquipment { entity, slot } => {
+                            *entity > 0 && !slot.is_empty() && identifier(slot, 64)
+                        }
                         ItemDestination::Equipment(slot) => {
                             !slot.is_empty() && identifier(slot, 64)
                         }
@@ -150,6 +206,45 @@ impl GameRequest {
             }
         }
     }
+}
+fn follower(ctx: &RegionCtx, actor: u32, owner: u32) -> Result<&Entity, RequestError> {
+    ctx.map
+        .entities
+        .iter()
+        .find(|e| {
+            e.id == owner
+                && !e.is_player()
+                && e.get_mode() != "dead"
+                && e.attributes.get_bool_default("party_member", false)
+                && e.attributes.get_uint("party_leader_id") == Some(actor)
+        })
+        .ok_or(RequestError::Forbidden)
+}
+pub(super) fn remote_inventory_owner_allowed(
+    ctx: &RegionCtx,
+    actor: u32,
+    owner: Option<u32>,
+    container: bool,
+) -> bool {
+    if !ctx
+        .map
+        .entities
+        .iter()
+        .find(|e| e.id == actor)
+        .is_some_and(|e| e.attributes.get_bool_default("__frame_motion", false))
+    {
+        return true;
+    }
+    owner.is_none_or(|id| {
+        id == actor
+            || follower(ctx, actor, id).is_ok()
+            || container
+                && ctx
+                    .map
+                    .entities
+                    .iter()
+                    .any(|e| e.id == id && e.get_mode() == "dead")
+    })
 }
 fn allowed_intent(ctx: &mut RegionCtx, actor: u32, intent: &str) -> Result<String, RequestError> {
     if !identifier(intent, 256) {
@@ -219,6 +314,17 @@ fn read_item<'a>(
             .items
             .iter()
             .find(|i| i.id == address.item && i.attributes.get_bool_default("visible", true)),
+        ItemOwner::Follower(owner) => {
+            follower(ctx, actor, owner)?
+                .get_item(address.item)
+                .or_else(|| {
+                    follower(ctx, actor, owner)
+                        .ok()?
+                        .equipped
+                        .values()
+                        .find(|i| i.id == address.item)
+                })
+        }
         ItemOwner::Corpse(owner) => {
             if !ctx
                 .map
@@ -252,7 +358,7 @@ fn container_access(
         return Err(RequestError::Forbidden);
     }
     if !opening
-        && address.owner != ItemOwner::Owned
+        && !matches!(address.owner, ItemOwner::Owned | ItemOwner::Follower(_))
         && ctx.active_container_sessions.get(&actor) != Some(&(address.item, owner))
     {
         return Err(RequestError::Forbidden);
@@ -291,6 +397,47 @@ impl RegionInstance {
             }
             let selected = player.attributes.get_str_default("intent", String::new());
             let action = match request {
+                GameRequest::InspectSelf(kind) => EntityAction::TextCommand(
+                    match kind {
+                        SelfInspection::Inventory => "inventory",
+                        SelfInspection::Stats => "stats",
+                        SelfInspection::Look => "look",
+                    }
+                    .into(),
+                ),
+                GameRequest::Craft { recipe } => {
+                    if !Self::text_command_recipe_ids(ctx).contains(recipe) {
+                        return Err(RequestError::Unsupported);
+                    }
+                    EntityAction::TextCommand(format!("craft {recipe}"))
+                }
+                GameRequest::Camera(camera) => {
+                    let current = match player.attributes.get("player_camera") {
+                        Some(Value::PlayerCamera(camera)) => *camera,
+                        _ => PlayerCamera::D2,
+                    };
+                    let name = match camera {
+                        PlayerCamera::D2 => "2d",
+                        PlayerCamera::D2Grid => "2d_grid",
+                        PlayerCamera::D2Iso => "2d_iso",
+                        PlayerCamera::D2IsoGrid => "2d_iso_grid",
+                        PlayerCamera::D3Iso => "iso",
+                        PlayerCamera::D3FirstP => "firstp",
+                        PlayerCamera::D3FirstPGrid => "firstp_grid",
+                        PlayerCamera::D3FirstPMouse => "firstp_mouse",
+                    };
+                    let allowed = ctx
+                        .config
+                        .get("multiplayer")
+                        .and_then(|v| v.get("gameplay"))
+                        .and_then(|v| v.get("allowed_cameras"))
+                        .and_then(toml::Value::as_array)
+                        .is_some_and(|v| v.iter().any(|v| v.as_str() == Some(name)));
+                    if current != *camera && !allowed {
+                        return Err(RequestError::Forbidden);
+                    }
+                    EntityAction::SetPlayerCamera(*camera)
+                }
                 GameRequest::Resource(request) => {
                     resources::validate_request(ctx, actor, request)
                         .map_err(|_| RequestError::Forbidden)?;
@@ -303,7 +450,9 @@ impl RegionInstance {
                 GameRequest::Entity { target, intent } => {
                     if !ctx.map.entities.iter().any(|e| {
                         e.id == *target
-                            && (e.id == actor || e.attributes.get_bool_default("visible", true))
+                            && (e.id == actor
+                                || e.attributes.get_bool_default("visible", true)
+                                || follower(ctx, actor, e.id).is_ok())
                     }) {
                         return Err(RequestError::NotFound);
                     }
@@ -399,7 +548,24 @@ impl RegionInstance {
                 GameRequest::Terrain { position, intent } => {
                     let intent = allowed_intent(ctx, actor, intent)?;
                     if intent.is_empty() {
-                        return Err(RequestError::Unsupported);
+                        let player = ctx.map.entities.iter().find(|e| e.id == actor).unwrap();
+                        if !get_config_bool_default(ctx, "game", "auto_walk_2d", false)
+                            || !matches!(
+                                player.attributes.get("player_camera"),
+                                Some(Value::PlayerCamera(
+                                    PlayerCamera::D2
+                                        | PlayerCamera::D2Grid
+                                        | PlayerCamera::D2Iso
+                                        | PlayerCamera::D2IsoGrid
+                                ))
+                            )
+                        {
+                            return Err(RequestError::Forbidden);
+                        }
+                        return Ok(vec![
+                            EntityAction::Intent(String::new()),
+                            EntityAction::TerrainClicked(Vec2::new(position[0], position[1])),
+                        ]);
                     }
                     let pos = ctx
                         .map
@@ -455,7 +621,25 @@ impl RegionInstance {
                             }
                         }
                     }
+                    let target_actor = match destination {
+                        ItemDestination::FollowerInventory { entity, .. }
+                        | ItemDestination::FollowerEquipment { entity, .. } => {
+                            follower(ctx, actor, *entity)?;
+                            *entity
+                        }
+                        _ => actor,
+                    };
                     let (mut inventory, equipped) = match destination {
+                        ItemDestination::FollowerInventory { entity, index } => {
+                            let owner = follower(ctx, actor, *entity)?;
+                            if index.is_some_and(|i| i as usize >= owner.inventory.len()) {
+                                return Err(RequestError::Invalid);
+                            }
+                            (index.map(|i| i as usize), None)
+                        }
+                        ItemDestination::FollowerEquipment { slot, .. } => {
+                            (None, Some(slot.clone()))
+                        }
                         ItemDestination::Inventory(index) => {
                             if index.is_some_and(|i| {
                                 i as usize
@@ -488,12 +672,25 @@ impl RegionInstance {
                     // first free slot, including when removing worn equipment.
                     // The legacy profile-drop action with no destination is a
                     // no-op for owned items, so make this destination concrete.
-                    if matches!(destination, ItemDestination::Inventory(None))
-                        && let ItemSource::Direct(address) = source
-                        && address.owner == ItemOwner::Owned
-                        && let Some(entity) = ctx.map.entities.iter().find(|e| e.id == actor)
+                    if matches!(
+                        destination,
+                        ItemDestination::Inventory(None)
+                            | ItemDestination::FollowerInventory { index: None, .. }
+                    ) && let ItemSource::Direct(address) = source
+                        && matches!(address.owner, ItemOwner::Owned | ItemOwner::Follower(_))
+                        && let Some(entity) = ctx
+                            .map
+                            .entities
+                            .iter()
+                            .find(|e| e.id == address.owner_id(actor).unwrap())
                         && entity.equipped.values().any(|item| item.id == address.item)
                     {
+                        let entity = ctx
+                            .map
+                            .entities
+                            .iter()
+                            .find(|e| e.id == target_actor)
+                            .unwrap();
                         inventory = Some(
                             entity
                                 .inventory
@@ -536,8 +733,8 @@ impl RegionInstance {
                         }
                         (ItemSource::Direct(a), _) => EntityAction::MoveItem {
                             item_id: a.item,
-                            owner_entity_id: Some(actor),
-                            target_entity_id: Some(actor),
+                            owner_entity_id: a.owner_id(actor).or(Some(actor)),
+                            target_entity_id: Some(target_actor),
                             to_inventory_index: inventory,
                             to_equipped_slot: equipped,
                         },
@@ -546,7 +743,7 @@ impl RegionInstance {
                                 item_id: *item,
                                 container_item_id: container.item,
                                 container_owner_entity_id: container.owner_id(actor),
-                                target_entity_id: Some(actor),
+                                target_entity_id: Some(target_actor),
                                 to_inventory_index: inventory,
                                 to_equipped_slot: equipped,
                             }

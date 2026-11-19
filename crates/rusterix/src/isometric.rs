@@ -191,6 +191,9 @@ pub fn grid_step(action: &EntityAction) -> Option<Vec2<f32>> {
 pub struct AvatarSprite {
     pub pixels: std::sync::Arc<Vec<u8>>,
     pub surface: Option<std::sync::Arc<surface::SurfaceFrame>>,
+    pub size: [usize; 2],
+    pub anchor: [f32; 2],
+    pub pixels_per_unit: f32,
 }
 /// Items and characters share the same sprite/surface/shadow path, with disjoint keys.
 pub fn item_sprite_key(index: usize) -> usize { index | (1usize << (usize::BITS - 1)) }
@@ -450,6 +453,7 @@ fn draw_scene_impl(
         projection.unit.to_bits(),
         cache_width,
         cache_height,
+        lighting.is_some(),
         &sprite_frames,
         if animated_floor {
             materials::animation_frame(seconds)
@@ -462,25 +466,30 @@ fn draw_scene_impl(
         if let Some(terrain) = &terrain_model {
             return terrain::render(map, assets, terrain, target, p, seconds);
         }
+        let mut hits = vec![
+            [f32::NEG_INFINITY, 0., 0., 1., 0., 0.95, 0., 0.];
+            target.pixels().len() / 4
+        ];
         for (sector, tile) in floors {
-            raster_floor(map, sector, tile, assets, target, p, seconds, None);
+            raster_floor_pixels(
+                map, sector, tile, assets, target, p, seconds, None, true, None,
+                lighting.is_some().then_some(hits.as_mut_slice()),
+            );
         }
         for entry in ground {
             draw_entry(entry, target, p);
         }
-        target
+        for (pixel, hit) in target
             .pixels_mut()
             .chunks_exact_mut(4)
-            .map(|pixel| {
-                let hit = if pixel[3] > 0 {
-                    [0., 0., 0., 1., 0., 0.95, 0., 0.]
-                } else {
-                    [f32::NEG_INFINITY, 0., 0., 1., 0., 0.95, 0., 0.]
-                };
-                pixel[3] = 255;
-                hit
-            })
-            .collect()
+            .zip(&mut hits)
+        {
+            if pixel[3] > 0 {
+                hit[0] = 0.;
+            }
+            pixel[3] = 255;
+        }
+        hits
     };
     let mut fresh_terrain = Vec::new();
     let mut terrain_offset = Vec2::<usize>::zero();
@@ -624,7 +633,8 @@ fn draw_scene_entry(
     lighting: Option<&lighting::Frame<'_>>,
 ) {
     if let (Some(sector), Some(tile)) = (entry.floor, entry.tile) {
-        if let Some(surfaces) = surfaces {
+        // The cached albedo-only image lacks per-pixel material channels.
+        if let Some(surfaces) = surfaces.filter(|_| lighting.is_none()) {
             let frame = materials::animation_frame(seconds)
                 % tile
                     .uv_pages
@@ -660,7 +670,7 @@ fn draw_scene_entry(
                         };
                         raster_floor_pixels(
                             map, sector, tile, assets, &mut image, local, seconds, None, false,
-                            None,
+                            None, None,
                         );
                         if surfaces.len() > 512 {
                             surfaces.clear();
@@ -689,6 +699,7 @@ fn draw_scene_entry(
                     1.,
                     entry.opacity,
                     contacts,
+                    None,
                     lighting.map(|frame| SpriteLighting {
                         frame,
                         projection,
@@ -702,7 +713,7 @@ fn draw_scene_entry(
             }
         }
         raster_floor_pixels(
-            map, sector, tile, assets, buffer, projection, seconds, contacts, true, lighting,
+            map, sector, tile, assets, buffer, projection, seconds, contacts, true, lighting, None,
         );
     } else {
         draw_entry_lit(entry, buffer, projection, contacts, lighting);
@@ -740,6 +751,10 @@ fn draw_entry_lit(
         scale,
         entry.opacity,
         contacts,
+        image
+            .surface
+            .filter(|_| !image.bitmap)
+            .map(|surface| (surface, entry.height, entry.scale)),
         lighting.map(|frame| SpriteLighting {
             frame,
             projection,
@@ -775,21 +790,6 @@ pub fn tile_preview_sprite(tile: &Tile, position: Vec2<f32>, yaw: f32) -> Option
     })
 }
 
-fn raster_floor(
-    map: &Map,
-    sector: &crate::Sector,
-    tile: &Tile,
-    assets: &Assets,
-    buffer: &mut TheRGBABuffer,
-    p: Projection,
-    seconds: f32,
-    contacts: Option<ContactPass<'_>>,
-) {
-    raster_floor_pixels(
-        map, sector, tile, assets, buffer, p, seconds, contacts, true, None,
-    );
-}
-
 fn raster_floor_pixels(
     map: &Map,
     sector: &crate::Sector,
@@ -801,6 +801,7 @@ fn raster_floor_pixels(
     mut contacts: Option<ContactPass<'_>>,
     composite: bool,
     lighting: Option<&lighting::Frame<'_>>,
+    mut ground_hits: Option<&mut [[f32; 8]]>,
 ) {
     let mut shading = lighting
         .filter(|f| f.canvas.is_none())
@@ -819,17 +820,15 @@ fn raster_floor_pixels(
     let repeat = sector.properties.get_int_default("tile_mode", 1) != 0;
     let frame = materials::animation_frame(seconds);
     let materials = materials::SurfaceMaterials::for_floor(map, sector, tile, assets);
+    let needs_material = lighting.is_some() || ground_hits.is_some();
+    let repeat_mode = if repeat { crate::RepeatMode::RepeatXY } else { crate::RepeatMode::ClampXY };
     let sample = |tile: &Tile, uv: Vec2<f32>| {
-        tile.sample_2d(
-            uv.into_array(),
-            frame,
-            crate::SampleMode::Nearest,
-            if repeat {
-                crate::RepeatMode::RepeatXY
-            } else {
-                crate::RepeatMode::ClampXY
-            },
-        )
+        if needs_material {
+            let (rgba, [r, m, _, e]) = tile.sample_surface(uv.into_array(), frame, repeat_mode);
+            (rgba, [r, m, e])
+        } else {
+            (tile.sample_2d(uv.into_array(), frame, crate::SampleMode::Nearest, repeat_mode), [0.95, 0., 0.])
+        }
     };
     let edge = |a: Vec2<f32>, b: Vec2<f32>, q: Vec2<f32>| {
         (b.x - a.x) * (q.y - a.y) - (b.y - a.y) * (q.x - a.x)
@@ -877,20 +876,22 @@ fn raster_floor_pixels(
                 };
                 let cell = (sampled.x.floor() as i32, sampled.y.floor() as i32);
                 let selection = materials.cell(cell).expect("floor has its explicit base source");
-                let mut color = sample(selection.primary, uv);
+                let (mut color, mut material) = sample(selection.primary, uv);
                 if let Some((weights, secondary)) = selection.secondary {
                     let (u, v) = (sampled.x.rem_euclid(1.), sampled.y.rem_euclid(1.));
                     let left = weights[0] * (1. - v) + weights[3] * v;
                     let right = weights[1] * (1. - v) + weights[2] * v;
-                    color = mix_floor_colors(
-                        color,
-                        sample(secondary, uv),
-                        (left * (1. - u) + right * u).clamp(0., 1.),
-                    );
+                    let amount = (left * (1. - u) + right * u).clamp(0., 1.);
+                    let (other_color, other_material) = sample(secondary, uv);
+                    color = mix_floor_colors(color, other_color, amount);
+                    material = std::array::from_fn(|i| material[i] * (1. - amount) + other_material[i] * amount);
                 }
                 if floor.abs() < 0.001 {
                     if let Some(paint) = assets.terrain_paint.get(&map.id) {
                         color = paint.composite(color, [sampled.x, sampled.y]);
+                        if needs_material {
+                            material = paint.surface_material(material, [sampled.x, sampled.y]);
+                        }
                     }
                 }
                 if color[3] > 0 {
@@ -907,9 +908,16 @@ fn raster_floor_pixels(
                         pass.owners[at] = pass.owner;
                     }
                 }
-                if let Some(canvas) = lighting.and_then(|f| f.canvas.as_ref()) {
-                    canvas.lock().unwrap()[y as usize * width + x as usize] =
-                        surface::packed(Vec3::unit_y(), floor, 0.95, 0., 0.);
+                let pixel = y as usize * width + x as usize;
+                let [roughness, metallic, emission] = material;
+                if color[3] > 0 {
+                    if let Some(hits) = ground_hits.as_deref_mut() {
+                        hits[pixel] = [0., floor, 0., 1., 0., roughness, metallic, emission];
+                    }
+                    if let Some(canvas) = lighting.and_then(|f| f.canvas.as_ref()) {
+                        canvas.lock().unwrap()[pixel] =
+                            surface::packed(Vec3::unit_y(), floor, roughness, metallic, emission);
+                    }
                 }
                 if let Some(shading) = &mut shading {
                     color = shading.color(
@@ -918,13 +926,14 @@ fn raster_floor_pixels(
                         surface::Sample {
                             normal: Vec3::unit_y(),
                             height: floor,
-                            roughness: 0.95,
-                            metallic: 0.,
-                            emission: 0.,
+                            roughness,
+                            metallic,
+                            emission,
+                            ambient_visibility: 1.,
                         },
                     );
                 }
-                let at = (y as usize * width + x as usize) * 4;
+                let at = pixel * 4;
                 if composite {
                     blend(buffer.pixels_mut(), at, color);
                 } else {
@@ -1081,6 +1090,7 @@ fn blit_image(
     scale: f32,
     opacity: f32,
     contacts: Option<ContactPass<'_>>,
+    geometry: Option<(&surface::SurfaceFrame, f32, f32)>,
     lighting: Option<SpriteLighting<'_, '_>>,
 ) {
     if !scale.is_finite() || scale <= 0. || !at.x.is_finite() || !at.y.is_finite() {
@@ -1129,7 +1139,12 @@ fn blit_image(
                 if pass
                     .terrain
                     .as_ref()
-                    .is_some_and(|t| t.hides(x as usize, y as usize))
+                    .is_some_and(|t| {
+                        let height = geometry.and_then(|(surface, base, scale)| {
+                            surface.height_at(src / 4).map(|height| base + height * scale)
+                        });
+                        t.hides(x as usize, y as usize, height)
+                    })
                 {
                     continue;
                 }
@@ -1167,6 +1182,7 @@ fn blit_image(
                             roughness: 0.95,
                             metallic: 0.,
                             emission: 0.,
+                            ambient_visibility: 1.,
                         });
                     let h = l.base_height + sample.height * l.scale;
                     let pixel = Vec2::new(
@@ -1867,6 +1883,9 @@ mod tests {
         let live = AvatarSprite {
             surface: None,
             pixels: std::sync::Arc::new(actor.textures[0].data.clone()),
+            size: [128, 128],
+            anchor: [64., 100.],
+            pixels_per_unit: 32.,
         };
         let mut assets = Assets::default();
         let mut top = material_floor([20, 30, 160, 255]);
@@ -1903,10 +1922,7 @@ mod tests {
             if live_avatar {
                 avatars.insert(
                     0,
-                    AvatarSprite {
-                        surface: None,
-                        pixels: live.pixels.clone(),
-                    },
+                    live.clone(),
                 );
             }
             // Both halves of each tile, the shared edge, and a frame away from

@@ -176,9 +176,8 @@ impl NodeGraphWorkspace {
             branch: None,
         };
         let kind = key.kind();
-        // The catalogue's RulesState is the persisted/runtime authority. The
-        // old RulesGraph is serde-skipped compatibility state, not a source
-        // that this graph workspace may edit or silently convert.
+        // The bundled catalogue supplies the runtime rules. This graph workspace
+        // handles project entity configuration and behavior.
         if kind == NodeGraphKind::Rules {
             return Err(NodeSourceError::InvalidSource(
                 "Game rules belong to the rules document catalogue, not the node workspace".into(),

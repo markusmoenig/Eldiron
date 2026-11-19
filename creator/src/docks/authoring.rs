@@ -204,7 +204,7 @@ impl Dock for AuthoringDock {
                     .current_target(project, server_ctx)
                     .and_then(|t| self.read_target_text(project, t))
                     .unwrap_or_default();
-                let result = project.rules_document.document().and_then(|doc| {
+                let result = project.rules_catalogue_document().and_then(|doc| {
                     shared::rulesets::world_resources::bind_source(
                         doc.table(),
                         &source,
@@ -787,7 +787,7 @@ impl AuthoringDock {
         ctx: &mut TheContext,
         project: &Project,
     ) {
-        if let Ok(doc) = project.rules_document.document() {
+        if let Ok(doc) = project.rules_catalogue_document() {
             let catalogue = doc.catalogue();
             for (id, domain, independent) in [
                 ("Authoring Resource Profile", "resource_profiles", false),
@@ -887,8 +887,7 @@ mod tests {
         dock.activate(&mut ui, &mut ctx, &project, &mut server);
         let before = ui.get_text_area_edit("DockAuthoringEditor").unwrap().text();
         let profiles = project
-            .rules_document
-            .document()
+            .rules_catalogue_document()
             .unwrap()
             .catalogue()
             .ids("resource_profiles");

@@ -244,7 +244,7 @@ impl IsometricSceneRenderer {
                 )?));
             }
             for sprite in &plan.ground {
-                if let Some(sprite) = self.prepare_sprite(sprite, input, true)? {
+                if let Some(sprite) = self.prepare_sprite(sprite, input, size, true)? {
                     ground.push(Command::Sprite(sprite));
                 }
             }
@@ -260,7 +260,7 @@ impl IsometricSceneRenderer {
                     plan.material_frame,
                     size,
                 )?)
-            } else if let Some(sprite) = self.prepare_sprite(sprite, input, false)? {
+            } else if let Some(sprite) = self.prepare_sprite(sprite, input, size, false)? {
                 Command::Sprite(sprite)
             } else {
                 continue;
@@ -339,34 +339,34 @@ impl IsometricSceneRenderer {
                 },
                 &[],
             )?;
-            for command in ground {
-                Self::execute(
-                    &mut self.blitter,
-                    &mut self.surfaces,
-                    canvas,
-                    p,
-                    command,
-                    SpriteContacts::default(),
-                    false,
-                )?;
-            }
-            self.ground_cache.store(&self.context, canvas, frame)?;
-        }
-        for (i, command) in upright {
-            let contact = SpriteContacts {
-                owner: contacts.owner_by_instance[*i],
-                protected: &contacts.protected[*i],
-            };
             Self::execute(
                 &mut self.blitter,
                 &mut self.surfaces,
                 canvas,
                 p,
-                command,
-                contact,
-                terrain,
+                ground
+                    .iter()
+                    .map(|command| (command, SpriteContacts::default())),
+                false,
             )?;
+            self.ground_cache.store(&self.context, canvas, frame)?;
         }
+        Self::execute(
+            &mut self.blitter,
+            &mut self.surfaces,
+            canvas,
+            p,
+            upright.iter().map(|(i, command)| {
+                (
+                    command,
+                    SpriteContacts {
+                        owner: contacts.owner_by_instance[*i],
+                        protected: &contacts.protected[*i],
+                    },
+                )
+            }),
+            terrain,
+        )?;
         self.output.render(
             canvas,
             &lighting.uniforms,
@@ -378,69 +378,93 @@ impl IsometricSceneRenderer {
             revision,
         )
     }
-    fn execute(
+    fn execute<'a>(
         blitter: &mut IsometricBlitter,
         surfaces: &mut IsometricSurfaceRenderer,
         canvas: &IsometricCanvas,
         projection: Projection,
-        command: &Command,
-        contacts: SpriteContacts<'_>,
+        commands: impl IntoIterator<Item = (&'a Command, SpriteContacts<'a>)>,
         terrain: bool,
     ) -> Result<()> {
-        match command {
-            Command::Surface(prepared) => {
-                let draws = prepared
-                    .iter()
-                    .map(|t| SurfaceTriangle {
-                        vertices: t.vertices,
-                        source: &t.source,
-                        secondary: t.secondary.as_ref().map(|(s, w)| (s.as_ref(), *w)),
-                        paint: t.paint.as_deref(),
-                        kind: t.kind,
-                        repeat: t.repeat,
-                        uv_bounds: t.bounds,
-                        clip_cell: t.cell,
+        let mut sprites = Vec::new();
+        let mut environments = Vec::new();
+        for (command, contacts) in commands {
+            match command {
+                Command::Surface(prepared) => {
+                    // Keep painter order across floors. Consecutive sprites
+                    // can share a submission and still execute in order.
+                    if !sprites.is_empty() {
+                        blitter.append_with_environment(canvas, &sprites, &environments)?;
+                        sprites.clear();
+                        environments.clear();
+                    }
+                    let draws = prepared
+                        .iter()
+                        .map(|t| SurfaceTriangle {
+                            vertices: t.vertices,
+                            source: &t.source,
+                            secondary: t.secondary.as_ref().map(|(s, w)| (s.as_ref(), *w)),
+                            paint: t.paint.as_deref(),
+                            kind: t.kind,
+                            repeat: t.repeat,
+                            uv_bounds: t.bounds,
+                            clip_cell: t.cell,
+                            contacts,
+                        })
+                        .collect::<Vec<_>>();
+                    surfaces.append(canvas, projection, &draws)?;
+                }
+                Command::Sprite(s) => {
+                    sprites.push(SpriteBlit {
+                        source: &s.source,
+                        origin: s.origin,
+                        pixel_scale: s.pixel_scale,
+                        base_height: s.base_height,
+                        world_scale: s.world_scale,
+                        opacity: s.opacity,
+                        bitmap: s.bitmap,
+                        prelit: s.prelit,
+                        ground: s.ground,
+                        anchor_y: s.anchor_y,
+                        pixels_per_unit: s.unit,
+                    });
+                    environments.push(SpriteEnvironment {
                         contacts,
-                    })
-                    .collect::<Vec<_>>();
-                surfaces.append(canvas, projection, &draws)
-            }
-            Command::Sprite(s) => {
-                let draw = SpriteBlit {
-                    source: &s.source,
-                    origin: s.origin,
-                    pixel_scale: s.pixel_scale,
-                    base_height: s.base_height,
-                    world_scale: s.world_scale,
-                    opacity: s.opacity,
-                    bitmap: s.bitmap,
-                    prelit: s.prelit,
-                    ground: s.ground,
-                    anchor_y: s.anchor_y,
-                    pixels_per_unit: s.unit,
-                };
-                let environment = SpriteEnvironment {
-                    contacts,
-                    terrain: terrain.then_some(s.terrain).flatten(),
-                    flat_surface: s.flat,
-                };
-                blitter.append_with_environment(canvas, &[draw], &[environment])
+                        terrain: terrain.then_some(s.terrain).flatten(),
+                        flat_surface: s.flat,
+                    });
+                }
             }
         }
+        if !sprites.is_empty() {
+            blitter.append_with_environment(canvas, &sprites, &environments)?;
+        }
+        Ok(())
     }
     fn prepare_sprite(
         &mut self,
         sprite: &Sprite<'_>,
         input: &IsometricSceneInput<'_>,
+        viewport: (u32, u32),
         flat: bool,
     ) -> Result<Option<PreparedSprite>> {
         let Some(image) = sprite.image() else {
             return Ok(None);
         };
+        let (at, scale) = sprite.image_placement(&image, input.projection);
+        let origin = at.into_array().map(|v| v.round() as i32);
+        let extent = [image.width, image.height].map(|v| (v as f32 * scale).round() as i32);
+        let viewport = [viewport.0 as i32, viewport.1 as i32];
+        if (0..2).any(|axis| {
+            extent[axis] <= 0
+                || origin[axis] >= viewport[axis]
+                || origin[axis].saturating_add(extent[axis]) <= 0
+        }) {
+            return Ok(None);
+        }
         let Some(source) = self.sprites.prepare(sprite, input.source_version)? else {
             return Ok(None);
         };
-        let (at, scale) = sprite.image_placement(&image, input.projection);
         Ok(Some(PreparedSprite {
             source,
             origin: at.into_array(),

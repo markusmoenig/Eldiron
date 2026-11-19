@@ -166,6 +166,9 @@ fn dynamic_avatar_geometry_updates_without_rebuilding_or_compositing_its_source(
         AvatarSprite {
             pixels: pixels.clone(),
             surface: Some(surface.clone()),
+            size: [128, 128],
+            anchor: [64., 100.],
+            pixels_per_unit: 32.,
         },
     )]
     .into_iter()

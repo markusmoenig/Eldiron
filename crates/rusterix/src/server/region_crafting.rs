@@ -1,6 +1,9 @@
-//! Immediate crafting stages every debit and output on one actor copy.
+//! Immediate recipes stage debits, outputs and owned-target changes on one actor copy.
 use super::*;
 use std::collections::BTreeMap;
+
+#[path = "region_recipe_preview.rs"]
+pub mod preview;
 
 pub(super) fn item_number(item: &Item, key: &str, default: i32) -> i32 {
     match item.attributes.get(key) {
@@ -78,7 +81,9 @@ pub fn execute_targeted(
     recipe_id: &str,
     target: u32,
 ) -> Result<(), String> {
-    if !ruleset_recipe_table(ctx, recipe_id).is_some_and(|recipe| recipe.contains_key("repair")) {
+    if !ruleset_recipe_table(ctx, recipe_id)
+        .is_some_and(|recipe| recipe.contains_key("repair") || recipe.contains_key("enchant"))
+    {
         return Err("This recipe does not mutate an owned target".into());
     }
     execute_plan(ctx, actor_id, recipe_id, &[], None, Some(target))
@@ -92,6 +97,7 @@ pub(super) fn execute_action(
     action: &ResolvedAction,
     target: Option<&RulesetActionTarget>,
 ) -> Result<(), String> {
+    validate_action(ctx, actor_id, action, target)?;
     let target = match target {
         Some(RulesetActionTarget::Item {
             item_id,
@@ -100,6 +106,51 @@ pub(super) fn execute_action(
         _ => None,
     };
     execute_plan(ctx, actor_id, recipe_id, costs, Some(action), target)
+}
+
+fn validate_action(
+    ctx: &RegionCtx,
+    actor_id: u32,
+    action: &ResolvedAction,
+    target: Option<&RulesetActionTarget>,
+) -> Result<(), String> {
+    let actor = ctx
+        .map
+        .entities
+        .iter()
+        .find(|actor| actor.id == actor_id)
+        .ok_or("Crafter is unavailable")?;
+    if !entity_meets_action_attribute_requirements(ctx, actor, action) {
+        return Err("Action attribute requirements are not met".into());
+    }
+    if ruleset_action_target_entity(ctx, actor_id, action, target).is_some_and(|target| {
+        !entity_meets_action_target_attribute_requirements(ctx, target, action)
+    }) {
+        return Err("Target attribute requirements are not met".into());
+    }
+    if action
+        .required_ability()
+        .is_some_and(|id| !entity_knows_ruleset_ability(ctx, actor, id))
+        || action
+            .required_spell()
+            .is_some_and(|id| !entity_knows_ruleset_spell(ctx, actor, id))
+    {
+        return Err("Action has not been learned".into());
+    }
+    if let Some((skill, required)) = action.skill_requirement() {
+        if entity_skill_points(actor, skill) < required {
+            return Err(format!("Need {skill} {required}"));
+        }
+    }
+    if is_action_on_cooldown(ctx, actor_id, &action.id) {
+        return Err("Action is on cooldown".into());
+    }
+    if !resolved_runtime_action_target_allowed(ctx, &action.target, actor_id, target)
+        || !resolved_action_target_is_in_range(ctx, actor, action, target)
+    {
+        return Err("Select an accessible target".into());
+    }
+    Ok(())
 }
 
 fn execute_plan(
@@ -128,30 +179,15 @@ fn execute_plan(
     if ctx.paused || actor.get_mode() == "dead" {
         return Err("Crafter cannot work now".into());
     }
-    if !entity_meets_recipe_requirements(ctx, &actor, recipe) {
-        return Err("Recipe requirements are not met".into());
-    }
+    ctx.with_value_rules(|rules| crate::learning::recipe_access(rules, &actor, recipe_id))??;
+    check_recipe_requirements(ctx, &actor, recipe)?;
     let repair = if let Some(repair) = &requirements.repair {
         let target_id = target.ok_or("Select the exact owned item to repair")?;
         let item = owned(&actor)
             .find(|i| i.id == target_id)
             .ok_or("Repair target is no longer owned")?;
         ctx.with_value_rules(|rules| rules.validate_item(item))??;
-        let family = ctx
-            .rules
-            .get("equipment_families")
-            .and_then(|v| v.get(&repair.family))
-            .ok_or("Unknown repair family")?;
-        let id = item
-            .attributes
-            .get_str("ruleset_id")
-            .ok_or("Repair target has no definition")?;
-        if !["required_members", "variants"]
-            .into_iter()
-            .filter_map(|key| family.get(key).and_then(toml::Value::as_array))
-            .flatten()
-            .any(|member| member.as_str() == Some(id))
-        {
+        if !preview::target_matches_recipe(&ctx.rules, recipe, item)? {
             return Err("This repair does not apply to the selected item".into());
         }
         let condition = item_number(item, "condition", 100);
@@ -165,11 +201,48 @@ fn execute_plan(
     } else {
         None
     };
+    let enchanted = if let Some(enchant) = &requirements.enchant {
+        let target_id = target.ok_or("Select the exact owned item to enchant")?;
+        let mut item = owned(&actor)
+            .find(|item| item.id == target_id)
+            .ok_or("Enchanting target is no longer owned")?
+            .clone();
+        let definition = item
+            .attributes
+            .get_str("ruleset_id")
+            .ok_or("Enchanting target has no definition")?;
+        if !preview::target_matches_recipe(&ctx.rules, recipe, &item)? || item.stack_quantity() != 1
+        {
+            return Err("This inscription does not apply to the selected item".into());
+        }
+        if item_number(&item, "condition", 100) <= 0 {
+            return Err("Repair the selected item before enchanting it".into());
+        }
+        if item_quantity_entries(recipe, "consumes")
+            .iter()
+            .chain(action_costs.iter())
+            .any(|(id, _)| id == definition)
+        {
+            return Err("An enchanting recipe cannot consume its target".into());
+        }
+        ctx.with_value_rules(|rules| {
+            crate::effective_values::attach(&mut item, rules, &enchant.definition)
+        })??;
+        if let Some(name) = &enchant.name {
+            item.set_attribute("name", Value::Str(name.clone()));
+        }
+        Some((target_id, item))
+    } else {
+        None
+    };
+    let mutation_target = repair
+        .map(|(id, _)| id)
+        .or_else(|| enchanted.as_ref().map(|(id, _)| *id));
     let tool = if let Some(required) = &requirements.tool {
         Some(
             owned(&actor)
                 .filter(|item| {
-                    repair.is_none_or(|(target, _)| target != item.id)
+                    mutation_target != Some(item.id)
                         && has_capability(item, "tool_capabilities", &required.capability)
                         && item_number(item, "condition", 100)
                             >= required.condition_cost.max(1) as i32
@@ -230,6 +303,9 @@ fn execute_plan(
             .ok_or("Recipe cannot consume its repair target")?
             .set_attribute("condition", Value::Int(condition));
     }
+    if let Some((id, item)) = enchanted {
+        *owned_mut(&mut actor, id).ok_or("Recipe cannot consume its enchanting target")? = item;
+    }
     let output_quality = requirements
         .fixed_quality
         .unwrap_or_else(|| recipe_output_quality(&actor, recipe));
@@ -270,10 +346,23 @@ fn execute_plan(
     for (key, value) in resource_debits {
         actor.set_attribute(&key, value);
     }
+    if requirements.enchant.is_some() {
+        ctx.with_value_rules(|rules| {
+            for attribute in rules.affected_attributes(&actor)? {
+                rules.explain_with_conditions(&actor, &attribute, 0.0, &|id| {
+                    active_condition_stacks(ctx, actor_id, id)
+                })?;
+            }
+            Ok::<_, String>(())
+        })??;
+    }
     actor.dirty_flags |= 0b11000;
     ctx.map.entities[index] = actor;
     Ok(())
 }
+#[cfg(test)]
+#[path = "region_enchanting_tests.rs"]
+mod enchanting_tests;
 
 #[cfg(test)]
 mod tests {
@@ -754,7 +843,7 @@ mod tests {
             &assets,
         );
         assert!(rendered.starts_with("14 / 11 /"), "{rendered}");
-        assert!(rendered.contains("Strength +2"), "{rendered}");
+        assert!(rendered.contains("Bear's Vigor +2"), "{rendered}");
         #[cfg(feature = "graphics")]
         {
             let description = crate::client::rules_ui::describe_item(
@@ -770,7 +859,7 @@ mod tests {
         }
         assert!(
             RegionInstance::text_command_ruleset_stats(&ctx, &ctx.map.entities[0])
-                .contains("Strength +2")
+                .contains("Bear's Vigor +2")
         );
         assert!(apply_damage_direct(&mut ctx, actor, 0, 1, "physical", None));
         assert_eq!(

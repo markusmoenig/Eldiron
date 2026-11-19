@@ -17,10 +17,30 @@ pub struct Account {
     pub password_hash: String,
     #[serde(default)]
     pub security_revision: u64,
+    #[serde(default = "default_local_password")]
+    pub local_password: bool,
+}
+fn default_local_password() -> bool {
+    true
 }
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Directory {
     pub accounts: BTreeMap<String, Account>,
+    #[serde(default)]
+    pub identities: BTreeMap<String, ExternalIdentity>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ExternalIdentity {
+    pub issuer: String,
+    pub subject: String,
+    pub account: Uuid,
+}
+pub fn identity_key(issuer: &str, subject: &str) -> String {
+    use sha2::{Digest, Sha256};
+    format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&(issuer, subject)).expect("identity strings"))
+    )
 }
 pub type SharedDirectory = Arc<RwLock<Directory>>;
 fn algorithm() -> Argon2<'static> {
@@ -45,6 +65,19 @@ pub fn hash(password: &str) -> Result<String, ()> {
         .hash_password(password.as_bytes(), &SaltString::generate(&mut OsRng))
         .map(|h| h.to_string())
         .map_err(|_| ())
+}
+/// An external-only record must remain unguessable even if an older binary
+/// ignores its local-password flag. Discard the random password after hashing.
+pub fn external_placeholder_hash() -> Result<String, ()> {
+    use rand::RngCore;
+    let mut random = [0u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut random);
+    hash(
+        &random
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>(),
+    )
 }
 pub fn verify(password: &str, encoded: &str) -> bool {
     if !(12..=256).contains(&password.len()) {
@@ -83,6 +116,14 @@ mod tests {
         assert_eq!(directory.account(id).unwrap().security_revision, 1);
         assert_eq!(directory.account(id).unwrap().id, id);
     }
+    #[test]
+    fn external_only_fallback_is_random_and_unknown_to_older_password_readers() {
+        let a = external_placeholder_hash().unwrap();
+        let b = external_placeholder_hash().unwrap();
+        assert_ne!(a, b);
+        assert!(!verify("dummy missing account password", &a));
+        assert!(!verify("dummy missing account password", &b));
+    }
 }
 
 impl Directory {
@@ -104,6 +145,18 @@ impl Directory {
                 return Err("Invalid private account directory".into());
             }
         }
+        if self.identities.len() > 8192
+            || self.identities.iter().any(|(key, identity)| {
+                *key != identity_key(&identity.issuer, &identity.subject)
+                    || identity.issuer.is_empty()
+                    || identity.issuer.len() > 2048
+                    || identity.subject.is_empty()
+                    || identity.subject.len() > 256
+                    || self.account(identity.account).is_none()
+            })
+        {
+            return Err("Invalid private external identity directory".into());
+        }
         Ok(())
     }
     pub fn revise(&mut self, id: Uuid, password_hash: Option<String>) -> Result<(), String> {
@@ -118,6 +171,7 @@ impl Directory {
             .ok_or("Account security revision exhausted")?;
         if let Some(hash) = password_hash {
             a.password_hash = hash;
+            a.local_password = true;
         }
         self.validate()
     }

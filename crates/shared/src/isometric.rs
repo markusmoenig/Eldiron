@@ -1,6 +1,8 @@
 //! MZ assets baked with a shared, foot-anchored 2:1 isometric projection.
+mod ambient_occlusion;
 pub mod placement;
 pub mod snapping;
+pub use ambient_occlusion::bake_ambient_occlusion;
 use crate::{project::Project, ruleset_materials};
 use denrim_materials::{
     geometry::{Document, Mesh, Part, Value as GeoValue, Vertex},

@@ -50,6 +50,7 @@ pub(super) fn title(id: &str) -> String {
     match id {
         "entity" => fl!("entity_root"),
         "entity_identity" => fl!("entity_identity"),
+        "entity_animal" => fl!("entity_animal"),
         "entity_appearance" => fl!("entity_appearance"),
         "entity_set_tile" => fl!("entity_set_tile"),
         "entity_body" => fl!("entity_body"),
@@ -69,6 +70,7 @@ pub(super) fn label(key: &str) -> String {
     match key {
         "race" => fl!("entity_race"),
         "class" => fl!("entity_class"),
+        "animal" => fl!("entity_animal_species"),
         "level" => fl!("entity_level"),
         "flicker" => fl!("entity_flicker"),
         "avatar" => fl!("entity_avatar"),
@@ -111,6 +113,7 @@ pub(super) fn help(id: &str) -> String {
     match id {
         "entity" => fl!("entity_root_help"),
         "entity_identity" => fl!("entity_identity_help"),
+        "entity_animal" => fl!("entity_animal_help"),
         "entity_set_tile" => fl!("entity_set_tile_help"),
         "entity_input" => fl!("entity_input_help"),
         "entity_attribute" => fl!("entity_attribute_help"),
@@ -278,7 +281,13 @@ impl NodesDock {
             .map(|(index, label)| GraphPickerItem {
                 id: index.to_string(),
                 label: if label.is_empty() {
-                    fl!("entity_inherit")
+                    if self.doc.nodes.iter().any(|node| {
+                        node.id == target.node && node.definition.as_deref() == Some("entity_animal")
+                    }) {
+                        fl!("entity_animal_choose_species")
+                    } else {
+                        fl!("entity_inherit")
+                    }
                 } else {
                     label.clone()
                 },

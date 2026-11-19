@@ -7,10 +7,9 @@ This document defines the design contract for Eldiron rulesets. It describes
 the target architecture that future ruleset work must preserve. It is not a
 claim that every capability described here is implemented today.
 
-Project authoring uses a complete project-owned rules document with a preserved
-original and recovery checkpoints. Inherited deltas and package upgrade
-workflows below remain target capabilities. The bundled official graph currently
-compiles to the same rules data used by the editor and runtime.
+Authoring and runtime use the bundled ruleset selected by the project. The
+official graph supplies the same rules data to Creator and the host. The project
+selects which parts of the shared catalogue to expose through its world.
 
 The accompanying [Ruleset Capability Audit](./ruleset_capability_audit)
 records the current implementation status.
@@ -23,13 +22,12 @@ can expose an unrestricted Human and use talents and learned skills. Creators
 build worlds from supplied content and choose starting options. Generic ruleset
 editing is internal maintenance tooling, hidden in standard Creator builds;
 ordinary authors do not enable or configure each equipment family. Both paths
-use the same project-owned rules document. Science-fiction RPG content fits this scope; supporting
+use the same shared ruleset. Science-fiction RPG content fits this scope; supporting
 every gameplay genre, such as a general RTS framework, is not a product goal.
 
 Eldiron must support games that:
 
 - use the bundled Eldiron Official Ruleset unchanged
-- override a few official values inside one project
 - derive a new ruleset from an existing ruleset
 - use a completely standalone ruleset
 - omit fantasy RPG concepts that the game does not need
@@ -111,9 +109,9 @@ source = "official"
 update_policy = "compatible"
 ```
 
-In this target mode, **Game / Rules** would store project-specific differences,
-with table overrides merging onto the selected base ruleset. Today it stores the
-complete project rules document.
+Authored projects resolve the selected rules from the bundled catalogue. Their
+world, starting character options, encounters, resource bindings and behaviors
+determine which content is available to players.
 
 ### Derived Ruleset
 
@@ -154,9 +152,9 @@ races = false
 levels = false
 ```
 
-Schema 1 already supports project-owned standalone TOML with
-`source = "project"`. A distributable standalone package with its own asset
-resolution is a target capability, not a completed one.
+The schema 1 resolver can parse standalone TOML for tools and tests. Authored
+projects use bundled rules. Distributable standalone ruleset packages remain a
+future capability.
 
 ## Ruleset Package
 

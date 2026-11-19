@@ -75,6 +75,7 @@ pub async fn serve<F: std::future::Future<Output = ()>>(
     host.transport_metrics = Some(metrics.clone());
     let hashes = Arc::new(Semaphore::new(4));
     let directory = host.directory.clone();
+    let identity = host.identity.clone();
     let mode = host.world.mode();
     let dummy =
         tokio::task::spawn_blocking(|| auth::hash("dummy missing account password").unwrap())
@@ -108,15 +109,16 @@ pub async fn serve<F: std::future::Future<Output = ()>>(
                 metrics.accepted.fetch_add(1,std::sync::atomic::Ordering::Relaxed);metrics.active.fetch_add(1,std::sync::atomic::Ordering::Relaxed);
                 let tx=tx.clone(); let config=config.clone(); let directory=directory.clone();
                 let limits=limits.clone(); let hashes=hashes.clone(); let dummy=dummy.clone();let metrics=metrics.clone();let game_slots=game_slots.clone();
+                let identity=identity.clone();
                 let active=ActiveConnection(metrics.clone());
                 connections.spawn(async move {
                     let _slot=slot;let _active=active;
                     let _=stream.set_nodelay(true);
                     if let Some(tls)=&config.tls {
                         if let Ok(Ok(stream))=timeout(Duration::from_secs(10),TlsAcceptor::from(tls.clone()).accept(stream)).await {
-                            let _=connection(stream,address,tx,config,directory,mode,limits,hashes,dummy,game_slots,metrics).await;
+                            let _=connection(stream,address,tx,config,directory,mode,limits,hashes,dummy,game_slots,metrics,identity).await;
                         }
-                    } else { let _=connection(stream,address,tx,config,directory,mode,limits,hashes,dummy,game_slots,metrics).await; }
+                    } else { let _=connection(stream,address,tx,config,directory,mode,limits,hashes,dummy,game_slots,metrics,identity).await; }
                 });
             }
         }
@@ -223,6 +225,7 @@ async fn connection<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
     dummy: String,
     game_slots: Arc<Semaphore>,
     metrics: Arc<crate::metrics::TransportMetrics>,
+    identity: Option<Arc<crate::oidc::Broker>>,
 ) -> Result<(), ()> {
     let mut prefix = Vec::new();
     timeout(Duration::from_secs(10), async {
@@ -357,16 +360,19 @@ async fn connection<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
         .await
         .map_err(|_| ())?;
     let (mut sink, mut source) = socket.split();
+    let mut identity_jobs = tokio::task::JoinSet::new();
     let reader = async {
         let mut hello = false;
         let mut messages = 0;
         let mut window = Instant::now();
         loop {
-            let incoming = timeout(Duration::from_secs(30), source.next())
-                .await
-                .map_err(|_| ())?
-                .ok_or(())?
-                .map_err(|_| ())?;
+            let incoming = tokio::select! {
+                result = timeout(Duration::from_secs(30), source.next()) => result,
+                Some(_) = identity_jobs.join_next(), if !identity_jobs.is_empty() => continue,
+            }
+            .map_err(|_| ())?
+            .ok_or(())?
+            .map_err(|_| ())?;
             if window.elapsed() > Duration::from_secs(1) {
                 window = Instant::now();
                 messages = 0;
@@ -402,6 +408,204 @@ async fn connection<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
                 hello = true;
             }
             match message {
+                ClientMessage::UnlinkExternal {
+                    provider,
+                    current_password,
+                } => {
+                    if !limits.lock().unwrap().take(address.ip(), true) {
+                        return Err(());
+                    }
+                    let Some(issuer) = identity
+                        .as_ref()
+                        .and_then(|broker| broker.issuer(&provider))
+                    else {
+                        dispatch(
+                            &tx,
+                            &metrics,
+                            Command::SecurityRejected {
+                                peer,
+                                code: RejectCode::Unavailable,
+                            },
+                        )
+                        .await
+                        .map_err(|_| ())?;
+                        continue;
+                    };
+                    let (reply, context) = oneshot::channel();
+                    dispatch(&tx, &metrics, Command::PasswordContext { peer, reply })
+                        .await
+                        .map_err(|_| ())?;
+                    let account = match context.await.map_err(|_| ())? {
+                        Ok(account) => account,
+                        Err(code) => {
+                            dispatch(&tx, &metrics, Command::SecurityRejected { peer, code })
+                                .await
+                                .map_err(|_| ())?;
+                            continue;
+                        }
+                    };
+                    let id = account.id;
+                    let security_revision = account.security_revision;
+                    let permit = hashes.clone().try_acquire_owned().map_err(|_| ())?;
+                    let verified = tokio::task::spawn_blocking(move || {
+                        let _permit = permit;
+                        account.local_password
+                            && auth::verify(&current_password.0, &account.password_hash)
+                    })
+                    .await
+                    .map_err(|_| ())?;
+                    let command = if verified {
+                        Command::ExternalUnlinkVerified {
+                            peer,
+                            account: id,
+                            security_revision,
+                            issuer,
+                        }
+                    } else {
+                        Command::SecurityRejected {
+                            peer,
+                            code: RejectCode::InvalidCredentials,
+                        }
+                    };
+                    dispatch(&tx, &metrics, command).await.map_err(|_| ())?;
+                }
+                ClientMessage::ExternalLogin {
+                    provider,
+                    current_password,
+                } => {
+                    let Some(broker) = identity.clone().filter(|_| mode == HostMode::Persistent)
+                    else {
+                        dispatch(
+                            &tx,
+                            &metrics,
+                            Command::Message {
+                                peer,
+                                message: ClientMessage::ExternalLogin {
+                                    provider,
+                                    current_password,
+                                },
+                            },
+                        )
+                        .await
+                        .map_err(|_| ())?;
+                        continue;
+                    };
+                    if !limits.lock().unwrap().take(address.ip(), true) {
+                        return Err(());
+                    }
+                    let permit = if identity_jobs.is_empty() {
+                        broker.slots.clone().try_acquire_owned().ok()
+                    } else {
+                        None
+                    };
+                    let Some(permit) = permit else {
+                        dispatch(
+                            &tx,
+                            &metrics,
+                            Command::SecurityRejected {
+                                peer,
+                                code: RejectCode::ServerBusy,
+                            },
+                        )
+                        .await
+                        .map_err(|_| ())?;
+                        continue;
+                    };
+                    let (reply, context) = oneshot::channel();
+                    dispatch(&tx, &metrics, Command::ExternalContext { peer, reply })
+                        .await
+                        .map_err(|_| ())?;
+                    let context = match context.await.map_err(|_| ())? {
+                        Ok(context) => context,
+                        Err(code) => {
+                            dispatch(&tx, &metrics, Command::SecurityRejected { peer, code })
+                                .await
+                                .map_err(|_| ())?;
+                            continue;
+                        }
+                    };
+                    let tx = tx.clone();
+                    let metrics = metrics.clone();
+                    let hashes = hashes.clone();
+                    identity_jobs.spawn(async move {
+                        let _permit = permit;
+                        let attempt = context.attempt;
+                        let result = async {
+                            if let Some(account) = &context.link {
+                                let password = current_password.ok_or(())?;
+                                let hash = account.password_hash.clone();
+                                let permit = hashes.clone().try_acquire_owned().map_err(|_| ())?;
+                                let verified = tokio::task::spawn_blocking(move || {
+                                    let _permit = permit;
+                                    auth::verify(&password.0, &hash)
+                                })
+                                .await
+                                .map_err(|_| ())?;
+                                if !account.local_password || !verified {
+                                    return Err(());
+                                }
+                            } else if current_password.is_some() {
+                                return Err(());
+                            }
+                            let (pending, challenge) = broker.begin(&provider).await?;
+                            dispatch(
+                                &tx,
+                                &metrics,
+                                Command::ExternalChallenge {
+                                    peer,
+                                    attempt,
+                                    challenge,
+                                },
+                            )
+                            .await
+                            .map_err(|_| ())?;
+                            let identity = broker.finish(pending).await?;
+                            let placeholder_hash = if context.link.is_none() {
+                                let permit = hashes.clone().try_acquire_owned().map_err(|_| ())?;
+                                tokio::task::spawn_blocking(move || {
+                                    let _permit = permit;
+                                    auth::external_placeholder_hash()
+                                })
+                                .await
+                                .map_err(|_| ())??
+                            } else {
+                                String::new()
+                            };
+                            dispatch(
+                                &tx,
+                                &metrics,
+                                Command::ExternalVerified {
+                                    peer,
+                                    context,
+                                    identity,
+                                    placeholder_hash,
+                                },
+                            )
+                            .await
+                            .map_err(|_| ())
+                        }
+                        .await;
+                        if result.is_err() {
+                            let _ =
+                                dispatch(&tx, &metrics, Command::ExternalFailed { peer, attempt })
+                                    .await;
+                        }
+                    });
+                }
+                ClientMessage::CancelExternalLogin => {
+                    identity_jobs.abort_all();
+                    while identity_jobs.join_next().await.is_some() {}
+                    dispatch(
+                        &tx,
+                        &metrics,
+                        Command::Message {
+                            peer,
+                            message: ClientMessage::CancelExternalLogin,
+                        },
+                    )
+                    .await
+                    .map_err(|_| ())?;
+                }
                 ClientMessage::Login { username, password } => {
                     if mode != HostMode::Persistent {
                         dispatch(
@@ -437,7 +641,7 @@ async fn connection<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
                     })
                     .await
                     .map_err(|_| ())?;
-                    if verified && let Some(account) = account {
+                    if verified && let Some(account) = account.filter(|a| a.local_password) {
                         dispatch(
                             &tx,
                             &metrics,
@@ -508,7 +712,9 @@ async fn connection<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
                     let id = account.id;
                     let result = tokio::task::spawn_blocking(move || {
                         let _permit = permit;
-                        if !auth::verify(&current_password.0, &account.password_hash) {
+                        if !account.local_password
+                            || !auth::verify(&current_password.0, &account.password_hash)
+                        {
                             return Err(RejectCode::InvalidCredentials);
                         }
                         auth::hash(&new_password.0).map_err(|_| RejectCode::InvalidRequest)
@@ -694,6 +900,7 @@ mod tests {
                 String::new(),
                 Arc::new(Semaphore::new(0)),
                 metrics.clone(),
+                None,
             ));
             client
                 .write_all(format!("GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n").as_bytes())

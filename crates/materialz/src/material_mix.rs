@@ -199,12 +199,28 @@ pub(crate) fn lower(p: &mut Program, project: &ast::Project, limit: usize) -> Re
                 if p.materials[i].outputs.iter().any(|(k, _)| k == c) {
                     continue;
                 }
+                let a = channel(p, inputs[0], *c);
+                let b = channel(p, inputs[1], *c);
+                // An unchanged channel needs no mask evaluation. Keep the
+                // blend-off opacity case, where a partial mask can cut a hole.
+                if mix.kind == "Mask" && a == b && (mix.blend || *c != Channel::Opacity) {
+                    let material = &mut p.materials[i];
+                    match a {
+                        Binding::From(reference) => material.outputs.push((*c, reference)),
+                        Binding::Constant(value) => {
+                            if let Some((_, previous)) =
+                                material.defaults.iter_mut().find(|(k, _)| k == c)
+                            {
+                                *previous = value;
+                            } else if value != c.default() {
+                                material.defaults.push((*c, value));
+                            }
+                        }
+                    }
+                    continue;
+                }
                 let width = c.width();
-                let mut parameters = vec![
-                    ("a", channel(p, inputs[0], *c)),
-                    ("b", channel(p, inputs[1], *c)),
-                    ("selector", selector.clone()),
-                ];
+                let mut parameters = vec![("a", a), ("b", b), ("selector", selector.clone())];
                 let mut expression = match mix.kind.as_str() {
                     "UV Position" => {
                         parameters.push(("c", channel(p, inputs[2], *c)));

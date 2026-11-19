@@ -13,6 +13,9 @@ const ATTACHMENTS: &str = "item_enchantment_instances";
 pub struct EnchantmentInstance {
     pub id: String,
     pub definition: String,
+    /// Saved display fragment lets removal restore a name without a rules lookup.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub epithet: Option<String>,
 }
 
 /// Presets have a stable compound instance identity. Explicit attachments are
@@ -37,6 +40,7 @@ pub fn enchantments(item: &Item) -> Result<Vec<EnchantmentInstance>, String> {
                         item.creator_id, item.id
                     ),
                     definition: definition.clone(),
+                    epithet: None,
                 })
                 .collect(),
             None => Vec::new(),
@@ -51,6 +55,9 @@ pub fn enchantments(item: &Item) -> Result<Vec<EnchantmentInstance>, String> {
                 || v.id.len() > 256
                 || v.definition.len() > 128
                 || v.definition.trim().is_empty()
+                || v.epithet
+                    .as_ref()
+                    .is_some_and(|s| s.trim().is_empty() || s != s.trim() || s.len() > 128)
                 || !ids.insert(&v.id)
                 || !definitions.insert(&v.definition)
         })
@@ -95,20 +102,28 @@ pub fn attach(item: &mut Item, rules: &ValueRules, definition: &str) -> Result<S
     if instances.len() >= 64 || instances.iter().any(|e| e.definition == definition) {
         return Err("This enchantment is already attached or the item is full".into());
     }
+    hydrate_epithets(&mut instances, rules);
+    let base = base_name(item, &instances);
     let id = Uuid::new_v4().to_string();
     instances.push(EnchantmentInstance {
         id: id.clone(),
         definition: definition.into(),
+        epithet: enchantment.epithet.clone(),
     });
     item.set_attribute(
         ATTACHMENTS,
         Value::Str(serde_json::to_string(&instances).map_err(|e| e.to_string())?),
     );
+    if instances.iter().any(|i| i.epithet.is_some()) {
+        item.set_attribute("enchantment_base_name", Value::Str(base.clone()));
+        item.set_attribute("name", Value::Str(render_name(&base, &instances)));
+    }
     Ok(id)
 }
 
 pub fn detach(item: &mut Item, instance: &str) -> Result<String, String> {
     let mut instances = enchantments(item)?;
+    let base = base_name(item, &instances);
     let index = instances
         .iter()
         .position(|value| value.id == instance)
@@ -118,10 +133,76 @@ pub fn detach(item: &mut Item, instance: &str) -> Result<String, String> {
         ATTACHMENTS,
         Value::Str(serde_json::to_string(&instances).map_err(|e| e.to_string())?),
     );
+    if removed.epithet.is_some() || item.attributes.get_str("enchantment_base_name").is_some() {
+        item.set_attribute("enchantment_base_name", Value::Str(base.clone()));
+        item.set_attribute("name", Value::Str(render_name(&base, &instances)));
+    }
     Ok(removed.definition)
 }
 
-fn compatible(definition: &ResolvedEnchantment, item: &Item) -> bool {
+fn hydrate_epithets(instances: &mut [EnchantmentInstance], rules: &ValueRules) {
+    for instance in instances {
+        if instance.epithet.is_none() {
+            instance.epithet = rules
+                .enchantments
+                .get(&instance.definition)
+                .and_then(|d| d.epithet.clone());
+        }
+    }
+}
+fn suffix(instances: &[EnchantmentInstance]) -> Option<String> {
+    let parts = instances
+        .iter()
+        .filter_map(|i| i.epithet.as_deref())
+        .collect::<BTreeSet<_>>();
+    (!parts.is_empty()).then(|| {
+        format!(
+            " of {}",
+            parts.into_iter().collect::<Vec<_>>().join(" and ")
+        )
+    })
+}
+fn render_name(base: &str, instances: &[EnchantmentInstance]) -> String {
+    format!("{base}{}", suffix(instances).unwrap_or_default())
+}
+fn base_name(item: &Item, instances: &[EnchantmentInstance]) -> String {
+    let name = item.attributes.get_str("name").unwrap_or(&item.item_type);
+    if let Some(base) = item.attributes.get_str("enchantment_base_name") {
+        if name == render_name(base, instances) || name == base {
+            return base.into();
+        }
+    }
+    // Old named presets have no base-name attribute. Preserve custom names too.
+    suffix(instances)
+        .and_then(|s| name.strip_suffix(&s))
+        .unwrap_or(name)
+        .to_owned()
+}
+/// Pure preview: no attachment IDs are generated and no item data is changed.
+pub fn enchanted_name(
+    item: &Item,
+    rules: &ValueRules,
+    definition: &str,
+) -> Result<Option<String>, String> {
+    let effect = rules
+        .enchantments
+        .get(definition)
+        .ok_or("Unknown enchantment")?;
+    let Some(epithet) = &effect.epithet else {
+        return Ok(None);
+    };
+    let mut instances = enchantments(item)?;
+    hydrate_epithets(&mut instances, rules);
+    let base = base_name(item, &instances);
+    instances.push(EnchantmentInstance {
+        id: String::new(),
+        definition: definition.into(),
+        epithet: Some(epithet.clone()),
+    });
+    Ok(Some(render_name(&base, &instances)))
+}
+
+pub fn compatible(definition: &ResolvedEnchantment, item: &Item) -> bool {
     definition.allowed_categories.is_empty()
         || item
             .attributes
@@ -135,6 +216,7 @@ pub struct ValueRules {
     pub derived: BTreeMap<String, ResolvedDerivedStat>,
     pub equipment: ResolvedEquipmentPolicy,
     pub enchantments: BTreeMap<String, ResolvedEnchantment>,
+    pub learning: eldiron_ruleset::knowledge::LearningRules,
     pub level_attribute: Option<String>,
 }
 
@@ -251,6 +333,7 @@ impl ValueRules {
             derived: eldiron_ruleset::resolve_derived_stats(root)?,
             equipment: eldiron_ruleset::resolve_equipment_policy(root)?,
             enchantments: eldiron_ruleset::contributions::resolve_enchantments(root)?,
+            learning: eldiron_ruleset::knowledge::LearningRules::resolve(root)?,
             level_attribute: eldiron_ruleset::resolve_attribute_roles(root)?
                 .get("level")
                 .map(str::to_string),
@@ -537,6 +620,60 @@ fn condition_attribute_suffix(condition_id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn named_enchantments_compose_preserve_legacy_ids_and_restore_names_on_removal() {
+        let rules = rules();
+        let mut item = cuirass();
+        item.set_attribute("category", Value::Str("leather".into()));
+        item.set_attribute("name", Value::Str("Leather Vest".into()));
+        let before = serde_json::to_value(&item).unwrap();
+        assert_eq!(
+            enchanted_name(&item, &rules, "fox").unwrap().as_deref(),
+            Some("Leather Vest of the Fox")
+        );
+        assert_eq!(serde_json::to_value(&item).unwrap(), before);
+        let fox = attach(&mut item, &rules, "fox").unwrap();
+        let bear = attach(&mut item, &rules, "strength").unwrap();
+        assert_eq!(
+            item.attributes.get_str("name"),
+            Some("Leather Vest of the Bear and the Fox")
+        );
+        let saved = serde_json::to_value(&item).unwrap();
+        assert!(attach(&mut item, &rules, "fox").is_err());
+        assert_eq!(serde_json::to_value(&item).unwrap(), saved);
+        let mut actor = Entity::new();
+        actor.set_attribute("STR", Value::Int(10));
+        actor.set_attribute("DEX", Value::Int(10));
+        actor.equipped.insert("torso".into(), item.clone());
+        assert_eq!(rules.explain(&actor, "STR", 0.).unwrap().value, 12.);
+        assert_eq!(rules.explain(&actor, "DEX", 0.).unwrap().value, 12.);
+        actor
+            .equipped
+            .get_mut("torso")
+            .unwrap()
+            .set_attribute("condition", Value::Int(0));
+        assert_eq!(rules.explain(&actor, "DEX", 0.).unwrap().value, 10.);
+        detach(&mut item, &fox).unwrap();
+        assert_eq!(
+            item.attributes.get_str("name"),
+            Some("Leather Vest of the Bear")
+        );
+        assert_eq!(enchantments(&item).unwrap()[0].id, bear);
+        detach(&mut item, &bear).unwrap();
+        assert_eq!(item.attributes.get_str("name"), Some("Leather Vest"));
+        item.set_attribute("name", Value::Str("Wayfarer's Vest of the Bear".into()));
+        item.attributes.remove("enchantment_base_name");
+        item.set_attribute(
+            ATTACHMENTS,
+            Value::Str(r#"[{"id":"legacy-bear","definition":"strength"}]"#.into()),
+        );
+        attach(&mut item, &rules, "fox").unwrap();
+        assert_eq!(
+            item.attributes.get_str("name"),
+            Some("Wayfarer's Vest of the Bear and the Fox")
+        );
+        assert_eq!(enchantments(&item).unwrap()[0].id, "legacy-bear");
+    }
     #[test]
     fn instances_from_one_template_keep_distinct_sources_and_materialized_attachment_ids() {
         let rules = rules();

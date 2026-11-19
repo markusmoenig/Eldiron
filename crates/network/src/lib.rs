@@ -4,19 +4,20 @@
 pub mod browser;
 pub mod codec;
 pub mod content;
-mod content_task;
 mod content_stream;
-pub use content_stream::{ContentDelivery, ContentStream, ContentStreamDiagnostics};
+mod content_task;
 pub use content::{ContentCache, ContentLoader, RegionGeometry};
+pub use content_stream::{ContentDelivery, ContentStream, ContentStreamDiagnostics};
 pub mod gameplay;
 mod input_cadence;
+mod text_requests;
 pub use input_cadence::InputCadence;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod native;
-pub mod remote;
-pub mod public_client;
-pub mod public_assets;
 pub mod public_asset_gate;
+pub mod public_assets;
+pub mod public_client;
+pub mod remote;
 pub use gameplay::*;
 
 use eldiron_runtime::{ClientFrame, MovementCommand, replication::RegionContentRef};
@@ -42,21 +43,54 @@ impl std::fmt::Debug for Secret {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum ClientMessage {
-    Hello { version: u16 },
-    Guest { name: String },
-    Register { username: String, password: Secret },
-    Login { username: String, password: Secret },
-    Resume { token: Secret },
+    Hello {
+        version: u16,
+    },
+    Guest {
+        name: String,
+    },
+    Register {
+        username: String,
+        password: Secret,
+    },
+    Login {
+        username: String,
+        password: Secret,
+    },
+    Resume {
+        token: Secret,
+    },
     Characters,
-    CreateCharacter { request: Uuid, name: String },
-    JoinCharacter { character: Uuid },
-    Inputs { frames: Vec<MovementCommand> },
+    CreateCharacter {
+        request: Uuid,
+        name: String,
+    },
+    JoinCharacter {
+        character: Uuid,
+    },
+    Inputs {
+        frames: Vec<MovementCommand>,
+    },
     Resync,
     Action(GameAction),
     Logout,
     LogoutAll,
-    ChangePassword { current_password: Secret, new_password: Secret },
-    Ping { nonce: u32 },
+    ChangePassword {
+        current_password: Secret,
+        new_password: Secret,
+    },
+    ExternalLogin {
+        provider: String,
+        current_password: Option<Secret>,
+    },
+    CancelExternalLogin,
+    UnlinkExternal {
+        provider: String,
+        current_password: Secret,
+    },
+    Ping {
+        nonce: u32,
+    },
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostMode {
@@ -67,6 +101,11 @@ pub enum HostMode {
 pub struct CharacterSummary {
     pub id: Uuid,
     pub name: String,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct IdentityProvider {
+    pub id: String,
+    pub label: String,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ContentHint {
@@ -82,6 +121,10 @@ pub enum ServerMessage {
         content_revision: String,
         #[serde(default)]
         account_management: bool,
+        #[serde(default)]
+        gameplay_extensions: bool,
+        #[serde(default)]
+        identity_providers: Vec<IdentityProvider>,
     },
     Authorized {
         account: Uuid,
@@ -89,6 +132,12 @@ pub enum ServerMessage {
         characters: Vec<CharacterSummary>,
     },
     AccountUpdated(AccountUpdate),
+    ExternalChallenge {
+        provider: String,
+        verification_uri: String,
+        user_code: Secret,
+        expires_in: u32,
+    },
     Characters(Vec<CharacterSummary>),
     CharacterCreated {
         request: Uuid,
@@ -120,8 +169,14 @@ pub enum ServerMessage {
         nonce: u32,
     },
 }
-#[derive(Clone,Copy,Debug,PartialEq,Eq,Serialize,Deserialize)]
-pub enum AccountUpdate { PasswordChanged, LoggedOutEverywhere, Rejected(RejectCode) }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AccountUpdate {
+    PasswordChanged,
+    LoggedOutEverywhere,
+    IdentityLinked,
+    IdentityUnlinked,
+    Rejected(RejectCode),
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RejectCode {
     WrongVersion,
@@ -160,7 +215,17 @@ pub fn project_content_revision(project: &eldiron_runtime::Project) -> Result<St
         .config
         .parse::<toml::Table>()
         .map_err(|e| e.to_string())?;
-    config.remove("multiplayer");
+    if let Some(multiplayer) = config.remove("multiplayer") {
+        let mut gameplay = toml::Table::new();
+        for key in ["gameplay", "logout"] {
+            if let Some(value) = multiplayer.get(key) {
+                gameplay.insert(key.into(), value.clone());
+            }
+        }
+        if !gameplay.is_empty() {
+            config.insert("multiplayer".into(), gameplay.into());
+        }
+    }
     if let Some(game) = config.get_mut("game").and_then(toml::Value::as_table_mut) {
         game.remove("mode");
     }
@@ -178,5 +243,17 @@ mod project_revision_tests {
         assert_eq!(super::project_content_revision(&project).unwrap(), original);
         project.config = project.config.replace("250", "200");
         assert_ne!(super::project_content_revision(&project).unwrap(), original);
+        project
+            .config
+            .push_str("\n[multiplayer.gameplay]\nallowed_cameras=['2d']");
+        let policy = super::project_content_revision(&project).unwrap();
+        project.config = project
+            .config
+            .replace("allowed_cameras=['2d']", "allowed_cameras=['firstp']");
+        assert_ne!(
+            super::project_content_revision(&project).unwrap(),
+            policy,
+            "gameplay permissions belong to content identity"
+        );
     }
 }

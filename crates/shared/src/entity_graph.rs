@@ -3,8 +3,8 @@
 //! This compiler has no event scheduler or world mutation dependencies.
 use crate::project::Project;
 use std::collections::{BTreeMap, HashSet};
-use theframework_core::prelude::Uuid;
 use theframework_core::graph::*;
+use theframework_core::prelude::Uuid;
 use toml::{Table, Value};
 
 pub const PREFIX: &str = "entity/";
@@ -191,8 +191,12 @@ fn default_control(key: &str, rules: &Table) -> GraphControlValue {
             .unwrap_or(fallback)
     };
     match key {
-        "race" | "class" => {
-            let section = if key == "race" { "races" } else { "classes" };
+        "race" | "class" | "animal" => {
+            let section = match key {
+                "race" => "races",
+                "class" => "classes",
+                _ => "animals",
+            };
             let mut options = vec![String::new()];
             if let Some(values) = rules.get(section).and_then(Value::as_table) {
                 options.extend(values.keys().cloned());
@@ -369,6 +373,69 @@ impl ConfigurationNode for Fields {
         Ok(())
     }
 }
+struct Animal;
+impl ConfigurationNode for Animal {
+    fn definition(&self, rules: &Table) -> GraphNodeDefinition {
+        let mut node = prototype("entity_animal", "Animal");
+        row(&mut node, "animal", default_control("animal", rules));
+        GraphNodeDefinition::from_template("entity_animal", "Entity Configuration", &node)
+    }
+
+    fn contribute(
+        &self,
+        node: &GraphNode,
+        result: &mut Table,
+        rules: &Table,
+    ) -> Result<(), String> {
+        let value = node
+            .rows
+            .iter()
+            .find(|row| row.key.as_deref() == Some("animal"))
+            .ok_or("Animal node needs a species selection")?;
+        let Some(Value::String(id)) = control_value(&value.value)? else {
+            return Err("Choose a species on the Animal node".into());
+        };
+        if !crate::rulesets::animals::resolve(rules)?.contains_key(&id) {
+            return Err(format!("Unknown ruleset animal: {id}"));
+        }
+        put(result, "attributes", "animal", Value::String(id))
+    }
+}
+
+/// Expand the selected species through the same race/class defaults as NPCs.
+/// Behavior graphs are authored independently and are never generated here.
+fn apply_animal_identity(projection: &mut Table, rules: &Table) -> Result<(), String> {
+    let Some(attrs) = projection
+        .get_mut("attributes")
+        .and_then(Value::as_table_mut)
+    else {
+        return Ok(());
+    };
+    let Some(id) = attrs.get("animal").and_then(Value::as_str) else {
+        return Ok(());
+    };
+    let animals = crate::rulesets::animals::resolve(rules)?;
+    let animal = animals
+        .get(id)
+        .ok_or_else(|| format!("Unknown ruleset animal: {id}"))?;
+    for (key, expected) in [("race", &animal.race), ("class", &animal.class)] {
+        if attrs
+            .get(key)
+            .is_some_and(|value| value.as_str() != Some(expected.as_str()))
+        {
+            return Err(format!(
+                "Animal '{id}' requires {key} '{expected}'; clear the Entity {key} selection"
+            ));
+        }
+    }
+    attrs.insert("race".into(), Value::String(animal.race.clone()));
+    attrs.insert("class".into(), Value::String(animal.class.clone()));
+    attrs
+        .entry("player".to_string())
+        .or_insert(Value::Boolean(false));
+    Ok(())
+}
+
 struct Attribute;
 impl ConfigurationNode for Attribute {
     fn definition(&self, _: &Table) -> GraphNodeDefinition {
@@ -568,6 +635,7 @@ pub fn builtin_registry() -> ConfigurationRegistry {
     ] {
         r.register(fields.id, fields);
     }
+    r.register("entity_animal", Animal);
     r.register("entity_attribute", Attribute);
     r.register(
         "entity_inputs",
@@ -696,11 +764,24 @@ pub fn import_item(data: &str, rules: &Table) -> Result<GraphDocument, String> {
 }
 
 pub fn import(data: &str, rules: &Table) -> Result<GraphDocument, String> {
-    let table: Table = if data.trim().is_empty() {
+    let mut table: Table = if data.trim().is_empty() {
         Table::new()
     } else {
         data.parse::<Table>().map_err(|e| e.to_string())?
     };
+    // Generated race/class values belong to the species, so reopening a legacy
+    // animal leaves its Entity selectors inherited and its species editable.
+    if let Some(attrs) = table.get_mut("attributes").and_then(Value::as_table_mut) {
+        if let Some(id) = attrs.get("animal").and_then(Value::as_str) {
+            if let Some(animal) = crate::rulesets::animals::resolve(rules)?.get(id) {
+                for (key, expected) in [("race", &animal.race), ("class", &animal.class)] {
+                    if attrs.get(key).and_then(Value::as_str) == Some(expected.as_str()) {
+                        attrs.remove(key);
+                    }
+                }
+            }
+        }
+    }
     let mut doc = GraphDocument::default();
     let mut root = prototype("entity", "Entity");
     root.position = [440., 40.];
@@ -734,6 +815,7 @@ pub fn import(data: &str, rules: &Table) -> Result<GraphDocument, String> {
                 continue;
             }
             let (id, title) = match key.as_str() {
+                "animal" => ("entity_animal", "Animal"),
                 "race" | "class" => ("entity_identity", "Identity"),
                 "ruleset_path" => ("entity_ruleset_item", "Ruleset Item"),
                 key if Some(key) == level_key.as_deref() => ("entity_identity", "Identity"),
@@ -788,7 +870,7 @@ pub fn import(data: &str, rules: &Table) -> Result<GraphDocument, String> {
                 } else {
                     toml_control(value)
                 };
-                if key == "race" || key == "class" {
+                if matches!(key.as_str(), "race" | "class" | "animal") {
                     control = default_control(key, rules);
                     if let GraphControlValue::Choice { options, selected } = &mut control {
                         let v = value.as_str().unwrap_or_default();
@@ -1046,6 +1128,7 @@ pub fn normalize(doc: &mut GraphDocument) {
 /// Compile overrides and retain non-attribute metadata. No event is run here.
 pub fn project_data(doc: &GraphDocument, previous: &str, rules: &Table) -> Result<String, String> {
     let mut projection = builtin_registry().compile(doc, rules)?;
+    apply_animal_identity(&mut projection, rules)?;
     if let Some(path) = projection
         .get("attributes")
         .and_then(Value::as_table)
@@ -1605,6 +1688,7 @@ fn input_commands(rules: &Table) -> GraphControlValue {
             "intent.drop",
             "ui.actions",
             "ui.spellbook",
+            "ui.journal",
             "ui.inventory",
         ]
         .into_iter()
@@ -1622,6 +1706,106 @@ fn input_commands(rules: &Table) -> GraphControlValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn animal_node_imports_legacy_identity_and_keeps_species_editable_after_reload() {
+        let rules = rules();
+        let source = "[attributes]\nanimal='pig'\nrace='Pig'\nclass='Animal'\nplayer=false";
+        let doc = import_character(source, &rules).unwrap();
+        let mut doc: GraphDocument =
+            serde_json::from_value(serde_json::to_value(doc).unwrap()).unwrap();
+        assert!(
+            doc.nodes
+                .iter()
+                .any(|node| node.definition.as_deref() == Some("entity_animal"))
+        );
+        let generated = project_data(&doc, source, &rules).unwrap();
+        let table: Table = generated.parse().unwrap();
+        assert_eq!(table["attributes"]["race"].as_str(), Some("Pig"));
+        assert_eq!(table["attributes"]["class"].as_str(), Some("Animal"));
+        assert_eq!(table["attributes"]["player"].as_bool(), Some(false));
+
+        let node = doc
+            .nodes
+            .iter_mut()
+            .find(|node| node.definition.as_deref() == Some("entity_animal"))
+            .unwrap();
+        let GraphControlValue::Choice { options, selected } = &mut node.rows[0].value else {
+            panic!("species must be selectable");
+        };
+        assert_eq!(options.len(), 8); // Inherit/empty plus seven supplied species.
+        *selected = options.iter().position(|id| id == "cow").unwrap();
+        let table: Table = project_data(&doc, &generated, &rules)
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(table["attributes"]["animal"].as_str(), Some("cow"));
+        assert_eq!(table["attributes"]["race"].as_str(), Some("Cow"));
+        assert_eq!(table["attributes"]["class"].as_str(), Some("Animal"));
+        // Removing the connection removes the species and all generated defaults.
+        doc.connections.clear();
+        let table: Table = project_data(&doc, &generated, &rules)
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert!(
+            table
+                .get("attributes")
+                .and_then(|a| a.get("animal"))
+                .is_none()
+        );
+        assert!(
+            table
+                .get("attributes")
+                .and_then(|a| a.get("race"))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn animal_node_validates_species_and_conflicting_identity_without_replacing_data() {
+        let rules = rules();
+        let doc = import("[attributes]\nanimal='pig'\nrace='Human'", &rules).unwrap();
+        assert!(
+            project_data(&doc, "", &rules)
+                .unwrap_err()
+                .contains("requires race 'Pig'")
+        );
+        let doc = import("[attributes]\nanimal='missing'", &rules).unwrap();
+        assert!(
+            project_data(&doc, "", &rules)
+                .unwrap_err()
+                .contains("Unknown ruleset animal")
+        );
+        let mut doc = import_character("", &rules).unwrap();
+        let node = builtin_registry()
+            .definitions(&rules)
+            .instantiate("entity_animal", [300., 0.])
+            .unwrap();
+        let output = doc.nodes[0]
+            .ports
+            .iter()
+            .find(|port| port.direction == PortDirection::Output)
+            .unwrap()
+            .id;
+        let input = node
+            .ports
+            .iter()
+            .find(|port| port.direction == PortDirection::Input)
+            .unwrap()
+            .id;
+        doc.connections.push(GraphConnection {
+            id: Uuid::new_v4(),
+            from: output,
+            to: input,
+        });
+        doc.nodes.push(node);
+        assert!(
+            project_data(&doc, "", &rules)
+                .unwrap_err()
+                .contains("Choose a species")
+        );
+    }
     fn rules() -> Table {
         crate::rulesets::latest_official_ruleset().parse().unwrap()
     }

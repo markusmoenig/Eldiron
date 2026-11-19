@@ -7,6 +7,8 @@ use std::io::{Cursor, Read, Write};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
+mod tile_bakes;
+
 pub const PROJECT_ARCHIVE_FORMAT: &str = "eldiron.project";
 pub const PROJECT_ARCHIVE_VERSION: u32 = 1;
 pub const PROJECT_MANIFEST_PATH: &str = "manifest.json";
@@ -120,6 +122,8 @@ pub enum ProjectFileFormat {
 pub struct ProjectArchiveManifest {
     pub format: String,
     pub version: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tile_bakes_path: Option<String>,
 }
 
 impl Default for ProjectArchiveManifest {
@@ -127,6 +131,7 @@ impl Default for ProjectArchiveManifest {
         Self {
             format: PROJECT_ARCHIVE_FORMAT.to_string(),
             version: PROJECT_ARCHIVE_VERSION,
+            tile_bakes_path: None,
         }
     }
 }
@@ -187,9 +192,13 @@ pub fn encode_project(project: &Project) -> Result<Vec<u8>, String> {
     let mut binaries = ProjectBinaryWriter::new();
     externalize_bake_entries(&mut archived_project, &mut binaries)?;
     externalize_item_icon_entries(&mut archived_project, &mut binaries)?;
+    let manifest = ProjectArchiveManifest {
+        tile_bakes_path: tile_bakes::externalize(&mut archived_project, &mut binaries)?,
+        ..ProjectArchiveManifest::default()
+    };
     let project_json = serde_json::to_vec(&archived_project)
         .map_err(|err| format!("failed to serialize project JSON: {err}"))?;
-    let manifest = serde_json::to_vec_pretty(&ProjectArchiveManifest::default())
+    let manifest = serde_json::to_vec_pretty(&manifest)
         .map_err(|err| format!("failed to serialize project manifest: {err}"))?;
 
     let cursor = Cursor::new(Vec::new());
@@ -255,6 +264,9 @@ fn decode_project_archive(bytes: &[u8]) -> Result<Project, String> {
     let mut project: Project = crate::project::decode_json(&project_json)
         .map_err(|err| format!("invalid project.json in Eldiron archive: {err}"))?;
     let mut binaries = ProjectBinaryReader::new(&mut archive);
+    if let Some(path) = manifest.tile_bakes_path.as_deref() {
+        tile_bakes::hydrate(&mut project, &mut binaries, path)?;
+    }
     hydrate_bake_entries(&mut project, &mut binaries)?;
     hydrate_item_icon_entries(&mut project, &mut binaries)?;
     Ok(project)

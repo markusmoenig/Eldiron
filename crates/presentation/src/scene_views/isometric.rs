@@ -174,11 +174,12 @@ impl SceneViews {
         let scene = &mut view.scene;
         scene.apply_runtime_render_state_settings();
         scene.settings.apply_hour(input.time.to_f32());
-        scene.build_dynamics_2d(
+        scene.build_dynamics_2d_with_actor_sprites(
             input.map,
             input.animation_frame,
             input.assets,
             &Default::default(),
+            false,
         );
         let particles = scene.isometric_particles(input.map, input.assets, input.animation_frame);
         let avatars = scene.isometric_avatars(input.map, input.assets, input.animation_frame);

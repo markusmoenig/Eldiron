@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod oidc;
 pub mod host;
 pub mod transport;
 

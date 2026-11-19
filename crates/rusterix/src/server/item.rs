@@ -58,6 +58,16 @@ impl Item {
         Vec2::new(self.position.x, self.position.z)
     }
 
+    /// Shop prices are expressed in base currency units. Crafted items can
+    /// carry an unsigned worth, while authored items use signed or float data.
+    pub fn shop_price(&self) -> i64 {
+        match self.attributes.get("worth") {
+            Some(Value::UInt(price)) => i64::from(*price),
+            Some(worth) => i64::from(worth.to_i32().unwrap_or_default()),
+            None => 0,
+        }
+    }
+
     /// Set the position and mark it as dirty
     pub fn set_position(&mut self, new_position: Vec3<f32>) {
         if self.position != new_position {

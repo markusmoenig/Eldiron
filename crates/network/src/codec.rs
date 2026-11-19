@@ -64,6 +64,28 @@ pub fn decode_client(bytes: &[u8]) -> Result<ClientMessage, CodecError> {
             current_password,
             new_password,
         } => current_password.0.len() <= 256 && new_password.0.len() <= 256,
+        ClientMessage::ExternalLogin {
+            provider,
+            current_password,
+        } => {
+            !provider.is_empty()
+                && provider.len() <= 32
+                && provider
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+                && current_password.as_ref().is_none_or(|s| s.0.len() <= 256)
+        }
+        ClientMessage::UnlinkExternal {
+            provider,
+            current_password,
+        } => {
+            !provider.is_empty()
+                && provider.len() <= 32
+                && provider
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+                && current_password.0.len() <= 256
+        }
         ClientMessage::Guest { name } | ClientMessage::CreateCharacter { name, .. } => {
             name.len() <= 64
         }
@@ -87,6 +109,25 @@ pub fn decode_server(bytes: &[u8]) -> Result<ServerMessage, CodecError> {
             content.len() <= eldiron_runtime::replication::MAX_REGIONS
         }
         ServerMessage::Preload { content } => content.len() <= 4,
+        ServerMessage::Welcome {
+            identity_providers, ..
+        } => {
+            identity_providers.len() <= 8
+                && identity_providers
+                    .iter()
+                    .all(|p| p.id.len() <= 32 && p.label.len() <= 64)
+        }
+        ServerMessage::ExternalChallenge {
+            provider,
+            verification_uri,
+            user_code,
+            expires_in,
+        } => {
+            provider.len() <= 32
+                && verification_uri.len() <= 2048
+                && user_code.0.len() <= 128
+                && (1..=600).contains(expires_in)
+        }
         _ => true,
     };
     if !valid {
