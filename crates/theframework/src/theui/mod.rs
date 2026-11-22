@@ -951,7 +951,7 @@ impl TheUI {
                         ctx.ui.drop = Some(drop);
                     }
                     TheEvent::NewListItemSelected(id, layout_id) => {
-                        if let Some(layout) = self.canvas.get_layout(None, Some(&layout_id.uuid)) {
+                        if let Some(layout) = self.get_layout_abs(None, Some(&layout_id.uuid)) {
                             if let Some(list) = layout.as_list_layout() {
                                 list.new_item_selected(id);
                                 self.is_dirty = true;
@@ -2449,6 +2449,46 @@ impl TheUI {
                     );
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod dialog_tests {
+    use super::*;
+
+    #[test]
+    fn selecting_a_dialog_list_item_clears_the_previous_selection() {
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(320, 200, 1.0);
+        ui.init(&mut ctx);
+
+        let first = TheId::named("First Example");
+        let second = TheId::named("Second Example");
+        let mut list = TheListLayout::new(TheId::named("Examples"));
+        list.add_item(TheListItem::new(first.clone()), &mut ctx);
+        list.add_item(TheListItem::new(second.clone()), &mut ctx);
+        assert!(list.select_item(first.uuid, &mut ctx, false));
+
+        let mut dialog = TheCanvas::new();
+        dialog.limiter_mut().set_max_size(Vec2::new(240, 160));
+        dialog.set_layout(list);
+        ui.show_dialog("Examples", dialog, vec![], &mut ctx);
+
+        for (selected, previous) in [(&second, &first), (&first, &second)] {
+            ui.get_widget_id(selected.uuid)
+                .unwrap()
+                .on_event(&TheEvent::MouseDown(Vec2::new(2, 2)), &mut ctx);
+            ui.process_events(&mut ctx);
+
+            assert_eq!(
+                ui.get_widget_id(previous.uuid).unwrap().state(),
+                TheWidgetState::None
+            );
+            assert_eq!(
+                ui.get_list_layout("Examples").unwrap().selected(),
+                Some(selected.clone())
+            );
         }
     }
 }
