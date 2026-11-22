@@ -29,12 +29,6 @@
 
       canvas {
         display: block;
-        flex: none;
-        transform: scale(var(--eldiron-fit-scale, 1));
-        transform-origin: center;
-      }
-
-      canvas:focus {
         outline: none;
       }
 
@@ -48,10 +42,6 @@
         letter-spacing: 0.08em;
         text-transform: uppercase;
       }
-
-      #status[hidden] {
-        display: none;
-      }
     </style>
   </head>
   <body>
@@ -60,56 +50,13 @@
       import init from "../runtime/eldiron-client.js";
 
       const status = document.querySelector("#status");
-      const fitCanvas = () => {
-        const canvas = document.querySelector("canvas");
-        if (!canvas || !canvas.offsetWidth || !canvas.offsetHeight) return;
-
-        const scale = Math.min(
-          window.innerWidth / canvas.offsetWidth,
-          window.innerHeight / canvas.offsetHeight,
-          1,
-        );
-        const value = String(scale);
-        if (canvas.style.getPropertyValue("--eldiron-fit-scale") !== value) {
-          canvas.style.setProperty("--eldiron-fit-scale", value);
-        }
-      };
-      const canvasObserver = new MutationObserver(fitCanvas);
-      canvasObserver.observe(document.body, {
-        attributes: true,
-        attributeFilter: ["height", "style", "width"],
-        childList: true,
-        subtree: true,
-      });
-      window.addEventListener("resize", fitCanvas);
-
-      const finishLoading = () => {
-        status.hidden = true;
-        requestAnimationFrame(fitCanvas);
-      };
-      const isWinitControlFlow = (error) =>
-        error instanceof Error &&
-        error.message.includes("Using exceptions for control flow");
-
-      const start = async () => {
-        try {
-          await init();
-          finishLoading();
-        } catch (error) {
-          if (isWinitControlFlow(error)) {
-            finishLoading();
-            return;
-          }
-          console.error(error);
-          status.textContent = "The game could not be loaded.";
-        }
-      };
-
-      window.addEventListener(
-        "load",
-        () => requestAnimationFrame(() => requestAnimationFrame(start)),
-        { once: true },
-      );
+      try {
+        await init();
+        status.remove();
+      } catch (error) {
+        console.error(error);
+        status.textContent = "The game could not be loaded.";
+      }
     </script>
   </body>
 </html>

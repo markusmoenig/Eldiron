@@ -17,27 +17,45 @@ export const homepageContent = {
       },
     ],
     screenshot: {
-      label: "Bring your world to life with Nodes.",
-      linkLabel: "Read the release post.",
-      href: "/blog/2026/10/01/eldiron-v0.95.0",
-      version: "Eldiron v0.95.0",
-      image: "/img/eldiron_v0.95.0.png",
-      alt: "Eldiron Creator v0.95.0 showing Hideout 2D and an Orc routine with highlighted Behavior Nodes",
+      label: "Wayfarer’s Rest in 2D Iso.",
+      linkLabel: "Read the release post",
+      href: "/blog/2026/11/22/eldiron-v0.96.0",
+      version: "Eldiron v0.96.0",
+      image: "/img/eldiron_v0.96.0.png",
+      width: 3324,
+      height: 1944,
+      alt: "Eldiron Creator v0.96.0 showing Wayfarer’s Rest in 2D Iso, with the village paths, stone bridge, and MaterialZ editor",
     },
   },
   sections: [
     {
       key: "rules-announcement",
-      eyebrow: "NOW AVAILABLE",
-      title: "Official Eldiron Ruleset",
-      description:
-        "Eldiron supports project-selectable ruleset packages with official fantasy rules from levels 1–10. Races, classes, actions, spells, conditions, equipment, progression, resources, and crafting share one runtime while projects remain free to extend or replace the rules they need.",
+      eyebrow: "Official Eldiron Ruleset",
+      title: "One ruleset for classic and sandbox RPGs",
+      paragraphs: [
+        "Our goal is a complete, shared RPG ruleset that creators can pick from. A classic adventure might offer a few classes such as Warrior and Ranger, level progression, and a selection of weapons, armor, and spells.",
+        "A sandbox can give players a flexible character who learns skills through play. They can gather wood from trees, learn recipes from townsfolk, craft and repair equipment, and sell what they make. A fighter can take up a trade, and a crafter can go adventuring.",
+        "Both styles draw from the same bundled catalogue. Choose what players can find, learn, and use through their starting options and the items, resources, teachers, and encounters you place in the world. A single game can combine both styles.",
+        "In Creator, getting started is as simple as picking the classes you want to offer and dragging and dropping characters and items from the project tree onto the map. The bundled ruleset handles how they work.",
+      ],
       href: "/docs/official_rules",
       linkLabel: "Read the official rules",
       thumbnail: {
         image: "/img/rules/combat-dice-ink.png",
         alt: "Black-and-white RPG dice, sword, shield, armor, and orc marker illustration",
       },
+      type: "announcement",
+    },
+    {
+      key: "multiplayer-announcement",
+      eyebrow: "Multiplayer Preview",
+      title: "Host a shared world with Eldiron",
+      paragraphs: [
+        "Dedicated multiplayer is already implemented in Eldiron v0.96. A server runs the shared world and saves character progress and world state between sessions. Players can connect from the desktop or WebGPU browser client, and Creator can export a client package for your server.",
+        "We’re preparing a public demo so you can soon join a shared world and explore it with other players.",
+      ],
+      href: "/docs/creator/public_client_export",
+      linkLabel: "Read the multiplayer setup guide",
       type: "announcement",
     },
     {
@@ -48,6 +66,14 @@ export const homepageContent = {
         "Follow the latest Eldiron releases, workflow improvements, and documentation updates as the project moves toward v1.",
       type: "news",
       items: [
+        {
+          date: "Nov 22, 2026",
+          title: "Eldiron v0.96.0",
+          description:
+            "Build in 2D Iso with MaterialZ, explore Wayfarer’s Rest, and try world-sourced crafting and the dedicated multiplayer preview.",
+          href: "/blog/2026/11/22/eldiron-v0.96.0",
+          linkLabel: "Read more",
+        },
         {
           date: "Oct 4, 2026",
           title: "Interactive Nodes Video",
@@ -64,15 +90,6 @@ export const homepageContent = {
             "Create gameplay with Behavior Nodes, configure characters with Entity Nodes, and build shared wall and surface patterns. Live execution highlighting makes your game easier to follow.",
           href: "/blog/2026/10/01/eldiron-v0.95.0",
           linkLabel: "Read more",
-        },
-        {
-          date: "Sep 13, 2026",
-          title: "Eldiron v0.94 Feature Overview",
-          href: "https://youtu.be/jrbZ6ErD93c",
-          thumbnail: {
-            image: "https://i.ytimg.com/vi/jrbZ6ErD93c/maxresdefault.jpg",
-            alt: "Eldiron v0.94 feature overview video thumbnail",
-          },
         },
       ],
     },
@@ -151,12 +168,12 @@ export const homepageContent = {
           linkLabel: "Explore Screens & UI",
         },
         {
-          title: "Editable RPG Rules",
+          title: "Shared RPG Rules",
           figure: "/img/lord.png",
           description:
-            "Start with the bundled fantasy ruleset for races, classes, equipment, combat, spells, and progression. Edit definitions through the Rules editor so every character and client uses the same gameplay rules.",
-          href: "/docs/creator/docks/ruleset_nodes",
-          linkLabel: "Explore the Ruleset Editor",
+            "Build around the bundled classes, equipment, spells, and recipes. Place resources and stations, and use Behavior Nodes to give characters roles in your world.",
+          href: "/docs/rules",
+          linkLabel: "Explore the Ruleset",
         },
         {
           title: "MaterialZ Materials",

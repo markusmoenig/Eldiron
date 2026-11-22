@@ -1,24 +1,37 @@
 import useBaseUrl from "@docusaurus/useBaseUrl";
 import { useMemo, useRef, useState } from "react";
+import gateCover from "../../../../starters/images/gate-preview.png";
+import hideoutCover from "../../../../starters/images/hideout-2d-preview.png";
+import stonefallCover from "../../../../starters/images/stonefall-dungeon-preview.png";
+import wayfarersRestCover from "../../../../starters/images/wayfarers-rest-preview.png";
 import styles from "./styles.module.css";
 
 const games = [
   {
     slug: "hideout",
-    name: "Hideout",
+    name: "Hideout 2D",
     format: "2D top-down",
     description:
       "Recover the key to your treasury, trade with a merchant, ignite a torch, and travel through a portal into the dungeon.",
-    image: "/img/hideout.png",
-    imageAlt: "The Hideout example running in Eldiron",
+    image: hideoutCover,
+    imageAlt: "Hideout 2D viewed from above in Eldiron",
+  },
+  {
+    slug: "wayfarers-rest",
+    name: "Wayfarer’s Rest",
+    format: "2D isometric",
+    description:
+      "Visit the inn and tannery, see the village change after dark, and explore the woods and crypt beyond town.",
+    image: wayfarersRestCover,
+    imageAlt: "The inn, paths, and trees of Wayfarer’s Rest in 2D Iso",
   },
   {
     slug: "stonefall",
-    name: "Stonefall",
+    name: "Stonefall Dungeon",
     format: "Dungeon crawler",
     description:
       "Choose a class, recruit a companion, battle through Stonefall Dungeon, and find the Bone Key that opens the way out.",
-    image: "/img/Eldironv0.93_stonefall.png",
+    image: stonefallCover,
     imageAlt: "The Stonefall Dungeon example running in Eldiron",
   },
   {
@@ -27,7 +40,7 @@ const games = [
     format: "First-person 3D",
     description:
       "Explore Eldiron from a first-person perspective and see its 3D dungeon rendering, movement, lighting, and interaction systems.",
-    image: "/img/screenshots/Gate_v0.91.0.png",
+    image: gateCover,
     imageAlt: "The Gate first-person example running in Eldiron",
   },
 ];
@@ -47,7 +60,6 @@ export default function GamePlayer() {
     [selectedSlug],
   );
   const gameUrl = useBaseUrl(`/play/${selectedGame.slug}/`);
-  const imageUrl = useBaseUrl(selectedGame.image);
 
   const selectGame = (slug) => {
     if (slug === selectedSlug) return;
@@ -134,7 +146,7 @@ export default function GamePlayer() {
               onClick={() => setRunning(true)}
               aria-label={`Load and play ${selectedGame.name}`}
             >
-              <img src={imageUrl} alt={selectedGame.imageAlt} />
+              <img src={selectedGame.image} alt={selectedGame.imageAlt} />
               <span className={styles.previewShade} />
               <span className={styles.playButton}>
                 <EnterIcon />

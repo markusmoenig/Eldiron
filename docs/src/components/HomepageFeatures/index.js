@@ -3,8 +3,10 @@ import useBaseUrl from "@docusaurus/useBaseUrl";
 import { homepageContent } from "./content";
 import styles from "./styles.module.css";
 
-function Screenshot({ src, alt, className }) {
-  return <img className={className} src={useBaseUrl(src)} alt={alt} />;
+function Screenshot({ src, alt, className, width, height }) {
+  return (
+    <img className={className} src={useBaseUrl(src)} alt={alt} width={width} height={height} />
+  );
 }
 
 function SectionHeader({ eyebrow, title, description, id }) {
@@ -133,7 +135,11 @@ function AnnouncementSection({ section }) {
         <div className={styles.announcementCopy}>
           <p className={styles.announcementEyebrow}>{section.eyebrow}</p>
           <h2>{section.title}</h2>
-          <p>{section.description}</p>
+          {section.paragraphs.map((paragraph) => (
+            <p className={styles.announcementText} key={paragraph}>
+              {paragraph}
+            </p>
+          ))}
           <Link to={section.href}>{section.linkLabel}</Link>
         </div>
         {section.thumbnail && (
@@ -205,6 +211,8 @@ export default function HomepageFeatures() {
             className={styles.heroImage}
             src={hero.screenshot.image}
             alt={hero.screenshot.alt}
+            width={hero.screenshot.width}
+            height={hero.screenshot.height}
           />
         </div>
       </section>

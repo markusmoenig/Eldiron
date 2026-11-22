@@ -11,7 +11,11 @@ on:
       - "clients/client/**"
       - "crates/**"
       - "run-wasm/**"
+      - "tools/package_web.py"
+      - "web/eldiron-bake-codec-worker-bootstrap.js"
       - "test_projects/StonefallDungeon.eldiron"
+      - "test_projects/Village2DIso.eldiron"
+      - "starters/images/**"
       - "starters/projects/Gate.eldiron"
       - "starters/projects/Hideout2D.eldiron"
       - ".github/workflows/docs.yml"
@@ -25,7 +29,11 @@ on:
       - "clients/client/**"
       - "crates/**"
       - "run-wasm/**"
+      - "tools/package_web.py"
+      - "web/eldiron-bake-codec-worker-bootstrap.js"
       - "test_projects/StonefallDungeon.eldiron"
+      - "test_projects/Village2DIso.eldiron"
+      - "starters/images/**"
       - "starters/projects/Gate.eldiron"
       - "starters/projects/Hideout2D.eldiron"
       - ".github/workflows/docs.yml"
@@ -66,12 +74,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build web client
-        working-directory: clients/client
-        # cargo-run-wasm can return success after its child Cargo build fails.
-        # Compile explicitly first so the job fails at the actual Rust error.
-        run: |
-          cargo build --locked --release --target wasm32-unknown-unknown --target-dir ../../target/wasm-examples-target --package eldiron-client --bin eldiron-client
-          cargo run-wasm --release --package eldiron-client --bin eldiron-client --build-only
+        working-directory: .
+        run: python3 tools/package_web.py player target/wasm-examples/eldiron-client
 
       - name: Stage web client and games
         run: npm run stage:web-games

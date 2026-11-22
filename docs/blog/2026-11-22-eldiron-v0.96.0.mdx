@@ -1,0 +1,112 @@
+---
+title: Eldiron v0.96.0 Released
+authors: [markusm]
+tags: [releases]
+image: /img/eldiron_v0.96.0.png
+---
+
+Eldiron v0.96.0 brings **2D Iso** to Creator and expands the shared RPG rules
+with gathering, crafting, and learning. It also integrates **MaterialZ**,
+a tool for creating textures and 3D models from editable recipes. You can
+see all of this in **Wayfarer’s Rest**, a playable village you can open and
+edit in Creator.
+
+<!-- truncate -->
+
+![Eldiron Creator v0.96.0 showing Wayfarer’s Rest in 2D Iso, with the village paths, stone bridge, and MaterialZ editor](/img/eldiron_v0.96.0.png)
+
+## A Day in Wayfarer’s Rest
+
+I wanted an example that shows what happens after you’ve placed the buildings
+and the characters. Start at the inn in the morning, talk to Rowan, then visit
+Mara’s tannery. Give her time to tan a hide and stitch a pair of boots, and you
+can buy what she made. Across the stone bridge, deer stay in Deer Wood.
+When evening comes, villagers go out to light their lamps, Elin lights the
+North Gate bonfire, and the village settles down for the night. Beyond the
+gate is Blackstone Crypt.
+
+Those routines are built from **Behavior Nodes**. A character can walk to a
+placed item and perform a named intent, such as lighting a lantern or using a
+bed. In the editor, click a villager or an item with the **Entity tool** to
+read its schedule and interactions in **Behavior Overview**.
+
+Open the village through **File → New → Browse Examples → Wayfarer’s Rest**.
+The [village walkthrough](/docs/creator/wayfarers_rest) takes you from the inn
+to the tannery and on to the gate.
+
+## Build and Play in 2D Iso
+
+The new **2D Iso** project template gives you an isometric grid, directional
+characters, and a playable starter map. Bring in a PNG sheet or separate
+sprites, set their ground-cell size and pivot, and group named directions and
+animation frames on import. **Kenney Isometric Dungeon** is a second
+playable example built with imported bitmap artwork.
+
+You can mix imported sprites and MaterialZ artwork in the same map. Paint
+grass and details, turn editable lines into terrain paths, and shape hills
+and plateaus. You can also drag a building’s sector footprint with its
+attached content in one undoable move.
+
+Creator and the graphical player now draw the scene and interface on the GPU.
+In 2D Iso, reusable terrain chunks and streamed tile bakes reduce repeated
+work while sunlight and local lights continue to update as you edit and play.
+See the [isometric tileset guide](/docs/building_maps/isometric_sprite_tilesets)
+for the import and placement workflow.
+
+## MaterialZ in Creator
+
+A MaterialZ recipe is a set of instructions that Creator turns into artwork.
+For the masonry in the screenshot, a grid lays out the bricks, noise varies
+their appearance, and a color ramp gives the stone its shades. Change the
+recipe and preview the result in the editor. You can use the material on
+a 2D tile or a 3D wall. Rect compositions layer reusable surfaces for paths,
+verges, and transitions.
+
+Mesh recipes build the shapes of objects such as walls and trees. They can
+also define dimensions, connectors, and walkable footprints. In 2D Iso,
+Creator renders those models as sprites. In the Appearance workspace you can
+inspect character and item models, turn them around, and preview their
+animations. Villagers can have different builds, faces, hairstyles, and outfits
+while using the shared Human model. Farm animals and woodland wildlife use
+their own shared species models.
+Read more in the [MaterialZ tutorials](/docs/building_maps/materialz/start-here) and
+the [Appearance guide](/docs/characters_items/appearance).
+
+## One Ruleset for Classic and Sandbox RPGs
+
+I want Eldiron to ship with a complete RPG ruleset that creators can pick
+from. A classic adventure might offer Warrior and Ranger, level progression,
+and a few carefully chosen weapons and spells. A sandbox can start with a
+flexible character and let players learn skills and take up trades as they play.
+A ranger can learn to work leather, and a leatherworker can go adventuring.
+Both styles draw from the same rules, and a single game can combine them.
+
+In Creator, choose the classes that fit your game and drag the characters
+and items you want from the project tree onto the map. The bundled ruleset
+supplies their gameplay rules. Your world determines what players can find
+and learn through the resources, equipment, and teachers you place there.
+
+Wayfarer’s Rest shows how that can work. Trees supply wood and resin, rivers
+and wells fill vessels, and skeleton and animal remains supply bone and hide.
+
+The **Crafting & Knowledge** journal shows the materials, tools, stations,
+and lessons a recipe needs. Bone and leather armor have full sets you can
+make and repair. Compatible equipment can take more than one enchantment,
+including inscriptions of the Bear and of the Fox.
+See the [Official Rules](/docs/official_rules) for the production chains.
+
+## A First Look at Dedicated Multiplayer
+
+Dedicated multiplayer already works in v0.96. A server runs the authored world
+and saves character progress and world state between sessions. Players can
+connect from desktop and WebGPU browser clients, and Creator can export a
+client package for your own server. See the
+[Public Client Export guide](/docs/creator/public_client_export) for the setup.
+
+We’re preparing a public multiplayer demo so you can join a shared world
+and explore it with other players soon.
+
+---
+
+Take care,  
+Markus

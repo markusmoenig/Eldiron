@@ -6,11 +6,21 @@ repo_root="$(cd "$script_dir/../.." && pwd)"
 artifact_dir="${1:-$repo_root/target/wasm-examples/eldiron-client}"
 web_root="$repo_root/docs/static/play"
 
-if [[ ! -f "$artifact_dir/eldiron-client.js" || ! -f "$artifact_dir/eldiron-client_bg.wasm" ]]; then
-  echo "WASM client assets were not found in: $artifact_dir" >&2
-  echo "Build them with: cargo run-wasm --release --package eldiron-client --bin eldiron-client --build-only" >&2
-  exit 1
-fi
+runtime_files=(
+  eldiron-client.js
+  eldiron-client_bg.wasm
+  eldiron-bake-codec-worker-bootstrap.js
+  eldiron-bake-codec-worker.js
+  eldiron-bake-codec-worker_bg.wasm
+)
+
+for file in "${runtime_files[@]}"; do
+  if [[ ! -f "$artifact_dir/$file" ]]; then
+    echo "WASM client asset missing: $artifact_dir/$file" >&2
+    echo "Build the assets with: python3 tools/package_web.py player target/wasm-examples/eldiron-client" >&2
+    exit 1
+  fi
+done
 
 case "$web_root" in
   "$repo_root"/docs/static/play) ;;
@@ -21,18 +31,25 @@ case "$web_root" in
 esac
 
 rm -rf "$web_root"
-mkdir -p "$web_root/runtime" "$web_root/hideout" "$web_root/gate" "$web_root/stonefall"
+mkdir -p "$web_root/runtime"
+for file in "${runtime_files[@]}"; do
+  cp "$artifact_dir/$file" "$web_root/runtime/"
+done
+if [[ -d "$artifact_dir/snippets" ]]; then
+  cp -R "$artifact_dir/snippets" "$web_root/runtime/"
+fi
 
-cp "$artifact_dir/eldiron-client.js" "$web_root/runtime/"
-cp "$artifact_dir/eldiron-client_bg.wasm" "$web_root/runtime/"
-
-for game in hideout gate stonefall; do
+for game in hideout wayfarers-rest stonefall gate; do
+  mkdir -p "$web_root/$game"
   cp "$repo_root/docs/web-player/index.html" "$web_root/$game/index.html"
+  printf '%s\n' 'import "../runtime/eldiron-bake-codec-worker-bootstrap.js";' \
+    > "$web_root/$game/eldiron-bake-codec-worker-bootstrap.js"
 done
 
 cp "$repo_root/starters/projects/Hideout2D.eldiron" "$web_root/hideout/game.eldiron"
+cp "$repo_root/test_projects/Village2DIso.eldiron" "$web_root/wayfarers-rest/game.eldiron"
 cp "$repo_root/starters/projects/Gate.eldiron" "$web_root/gate/game.eldiron"
 cp "$repo_root/test_projects/StonefallDungeon.eldiron" \
   "$web_root/stonefall/game.eldiron"
 
-echo "Staged the Eldiron web client and 3 games in $web_root"
+echo "Staged the Eldiron web client and 4 games in $web_root"

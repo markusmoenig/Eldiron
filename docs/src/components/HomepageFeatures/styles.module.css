@@ -17,10 +17,10 @@
 }
 
 .heroSection {
+  max-width: 1280px;
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.25fr);
-  gap: 2rem;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.75rem;
 }
 
 .eyebrow {
@@ -34,13 +34,13 @@
 
 .heroTitle {
   margin: 0;
-  font-size: clamp(2.7rem, 6vw, 4.6rem);
-  line-height: 0.95;
-  max-width: 11ch;
+  font-size: clamp(2.5rem, 5vw, 4.25rem);
+  line-height: 1.02;
+  max-width: 24ch;
 }
 
 .heroText {
-  max-width: 37rem;
+  max-width: 49rem;
   margin: 1.2rem 0 0;
   font-size: 1.08rem;
   line-height: 1.7;
@@ -105,9 +105,6 @@
 .newsGrid {
   display: grid;
   gap: 1rem;
-}
-
-.newsGrid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
@@ -206,9 +203,9 @@
   line-height: 1.08;
 }
 
-.announcementPanel p:last-of-type {
+.announcementText {
   max-width: 58rem;
-  margin: 0.8rem 0 0.9rem;
+  margin: 0.8rem 0;
   color: var(--ifm-font-color-secondary);
   line-height: 1.7;
 }
@@ -346,7 +343,6 @@
 }
 
 @media screen and (max-width: 996px) {
-  .heroSection,
   .formatCard,
   .featuresGrid,
   .newsGrid,
@@ -383,6 +379,7 @@
   .heroShotHeader {
     flex-direction: column;
     align-items: flex-start;
+    gap: 0.3rem;
   }
 
   .formatImageWrap,
