@@ -77,15 +77,15 @@ pub fn synchronize(project: &mut Project) -> Vec<String> {
     for (id, settings) in bindings {
         let result = (|| -> Result<(), String> {
             let recipe = if settings.ground {
-                project.procedural_materials.get(&settings.recipe)
+                project.procedural_materials.get(&settings.recipe).map(String::as_str)
             } else {
-                project.procedural_appearances.get(&settings.recipe)
+                crate::appearance_assets::source(project, &settings.recipe)
             }
             .ok_or("MZ recipe missing")?;
             let mut signature = rusterix::procedural_avatar::fingerprint(&(
                 if settings.ground { 4u32 } else { 14u32 },
                 if settings.ground {
-                    recipe.clone()
+                    recipe.to_owned()
                 } else {
                     crate::appearance_assets::resolve_dependencies(
                         project,
@@ -202,9 +202,8 @@ pub fn tile_recipe(project: &Project, tile: Uuid) -> Option<TileRecipe> {
                 .contains_key(&binding.recipe)
                 .then_some(TileRecipe::Material(binding.recipe))
         } else {
-            project
-                .procedural_appearances
-                .contains_key(&binding.recipe)
+            crate::appearance_assets::source(project, &binding.recipe)
+                .is_some()
                 .then_some(TileRecipe::Geometry(binding.recipe))
         };
     }
@@ -251,7 +250,6 @@ fn material_inputs(
     )?;
     let mut sources = std::collections::BTreeSet::new();
     collect(&doc, &mut sources);
-    let defs = ruleset_materials::definitions(&project.config);
     Ok(sources
         .into_iter()
         .map(|source| {
@@ -262,15 +260,14 @@ fn material_inputs(
                     .map(crate::rulesets::material_asset_id)
             });
             let bundle = id
-                .and_then(|id| project.procedural_materials.get(&id))
-                .cloned()
-                .unwrap_or_else(|| {
-                    source
-                        .strip_prefix("ruleset:material/")
-                        .and_then(|name| defs.iter().find(|d| d.id == name))
-                        .map(|d| format!("{}:{}", d.source, d.palette))
-                        .unwrap_or_default()
-                });
+                .map(|id| {
+                    if let Some(def) = ruleset_materials::definition(&project.config, id) {
+                        format!("{}:{}:{}", def.source, def.palette, def.output)
+                    } else {
+                        project.procedural_materials.get(&id).cloned().unwrap_or_default()
+                    }
+                })
+                .unwrap_or_default();
             (source, bundle)
         })
         .collect())
@@ -458,9 +455,7 @@ pub fn bake(project: &Project, settings: &Bake) -> Result<rusterix::Tile, String
         anchors.push(image.meta.anchor);
         generated.push(Texture::new(image.rgba, image.meta.w, image.meta.h));
     } else {
-        let source = project
-            .procedural_appearances
-            .get(&settings.recipe)
+        let source = crate::appearance_assets::source(project, &settings.recipe)
             .ok_or("MZ geometry recipe missing")?;
         let doc = crate::appearance_assets::resolve_dependencies(
             project,
@@ -714,24 +709,20 @@ impl Baker<'_> {
                 .strip_prefix("project:material/")
                 .unwrap_or(&spec.source),
         ) {
-            let source = self
-                .project
-                .procedural_materials
-                .get(&id)
-                .ok_or("Project MZ material missing")?;
-            let asset = EditableMaterialAsset::reopen(source)
-                .or_else(|_| EditableMaterialAsset::parse(&spec.source, source, "surface"))
-                .map_err(|e| e.to_string())?;
+            let asset = ruleset_materials::editable_id(self.project, id).or_else(|error| {
+                let source = self.project.procedural_materials.get(&id).ok_or(error)?;
+                EditableMaterialAsset::parse(&spec.source, source, "surface").map_err(|e| e.to_string())
+            })?;
             ruleset_materials::bake_asset(&asset, &self.project.palette, size)?
-        } else if let Some(bundle) = &spec.bundle {
-            ruleset_materials::bake_asset(
-                &EditableMaterialAsset::reopen(bundle).map_err(|e| e.to_string())?,
-                &self.project.palette,
-                size,
-            )?
         } else if let Some(name) = spec.source.strip_prefix("ruleset:material/") {
             ruleset_materials::bake_asset(
                 &ruleset_materials::editable(self.project, name)?,
+                &self.project.palette,
+                size,
+            )?
+        } else if let Some(bundle) = &spec.bundle {
+            ruleset_materials::bake_asset(
+                &EditableMaterialAsset::reopen(bundle).map_err(|e| e.to_string())?,
                 &self.project.palette,
                 size,
             )?

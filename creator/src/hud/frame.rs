@@ -143,6 +143,13 @@ pub(crate) struct HudFrame {
     pub(crate) token: HudToken,
 }
 impl HudFrame {
+    pub(crate) fn covers_control(&self, at: Vec2<i32>) -> bool {
+        let layout = &self.source.layout;
+        layout.icons.iter().chain(&layout.subdivisions).chain(&layout.edit_modes)
+            .any(|rect| rect.contains(at))
+            || (layout.header && self.source.camera == MapCamera::TwoD && at.y < 20)
+    }
+
     #[cfg(test)]
     pub(crate) fn commands(&self) -> &EditorOverlay {
         &self.commands

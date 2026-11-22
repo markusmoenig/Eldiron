@@ -613,6 +613,12 @@ mod ruleset_progression_tests {
         let mut entity = Entity::new();
         trigger_avatar_attack_animation(&mut entity);
         let first_serial = entity.attributes.get_int_default("avatar_attack_serial", 0);
+        assert_eq!(
+            entity
+                .attributes
+                .get_float_default("avatar_attack_left", 0.),
+            0.60
+        );
 
         advance_avatar_attack_timer(&mut entity, 0.2);
         sync_avatar_animation(&mut entity, false);
@@ -621,7 +627,7 @@ mod ruleset_progression_tests {
             Some("Attack")
         );
 
-        advance_avatar_attack_timer(&mut entity, 0.2);
+        advance_avatar_attack_timer(&mut entity, 0.45);
         sync_avatar_animation(&mut entity, false);
         assert_eq!(entity.attributes.get_str("avatar_animation"), Some("Idle"));
 
@@ -676,7 +682,7 @@ mod ruleset_progression_tests {
             entity.attributes.get_str("avatar_animation"),
             Some("Attack")
         );
-        advance_avatar_attack_timer(&mut entity, 0.4);
+        advance_avatar_attack_timer(&mut entity, 0.65);
         sync_avatar_animation(&mut entity, true);
         assert_eq!(entity.attributes.get_str("avatar_animation"), Some("Walk"));
     }
@@ -4788,7 +4794,10 @@ fn map_spawn_height(map: &Map, pos: Vec2<f32>, preferred_y: Option<f32>) -> f32 
 
 fn ctx_spawn_height(ctx: &RegionCtx, pos: Vec2<f32>, preferred_y: Option<f32>) -> f32 {
     if !ctx.mapmini.elevation.is_empty() {
-        return ctx.mapmini.elevation.height_at(pos);
+        return preferred_y.map_or_else(
+            || ctx.mapmini.elevation.height_at(pos),
+            |y| ctx.mapmini.elevation.height_near(pos, y),
+        );
     }
     if ctx.collision_world.has_collision_data() {
         let reference_y = preferred_y.unwrap_or(0.0);
@@ -8523,7 +8532,6 @@ impl RegionInstance {
         }
 
         ctx.map = map;
-        if let Err(error) = resources::initialize(&mut ctx, self.restoring) { ctx.startup_errors.push(format!("World resources: {error}")); }
         remove_transient_ruleset_fx_items(&mut ctx);
         ctx.blocking_tiles = assets.blocking_tiles();
         ctx.assets = assets.clone();
@@ -8856,6 +8864,10 @@ impl RegionInstance {
 
         // --- Startup
 
+        // Placed resource items need their final runtime IDs before they can receive intents.
+        if let Err(error) = resources::initialize(&mut ctx, self.restoring) {
+            ctx.startup_errors.push(format!("World resources: {error}"));
+        }
         ctx.from_sender.set(self.from_sender.clone()).unwrap();
         ctx.to_receiver.set(self.to_receiver.clone()).unwrap();
         ctx.region_id = self.id;
@@ -9315,8 +9327,12 @@ impl RegionInstance {
                 .cloned() // Clone only the relevant items
                 .collect::<Vec<_>>() // Store them in a new list
         };
+        let node_timers = !to_process.is_empty()
+            && with_regionctx(self.context.clone(), |ctx| ctx.assets.node_behaviors.is_some())
+                .unwrap_or(false);
         for (id, _tick, notification) in &to_process {
-            if !is_entity_dead(self.context.clone(), *id) {
+            // Node timers also drive explicit respawn chains on stashed bodies.
+            if (node_timers && notification != "attack") || !is_entity_dead(self.context.clone(), *id) {
                 // let mut cmd = String::new();
                 with_regionctx(self.context.clone(), |ctx| {
                     if notification == "attack" {
@@ -10361,7 +10377,11 @@ impl RegionInstance {
                                         ),
                                     ));
 
-                                    if ctx.item_classes.get(&clicked_item_id).is_some() {
+                                    let authored_item_intent = ctx.assets.node_behaviors.as_ref()
+                                        .is_some_and(|assets| ctx.map.items.iter()
+                                            .find(|item| item.id == clicked_item_id)
+                                            .is_some_and(|item| assets.owns_item_intent(ctx, item)));
+                                    if ctx.item_classes.contains_key(&clicked_item_id) || authored_item_intent {
                                         ctx.to_execute_item.push((
                                             clicked_item_id,
                                             "intent".to_string(),
@@ -10504,10 +10524,14 @@ impl RegionInstance {
                                         entity.action = EntityAction::Off;
                                     }
                                 } else {
+                                    let layered = ctx.mapmini.elevation.has_overpasses();
                                     let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
                                     else {
                                         return;
                                     };
+                                    if layered {
+                                        entity.attributes.remove("__goto_target_height");
+                                    }
                                     entity.action = Goto(position, 1.0);
                                 }
                             });
@@ -11093,7 +11117,17 @@ impl RegionInstance {
                 Time(_id, time) => {
                     // User manually set the server time
                     with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
-                        ctx.ticks = time.to_ticks(ctx.ticks_per_minute);
+                        let ticks = time.to_ticks(ctx.ticks_per_minute);
+                        let shift = ticks - ctx.ticks;
+                        // Notify In is a delay, so moving the time-of-day slider
+                        // preserves the remaining delay in both directions.
+                        for (_, deadline, _) in &mut ctx.notifications_entities {
+                            *deadline += shift;
+                        }
+                        for (_, deadline, _) in &mut ctx.notifications_items {
+                            *deadline += shift;
+                        }
+                        ctx.ticks = ticks;
                         ctx.time = time;
                     });
                 }
@@ -11811,7 +11845,8 @@ impl RegionInstance {
                         let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                             && ctx.collision_world.has_collision_data();
                         let max_step_height = Self::autonomous_max_step_height(entity);
-                        let (new_position, new_y, mut arrived) = if use_3d_nav {
+                        let layered = ctx.mapmini.elevation.has_overpasses();
+                        let (new_position, mut new_y, mut arrived) = if use_3d_nav {
                             if let Some(target_y) = explicit_target_y {
                                 if let Some(points) = ctx.collision_world.navgrid_path_3d_to_height(
                                     position,
@@ -11870,6 +11905,11 @@ impl RegionInstance {
                                 }
                             });
                             (Vec2::new(p.x, p.z), p.y, arrived)
+                        } else if layered {
+                            let (p, arrived) = ctx.mapmini.move_towards_elevation(
+                                entity.position, *coord, explicit_target_y, speed, radius,
+                            );
+                            (Vec2::new(p.x, p.z), p.y, arrived)
                         } else {
                             let (p, arrived) = ctx
                                 .mapmini
@@ -11891,6 +11931,9 @@ impl RegionInstance {
                         if probe.blocking_collision {
                             resolved_position = position;
                             arrived = false;
+                            if layered {
+                                new_y = entity.position.y;
+                            }
                         }
 
                         let move_delta = resolved_position - position;
@@ -13346,7 +13389,7 @@ impl RegionInstance {
 
                 // Check if we have already executed this script in this tick
                 if let Some(Value::Int64(tick)) = state_data.get(&todo.1) {
-                    if *tick >= ticks {
+                    if *tick == ticks {
                         if todo.1.starts_with("intent") {
                             with_regionctx(self.context.clone(), |ctx| {
                                 send_message(
@@ -13477,7 +13520,7 @@ impl RegionInstance {
 
                 // Check if we have already executed this script in this tick
                 if let Some(Value::Int64(tick)) = state_data.get(&todo.1) {
-                    if *tick >= ticks {
+                    if *tick == ticks {
                         continue;
                     }
                 }
@@ -13497,10 +13540,15 @@ impl RegionInstance {
 
             with_regionctx(self.context.clone(), |ctx| {
                 ctx.item_state_data = state_data;
-                if let Some(class_name) = ctx.item_classes.get(&todo.0) {
-                    if let Some(program) = ctx.item_programs.get(class_name).cloned() {
-                        let args = [VMValue::from_string(todo.1), todo.2];
+                let program = ctx.item_classes.get(&todo.0)
+                    .and_then(|class_name| ctx.item_programs.get(class_name))
+                    .cloned();
+                if program.is_some() || ctx.assets.node_behaviors.is_some() {
+                    let args = [VMValue::from_string(todo.1), todo.2];
+                    if let Some(program) = program {
                         run_server_fn(&mut self.exec, &args, &program, ctx);
+                    } else {
+                        run_server_fn(&mut self.exec, &args, &crate::vm::Program::new(), ctx);
                     }
                 }
             });
@@ -18922,6 +18970,102 @@ pub(crate) fn execute_ruleset_action_with_target(
     execute_ruleset_action_with_source_and_target(ctx, actor_id, action_id, None, target)
 }
 
+/// Perform a placed-item interaction without requiring a client selection.
+pub(crate) fn perform_placed_item_intent(
+    ctx: &mut RegionCtx,
+    actor_id: u32,
+    placement: Uuid,
+    intent: &str,
+) -> Result<(), String> {
+    let raw_intent = resolve_ruleset_invocation_intent(ctx, actor_id, intent)
+        .ok_or("The intent could not be resolved")?;
+    let actor = ctx
+        .map
+        .entities
+        .iter()
+        .find(|actor| actor.id == actor_id)
+        .ok_or("The character is no longer present")?;
+    let item = ctx
+        .map
+        .items
+        .iter()
+        .find(|item| {
+            item.creator_id == placement && item.attributes.get_bool_default("visible", true)
+        })
+        .ok_or("The placed item is unavailable in this region")?;
+    let item_id = item.id;
+    let canonical_intent = crate::item_state::canonical_intent(item, &raw_intent);
+    let intent = canonical_intent.to_ascii_lowercase();
+    if intent.is_empty() {
+        return Err("Enter an intent".into());
+    }
+    let rules = intent_rule_config(ctx, actor_id, &intent);
+    let distance = crate::item_state::distance(item, &ctx.assets, actor);
+    if distance > intent_distance_limit(ctx, actor_id, &intent, &rules) {
+        return Err("The placed item is out of range".into());
+    }
+    if !intent_allowed(ctx, &rules, distance, Some(actor), None, Some(item), None) {
+        return Err(rules
+            .deny_message
+            .unwrap_or_else(|| "The intent is not allowed".into()));
+    }
+    if is_cooldown_key_active(ctx, actor_id, &format!("intent: {intent}")) {
+        return Err("The intent is on cooldown".into());
+    }
+    let action = intent
+        .strip_prefix("action:")
+        .map(str::to_owned)
+        .or_else(|| resolved_ruleset_action_for_intent(ctx, &intent).map(|action| action.id));
+    let result = if let Some(action) = action {
+        execute_ruleset_action_with_target(
+            ctx,
+            actor_id,
+            &action,
+            Some(RulesetActionTarget::Item {
+                item_id,
+                owner_entity_id: None,
+            }),
+        )
+        .then_some(())
+        .ok_or_else(|| format!("Ruleset action '{action}' was refused"))
+    } else if intent == "look" && let Some(description) = item_look_description(ctx, item) {
+        send_look(ctx, actor_id, crate::world_text::TextAnchor::Item(item_id), description);
+        Ok(())
+    } else {
+        let actor = actor.clone();
+        let authored = ctx
+            .assets
+            .node_behaviors
+            .as_ref()
+            .is_some_and(|assets| assets.owns_item_intent(ctx, item));
+        if resources::item_click(ctx, actor_id, item_id, &intent) {
+            Ok(())
+        } else if let Some(result) = match intent.as_str() {
+            "use" => try_furniture_intent(ctx, actor_id, item_id),
+            "open" | "close" => try_item_state_intent(ctx, &actor, item_id, &intent),
+            _ => None,
+        } {
+            result
+        } else if authored {
+            // Queue the target event to avoid reentering the graph scheduler.
+            // The recipient sees the acting character as event.subject.
+            ctx.to_execute_item.push((
+                item_id,
+                "intent".into(),
+                VMValue::new_with_string(actor_id as f32, distance, 0., &canonical_intent),
+            ));
+            Ok(())
+        } else {
+            Err(format!("The placed item has no handler for '{intent}'"))
+        }
+    };
+    if result.is_ok() {
+        queue_intent_cooldown(ctx, actor_id, &intent, rules.cooldown_seconds);
+        apply_pending_intent_cooldown(ctx, actor_id, &intent);
+    }
+    result
+}
+
 /// Node-mode replacement for script-driven intent events.
 ///
 /// Eldrin projects execute UI intents through the character script's `event`
@@ -18934,8 +19078,22 @@ pub(crate) fn execute_ruleset_action_with_target(
 /// All camera modes reach this after official intent validation. Item nodes can
 /// replace the default policy, while writing the same authoritative active flag.
 fn apply_furniture_intent(ctx: &mut RegionCtx, actor_id: u32, item_id: u32) -> bool {
-    let Some(item) = ctx.map.items.iter().find(|i| i.id == item_id).cloned() else {
+    let Some(result) = try_furniture_intent(ctx, actor_id, item_id) else {
         return false;
+    };
+    if let Err(message) = result {
+        send_message(ctx, actor_id, message, "system");
+    }
+    true
+}
+
+fn try_furniture_intent(
+    ctx: &mut RegionCtx,
+    actor_id: u32,
+    item_id: u32,
+) -> Option<Result<(), String>> {
+    let Some(item) = ctx.map.items.iter().find(|i| i.id == item_id).cloned() else {
+        return None;
     };
     if ctx
         .assets
@@ -18943,32 +19101,25 @@ fn apply_furniture_intent(ctx: &mut RegionCtx, actor_id: u32, item_id: u32) -> b
         .as_ref()
         .is_some_and(|a| a.owns_item_intent(ctx, &item))
     {
-        return false;
+        return None;
     }
     let Some(mut actor) = ctx.map.entities.iter().find(|e| e.id == actor_id).cloned() else {
-        return false;
+        return None;
     };
     let rules = intent_rule_config(ctx, actor_id, "use");
     let distance = crate::item_state::distance(&item, &ctx.assets, &actor);
     if distance > intent_distance_limit(ctx, actor_id, "use", &rules)
         || !intent_allowed(ctx, &rules, distance, Some(&actor), None, Some(&item), None)
     {
-        return false;
+        return None;
     }
     let result = crate::furniture::use_item(&mut actor, &item, &ctx.map.entities, &ctx.assets);
-    match result {
-        Some(Ok(())) => {
-            if let Some(current) = ctx.map.entities.iter_mut().find(|e| e.id == actor_id) {
-                *current = actor;
-            }
-            true
-        }
-        Some(Err(message)) => {
-            send_message(ctx, actor_id, message, "system");
-            true
-        }
-        None => false,
+    if matches!(result, Some(Ok(())))
+        && let Some(current) = ctx.map.entities.iter_mut().find(|e| e.id == actor_id)
+    {
+        *current = actor;
     }
+    result
 }
 
 fn apply_item_state_intent(
@@ -18977,15 +19128,30 @@ fn apply_item_state_intent(
     item_id: u32,
     intent: &str,
 ) -> bool {
-    if !matches!(intent, "open" | "close") {
+    let Some(result) = try_item_state_intent(ctx, actor, item_id, intent) else {
         return false;
+    };
+    if let Err(message) = result {
+        send_message(ctx, actor.id, message, "warning");
+    }
+    true
+}
+
+fn try_item_state_intent(
+    ctx: &mut RegionCtx,
+    actor: &Entity,
+    item_id: u32,
+    intent: &str,
+) -> Option<Result<(), String>> {
+    if !matches!(intent, "open" | "close") {
+        return None;
     }
     let Some(index) = ctx.map.items.iter().position(|i| i.id == item_id) else {
-        return false;
+        return None;
     };
     let item = &ctx.map.items[index];
     if !item.attributes.get_bool_default("openable", false) {
-        return false;
+        return None;
     }
     let rules = intent_rule_config(ctx, actor.id, intent);
     let distance = crate::item_state::distance(item, &ctx.assets, actor);
@@ -18999,8 +19165,7 @@ fn apply_item_state_intent(
                 .deny_message
                 .unwrap_or_else(|| "{system.cant_do_that}".into())
         };
-        send_message(ctx, actor.id, message, "warning");
-        return true;
+        return Some(Err(message));
     }
     if ctx
         .assets
@@ -19008,7 +19173,7 @@ fn apply_item_state_intent(
         .as_ref()
         .is_some_and(|a| a.owns_item_intent(ctx, item))
     {
-        return false;
+        return None;
     }
     if intent == "close" && item.attributes.get_bool_default("active", false) {
         let mut closed = item.clone();
@@ -19020,8 +19185,7 @@ fn apply_item_state_intent(
             .filter(|e| e.get_mode() != "dead")
             .any(|e| crate::item_state::actor_intersects(&closed, &ctx.assets, e))
         {
-            send_message(ctx, actor.id, "{system.door_obstructed}".into(), "warning");
-            return true;
+            return Some(Err("{system.door_obstructed}".into()));
         }
     }
     match crate::item_state::request(&mut ctx.map.items[index], actor, intent) {
@@ -19031,20 +19195,71 @@ fn apply_item_state_intent(
                 .get_bool_default("active", false);
             ctx.to_execute_item
                 .push((item_id, "active".into(), VMValue::from_bool(active)));
-            true
+            Some(Ok(()))
         }
-        Some(Ok(false)) => true,
-        Some(Err(message)) => {
-            send_message(ctx, actor.id, message, "warning");
-            true
-        }
-        None => false,
+        other => other.map(|result| result.map(|_| ())),
     }
 }
 
 #[cfg(test)]
 mod item_state_intent_tests {
     use super::*;
+
+    #[test]
+    fn placed_item_intent_shares_furniture_occupancy_and_accepts_custom_verbs() {
+        let mut ctx = RegionCtx::default();
+        ctx.set_rules(eldiron_ruleset::latest_official_ruleset().parse().unwrap())
+            .unwrap();
+        let bed_model = include_str!("../../../../creator/embedded/meshes/recipes/inn-bed.mzgeometry.json");
+        ctx.assets.procedural_avatars.insert(
+            "bed".into(),
+            Arc::new(crate::procedural_avatar::Appearance::new(bed_model, &[], 1).unwrap()),
+        );
+        let mut bed = Item::new();
+        bed.id = 10;
+        let placement = bed.creator_id;
+        bed.set_attribute("appearance_geometry", Value::Str("bed".into()));
+        ctx.map.items.push(bed);
+        for (id, x) in [(1, 1.), (2, -1.)] {
+            ctx.map.entities.push(Entity {
+                id,
+                position: Vec3::new(x, 0., 0.),
+                ..Default::default()
+            });
+        }
+        assert!(perform_placed_item_intent(&mut ctx, 1, placement, "use").is_ok());
+        assert_eq!(ctx.map.entities[0].attributes.get_str("posture"), Some("lying"));
+        assert!(perform_placed_item_intent(&mut ctx, 2, placement, "use").is_err());
+        assert!(perform_placed_item_intent(&mut ctx, 1, placement, "use").is_ok());
+        assert!(perform_placed_item_intent(&mut ctx, 2, placement, "use").is_ok());
+
+        let mut bell = Item::new();
+        bell.id = 11;
+        bell.item_type = "Alarm Bell".into();
+        let placement = bell.creator_id;
+        ctx.map.items.push(bell);
+        let template = Uuid::new_v4();
+        let mut assets = crate::server::nodes::region::BehaviorAssets::default();
+        assets.items.insert("Alarm Bell".into(), template);
+        assets.graphs.insert(format!("behavior/item/{template}"), serde_json::json!({
+            "version": 1, "connections": [],
+            "nodes": [{
+                "id": Uuid::new_v4(), "definition": "on_event",
+                "rows": [{"key": "event", "value": {"Text": "intent"}}],
+                "ports": [{"id": Uuid::new_v4(), "key": "out", "direction": "Output", "kind": "flow"}]
+            }]
+        }));
+        ctx.assets.node_behaviors = Some(assets);
+        ctx.map.entities[0].position.x = 12.;
+        assert!(perform_placed_item_intent(&mut ctx, 1, placement, "ringAlarm").is_err());
+        assert!(ctx.to_execute_item.is_empty());
+        ctx.map.entities[0].position.x = 0.;
+        assert!(perform_placed_item_intent(&mut ctx, 1, placement, "ringAlarm").is_ok());
+        let (item, event, payload) = ctx.to_execute_item.pop().unwrap();
+        assert_eq!((item, event.as_str()), (11, "intent"));
+        assert_eq!(payload.as_string(), Some("ringAlarm"));
+    }
+
     #[test]
     fn item_state_close_refuses_to_trap_a_character() {
         let mut ctx = RegionCtx::default();
@@ -23888,7 +24103,7 @@ fn entity_respawn_clears_corpse(ctx: &RegionCtx) -> bool {
 }
 
 fn remember_entity_respawn_points(ctx: &mut RegionCtx) {
-    for entity in &ctx.map.entities {
+    for entity in ctx.map.entities.iter().chain(ctx.stashed_entities.values()) {
         if !entity.is_player() {
             ctx.entity_respawn_snapshots
                 .entry(entity.id)

@@ -59,6 +59,8 @@ pub struct Motion {
     pub rig: Rig,
     pub duration: f32,
     pub looping: bool,
+    /// Upper cadence for game-driven locomotion. Sampling in seconds is unchanged.
+    pub max_cycles_per_second: Option<f32>,
     pub tracks: Vec<Track>,
     pub events: Vec<Event>,
 }
@@ -459,6 +461,14 @@ impl Motion {
         {
             return Err(fail(
                 "Motion requires a duration of 0.1–120 seconds and at most 64 tracks",
+            ));
+        }
+        if self
+            .max_cycles_per_second
+            .is_some_and(|rate| !self.looping || !rate.is_finite() || !(0.1..=10.).contains(&rate))
+        {
+            return Err(fail(
+                "A looping clip can limit cadence to 0.1–10 cycles per second",
             ));
         }
         if self.events.len() > 64

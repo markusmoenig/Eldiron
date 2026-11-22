@@ -778,6 +778,7 @@ impl GeometryEditor {
                     rig: source,
                     duration: 1.,
                     looping: false,
+                    max_cycles_per_second: None,
                     tracks: vec![Track {
                         joint,
                         keys: vec![

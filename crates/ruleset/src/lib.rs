@@ -367,18 +367,31 @@ pub fn bundled_material_assets_for_ruleset(id: &str, version: &str) -> Vec<Bundl
     }
     macro_rules! mat {
         ($name:literal) => {
+            mat!($name, source $name)
+        };
+        ($name:literal, source $source:literal) => {
+            mat!(
+                $name,
+                $source,
+                include_str!(concat!(
+                    "../rulesets/eldiron/v1/assets/materials/",
+                    $name,
+                    ".palette.json"
+                ))
+            )
+        };
+        ($name:literal, $palette:expr) => {
+            mat!($name, $name, $palette)
+        };
+        ($name:literal, $source:literal, $palette:expr) => {
             BundledMaterialAsset {
                 id: $name,
                 source: include_str!(concat!(
                     "../rulesets/eldiron/v1/assets/materials/",
-                    $name,
+                    $source,
                     ".material"
                 )),
-                palette: include_str!(concat!(
-                    "../rulesets/eldiron/v1/assets/materials/",
-                    $name,
-                    ".palette.json"
-                )),
+                palette: $palette,
                 resolution: 64,
                 output: "surface",
             }
@@ -413,6 +426,18 @@ pub fn bundled_material_assets_for_ruleset(id: &str, version: &str) -> Vec<Bundl
         mat!("linen-shirt"),
         mat!("linen-sleeve"),
         mat!("wool-trousers"),
+        mat!("forest_trousers"),
+        mat!("forest_trousers_waist", source "wool-waist"),
+        mat!("canvas_trousers"),
+        mat!("canvas_trousers_waist", source "wool-waist"),
+        mat!("slate_trousers"),
+        mat!("slate_trousers_waist", source "wool-waist"),
+        mat!("watch_trousers"),
+        mat!("watch_trousers_waist", source "wool-waist"),
+        mat!("trail_boots"),
+        mat!("work_boots"),
+        mat!("town_shoes"),
+        mat!("watch_boots"),
         mat!("wool-waist"),
         mat!("leather-shoes"),
         mat!("padded-armor"),
@@ -423,6 +448,15 @@ pub fn bundled_material_assets_for_ruleset(id: &str, version: &str) -> Vec<Bundl
         mat!("leather-vest"),
         mat!("chainmail"),
         mat!("chainmail-sleeve"),
+        mat!("innkeeper-apron", "{}"),
+        mat!("innkeeper-sleeves", "{}"),
+        mat!("tanner-apron", "{}"),
+        mat!("tanner-sleeves", "{}"),
+        mat!("trader-jacket", "{}"),
+        mat!("trader-sleeves", "{}"),
+        mat!("hunter-jerkin", "{}"),
+        mat!("hunter-sleeves", "{}"),
+        mat!("hunting-cloak-wool"),
         mat!("item-gold"),
         mat!("item-copper"),
         mat!("item-blue"),
@@ -494,6 +528,7 @@ pub fn bundled_icon_material_assets_for_ruleset(
         icon!("leather_leggings", "icon"),
         icon!("leather_gloves", "icon"),
         icon!("leather_boots", "icon"),
+        icon!("hunting_cloak", "icon"),
         icon!("flint_awl", "icon"),
         icon!("leather_workbench", "icon"),
         icon!("fox_inlay", "icon"),
@@ -509,6 +544,14 @@ pub fn bundled_icon_material_assets_for_ruleset(
         icon!("hand_axe", "axe"),
         icon!("linen_shirt", "surface"),
         icon!("wool_trousers", "surface"),
+        icon!("forest_trousers", "on", "../wool_trousers/icon.material", "palette.json", "surface"),
+        icon!("canvas_trousers", "on", "../wool_trousers/icon.material", "palette.json", "surface"),
+        icon!("slate_trousers", "on", "../wool_trousers/icon.material", "palette.json", "surface"),
+        icon!("watch_trousers", "on", "../wool_trousers/icon.material", "palette.json", "surface"),
+        icon!("trail_boots", "on", "../leather_shoes/icon.material", "palette.json", "surface"),
+        icon!("work_boots", "on", "../leather_shoes/icon.material", "palette.json", "surface"),
+        icon!("town_shoes", "on", "../leather_shoes/icon.material", "palette.json", "surface"),
+        icon!("watch_boots", "on", "../leather_shoes/icon.material", "palette.json", "surface"),
         icon!("leather_shoes", "surface"),
         icon!("padded_armor", "surface"),
         icon!("leather_vest", "surface"),
@@ -605,7 +648,76 @@ pub fn bundled_appearance_assets_for_ruleset(
             equipment: &[
                 ("sword-op-1", "main_hand", "sword"),
                 ("shield-op-1", "off_hand", "shield"),
+                ("cloak-mount", "back", "cloak"),
             ],
+        },
+        BundledAppearanceAsset {
+            id: "hair_bob",
+            asset_id: "4d5a4745-4f4d-4554-48dd-eb4695c983dd",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/hair/bob.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "hair_braid",
+            asset_id: "4d5a4745-4f4d-4554-4de5-6cc3611811a0",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/hair/braid.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "hair_crop",
+            asset_id: "4d5a4745-4f4d-4554-dd46-10f662cd93dc",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/hair/crop.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "hair_receding",
+            asset_id: "4d5a4745-4f4d-4554-e20f-b669c2ccf29b",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/hair/receding.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "hair_tousled",
+            asset_id: "4d5a4745-4f4d-4554-19b5-3727be455c80",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/hair/tousled.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "face_angular",
+            asset_id: "4d5a4745-4f4d-4554-66ec-dd940a67e3b5",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/faces/angular.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "face_bearded",
+            asset_id: "4d5a4745-4f4d-4554-1504-abd7ac6c83f8",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/faces/bearded.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "face_round",
+            asset_id: "4d5a4745-4f4d-4554-8b9e-44a31eb15d37",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/faces/round.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "face_square",
+            asset_id: "4d5a4745-4f4d-4554-a45e-3198d3ca9c4a",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/faces/square.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "face_weathered",
+            asset_id: "4d5a4745-4f4d-4554-278d-cd7c13142a0e",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/faces/weathered.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "hunting_cloak",
+            asset_id: "4d5a4745-4f4d-4554-9f63-a3d8415c4f67",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/hunting_cloak.mzgeometry.json"
+            ),
+            equipment: &[],
         },
         BundledAppearanceAsset {
             id: "training_sword",
@@ -692,6 +804,7 @@ pub fn bundled_appearance_assets_for_ruleset(
             equipment: &[
                 ("sword-op-1", "main_hand", "sword"),
                 ("shield-op-1", "off_hand", "shield"),
+                ("cloak-mount", "back", "cloak"),
             ],
         },
         BundledAppearanceAsset {
@@ -701,6 +814,7 @@ pub fn bundled_appearance_assets_for_ruleset(
             equipment: &[
                 ("sword-op-1", "main_hand", "sword"),
                 ("shield-op-1", "off_hand", "shield"),
+                ("cloak-mount", "back", "cloak"),
             ],
         },
         BundledAppearanceAsset {
@@ -789,6 +903,54 @@ pub fn bundled_appearance_assets_for_ruleset(
             source: include_str!(
                 "../rulesets/eldiron/v1/assets/geometry/cleric_vestments.mzgeometry.json"
             ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "forest_trousers",
+            asset_id: "4d5a4745-4f4d-4554-52da-f2b9fbca2094",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/forest_trousers.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "canvas_trousers",
+            asset_id: "4d5a4745-4f4d-4554-7e10-0ce696ac61c3",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/canvas_trousers.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "slate_trousers",
+            asset_id: "4d5a4745-4f4d-4554-f560-6585b91e43e6",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/slate_trousers.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "watch_trousers",
+            asset_id: "4d5a4745-4f4d-4554-682a-bedd45f6c28c",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/watch_trousers.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "trail_boots",
+            asset_id: "4d5a4745-4f4d-4554-0352-fc78b4046cc5",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/trail_boots.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "work_boots",
+            asset_id: "4d5a4745-4f4d-4554-9236-24277025bf2a",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/work_boots.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "town_shoes",
+            asset_id: "4d5a4745-4f4d-4554-2be1-6184ff4b068e",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/town_shoes.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "watch_boots",
+            asset_id: "4d5a4745-4f4d-4554-507b-dbd683bc9922",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/watch_boots.mzgeometry.json"),
             equipment: &[],
         },
         BundledAppearanceAsset {

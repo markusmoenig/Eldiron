@@ -214,7 +214,9 @@ impl ProjectUndoAtom {
         let preserved_dock = server_ctx.docks.read().dock.clone();
         set_project_context(ctx, ui, project, server_ctx, pc);
         if let Some(region) = project.get_region_mut(&restored_region.id) {
+            let revision = region.map.changed.max(restored_region.map.changed);
             *region = restored_region.clone();
+            region.map.changed = revision.wrapping_add(1);
             region.map.clear_temp();
             region.map.update_surfaces();
             server_ctx.jobs.scene_mut().update_map(region.map.clone());

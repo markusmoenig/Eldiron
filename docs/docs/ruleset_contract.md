@@ -92,13 +92,14 @@ its validation, tests, or applicable documentation are out of date.
 
 ## Authoring Modes
 
-The following three modes describe the target package model. Current Creator
-editing uses the complete project-owned document described above; it does not
-store inherited deltas or provide the package upgrade workflows below.
+The bundled mode is available in standard Creator v0.96. Derived and
+standalone packages below describe the target package model. Projects store
+their ruleset selection and their authored content. The internal Rules dock
+provides maintenance and preview tooling for the bundled rules.
 
-### Official With Project Overrides
+### Bundled Official Ruleset
 
-This is the normal path for a project that mostly wants the default rules:
+An authored project uses this selection for the bundled ruleset.
 
 ```toml
 [ruleset]
@@ -350,8 +351,8 @@ The first typed resolver boundary is implemented:
   fail before runtime resolution
 - malformed or unsupported `min_engine_version` requirements fail before
   runtime resolution
-- official, project-owned standalone, project override, and the development
-  Hideout2D project are tested through this boundary
+- the official rules and the development Hideout2D project are tested through
+  this boundary, along with standalone and overlay resolver fixtures
 - each running region resolves and caches its action, condition, and
   derived-stat catalogues once; replacing region rules invalidates and rebuilds
   that cache, and invalid definitions are reported during region startup
@@ -384,7 +385,7 @@ after that recipe succeeds, observes the declared skill maximum, and can stop
 teaching beyond a configurable mastery margin. Other non-attack action kinds
 continue through their existing branches.
 
-A project-owned sandbox regression ruleset deliberately contains skills,
+A standalone sandbox regression fixture contains skills,
 items, resources, and actions but no classes or progression table. It proves
 that a skill-gated world action can execute without the official class/level
 model. This is a permanent architecture constraint: expanding the official
@@ -973,7 +974,7 @@ TOML parses.
 2. Decide canonical ownership for existing schema 1 fields.
 3. Add schema-1 `RawRuleset` and `ResolvedRuleset` types.
    **Implemented as the initial resolver boundary.**
-4. Resolve official and project-owned rules through that typed path.
+4. Resolve official rules and standalone fixtures through that typed path.
    **Implemented, including schema/engine gates and Hideout2D regression
    coverage.**
 5. Migrate Basic Attack end to end without changing gameplay.

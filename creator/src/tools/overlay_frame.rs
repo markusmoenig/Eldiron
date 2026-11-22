@@ -297,6 +297,9 @@ impl ToolOverlayFrame {
     fn has_hud(&self) -> bool {
         self.parts.iter().any(|part| matches!(part, Part::Hud(_)))
     }
+    pub(crate) fn hud_covers_control(&self, at: Vec2<i32>) -> bool {
+        self.parts.iter().any(|part| matches!(part, Part::Hud(frame) if frame.covers_control(at)))
+    }
     pub(crate) fn terrain_current(
         &self,
         panel: &terrain_overlay::TerrainPanel,

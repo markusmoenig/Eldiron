@@ -6,8 +6,8 @@ sidebar_position: 6.5
 This page explains how the official rules are applied inside Eldiron.
 
 For the player-facing rulebook, see [Official Rules](./official_rules). This
-page is about storage, embedding, project selection, Creator behavior, runtime
-resolution, project-owned rules, and rule testing.
+page covers bundled ruleset storage, project selection, Creator behavior,
+runtime resolution and rule testing.
 
 ## Source Of Truth
 
@@ -434,8 +434,8 @@ color/material frames are render data, not a replacement for the recipe.
 
 Open **Appearance** under a project item to edit **Icon On**, **Icon Off**,
 **Model On**, **Model Off**, worn geometry and referenced materials. On is the
-default; a separate inactive state is optional. Edits to a shared asset affect
-its references, and project overrides survive ruleset synchronization. The
+default, and a separate inactive state is optional. Explicit project
+appearance variants survive ruleset synchronization. The
 world Tile Picker excludes the internal ruleset icon/material swatches.
 See [Appearance](characters_items/appearance) for the complete workflow.
 
@@ -692,8 +692,8 @@ Regenerating resources use top-level `resource_regen` rules. For example,
 progress between ticks, and clamps the result to `MAX_MP`. This keeps MP
 restoration in the ruleset instead of in individual behavior graphs or screen widgets.
 
-Map-bound resources use `resource_profiles` and `resource_pools` in the same
-project rules document. Authoring binds a sector, linedef or Geometry Object to
+Map-bound resources use `resource_profiles` and `resource_pools` in the
+bundled ruleset. Authoring binds a sector, linedef or Geometry Object to
 a profile; artwork alone does not create supplies. Bundled profiles cover a
 multi-supply tree, an unlimited river, a finite recovering well and skeleton
 remains. Extraction shares authoritative stock, tool/vessel checks and atomic
@@ -1069,8 +1069,8 @@ keep it dead.
 
 ## Economy
 
-The official economy is part of the project rules document. Runtime wallets store one integer
-base amount. In v1 the base is copper:
+The bundled ruleset defines the official economy. Runtime wallets store one
+integer base amount. In v1 the base is copper:
 
 ```toml
 [economy]
@@ -1116,7 +1116,7 @@ worth = 50
 
 ## Recipes
 
-Recipes are part of the project rules document, alongside items, actions, skills,
+The bundled ruleset defines recipes alongside items, actions, skills,
 professions, and spells. The official set includes immediate
 crafts and a multi-stage ritual economy:
 

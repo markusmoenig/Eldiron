@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "id": "hair_receding",
+  "label": "Receding hair",
+  "rows": [
+    {"id":"body-hair","label":"Low hair at the nape","tiles":[{"id":"body-hair-loft","op":{"type":"loft","segments":16,"sections":[{"center":[0,0.01,-0.076],"radius":[0.045,0.012]},{"center":[0,0.035,-0.073],"radius":[0.07,0.027]},{"center":[0,0.075,-0.063],"radius":[0.086,0.038]},{"center":[0,0.108,-0.059],"radius":[0.083,0.041]},{"center":[0,0.137,-0.064],"radius":[0.065,0.027]},{"center":[0,0.151,-0.069],"radius":[0.041,0.015]}]}},{"id":"body-hair-texture","op":{"type":"texture","source":"ruleset:material/hair","size":64,"axes":[0,1],"origin":[0,0],"span":[1,1],"preserve_uv":true}}]},
+    {"id":"hair-temple-left","label":"Hair around the temple","tiles":[{"id":"hair-temple-left-loft","op":{"type":"loft","segments":16,"sections":[{"center":[0.08,0.027,0.004],"radius":[0.011,0.017]},{"center":[0.082,0.045,-0.003],"radius":[0.016,0.037]},{"center":[0.081,0.081,-0.007],"radius":[0.019,0.043]},{"center":[0.076,0.111,-0.011],"radius":[0.02,0.043]},{"center":[0.065,0.134,-0.027],"radius":[0.019,0.025]},{"center":[0.047,0.154,-0.046],"radius":[0.011,0.018]}]}},{"id":"hair-temple-left-texture","op":{"type":"texture","source":"ruleset:material/hair","size":64,"axes":[0,1],"origin":[0,0],"span":[1,1],"preserve_uv":true}}]},
+    {"id":"hair-temple-right","label":"Hair around the temple","tiles":[{"id":"hair-temple-right-loft","op":{"type":"loft","segments":16,"sections":[{"center":[-0.08,0.027,0.004],"radius":[0.011,0.017]},{"center":[-0.082,0.045,-0.003],"radius":[0.016,0.037]},{"center":[-0.081,0.081,-0.007],"radius":[0.019,0.043]},{"center":[-0.076,0.111,-0.011],"radius":[0.02,0.043]},{"center":[-0.065,0.134,-0.027],"radius":[0.019,0.025]},{"center":[-0.047,0.154,-0.046],"radius":[0.011,0.018]}]}},{"id":"hair-temple-right-texture","op":{"type":"texture","source":"ruleset:material/hair","size":64,"axes":[0,1],"origin":[0,0],"span":[1,1],"preserve_uv":true}}]},
+    {"id":"hair","label":"Receding hair","tiles":[{"id":"hair-parts","op":{"type":"assemble","rows":["body-hair","hair-temple-left","hair-temple-right"]}}]}
+  ],
+  "output": "hair"
+}

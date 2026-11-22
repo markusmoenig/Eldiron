@@ -10,12 +10,21 @@ animated images, or editable [procedural materials](procedural_materials). New
 projects include procedural world materials; importing a tileset is optional.
 
 Choose **Add → Add Tiles…** in the project tree to load PNG artwork, then choose
-**Select in Tileset Editor** to select frames manually. **Import Tileset…** loads
-a saved Eldiron tileset instead.
+**Sprite sheet** for one grid of frames or **Separate images** for individual
+PNGs. **Layout** chooses ordinary **2D** or **2D Iso** artwork. See the
+[Add Tiles dialog reference](isometric_sprite_tilesets#add-tiles-dialog)
+for frame size, isometric ground cells, pivots and direction grouping.
+Use **Import → Import Tileset…** for a saved Eldiron tileset or collection.
+
+Under **After loading**, **Select in Tileset Editor** opens the source when
+you click **Open Source**. Choose **Add All as Collection** to import the
+frames directly into a named tile picker collection.
 
 ![Current tileset editor showing a source sheet and the Single Tiles, Animation, and Add Selected controls.](/img/creator/tileset-editor.png)
 
-Tilesets are PNG images with grid based tiles of pixel art. After importing a tile set and applying the correct **Grid Size** you can select individual or multiple tiles (click and drag horizontally or vertically to select) and add them to the tile picker.
+For a sheet, enter its **Image-frame width** and **Image-frame height** in
+the import dialog. In the source editor, click or drag to select frames, choose
+a role, and use **Add Selected** to put them in the tile picker.
 
 Before adding the tile(s) make sure you selected the role as needed (to be able to filter and sort tiles correctly) and you can select one of two import modes:
 

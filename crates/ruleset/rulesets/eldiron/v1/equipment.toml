@@ -1,6 +1,6 @@
 [equipment]
 weapon_slots = ["main_hand", "off_hand"]
-armor_slots = ["head", "torso", "legs", "hands", "feet", "shield", "focus", "tool"]
+armor_slots = ["head", "torso", "legs", "hands", "feet", "shield", "focus", "tool", "back"]
 
 [equipment.avatar_anchors]
 main_hand = "main_hand"
@@ -759,6 +759,199 @@ color = 7
 worth = 5
 icon = "linen_shirt"
 avatar_channels = ["torso", "arms"]
+
+[items.clothing.hunting_cloak]
+appearance_geometry = "hunting_cloak"
+appearance_ground_flat = true
+appearance_icon = "icon/hunting_cloak/on"
+category = "cloth"
+description = "A woodland wool cloak with a calf-length drape and a bronze neck clasp."
+name = "Hunting Cloak"
+rarity = "common"
+slot = "back"
+worth = 12
+
+[items.clothing.innkeeper_apron]
+name = "Innkeeper's Apron"
+description = "A pale linen apron worn over a wine-red work shirt."
+category = "cloth"
+slot = "torso"
+rarity = "common"
+worth = 8
+appearance_ground_flat = true
+appearance_geometry = "linen_shirt"
+appearance_worn_geometry = "garment_linen_shirt"
+appearance_icon = "icon/linen_shirt/on"
+avatar_channels = ["torso", "arms"]
+appearance_materials = ["left-arm=ruleset:material/innkeeper-sleeves", "right-arm=ruleset:material/innkeeper-sleeves", "left-sleeve=ruleset:material/innkeeper-sleeves", "right-sleeve=ruleset:material/innkeeper-sleeves", "body-torso=ruleset:material/innkeeper-apron"]
+
+[items.clothing.tanner_apron]
+name = "Tanner's Apron"
+description = "A heavy brown work apron with a pocket for small tools."
+category = "cloth"
+slot = "torso"
+rarity = "common"
+worth = 8
+appearance_ground_flat = true
+appearance_geometry = "linen_shirt"
+appearance_worn_geometry = "garment_linen_shirt"
+appearance_icon = "icon/linen_shirt/on"
+avatar_channels = ["torso", "arms"]
+appearance_materials = ["left-arm=ruleset:material/tanner-sleeves", "right-arm=ruleset:material/tanner-sleeves", "left-sleeve=ruleset:material/tanner-sleeves", "right-sleeve=ruleset:material/tanner-sleeves", "body-torso=ruleset:material/tanner-apron"]
+
+[items.clothing.trader_jacket]
+name = "Trader's Jacket"
+description = "An indigo jacket with brass fastenings and woven cuffs."
+category = "cloth"
+slot = "torso"
+rarity = "common"
+worth = 8
+appearance_ground_flat = true
+appearance_geometry = "linen_shirt"
+appearance_worn_geometry = "garment_linen_shirt"
+appearance_icon = "icon/linen_shirt/on"
+avatar_channels = ["torso", "arms"]
+appearance_materials = ["left-arm=ruleset:material/trader-sleeves", "right-arm=ruleset:material/trader-sleeves", "left-sleeve=ruleset:material/trader-sleeves", "right-sleeve=ruleset:material/trader-sleeves", "body-torso=ruleset:material/trader-jacket"]
+
+[items.clothing.hunter_jerkin]
+name = "Hunter's Jerkin"
+description = "A weathered leather jerkin over woodland-green sleeves."
+category = "cloth"
+slot = "torso"
+rarity = "common"
+worth = 8
+appearance_ground_flat = true
+appearance_geometry = "linen_shirt"
+appearance_worn_geometry = "garment_leather_vest"
+appearance_icon = "icon/linen_shirt/on"
+avatar_channels = ["torso", "arms"]
+appearance_materials = ["left-arm=ruleset:material/hunter-sleeves", "right-arm=ruleset:material/hunter-sleeves", "left-sleeve=ruleset:material/hunter-sleeves", "right-sleeve=ruleset:material/hunter-sleeves", "body-torso=ruleset:material/hunter-jerkin"]
+
+[items.clothing.hunter_hood]
+name = "Hunter's Hood"
+description = "A plain green hood for keeping rain out of the hunter’s eyes."
+category = "cloth"
+slot = "head"
+rarity = "common"
+worth = 8
+appearance_ground_flat = true
+appearance_geometry = "leather_hood"
+appearance_worn_geometry = "garment_leather_hood"
+appearance_icon = "icon/leather_hood/on"
+avatar_channels = ["head"]
+appearance_materials = ["body-hair=ruleset:material/hunter-sleeves", "body-neck=ruleset:material/hunter-sleeves"]
+
+[items.clothing.forest_trousers]
+name = "Forest Trail Trousers"
+description = "Dark green wool trousers with closely stitched seams."
+category = "cloth"
+slot = "legs"
+rarity = "common"
+worth = 7
+appearance_geometry = "forest_trousers"
+appearance_ground_flat = true
+appearance_icon = "icon/forest_trousers/on"
+appearance_worn_geometry = "garment_wool_trousers"
+appearance_materials = ["left-thigh=ruleset:material/forest_trousers", "left-calf=ruleset:material/forest_trousers", "right-thigh=ruleset:material/forest_trousers", "right-calf=ruleset:material/forest_trousers", "body-pelvis=ruleset:material/forest_trousers_waist"]
+avatar_channels = ["legs"]
+
+[items.clothing.canvas_trousers]
+name = "Canvas Work Trousers"
+description = "Heavy tan canvas trousers with brown seam stitching."
+category = "cloth"
+slot = "legs"
+rarity = "common"
+worth = 6
+appearance_geometry = "canvas_trousers"
+appearance_ground_flat = true
+appearance_icon = "icon/canvas_trousers/on"
+appearance_worn_geometry = "garment_wool_trousers"
+appearance_materials = ["left-thigh=ruleset:material/canvas_trousers", "left-calf=ruleset:material/canvas_trousers", "right-thigh=ruleset:material/canvas_trousers", "right-calf=ruleset:material/canvas_trousers", "body-pelvis=ruleset:material/canvas_trousers_waist"]
+avatar_channels = ["legs"]
+
+[items.clothing.slate_trousers]
+name = "Slate Tailored Trousers"
+description = "Slate-blue trousers with dark piping on each leg."
+category = "cloth"
+slot = "legs"
+rarity = "common"
+worth = 8
+appearance_geometry = "slate_trousers"
+appearance_ground_flat = true
+appearance_icon = "icon/slate_trousers/on"
+appearance_worn_geometry = "garment_wool_trousers"
+appearance_materials = ["left-thigh=ruleset:material/slate_trousers", "left-calf=ruleset:material/slate_trousers", "right-thigh=ruleset:material/slate_trousers", "right-calf=ruleset:material/slate_trousers", "body-pelvis=ruleset:material/slate_trousers_waist"]
+avatar_channels = ["legs"]
+
+[items.clothing.watch_trousers]
+name = "Watch Trousers"
+description = "Charcoal wool trousers with light seam stitching."
+category = "cloth"
+slot = "legs"
+rarity = "common"
+worth = 7
+appearance_geometry = "watch_trousers"
+appearance_ground_flat = true
+appearance_icon = "icon/watch_trousers/on"
+appearance_worn_geometry = "garment_wool_trousers"
+appearance_materials = ["left-thigh=ruleset:material/watch_trousers", "left-calf=ruleset:material/watch_trousers", "right-thigh=ruleset:material/watch_trousers", "right-calf=ruleset:material/watch_trousers", "body-pelvis=ruleset:material/watch_trousers_waist"]
+avatar_channels = ["legs"]
+
+[items.clothing.trail_boots]
+name = "Trail Boots"
+description = "Dark, thick-soled walking boots with plain leather ties."
+category = "leather"
+slot = "feet"
+rarity = "common"
+worth = 9
+appearance_geometry = "trail_boots"
+appearance_ground_flat = false
+appearance_icon = "icon/trail_boots/on"
+appearance_worn_geometry = "garment_leather_boots"
+appearance_materials = ["left-boot=ruleset:material/trail_boots", "right-boot=ruleset:material/trail_boots"]
+avatar_channels = ["feet"]
+
+[items.clothing.work_boots]
+name = "Cuffed Work Boots"
+description = "Broad-toed brown leather work boots with rolled cuffs."
+category = "leather"
+slot = "feet"
+rarity = "common"
+worth = 8
+appearance_geometry = "work_boots"
+appearance_ground_flat = false
+appearance_icon = "icon/work_boots/on"
+appearance_worn_geometry = "garment_leather_boots"
+appearance_materials = ["left-boot=ruleset:material/work_boots", "right-boot=ruleset:material/work_boots"]
+avatar_channels = ["feet"]
+
+[items.clothing.town_shoes]
+name = "Buckled Town Shoes"
+description = "Polished black shoes with small brass buckles."
+category = "leather"
+slot = "feet"
+rarity = "common"
+worth = 10
+appearance_geometry = "town_shoes"
+appearance_ground_flat = false
+appearance_icon = "icon/town_shoes/on"
+appearance_worn_geometry = "garment_leather_shoes"
+appearance_materials = ["left-boot=ruleset:material/town_shoes", "right-boot=ruleset:material/town_shoes"]
+avatar_channels = ["feet"]
+
+[items.clothing.watch_boots]
+name = "Watch Boots"
+description = "Slate leather boots with reinforced cuffs and light laces."
+category = "leather"
+slot = "feet"
+rarity = "common"
+worth = 9
+appearance_geometry = "watch_boots"
+appearance_ground_flat = false
+appearance_icon = "icon/watch_boots/on"
+appearance_worn_geometry = "garment_leather_boots"
+appearance_materials = ["left-boot=ruleset:material/watch_boots", "right-boot=ruleset:material/watch_boots"]
+avatar_channels = ["feet"]
 
 [items.clothing.wool_trousers]
 appearance_geometry = "wool_trousers"

@@ -133,14 +133,17 @@ content activation setting is required.
 Provide accessible skeleton remains, trees for resin, river or well access,
 and the established sources for a knife, bowl, workbench and ordinary bone
 cuirass. The learned **Carve Bear Sigil Inlay** action creates the inlay from
-bone plate, resin and water. **Inscribe the Bear** then targets one owned bone
-cuirass, consuming the inlay, another resin and water. Both use an owned carving
+bone plate, resin and water. In this example, **Inscribe the Bear** targets one
+owned bone cuirass, consuming the inlay, another resin and water. Both use an owned carving
 tool and a nearby deployed bone workbench. Repair a broken target first.
 
 The result is **Bone Cuirass of the Bear**, with +2 STR while equipped and usable.
 Its identity, quality and condition are retained. The pre-enchanted supplied
 variant can also be placed directly. Item artwork remains editable native MZ;
 the inlay shows a carved bear paw and the manual uses parchment and leather.
+Other compatible equipment can take the same inscription. Distinct compatible
+inscriptions can coexist on one piece. See
+[Fox inscription and compatible enchantments](../official_rules#fox-inscription-and-compatible-enchantments).
 
 ## Expose the crafting journal
 
@@ -160,6 +163,22 @@ starting shortcuts.
 The Knowledge tab explains permanent acquisitions and active equipment grants.
 The same screen works with solo and online character snapshots; previews are
 read-only and every craft is validated by the host when performed.
+
+### See crafting and teaching in Wayfarer’s Rest
+
+Open [Wayfarer’s Rest](wayfarers_rest) and start at **09:30**. In Mara’s
+tannery, the **Tannery Water Cask** supplies water. The placed **Tanning
+Frame** and leather workbench satisfy station requirements. During her
+working hours, Mara tans hide, twists cord and makes leather boots and hoods.
+Her **Talk** branch offers the finished inventory for sale. The demo gives her
+a finite starter batch.
+
+Press `J` to open the journal and inspect the requirements for a leather
+recipe. Mara’s **Use** branch offers **Advanced Leatherworking** through a
+**Teach** node using `learn_advanced_leatherworking`. The shared action checks
+the learner’s Leatherworking 10 requirement and saves the lesson to that
+character. See the [leather armor rules](../official_rules#leather-armor-learning-and-repair)
+for the full production, learning and repair chain.
 
 ## Bind world resources
 
@@ -256,13 +275,19 @@ remains_profile = "skeleton_remains"
 
 Set this through character configuration, separately from descriptive Authoring TOML. Death creates one logical remains source for that incarnation, reusing the loot corpse when present. Carried loot stays ordinary loot; the 6 potential bones belong to the resource supply and are not granted again as a random reward. Duplicate death notifications do not create another source. Expiry prevents further extraction without removing bones already collected.
 
-Use `remains_profile = "deer_remains"` on a character that should leave a
-skinnable hide. This selects gameplay supplies; it does not add deer artwork or
-a new creature catalogue. Authors choose the character appearance and behavior.
+For a deer, use [Add Animal](../characters_items/entity_nodes#configuration-nodes)
+and choose the species. Its ruleset entry supplies the shared artwork and
+`deer_remains` binding. Use `remains_profile` directly when authoring a
+custom character that needs an explicit remains profile.
 
 ### State, time and appearance
 
-Stock, phase, deadlines and source identity survive world save/reload. Recovery uses running simulation milliseconds, independent of player count, rendering and decorative calendar settings. Pausing or closing the world does not accumulate recovery. Choose durations to match your game's tempo; the large bundled values are literal simulation durations.
+Stock, phase, deadlines and source identity survive world save/reload.
+Recovery and remains expiry use running simulation milliseconds, independent
+of player count, rendering and the in-game clock. Moving the time slider
+changes **Time Range** schedules independently. For example, the bundled
+well’s 43,200,000 ms interval requires 12 hours of accumulated simulation
+time. Pausing or closing the world does not accumulate that time.
 
 When a full supply is depleted, its recovery interval starts. Further extraction does not restart that interval. Recovery stops at capacity and does not bank extra stock. Optional exploitation policies can suspend recovery; the bundled tree does not enable one by default.
 
@@ -276,9 +301,9 @@ and all five armor pieces. Place at least one flint patch, one fallen timber
 source, one flax patch, two bark-bearing trees, river access, and enough
 hide/bone sources for the desired production. Four deer and four skeleton
 remains cover the worked full-set example. The default Actions catalogue
-provides crafting and [bone armor repair](../official_rules#bone-armor-wear-and-repair);
-the ruleset editor is not needed. Enchantments remain separate work. NPC participation and economic balancing are authored
-gameplay policies.
+provides crafting, [bone armor repair](../official_rules#bone-armor-wear-and-repair)
+and [inscriptions](../official_rules#fox-inscription-and-compatible-enchantments).
+NPC participation and economic balancing are authored gameplay policies.
 
 ## Author a placed door or character
 

@@ -1582,6 +1582,16 @@ impl TilesDock {
         server_ctx: &mut CreatorContext,
     ) -> bool {
         let TileSource::SingleTile(tile_id) = source;
+        if shared::ruleset_materials::definition(&project.config, tile_id).is_some()
+            || shared::rulesets::bundled_tile_ids_for_project(&project.config)
+                .is_ok_and(|ids| ids.contains(&tile_id))
+        {
+            ctx.ui.send(TheEvent::SetStatusText(
+                TheId::empty(),
+                "This tile belongs to the shared ruleset.".into(),
+            ));
+            return false;
+        }
         if project.procedural_materials.contains_key(&tile_id) {
             let used = project.regions.iter().map(|r| &r.iso_paint)
                 .chain(project.block_prop_paint.values()).any(|paint| paint.chunks.values().any(|chunk|
@@ -1959,6 +1969,10 @@ impl TilesDock {
             .unwrap_or(TileTabKind::Project);
         let ruleset_tiles =
             shared::rulesets::bundled_tile_ids_for_project(&project.config).unwrap_or_default();
+        let ruleset_materials = shared::ruleset_materials::definitions(&project.config)
+            .into_iter()
+            .map(|def| shared::rulesets::material_asset_id(def.id))
+            .collect::<std::collections::HashSet<_>>();
         project
             .tiles
             .iter()
@@ -1974,7 +1988,9 @@ impl TilesDock {
                 let source = TileSource::SingleTile(*id);
                 let in_tab = match kind {
                     TileTabKind::Project => true,
-                    TileTabKind::Materials => project.procedural_materials.contains_key(id),
+                    TileTabKind::Materials => {
+                        ruleset_materials.contains(id) || project.procedural_materials.contains_key(id)
+                    }
                     TileTabKind::Collection(id) => project.collection_contains_source(&id, source),
                 };
                 (self.matches_tile(tile) && in_tab).then(|| TileBoardEntry {

@@ -177,7 +177,7 @@ impl IsometricSceneRenderer {
         shared_terrain: Option<&IsometricTerrainCache>,
     ) -> Result<IsometricPreparedFrame> {
         let unlit = consumer == TerrainConsumer::Overview;
-        self.prepare_impl(size, input, unlit, !unlit, shared_terrain.map(|cache| (cache, consumer)))
+        self.prepare_impl(size, input, unlit, !unlit, Some((consumer, shared_terrain)))
     }
     fn prepare_impl(
         &mut self,
@@ -185,8 +185,9 @@ impl IsometricSceneRenderer {
         input: &IsometricSceneInput<'_>,
         unlit: bool,
         retain_terrain: bool,
-        shared_terrain: Option<(&IsometricTerrainCache, TerrainConsumer)>,
+        view: Option<(TerrainConsumer, Option<&IsometricTerrainCache>)>,
     ) -> Result<IsometricPreparedFrame> {
+        let shared_terrain = view.and_then(|(consumer, cache)| cache.map(|cache| (cache, consumer)));
         let p = input.projection;
         let limits = self.context.device.limits();
         let pixels = u64::from(size.0) * u64::from(size.1);
@@ -232,6 +233,7 @@ impl IsometricSceneRenderer {
             plan.ground.iter().chain(&plan.upright),
             &mut self.sprites,
             self.elevation.as_ref().unwrap().3.clone(),
+            view.is_some_and(|(consumer, _)| consumer == TerrainConsumer::Editor),
         )?;
         let geometry = if unlit {
             None

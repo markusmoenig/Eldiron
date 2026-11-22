@@ -90,50 +90,135 @@ pub fn intersects(
     height: f32,
     radius: f32,
 ) -> Option<bool> {
+    Some(collision_footprint(item, assets, y, height)?.intersects(position, radius))
+}
+
+pub(crate) struct CollisionFootprint(footprint::Shape<[f32; 2]>);
+
+pub(crate) fn collision_footprint(
+    item: &Item,
+    assets: &Assets,
+    y: f32,
+    height: f32,
+) -> Option<CollisionFootprint> {
     let model = Runtime::resolve_item(item, assets)?;
     let shape = model.footprint.as_ref()?;
     let scale = item
         .attributes
         .get_float_default("appearance_scale", 1.)
         .max(0.001);
-    let floor = model.bounds.0[1];
-    let top = item.position.y + (model.bounds.1[1] - floor) * scale;
+    let top = item.position.y + (model.bounds.1[1] - model.bounds.0[1]) * scale;
     if y + height <= item.position.y + 0.001 || y >= top - 0.001 {
-        return Some(false);
+        return Some(CollisionFootprint(footprint::Shape {
+            regions: Vec::new(),
+        }));
     }
-    let yaw = item
+    let (sin, cos) = item
         .attributes
         .get_float_default("appearance_yaw", 0.)
-        .to_radians();
-    let (s, c) = yaw.sin_cos();
-    let p = (position - item.get_pos_xz()) / scale;
-    let p = [c * p.x - s * p.y, s * p.x + c * p.y];
-    let radius = radius / scale;
-    let shape = shape.map(|p| [p[0], p[2]]);
-    if footprint::contains(&shape, p) {
-        return Some(true);
-    }
-    for ring in shape
-        .regions
-        .iter()
-        .flat_map(|r| std::iter::once(&r.outer).chain(r.holes.iter()))
-    {
-        for (a, b) in ring
+        .to_radians()
+        .sin_cos();
+    let origin = item.get_pos_xz();
+    Some(CollisionFootprint(shape.map(|point| {
+        [
+            origin.x + (cos * point[0] + sin * point[2]) * scale,
+            origin.y + (-sin * point[0] + cos * point[2]) * scale,
+        ]
+    })))
+}
+
+impl CollisionFootprint {
+    fn edges(&self) -> impl Iterator<Item = (Vec2<f32>, Vec2<f32>)> + '_ {
+        self.0
+            .regions
             .iter()
-            .zip(ring.iter().cycle().skip(1))
-            .take(ring.len())
-        {
-            let a = Vec2::<f32>::from(*a);
-            let b = Vec2::<f32>::from(*b);
-            let p = Vec2::<f32>::from(p);
-            let d = b - a;
-            let t = ((p - a).dot(d) / d.magnitude_squared().max(1e-12)).clamp(0., 1.);
-            if (p - (a + d * t)).magnitude_squared() < radius * radius {
-                return Some(true);
+            .flat_map(|region| std::iter::once(&region.outer).chain(&region.holes))
+            .flat_map(|ring| ring.iter().zip(ring.iter().cycle().skip(1)))
+            .map(|(a, b)| (Vec2::from(*a), Vec2::from(*b)))
+    }
+
+    fn intersects(&self, point: Vec2<f32>, radius: f32) -> bool {
+        footprint::contains(&self.0, point.into_array())
+            || self.edges().any(|(a, b)| {
+                let edge = b - a;
+                let t = ((point - a).dot(edge) / edge.magnitude_squared().max(1e-12)).clamp(0., 1.);
+                (point - (a + edge * t)).magnitude_squared() < radius * radius
+            })
+    }
+
+    pub(crate) fn slide(&self, start: Vec2<f32>, end: Vec2<f32>, radius: f32) -> Option<Vec2<f32>> {
+        let delta = end - start;
+        // An old save or a spawn can already overlap the leaf. Allow escape.
+        if delta.magnitude_squared() < 1e-12 || footprint::contains(&self.0, start.into_array()) {
+            return None;
+        }
+        let (entry, normal) = self.first_contact(start, delta, radius)?;
+        let advance = |point, step: Vec2<f32>, time: f32| {
+            point + step * (time - 0.001 / step.magnitude()).max(0.)
+        };
+        let contact = advance(start, delta, entry);
+        let remaining = end - contact;
+        let tangent = remaining - normal * remaining.dot(normal);
+        Some(
+            self.first_contact(contact, tangent, radius)
+                .map_or(contact + tangent, |(time, _)| {
+                    advance(contact, tangent, time)
+                }),
+        )
+    }
+
+    fn first_contact(
+        &self,
+        start: Vec2<f32>,
+        delta: Vec2<f32>,
+        radius: f32,
+    ) -> Option<(f32, Vec2<f32>)> {
+        let speed_sq = delta.magnitude_squared();
+        if speed_sq < 1e-12 {
+            return None;
+        }
+        let radius = radius.max(0.);
+        let mut first: Option<(f32, Vec2<f32>)> = None;
+        let mut accept = |time: f32, normal| {
+            if time <= 1. && first.is_none_or(|(old, _)| time < old) {
+                first = Some((time, normal));
+            }
+        };
+        for (a, b) in self.edges() {
+            // The swept circle touches either the interior of this edge or a rounded corner.
+            let edge = b - a;
+            let length = edge.magnitude();
+            if length > 1e-6 {
+                let tangent = edge / length;
+                let mut normal = Vec2::new(-tangent.y, tangent.x);
+                let distance = (start - a).dot(normal);
+                if distance < 0. {
+                    normal = -normal;
+                }
+                let velocity = delta.dot(normal);
+                if velocity < -1e-6 {
+                    let time = ((radius - distance.abs()) / velocity).max(0.);
+                    let along = (start + delta * time - a).dot(tangent);
+                    if (0. ..=length).contains(&along) {
+                        accept(time, normal);
+                    }
+                }
+            }
+            // Each ring vertex is the start of one edge, so test each corner once.
+            let offset = start - a;
+            let approach = offset.dot(delta);
+            let discriminant =
+                approach * approach - speed_sq * (offset.magnitude_squared() - radius * radius);
+            if approach < 0. && discriminant > 0. {
+                let time = ((-approach - discriminant.sqrt()) / speed_sq).max(0.);
+                let normal = offset + delta * time;
+                if normal.magnitude_squared() > 1e-12 {
+                    accept(time, normal.normalized());
+                }
             }
         }
+        first
     }
-    Some(false)
 }
 
 pub fn actor_intersects(item: &Item, assets: &Assets, actor: &Entity) -> bool {
@@ -298,5 +383,41 @@ mod tests {
         );
         let sprite = runtime.isometric_item_sprite(&item, &assets).unwrap();
         assert!(sprite.pixels.chunks_exact(4).any(|p| p[3] > 0));
+    }
+
+    #[test]
+    fn movement_sweeps_the_door_leaf_from_either_side() {
+        use crate::movement::{CollisionMode, MovementWorld, move_by};
+
+        let assets = assets();
+        let mut item = door();
+        item.set_attribute("blocking", Value::Bool(true));
+        item.set_attribute("visible", Value::Bool(true));
+        let mut map = crate::Map::default();
+        map.items.push(item);
+        let collision_world = crate::CollisionWorld::new(16);
+        let mapmini = crate::map::mini::MapMini::default();
+        let try_move = |map: &crate::Map, start: f32, direction: f32| {
+            let world = MovementWorld {
+                diagnostics: None,
+                map,
+                mapmini: &mapmini,
+                collision_world: &collision_world,
+                assets: &assets,
+                mode: CollisionMode::Tile,
+            };
+            let mut actor = Entity::default();
+            actor.position = Vec3::new(0.8, 0., start);
+            actor.set_attribute("radius", Value::Float(0.22));
+            let result = move_by(&world, &mut actor, Vec2::new(0., direction * 2.4), 0);
+            (actor.position.z, result.dynamic_collision)
+        };
+        for side in [-1., 1.] {
+            let (z, blocked) = try_move(&map, side * 1.2, -side);
+            assert!(blocked && (0.21..0.55).contains(&(z * side)), "z={z}");
+        }
+        map.items[0].set_attribute("active", Value::Bool(true));
+        let (z, blocked) = try_move(&map, -1.2, 1.);
+        assert!(!blocked && z > 1., "z={z}");
     }
 }

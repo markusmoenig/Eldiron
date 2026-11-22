@@ -28,6 +28,45 @@ geometry = "assets/geometry/skeleton.mzgeometry.json"
 path = "assets/skeleton.eldiron_avatar"
 description = "Editable MZ skeleton with open ribs, separate bones, fitted clothing and shared equipment sockets."
 
+[visuals.hair_styles]
+bob = "hair_bob"
+braid = "hair_braid"
+crop = "hair_crop"
+receding = "hair_receding"
+tousled = "hair_tousled"
+
+[visuals.face_styles]
+angular = "face_angular"
+bearded = "face_bearded"
+round = "face_round"
+square = "face_square"
+weathered = "face_weathered"
+
+[visuals.body_builds.lean]
+shoulder-width = 101
+hip-width = 89
+chest-depth = 92
+
+[visuals.body_builds.stout]
+shoulder-width = 125
+hip-width = 136
+chest-depth = 136
+
+[visuals.body_builds.compact]
+shoulder-width = 108
+hip-width = 106
+chest-depth = 106
+
+[visuals.body_builds.slender]
+shoulder-width = 85
+hip-width = 84
+chest-depth = 86
+
+[visuals.body_builds.athletic]
+shoulder-width = 124
+hip-width = 102
+chest-depth = 114
+
 [visuals.defaults]
 avatar = "humanoid"
 

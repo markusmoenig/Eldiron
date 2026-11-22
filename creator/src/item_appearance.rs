@@ -62,6 +62,9 @@ pub fn handle_event(
             } else {
                 Uuid::parse_str(source).map_err(|_| "Invalid worn material source")?
             };
+            if shared::ruleset_materials::definition(&project.config, material).is_some() {
+                return Err("Choose Customize appearance to edit a shared item material.".into());
+            }
             if !project.procedural_materials.contains_key(&material) {
                 return Err("Worn material is missing".into());
             }
@@ -181,7 +184,7 @@ pub fn handle_event(
             let source = attribute(&item.data, key).or_else(|| {
                 let source = attribute(&item.data, "appearance_geometry")?;
                 let asset = shared::appearance_assets::asset_id(&source).ok()?;
-                project.procedural_appearances.get(&asset)
+                shared::appearance_assets::source(project, &asset)
                     .and_then(|s| Document::parse(s).ok()).filter(Document::has_states)?;
                 Some(source)
             });
@@ -233,7 +236,7 @@ pub fn handle_event(
                                 })
                                 .ok()
                         })
-                        .and_then(|id| project.procedural_appearances.get(&id))
+                        .and_then(|id| shared::appearance_assets::source(project, &id))
                         .and_then(|text| serde_json::from_str::<Document>(text).ok())
                         .unwrap_or(doc)
                 } else {
@@ -257,6 +260,9 @@ pub fn handle_event(
                 asset_id
             }
         };
+        if crate::appearance_workspace::data::is_ruleset_asset(target, project) {
+            return Err("Choose Customize appearance to edit a shared item asset.".into());
+        }
         if created {
             let key = if icon {
                 if on {
@@ -307,7 +313,7 @@ pub fn handle_event(
 mod tests {
     use super::*;
     #[test]
-    fn item_geometry_actions_reopen_all_authored_models_and_torch_states() {
+    fn shared_item_geometry_actions_do_not_create_project_copies() {
         let creator_history = CreatorHistory::default();
     let reference = CreatorReference::default();
         let mut project = Project::default();
@@ -315,11 +321,15 @@ mod tests {
         let geometry = project.procedural_appearances.clone();
         let mut ctx = TheContext::new(800, 600, 1.);
         let items = project.items.values().cloned().collect::<Vec<_>>();
-        assert_eq!(items.len(), 41);
+        let mut checked = 0;
         for item in items {
-            let name = attribute(&item.data, "appearance_geometry").unwrap();
-            let id = shared::rulesets::geometry_asset_id(&name);
-            assert!(project.procedural_appearances.contains_key(&id));
+            let Some(name) = attribute(&item.data, "appearance_geometry") else { continue };
+            let Some(id) = crate::appearance_workspace::data::geometry_id(&name)
+                .filter(|id| shared::appearance_assets::is_bundled(&project, *id))
+            else { continue };
+            checked += 1;
+            assert!(shared::appearance_assets::source(&project, &id).is_some());
+            assert!(!project.procedural_appearances.contains_key(&id));
             let event = TheEvent::StateChanged(
                 TheId::named_with_reference("Item Geometry MZ", item.id),
                 TheWidgetState::Clicked,
@@ -337,10 +347,11 @@ mod tests {
                 assert!(handle_event(&event, &mut project, &mut ctx, &reference, &creator_history));
             }
         }
+        assert!(checked > 0);
         assert_eq!(project.procedural_appearances, geometry);
     }
     #[test]
-    fn worn_material_actions_open_existing_mz_assets_without_creating_geometry() {
+    fn shared_worn_material_actions_leave_assets_linked() {
         let creator_history = CreatorHistory::default();
     let reference = CreatorReference::default();
         let mut project = Project::default();

@@ -2,6 +2,7 @@ use super::shape_terrain::{self, Kind};
 use super::terrain_material;
 use crate::prelude::*;
 use rusterix::Value;
+use crate::tools::sector::ISO_SECTOR_OWNER;
 use std::str::FromStr;
 
 pub const EDIT_SECTOR_ACTION_ID: &str = "1a1dea50-0181-46d9-acd6-913755c915e0";
@@ -40,6 +41,14 @@ impl EditSector {
             true,
         ));
         if iso {
+            nodeui.add_item(TheNodeUIItem::Text(
+                "actionSectorIsoOwner".into(),
+                "Attached to sector".into(),
+                "Enter a sector name or ID. Clear this field to detach.".into(),
+                "".into(),
+                None,
+                false,
+            ));
             nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                 "actionSectorFloorHeight".into(),
                 fl!("sector_floor_height"),
@@ -59,6 +68,35 @@ impl EditSector {
         shape_terrain::controls(&mut nodeui, Kind::Sector);
         terrain_material::controls(&mut nodeui, Kind::Sector);
         nodeui
+    }
+
+    fn attachment_owner(&self, map: &Map) -> Result<Option<Uuid>, &'static str> {
+        let input = self.nodeui.get_text_value("actionSectorIsoOwner").unwrap_or_default();
+        let input = input.trim();
+        if input.is_empty() {
+            return Ok(None);
+        }
+        let Some(selected) = map.selected_sectors.first().and_then(|id| map.find_sector(*id)) else {
+            return Ok(None);
+        };
+        let id = Uuid::parse_str(input).ok();
+        let mut matches = map.sectors.iter().filter(|s| {
+            id.map_or_else(|| s.name == input, |id| s.creator_id == id)
+        });
+        let owner = matches.next().ok_or("Attachment sector not found")?;
+        if matches.next().is_some() {
+            return Err("Several sectors have that name. Use the sector ID.");
+        }
+        let mut seen = std::collections::HashSet::from([selected.creator_id]);
+        let mut current = Some(owner);
+        while let Some(sector) = current {
+            if !seen.insert(sector.creator_id) {
+                return Err("Sector attachment would form a loop");
+            }
+            current = sector.properties.get_id(ISO_SECTOR_OWNER)
+                .and_then(|id| map.sectors.iter().find(|s| s.creator_id == id));
+        }
+        Ok(Some(owner.creator_id))
     }
 }
 
@@ -103,6 +141,17 @@ impl Action for EditSector {
         {
             self.nodeui
                 .set_text_value("actionSectorName", sector.name.clone());
+            let owner = sector.properties.get_id(ISO_SECTOR_OWNER);
+            self.nodeui.set_text_value(
+                "actionSectorIsoOwner",
+                owner
+                    .and_then(|id| map.sectors.iter().find(|s| s.creator_id == id))
+                    .filter(|s| !s.name.is_empty()
+                        && map.sectors.iter().filter(|other| other.name == s.name).count() == 1)
+                    .map(|s| s.name.clone())
+                    .or_else(|| owner.map(|id| id.to_string()))
+                    .unwrap_or_default(),
+            );
             shape_terrain::load(&mut self.nodeui, &sector.properties, Kind::Sector);
             terrain_material::load(&mut self.nodeui, &sector.properties, Kind::Sector);
             self.nodeui.set_text_value(
@@ -152,6 +201,17 @@ impl Action for EditSector {
             .get_bool_value("actionSectorVisible")
             .unwrap_or(true);
 
+        let owner = if iso {
+            match self.attachment_owner(map) {
+                Ok(owner) => owner,
+                Err(error) => {
+                    _ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error.into()));
+                    return None;
+                }
+            }
+        } else {
+            None
+        };
         if let Some(sector_id) = map.selected_sectors.first()
             && let Some(sector) = map.find_sector_mut(*sector_id)
         {
@@ -161,6 +221,14 @@ impl Action for EditSector {
                     terrain_material::apply(&self.nodeui, &mut sector.properties, Kind::Sector, &server_ctx.reference);
             }
             if iso {
+                if sector.properties.get_id(ISO_SECTOR_OWNER) != owner {
+                    if let Some(owner) = owner {
+                        sector.properties.set(ISO_SECTOR_OWNER, Value::Id(owner));
+                    } else {
+                        sector.properties.remove(ISO_SECTOR_OWNER);
+                    }
+                    changed = true;
+                }
                 let h = self
                     .nodeui
                     .get_f32_value("actionSectorFloorHeight")

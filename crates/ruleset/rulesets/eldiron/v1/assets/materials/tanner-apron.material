@@ -1,0 +1,155 @@
+project 1
+result from material "surface"
+material "surface" called "Tanner Apron"
+  mode pbr
+  tiling raw
+  default roughness to 0.92
+  default metallic to 0
+  default opacity to 1
+  default emission strength to 0
+  row "base" called "Main fabric"
+    use "Color" id "base"
+      set "color" to 0.3277781 0.1620294 0.0561285 1
+  row "shade" called "Seam / shadow"
+    use "Color" id "shade"
+      set "color" to 0.1022417 0.06301 0.028426 1
+  row "trim" called "Woven edging"
+    use "Color" id "trim"
+      set "color" to 0.4019778 0.2462013 0.1046165 1
+  row "button" called "Fastenings"
+    use "Color" id "button"
+      set "color" to 0.496933 0.3005438 0.1070231 1
+  row "seams-mask" called "Side seams shape"
+    use "Rounded Rectangle" id "right-seam"
+      set "center" to -0.5 0
+      set "halfSize" to 0.009 0.5
+      set "radius" to 0
+    use "Rounded Rectangle" id "left-seam"
+      combine union
+      set "center" to 0 0
+      set "halfSize" to 0.009 0.5
+      set "radius" to 0
+  row "seams" called "Side seams"
+    use "Mix" id "seams-mix"
+      input from row "seams-mask" www
+      set "color1" from row "base" xyzw
+      set "color2" from row "shade" xyzw
+      set "factor" to 1 1 1
+  row "edging-mask" called "Neckline, placket and bottom hem shape"
+    use "Circle" id "front-collar"
+      set "center" to -0.25 -0.5
+      set "radius" to 0.11
+    use "Circle" id "front-neck-opening"
+      combine subtract
+      set "center" to -0.25 -0.5
+      set "radius" to 0.078
+    use "Circle" id "back-collar"
+      combine union
+      set "center" to 0.25 -0.5
+      set "radius" to 0.085
+    use "Circle" id "back-neck-opening"
+      combine subtract
+      set "center" to 0.25 -0.5
+      set "radius" to 0.06
+    use "Rounded Rectangle" id "front-placket"
+      combine union
+      set "center" to -0.25 -0.305
+      set "halfSize" to 0.0125 0.11
+      set "radius" to 0.005
+    use "Rounded Rectangle" id "bottom-hem"
+      combine union
+      set "center" to 0 0.45
+      set "halfSize" to 0.5 0.0175
+      set "radius" to 0
+  row "edging" called "Neckline, placket and bottom hem"
+    use "Mix" id "edging-mix"
+      input from row "edging-mask" www
+      set "color1" from row "seams" xyzw
+      set "color2" from row "trim" xyzw
+      set "factor" to 1 1 1
+  row "buttons-mask" called "Three brass buttons shape"
+    use "Circle" id "button-0"
+      set "center" to -0.25 -0.35
+      set "radius" to 0.012
+    use "Circle" id "button-1"
+      combine union
+      set "center" to -0.25 -0.28
+      set "radius" to 0.012
+    use "Circle" id "button-2"
+      combine union
+      set "center" to -0.25 -0.21
+      set "radius" to 0.012
+  row "buttons" called "Three brass buttons"
+    use "Mix" id "buttons-mix"
+      input from row "buttons-mask" www
+      set "color1" from row "edging" xyzw
+      set "color2" from row "button" xyzw
+      set "factor" to 1 1 1
+  row "apron-edge"
+    use "Color" id "apron-edge-color"
+      set "color" to 0.0295568 0.0137021 0.0085681 1
+  row "apron-color"
+    use "Color" id "apron-color-color"
+      set "color" to 0.0908417 0.0395462 0.0231534 1
+  row "pocket-color"
+    use "Color" id "pocket-color-color"
+      set "color" to 0.1620294 0.0822827 0.0561285 1
+  row "apron-outline"
+    use "Rounded Rectangle" id "skirt-outline"
+      set "center" to -0.25 0.206
+      set "halfSize" to 0.151 0.28
+      set "radius" to 0.026
+    use "Rounded Rectangle" id "bib-outline"
+      combine union
+      set "center" to -0.25 -0.139
+      set "halfSize" to 0.103 0.155
+      set "radius" to 0.019
+    use "Rounded Rectangle" id "left-strap"
+      combine union
+      set "center" to -0.327 -0.34
+      set "halfSize" to 0.018 0.163
+      set "radius" to 0.006
+    use "Rounded Rectangle" id "right-strap"
+      combine union
+      set "center" to -0.173 -0.34
+      set "halfSize" to 0.018 0.163
+      set "radius" to 0.006
+    use "Rounded Rectangle" id "belt"
+      combine union
+      set "center" to 0 0.014
+      set "halfSize" to 0.495 0.033
+      set "radius" to 0
+  row "apron-panel"
+    use "Rounded Rectangle" id "skirt"
+      set "center" to -0.25 0.206
+      set "halfSize" to 0.138 0.265
+      set "radius" to 0.019
+    use "Rounded Rectangle" id "bib"
+      combine union
+      set "center" to -0.25 -0.139
+      set "halfSize" to 0.09 0.149
+      set "radius" to 0.013
+  row "apron-pocket"
+    use "Rounded Rectangle" id "pocket"
+      set "center" to -0.218 0.244
+      set "halfSize" to 0.066 0.067
+      set "radius" to 0.02
+  row "apron-edged"
+    use "Mix" id "apron-edged-mix"
+      input from row "apron-outline" www
+      set "color1" from row "buttons" xyzw
+      set "color2" from row "apron-edge" xyzw
+      set "factor" to 1 1 1
+  row "apron-body"
+    use "Mix" id "apron-body-mix"
+      input from row "apron-panel" www
+      set "color1" from row "apron-edged" xyzw
+      set "color2" from row "apron-color" xyzw
+      set "factor" to 1 1 1
+  row "apron-finished"
+    use "Mix" id "apron-finished-mix"
+      input from row "apron-pocket" www
+      set "color1" from row "apron-body" xyzw
+      set "color2" from row "pocket-color" xyzw
+      set "factor" to 1 1 1
+  output base color from row "apron-finished" xyz

@@ -1,3 +1,8 @@
+mod attachments;
+#[cfg(test)]
+mod tests;
+
+pub(crate) use attachments::OWNER as ISO_SECTOR_OWNER;
 use crate::actions::edit_sector::EDIT_SECTOR_ACTION_ID;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
@@ -64,6 +69,7 @@ pub struct SectorTool {
     click_ray_intersection_3d: Option<Vec3<f32>>,
     rectangle_undo_map: Map,
     click_selected: bool,
+    attachment_drag: Option<attachments::SectorDrag>,
     drag_changed: bool,
     was_clicked: bool,
     vertices_duplicated: bool,
@@ -85,6 +91,7 @@ impl Tool for SectorTool {
             click_pos_3d: Vec3::zero(),
             click_ray_intersection_3d: None,
             click_selected: false,
+            attachment_drag: None,
             drag_changed: false,
             rectangle_undo_map: Map::default(),
             was_clicked: false,
@@ -155,6 +162,105 @@ impl Tool for SectorTool {
             }
         };
         false
+    }
+
+    fn region_map_event(
+        &mut self,
+        event: MapEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        region: &mut Region,
+        server: &mut CreatorContext,
+    ) -> Option<ProjectUndoAtom> {
+        if self.attachment_drag.as_ref().is_some_and(|drag| {
+            drag.before.id != region.id || drag.before.map.id != region.map.id
+        }) {
+            self.attachment_drag = None;
+            self.click_selected = false;
+        }
+        if event == MapEscape
+            && let Some(mut drag) = self.attachment_drag.take()
+        {
+            let revision = region.map.changed;
+            if drag.offset != Vec2::zero() {
+                drag.translate(region, Vec2::zero());
+                region.map.changed = revision.wrapping_add(1);
+                server.reference.write().set_dirty();
+            }
+            self.click_selected = false;
+        }
+        if server.shared.editor_view_mode != EditorViewMode::D2
+            || region.map.camera != rusterix::MapCamera::TwoDIso
+        {
+            self.attachment_drag = None;
+            return self.map_event(event, ui, ctx, &mut region.map, server);
+        }
+        match event {
+            MapClicked(_) => {
+                // Ctrl-click an attached part to grab its owning footprint
+                // even when the floor or walls cover the footprint polygon.
+                let hovered = server.shared.hover.2;
+                if ui.ctrl
+                    && !ui.shift
+                    && !ui.alt
+                    && let Some(id) = hovered
+                    && let Some(root) = attachments::root(&region.map, id)
+                {
+                    server.shared.hover.2 = Some(root);
+                }
+                let undo = self.map_event(event, ui, ctx, &mut region.map, server);
+                server.shared.hover.2 = hovered;
+                self.attachment_drag = (self.was_clicked && self.click_selected)
+                    .then(|| attachments::SectorDrag::new(region))
+                    .flatten();
+                undo
+            }
+            MapDragged(coord) if self.attachment_drag.is_some() => {
+                let map = &mut region.map;
+                if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server) {
+                    server.reference.write().set_dirty();
+                    return None;
+                }
+                let projection = rusterix::isometric::Projection {
+                    origin: self.click_pos,
+                    unit: map.grid_size,
+                };
+                // Use one plane throughout the drag, even over hills or higher floors.
+                let offset = projection
+                    .ground(coord.map(|value| value as f32))
+                    .map(|value| {
+                        shared::context::ServerContext::snap_scalar(value, map.subdivisions)
+                    });
+                let drag = self.attachment_drag.as_mut().unwrap();
+                let revision = region.map.changed;
+                if offset != drag.offset {
+                    drag.translate(region, offset);
+                    region.map.changed = revision.wrapping_add(1);
+                    server.reference.write().set_dirty();
+                }
+                None
+            }
+            MapUp(_) if self.attachment_drag.is_some() => {
+                let drag = self.attachment_drag.take().unwrap();
+                self.click_selected = false;
+                self.drag_changed = false;
+                self.was_clicked = false;
+                if drag.offset == Vec2::zero() {
+                    return None;
+                }
+                region.map.update_surfaces();
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
+                Some(ProjectUndoAtom::RegionEdit(
+                    server.shared.pc,
+                    drag.before,
+                    Box::new(region.clone()),
+                ))
+            }
+            _ => self.map_event(event, ui, ctx, &mut region.map, server),
+        }
     }
 
     fn map_event(

@@ -696,8 +696,8 @@ pub fn add_project_sources(
     project: &Project,
     selected: Option<Uuid>,
 ) {
-    for (id, source) in &project.procedural_appearances {
-        if Some(*id) == selected {
+    for (id, source) in shared::appearance_assets::sources(project) {
+        if Some(id) == selected {
             continue;
         }
         if let Ok(doc) = Document::load(source) {
@@ -1032,7 +1032,7 @@ pub fn edit_selected(
                 "skeleton"=>Operation::Skeleton{rows:earlier.iter().filter(|r|matches!(evaluation.rows.get(&r.id),Some(Value::Rig(_)))).map(|r|r.id.clone()).collect()},
                 "skin"=>Operation::Skin{rig:rig_row.ok_or("Add a skeleton first")?,joints:vec![first_joint.ok_or("Add a joint first")?],blend:0.5},
                 "attach"=>Operation::Attach{enabled:true,rig:rig_row.ok_or("Add a skeleton first")?,joint:first_joint.ok_or("Add a joint first")?,grip:None,translation:[0.;3],rotation:[0.;3]},
-                "motion"=>Operation::Motion{events:vec![],rig:rig_row.ok_or("Add a skeleton first")?,duration:1.,looping:false,tracks:vec![denrim_materials::geometry::rig::Track{joint:first_joint.ok_or("Add a joint first")?,keys:vec![denrim_materials::geometry::rig::Key{visible:true,time:0.,translation:[0.;3],rotation:[0.;3]},denrim_materials::geometry::rig::Key{visible:true,time:1.,translation:[0.;3],rotation:[0.;3]}]}]},
+                "motion"=>Operation::Motion{events:vec![],rig:rig_row.ok_or("Add a skeleton first")?,duration:1.,looping:false,max_cycles_per_second:None,tracks:vec![denrim_materials::geometry::rig::Track{joint:first_joint.ok_or("Add a joint first")?,keys:vec![denrim_materials::geometry::rig::Key{visible:true,time:0.,translation:[0.;3],rotation:[0.;3]},denrim_materials::geometry::rig::Key{visible:true,time:1.,translation:[0.;3],rotation:[0.;3]}]}]},
                 "contour" => Operation::Contour {
                     points: vec![[-0.1, 0.], [0.1, 0.], [0.1, 0.3], [-0.1, 0.3]],
                 },

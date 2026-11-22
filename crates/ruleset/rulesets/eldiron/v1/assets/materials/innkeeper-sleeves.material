@@ -1,0 +1,46 @@
+project 1
+result from material "surface"
+material "surface" called "Innkeeper Sleeves"
+  mode pbr
+  tiling raw
+  default roughness to 0.92
+  default metallic to 0
+  default opacity to 1
+  default emission strength to 0
+  row "base" called "Main fabric"
+    use "Color" id "base"
+      set "color" to 0.1356333 0.0368895 0.0578054 1
+  row "shade" called "Seam / shadow"
+    use "Color" id "shade"
+      set "color" to 0.0512695 0.0152085 0.0241576 1
+  row "trim" called "Woven edging"
+    use "Color" id "trim"
+      set "color" to 0.5457245 0.3712377 0.2383976 1
+  row "seams-mask" called "Sleeve seam shape"
+    use "Rounded Rectangle" id "sleeve-seam"
+      set "center" to 0 0
+      set "halfSize" to 0.009 0.5
+      set "radius" to 0
+  row "seams" called "Sleeve seam"
+    use "Mix" id "seams-mix"
+      input from row "seams-mask" www
+      set "color1" from row "base" xyzw
+      set "color2" from row "shade" xyzw
+      set "factor" to 1 1 1
+  row "cuff-mask" called "Woven cuff edging shape"
+    use "Rounded Rectangle" id "cuff-band"
+      set "center" to 0 0.41
+      set "halfSize" to 0.5 0.0375
+      set "radius" to 0
+    use "Rounded Rectangle" id "cuff-seam"
+      combine union
+      set "center" to 0 0.34
+      set "halfSize" to 0.5 0.008
+      set "radius" to 0
+  row "cuff" called "Woven cuff edging"
+    use "Mix" id "cuff-mix"
+      input from row "cuff-mask" www
+      set "color1" from row "seams" xyzw
+      set "color2" from row "trim" xyzw
+      set "factor" to 1 1 1
+  output base color from row "cuff" xyz

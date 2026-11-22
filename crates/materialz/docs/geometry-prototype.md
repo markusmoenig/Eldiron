@@ -566,7 +566,17 @@ by default, preserving bone lengths, attachments and effects. Interrupting a ble
 starts from its last displayed pose. In character TOML, `avatar_blend_time` changes
 this interval (0 disables it), `avatar_stride` gives distance per walk cycle,
 and `avatar_walk_rate` optionally overrides cadence derived from actual movement.
+A looping walk Motion tile can set **Max gait cycles/s** to cap automatic
+cadence without changing the character's movement speed. Set it to 0 to use
+automatic cadence without a clip limit.
 Attack clips retain the ruleset weapon duration.
+
+Ruleset models, materials, and icons resolve from the shared catalogue through
+their stable identifiers. Project archives may keep their derived tile bakes,
+keyed by the shared recipe and project palette. **Customize model** in Character
+Appearance and **Customize appearance** for items create editable variants and
+bind them to the selected definition. **Create material variant** makes a
+separate reusable material with its own ID.
 
 Select a Motion tile and use **Asset… → Animation events…** for ordered TOML
 markers (`[[events]]`, `time = 0.5`, `name = "release"`). Preview playback reports

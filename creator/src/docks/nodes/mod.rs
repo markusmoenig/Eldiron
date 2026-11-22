@@ -1058,7 +1058,7 @@ impl NodesDock {
                     Some(&mut row.value)
                 };
                 if let Some(GraphControlValue::Custom { kind, data }) = value.as_deref_mut() {
-                    if matches!(kind.as_str(), "tile" | "rules_icon") {
+                    if matches!(kind.as_str(), "tile" | "rules_icon" | "placed_item") {
                         *data = item.id.clone().into();
                     }
                 }

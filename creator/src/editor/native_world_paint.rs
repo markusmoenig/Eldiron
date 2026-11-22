@@ -32,7 +32,7 @@ pub(super) fn captured_query(
         dynamic: None, guide: None, gizmo: None,
     };
     let input = crate::tools::ToolViewInput {
-        camera: Some(camera), ray, isometric_item: None,
+        camera: Some(camera), ray, isometric_subject: None,
         base: pick.base.map(|(geo, at, depth, _)| (geo, at, depth)),
         dynamic: None, paint_geo: pick.paint_geo, paint: Some(paint), rectangle: None,
     };

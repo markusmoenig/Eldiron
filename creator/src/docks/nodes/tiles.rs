@@ -10,6 +10,7 @@ pub(super) struct TileControls {
     names: HashMap<String, String>,
     pub(super) equipment_names: HashMap<String, String>,
     items: Vec<GraphPickerItem>,
+    pub(super) placed_items: Vec<GraphPickerItem>,
 }
 impl TileControls {
     fn has_preview(&self, key: &str) -> bool {
@@ -71,6 +72,18 @@ impl TileControls {
     }
     pub fn refresh(&mut self, project: &Project) {
         self.refresh_equipment_names(project);
+        self.placed_items = project
+            .regions
+            .iter()
+            .flat_map(|region| {
+                region.items.values().map(|item| GraphPickerItem {
+                    id: item.id.to_string(),
+                    label: format!("{} · {}", item.name, region.name),
+                })
+            })
+            .collect();
+        self.placed_items
+            .sort_by(|a, b| a.label.cmp(&b.label).then(a.id.cmp(&b.id)));
         self.images.clear();
         #[cfg(feature = "native-ui")]
         self.radials.clear();
@@ -149,6 +162,18 @@ impl GraphAssets for TileControls {
 impl GraphControls for TileControls {
     fn label(&self, value: &GraphControlValue) -> String {
         if let GraphControlValue::Custom { kind, data } = value {
+            if kind == "placed_item" {
+                let id = data.as_str().unwrap_or_default();
+                return if id.is_empty() {
+                    fl!("node_select_placed_item")
+                } else {
+                    self.placed_items
+                        .iter()
+                        .find(|item| item.id == id)
+                        .map(|item| item.label.clone())
+                        .unwrap_or_else(|| fl!("node_missing_placed_item"))
+                };
+            }
             if matches!(kind.as_str(), "tile" | "rules_icon") {
                 let id = data.as_str().unwrap_or_default();
                 return if id.is_empty() {
@@ -211,7 +236,7 @@ impl GraphControls for TileControls {
         let GraphControlValue::Custom { kind, data } = value else {
             return false;
         };
-        if !matches!(kind.as_str(), "tile" | "rules_icon") {
+        if !matches!(kind.as_str(), "tile" | "rules_icon" | "placed_item") {
             return false;
         }
         let size = (rect.size[1] - 4. * scale).max(scale).min(32. * scale);
@@ -254,7 +279,15 @@ impl NodesDock {
     ) -> bool {
         let point = self.editor.viewport.to_graph(point);
         let metrics = self.doc.metrics();
-        let visual = |value: &GraphControlValue| matches!(value, GraphControlValue::Custom { kind, .. } if matches!(kind.as_str(), "tile" | "rules_icon"));
+        let picker_kind = |value: &GraphControlValue| match value {
+            GraphControlValue::Custom { kind, .. }
+                if matches!(kind.as_str(), "tile" | "rules_icon") =>
+            {
+                Some(false)
+            }
+            GraphControlValue::Custom { kind, .. } if kind == "placed_item" => Some(true),
+            _ => None,
+        };
         let target = self
             .doc
             .nodes
@@ -264,7 +297,9 @@ impl NodesDock {
             .find_map(|node| {
                 node.rows.iter().enumerate().find_map(|(index, row)| {
                     let rect = node.row_rect(index, &metrics);
-                    if visual(&row.value) && rect.contains(point) {
+                    if rect.contains(point)
+                        && let Some(placed) = picker_kind(&row.value)
+                    {
                         return Some((
                             TextTarget {
                                 node: node.id,
@@ -272,6 +307,7 @@ impl NodesDock {
                                 cell: None,
                             },
                             rect,
+                            placed,
                         ));
                     }
                     if let GraphControlValue::List { columns, rows, .. } = &row.value {
@@ -288,7 +324,9 @@ impl NodesDock {
                                     ],
                                     size: [width, metrics.list_row],
                                 };
-                                if visual(value) && cell.contains(point) {
+                                if cell.contains(point)
+                                    && let Some(placed) = picker_kind(value)
+                                {
                                     return Some((
                                         TextTarget {
                                             node: node.id,
@@ -296,6 +334,7 @@ impl NodesDock {
                                             cell: Some((r, c)),
                                         },
                                         cell,
+                                        placed,
                                     ));
                                 }
                             }
@@ -304,7 +343,7 @@ impl NodesDock {
                     None
                 })
             });
-        let Some((target, row)) = target else {
+        let Some((target, row, placed)) = target else {
             return false;
         };
         let Some(view) = ui.get_render_view(VIEW) else {
@@ -319,16 +358,23 @@ impl NodesDock {
                 row.size[1] * self.editor.viewport.zoom(),
             ],
         };
-        let mut picker = GraphPicker::grid(
-            rect,
-            [dim.width as f32, dim.height as f32],
-            self.tiles
-                .items
-                .iter()
-                .filter(|item| self.is_configuration() || self.is_rules() || !item.id.is_empty())
-                .cloned()
-                .collect(),
-        );
+        let viewport = [dim.width as f32, dim.height as f32];
+        let mut picker = if placed {
+            GraphPicker::compact(rect, viewport, self.tiles.placed_items.clone())
+        } else {
+            GraphPicker::grid(
+                rect,
+                viewport,
+                self.tiles
+                    .items
+                    .iter()
+                    .filter(|item| {
+                        self.is_configuration() || self.is_rules() || !item.id.is_empty()
+                    })
+                    .cloned()
+                    .collect(),
+            )
+        };
         picker.previews = self
             .tiles
             .images

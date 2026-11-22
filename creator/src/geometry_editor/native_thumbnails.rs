@@ -845,6 +845,7 @@ mod tests {
             rig,
             duration: 1.,
             looping: true,
+            max_cycles_per_second: None,
             tracks: Vec::new(),
             events: Vec::new(),
         }));

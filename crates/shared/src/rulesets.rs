@@ -25,6 +25,25 @@ pub fn bundled_avatars_for_project(
         .collect()
 }
 
+pub fn bundled_avatar_ids_for_project(config_src: &str) -> Result<std::collections::HashSet<Uuid>, String> {
+    #[derive(serde::Deserialize)]
+    struct Identity {
+        id: Uuid,
+    }
+    let selection = selected_ruleset_config(config_src);
+    if selection.source == "project" {
+        return Ok(Default::default());
+    }
+    bundled_avatar_assets_for_ruleset(&selection.id, &selection.version)
+        .into_iter()
+        .map(|asset| {
+            serde_json::from_str::<Identity>(asset.source)
+                .map(|avatar| avatar.id)
+                .map_err(|error| format!("Bundled avatar '{}' has invalid identity: {error}", asset.id))
+        })
+        .collect()
+}
+
 /// Ruleset-owned item-state sprites remain runtime tile assets, but are not
 /// authored map tiles. Read their identities without decoding any image frames.
 pub fn bundled_tile_ids_for_project(

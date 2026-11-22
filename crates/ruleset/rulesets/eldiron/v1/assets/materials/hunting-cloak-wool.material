@@ -1,0 +1,34 @@
+project 1
+result from material "surface"
+material "surface" called "Hunting cloak wool"
+  mode pbr
+  tiling raw
+  default roughness to 0.94
+  default metallic to 0
+  default opacity to 1
+  row "grain" called "Brushed wool grain"
+    use "Perlin Noise" id "wool-grain"
+      set "globalScale" to 3
+      set "localScale" to 4 0.55
+  row "dye" called "Woodland green wool"
+    use "Color" id "wool-dye"
+      set "color" to 0.013 0.159 0.080 1
+  row "cloth" called "Brushed woodland wool"
+    use "Multiply" id "dyed-grain"
+      input from row "dye" xyz
+      set "localValue" from row "grain" xxx mapped 0.78 to 1.12
+  row "stitching" called "Bound edge"
+    use "Color" id "edge-thread"
+      set "color" to 0.254 0.065 0.037 1
+  row "hem" called "Stitched hem"
+    use "Rounded Rectangle" id "hem-stitch"
+      set "center" to 0 0.453
+      set "halfSize" to 0.5 0.015
+      set "radius" to 0
+  row "surface" called "Wool and hem"
+    use "Mix" id "hem-binding"
+      input from row "hem" www
+      set "color1" from row "cloth" xyzw
+      set "color2" from row "stitching" xyzw
+      set "factor" to 1 1 1
+  output base color from row "surface" xyz

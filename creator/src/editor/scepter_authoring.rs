@@ -222,7 +222,13 @@ impl Editor {
                 }),
                 Command::MaterialGet(c) => {
                     let id = parse_id(&c.id)?;
-                    json!({"id":id,"bundle":self.documents.project.procedural_materials.get(&id).ok_or("Material not found")?,"composition":self.documents.project.material_compositions.get(&id),"binding":self.documents.project.map_material_bindings.get(&id)})
+                    let project = &self.documents.project;
+                    let bundle = if shared::ruleset_materials::definition(&project.config, id).is_some() {
+                        shared::ruleset_materials::editable_id(project, id)?.save().map_err(|e| e.to_string())?
+                    } else {
+                        project.procedural_materials.get(&id).ok_or("Material not found")?.clone()
+                    };
+                    json!({"id":id,"bundle":bundle,"composition":project.material_compositions.get(&id),"binding":project.map_material_bindings.get(&id)})
                 }
                 Command::CompositionGet(c) => {
                     let id = parse_id(&c.id)?;
@@ -236,7 +242,7 @@ impl Editor {
                     let id = parse_id(&c.id)?;
                     json!({
                         "id": id,
-                        "recipe": self.documents.project.procedural_appearances.get(&id).ok_or("Mesh recipe not found")?,
+                        "recipe": shared::appearance_assets::source(&self.documents.project, &id).ok_or("Mesh recipe not found")?,
                         "isometric_bake": self.documents.project.isometric_bakes.get(&id),
                     })
                 }
@@ -599,6 +605,9 @@ pub(super) fn stage(
             Ok(match operation {
                 EditOperation::MaterialPut { id, bundle } => {
                     let id = parse_id(id)?;
+                    if crate::appearance_workspace::data::is_ruleset_asset(id, &next) {
+                        return Err("Choose a new UUID for a ruleset asset variant.".into());
+                    }
                     if next.procedural_appearances.contains_key(&id) {
                         return Err("ID belongs to an MZ mesh recipe".into());
                     }
@@ -632,6 +641,9 @@ pub(super) fn stage(
                     blocking,
                 } => {
                     let id = parse_id(id)?;
+                    if crate::appearance_workspace::data::is_ruleset_asset(id, &next) {
+                        return Err("Choose a new UUID for a ruleset asset variant.".into());
+                    }
                     let document = Document::load(recipe).map_err(|error| error.to_string())?;
                     if document.id != id.to_string() || document.label.trim().is_empty() {
                         return Err(
@@ -685,6 +697,9 @@ pub(super) fn stage(
                 }
                 EditOperation::CompositionPut { id, composition } => {
                     let id = parse_id(id)?;
+                    if crate::appearance_workspace::data::is_ruleset_asset(id, &next) {
+                        return Err("Choose a new UUID for a ruleset asset variant.".into());
+                    }
                     if next.procedural_appearances.contains_key(&id) {
                         return Err("ID belongs to an MZ mesh recipe".into());
                     }
@@ -706,6 +721,9 @@ pub(super) fn stage(
                 }
                 EditOperation::CompositionCopy { id, source } => {
                     let id = parse_id(id)?;
+                    if crate::appearance_workspace::data::is_ruleset_asset(id, &next) {
+                        return Err("Choose a new UUID for a ruleset asset variant.".into());
+                    }
                     let source = parse_id(source)?;
                     if next.tiles.contains_key(&id) {
                         return Err("Copy destination already exists".into());

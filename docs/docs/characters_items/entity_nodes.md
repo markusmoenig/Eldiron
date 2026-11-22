@@ -16,7 +16,7 @@ The separate **Input Mapping** branch starts with an Input Mapping node. Connect
 | Entity | Ruleset race, class, and initial level. Empty race/class and level 0 inherit defaults. |
 | Animal | Species from the active ruleset. Supplies its race and class, including the body, stats and remains binding. Leave Entity race/class empty. |
 | Set Tile | Assign a sprite tile using a scrollable grid of previews. Type to search aliases; no UUID entry is needed. Legacy module tiles are excluded. |
-| Appearance | Avatar, 2D size, and visibility. Visibility is independent of life/activity state. |
+| Appearance | Avatar, 2D size, visibility, body build and height, face style, hair style and hair color. Face and hair choices depend on the resolved model. |
 | Equipment | Starting worn/held items. Drag project item headers onto the node; item names are shown and stable references are saved. |
 | Collision | Radius and blocking. |
 | Item State | Initial On/Off state, Openable, Locked and Required Key. MZ State Switch outputs and footprints follow the same state in iso and 3D. |
@@ -48,7 +48,7 @@ Choice controls open compact, searchable, scrollable pickers. Inline text commit
 
 Connect **Equipment** to Entity to override the class outfit. A drop replaces an
 item in the same slot; invalid class or two-handed combinations report an error.
-No Equipment node inherits the class loadout; an empty list equips nothing.
+Omit Equipment to inherit the class loadout. An empty list equips nothing.
 Names and ruleset IDs may also be entered manually, but are not required for
 drag-and-drop authoring.
 
@@ -56,6 +56,13 @@ The character's **Appearance** tree entry previews the resolved outfit in 2D
 and 3D. MZ bodies, clothing materials and attached models follow the ruleset
 items you equip. See [Appearance](appearance) and [Rigging](rigging) before
 editing the underlying artwork or skeleton.
+
+In [Wayfarer’s Rest](../creator/wayfarers_rest), open **Rowan the Innkeeper →
+Entity Nodes**. His **Appearance** node uses the shared Human model with the
+Stout build, height 1.73 m, Bearded face, Receding hair and hair color
+`#9e9a91`. A height of 0 inherits the model’s default. His **Equipment**
+node selects the supplied Innkeeper Apron, Wool Trousers and Leather Shoes.
+Compare Bram the Hunter, whose Hunting Cloak occupies the **Back** slot.
 
 ## Templates and instances
 

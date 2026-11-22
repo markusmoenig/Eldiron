@@ -157,9 +157,9 @@ pub fn material_canvas() -> TheCanvas {
     let mut canvas = TheCanvas::default();
     canvas.set_layout(stack);
     let mut library = TheDropdownMenu::new(TheId::named("Ruleset Material"));
-    library.add_option("Tile material".into());
+    library.add_option("Create material variant…".into());
     for def in shared::ruleset_materials::definitions(shared::rulesets::DEFAULT_RULESET_CONFIG) {
-        library.add_option(format!("Ruleset · {}", def.id.replace('-', " ")));
+        library.add_option(format!("Variant from {}", def.id.replace('-', " ")));
     }
     library.limiter_mut().set_max_width(240);
     let mut row = TheHLayout::new(TheId::named("MZ Material Navigation"));
@@ -1435,6 +1435,11 @@ impl ProceduralMaterialEditor {
             }
             None => id,
         };
+        if shared::ruleset_materials::definition(&project.config, id).is_some() {
+            Self::status(ui, ctx, "Create a material variant to edit a ruleset material.");
+            self.clear_selection(ui, ctx);
+            return;
+        }
         if !project.procedural_materials.contains_key(&id) {
             self.clear_selection(ui, ctx);
             return;
@@ -1591,12 +1596,32 @@ impl ProceduralMaterialEditor {
                         .get(i)
                         .cloned()
                 }) {
-                    self.open(
-                        shared::rulesets::material_asset_id(def.id),
-                        ui,
-                        ctx,
-                        project,
-                    );
+                    let result = (|| -> Result<Uuid, String> {
+                        let id = if def.id.starts_with("icon/") {
+                            shared::ruleset_materials::new_icon_id()
+                        } else {
+                            Uuid::new_v4()
+                        };
+                        let asset = shared::ruleset_materials::editable(project, def.id)?;
+                        let bundle = duplicate_bundle(&asset.save().map_err(|e| e.to_string())?, id)?;
+                        let frames = shared::ruleset_materials::baked_frames(project, def.id)?;
+                        let mut tile = rusterix::Tile::from_textures(frames);
+                        tile.id = id;
+                        tile.alias = format!("{} variant", def.id);
+                        let before = project.clone();
+                        project.procedural_materials.insert(id, bundle);
+                        project.tiles.insert(id, tile);
+                        server.history.write().add_undo(
+                            ProjectUndoAtom::ProjectEdit("Create material variant".into(),
+                                Box::new(before), Box::new(project.clone())), ctx,
+                        );
+                        refresh_tiles(ctx);
+                        Ok(id)
+                    })();
+                    match result {
+                        Ok(id) => self.open(id, ui, ctx, project),
+                        Err(error) => Self::status(ui, ctx, error),
+                    }
                 } else if let Some(id) = server.shared.curr_tile_id {
                     self.open(id, ui, ctx, project);
                 } else {
@@ -2011,9 +2036,9 @@ impl ProceduralMaterialEditor {
                 row.add_widget(Box::new(title));
             } else {
                 let mut library=TheDropdownMenu::new(TheId::named("Ruleset Material"));
-                library.add_option("Tile material".into());
+                library.add_option("Create material variant…".into());
                 let definitions=shared::ruleset_materials::definitions(&project.config);
-                for def in &definitions { library.add_option(format!("Ruleset · {}",def.id.replace('-'," "))); }
+                for def in &definitions { library.add_option(format!("Variant from {}",def.id.replace('-'," "))); }
                 library.set_selected_index(definitions.iter().position(|d|Some(shared::rulesets::material_asset_id(d.id))==self.tile).map_or(0,|i|i+1) as i32);
                 library.limiter_mut().set_max_width(240);
                 row.add_widget(Box::new(library));
@@ -4107,10 +4132,11 @@ material "surface" called "Wall Bricks"
             &mut project,
             &mut server,
         );
-        assert_eq!(
-            host.tile,
-            Some(shared::rulesets::material_asset_id("tunic"))
-        );
+        let variant = host.tile.unwrap();
+        let shared = shared::rulesets::material_asset_id("tunic");
+        assert_ne!(variant, shared);
+        assert!(project.procedural_materials.contains_key(&variant));
+        assert!(!project.procedural_materials.contains_key(&shared));
         assert_eq!(
             server.shared.curr_tile_id,
             Some(grass),

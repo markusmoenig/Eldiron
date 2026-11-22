@@ -46,7 +46,8 @@ encounter tools, localization, and balancing support.
 The official ruleset is a tabletop-style rulebook. This guide explains how the
 rules play. Game creators build worlds from the supplied content and choose
 starting options. Standard Creator builds do not expose ruleset definition editing.
-Creator, clients, runtime systems, and tools use the resolved project rules.
+Creator, clients, runtime systems, and tools resolve the project's bundled
+ruleset selection.
 
 TOML examples on this page describe underlying fields for reference; they are
 not configuration steps required to build a game.
@@ -65,11 +66,16 @@ The bundled `eldiron.official` defaults are compiled from `rules.graph.json`.
 Projects select the bundled catalogue and decide which content players encounter
 through their worlds and character options.
 
-Ruleset timing values are measured in seconds. Cooldowns, spell durations, FX
-durations, resource respawns, corpse lifetimes, and NPC respawn delays all use
-seconds so combat and abilities remain easy to tune. Script scheduling commands
-such as `notify_in` and `block_events` are different: they use in-game minutes
-because they schedule world-clock events.
+| What is timed | Clock and unit |
+| --- | --- |
+| Combat cooldowns, spell and FX durations, NPC respawn delays and ordinary loot-corpse lifetimes | Seconds |
+| Behavior **Time Range** and script scheduling with `notify_in` and `block_events` | In-game world clock. **Time Range** uses clock times, and the script commands take in-game minutes. |
+| Map-bound resource recovery and harvestable remains expiry | Accumulated running simulation milliseconds. A profile's `recovery.interval_ms`, a binding's `recovery_interval_ms` and a remains profile's `expires_after_ms` use this clock. |
+
+Moving the Creator time slider can change schedules immediately. It does not
+refill a well or age harvestable remains. Resource deadlines persist across
+saves, and time spent with the world closed does not count.
+See [world resource timing](./creator/authoring#state-time-and-appearance).
 
 | Field | Current value |
 | --- | --- |
@@ -385,14 +391,17 @@ the settlement economy?"
 
 ### Professions
 
-Professions define services and future crafting families. They are not combat
-classes.
+Professions describe a character's trade or service. Authors use behavior
+graphs to decide when a particular villager teaches, trades or crafts.
 
 | Profession | Role |
 | --- | --- |
 | `Merchant` | buys and sells goods |
 | `Blacksmith` | metal weapons, armor, repairs, forge recipes |
 | `Tailor` | cloth clothing, light armor, dyes, patterns |
+| `Boneworker` | bone preparation, armor and repair |
+| `Leatherworker` | tanning, leather armor and repair |
+| `Inscriber` | enchantment patterns and inscription |
 | `Herbalist` | wild herbs, gathering, herb trade |
 | `Fletcher` | arrows, bows, shafts, and ranged supplies |
 | `Innkeeper` | rest, food, rooms, rumors |
@@ -422,10 +431,11 @@ attribute that naturally supports that work.
 | `tailoring` | `DEX` | 0-100 | cloth, leather, dyes, patterns |
 | `woodworking` | `DEX` | 0-100 | wooden handles, shields, furniture |
 | `boneworking` | `DEX` | 0-100 | bone plates, bone armor and repair |
+| `leatherworking` | `DEX` | 0-100 | tanning, leather armor and repair |
 
-Simple recipes are available immediately. Better skill values create better
-outputs instead of blocking the attempt. A character can expose skill points as
-attributes such as `skill_fletching = 25`.
+Basic recipes can start with no lesson. Some advanced recipes require a
+minimum skill, permanent knowledge, or both. A character can expose skill
+points as attributes such as `skill_fletching = 25`.
 
 Official crafting uses deterministic, use-based advancement. A successful
 craft grants `1` point in its recipe skill and another `1` while the crafter is
@@ -496,15 +506,17 @@ supplies them. Deer, pigs, cattle, sheep, goats, horses and chickens use ordinar
 character templates with species-specific MZ meshes and keyed animations.
 Author their **Behavior Nodes** exactly like other NPCs; for wandering, connect
 **Routine → Random Walk**. Species selection does not replace behavior. Their MZ
-sources generate directional 2D sprites and rigged 3D meshes. Choose **Appearance
-→ Edit model** to edit the construction, rig and clips.
+sources generate directional 2D sprites and rigged 3D meshes. Use **Appearance
+→ Customize model** to make a project-local variant before editing its
+construction, rig or clips.
 
 Hides come from actual animal carcasses. Hunt an animal, then use its remains
 with an owned skinning tool such as the stone knife. Deer, pigs, sheep and goats
 provide one raw hide; cattle and horses provide two. Chickens provide feathers.
 The new livestock carcasses also contain finite bones. Skinning does not erase
 the other supply, and repeated use or reload never restores consumed stock.
-Carcasses use the animal's own resting mesh and expire after two simulated days.
+Carcasses use the animal's own resting mesh. The bundled profiles expire after
+172,800,000 running simulation milliseconds (48 hours of accumulated simulation time).
 
 The Animal class supplies no humanoid starter clothes and disables automatic NPC
 respawning. Its ordinary behavior graph controls wandering and resting. The
@@ -688,8 +700,7 @@ The full-set example leaves enough raw bone and a strap for one repair: collect
 one more water unit and prepare a plate, then repair the chosen piece. The knife
 goes from 52 to 51 during preparation and to 50 during repair. That repair uses
 one additional world-sourced water unit and creates no replacement equipment.
-These policies are included in new projects; existing project rules retain
-their previous equipment behavior unless explicitly updated.
+These policies come from the bundled ruleset when a project opens in v0.96.
 
 ### Passive equipment bonuses and enchantments
 
@@ -1004,6 +1015,8 @@ corpses despawn by default so cleaned-out tombstones do not remain on the map.
 Non-empty corpses also have a lifetime. For respawning NPCs, the corpse
 disappears shortly before the NPC returns, using
 `despawn_before_respawn_seconds`; other corpses use `despawn_seconds`.
+Harvestable remains stock has its own expiry in running simulation
+milliseconds, defined by its resource profile.
 
 NPCs respawn by default. `[respawn.npc]` defines the delay, restores health to
 full, restores the NPC's startup loadout and behavior state, and removes that

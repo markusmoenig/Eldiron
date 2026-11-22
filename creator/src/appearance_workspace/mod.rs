@@ -1,5 +1,6 @@
 //! One entry point for a definition's model, materials, icons and equipped preview.
 use crate::{prelude::*};
+use crate::undo::project_atoms::ProjectUndoAtom;
 use std::sync::Arc;
 use web_time::Instant;
 pub mod data;
@@ -309,7 +310,54 @@ impl AppearanceWorkspace {
                         } else {
                             Kind::Material
                         };
-                        if let Some(asset) = self.assets.iter().find(|a| a.kind == kind) {
+                        if let Some(mut asset) =
+                            self.assets.iter().find(|a| a.kind == kind).map(|a| a.id)
+                        {
+                            if kind == Kind::Geometry
+                                && shared::appearance_assets::is_bundled(project, asset)
+                            {
+                                let Some(owner @ Owner::Character(character)) = self.owner else {
+                                    return true;
+                                };
+                                let mut candidate = project.clone();
+                                let result = (|| -> Result<Uuid, String> {
+                                    data::make_variant(owner, &mut candidate)?;
+                                    let source = data::body_source(owner, &candidate);
+                                    let model = Uuid::parse_str(&source).map_err(|e| e.to_string())?;
+                                    let graph = shared::entity_graph::character_key(character);
+                                    shared::entity_graph::set_owner_attribute(
+                                        &mut candidate, &graph, "avatar", source.clone().into(),
+                                    )?;
+                                    if data::attribute(owner.data(project).unwrap_or_default(), "avatar_id").is_some() {
+                                        shared::entity_graph::set_owner_attribute(
+                                            &mut candidate, &graph, "avatar_id", source.into(),
+                                        )?;
+                                    }
+                                    let profile = data::attribute(owner.data(&candidate).unwrap_or_default(), "appearance_profile")
+                                        .unwrap_or_else(|| data::model_profile(&data::body_source(owner, project), project));
+                                    shared::entity_graph::set_owner_attribute(
+                                        &mut candidate, &graph, "appearance_profile", profile.into(),
+                                    )?;
+                                    Ok(model)
+                                })();
+                                match result {
+                                    Ok(model) => asset = model,
+                                    Err(error) => {
+                                        ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
+                                        return true;
+                                    }
+                                }
+                                let before = std::mem::replace(project, candidate);
+                                server.history.write().add_undo(
+                                    ProjectUndoAtom::ProjectEdit(
+                                        "Customize character model".into(),
+                                        Box::new(before),
+                                        Box::new(project.clone()),
+                                    ),
+                                    ctx,
+                                );
+                                self.refresh_form(project, ui, ctx);
+                            }
                             Self::show(ui, ctx, false);
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named(if kind == Kind::Geometry {
@@ -317,8 +365,44 @@ impl AppearanceWorkspace {
                                 } else {
                                     "Open Procedural Tile"
                                 }),
-                                TheValue::Id(asset.id),
+                                TheValue::Id(asset),
                             ));
+                        }
+                        return true;
+                    }
+                    "Definition Appearance Customize Item" => {
+                        let Some(owner @ Owner::Item(item)) = self.owner else { return true };
+                        let mut candidate = project.clone();
+                        let result = (|| -> Result<(), String> {
+                            data::make_variant(owner, &mut candidate)?;
+                            let data = owner.data(&candidate).ok_or("Item was removed")?
+                                .parse::<toml::Table>().map_err(|e| e.to_string())?;
+                            let graph = shared::entity_graph::item_key(item);
+                            if let Some(attrs) = data.get("attributes").and_then(toml::Value::as_table) {
+                                for key in ["appearance_geometry", "appearance_geometry_off",
+                                    "appearance_worn_geometry", "appearance_icon", "appearance_icon_off",
+                                    "appearance_materials"] {
+                                    if let Some(value) = attrs.get(key) {
+                                        shared::entity_graph::set_owner_attribute(
+                                            &mut candidate, &graph, key,
+                                            serde_json::to_value(value).map_err(|e| e.to_string())?,
+                                        )?;
+                                    }
+                                }
+                            }
+                            Ok(())
+                        })();
+                        match result {
+                            Ok(()) => {
+                                let before = std::mem::replace(project, candidate);
+                                server.history.write().add_undo(
+                                    ProjectUndoAtom::ProjectEdit("Customize item appearance".into(),
+                                        Box::new(before), Box::new(project.clone())), ctx,
+                                );
+                                self.refresh_form(project, ui, ctx);
+                                self.invalidate();
+                            }
+                            Err(error) => ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error)),
                         }
                         return true;
                     }
@@ -511,11 +595,20 @@ impl AppearanceWorkspace {
                         .any(|a| a.id.to_string() == source || a.name.eq_ignore_ascii_case(&source))
                     {
                         actions.add_widget(button("Definition Appearance Bitmap", "Edit avatar"));
-                    } else if self.assets.iter().any(|a| a.kind == Kind::Geometry) {
-                        actions.add_widget(button("Definition Appearance Body", "Edit model"));
+                    } else if let Some(model) = self.assets.iter().find(|a| a.kind == Kind::Geometry)
+                    {
+                        let label = if shared::appearance_assets::is_bundled(p, model.id) {
+                            "Customize model"
+                        } else {
+                            "Edit model"
+                        };
+                        actions.add_widget(button("Definition Appearance Body", label));
                     }
                 }
                 Owner::Item(_) => {
+                    if self.assets.iter().any(|asset| data::is_ruleset_asset(asset.id, p)) {
+                        actions.add_widget(button("Definition Appearance Customize Item", "Customize appearance"));
+                    }
                     for (id, label) in [
                         ("Definition Appearance Icon On", "Icon On"),
                         ("Definition Appearance Icon Off", "Icon Off"),

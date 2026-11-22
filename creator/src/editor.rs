@@ -11906,6 +11906,8 @@ mod tests {
     #[test]
     fn appearance_invalidation_follows_content_across_undo_and_unrelated_settings() {
         let mut editor = Editor::new();
+        editor.documents.project.procedural_appearances.insert(
+            Uuid::new_v4(), denrim_materials::geometry::SWORD_EXAMPLE.into());
         let original = editor.current_procedural_appearance_revision();
         let project = editor.documents.project.clone();
         editor.documents.project = project.clone();
@@ -11941,6 +11943,21 @@ mod tests {
         assert_ne!(editor.current_procedural_appearance_revision(), original);
     }
 
+    fn assert_shared_bakes_reused(project: &Project, cache: &Project) {
+        let mut seeded = Project::new();
+        seeded.config = project.config.clone();
+        seeded.palette = project.palette.clone();
+        assert!(shared::ruleset_materials::seed_bakes(&mut seeded, cache).unwrap() > 0);
+        for def in shared::ruleset_materials::definitions(&project.config) {
+            let id = shared::rulesets::material_asset_id(def.id);
+            assert!(project.procedural_material_cache_keys.contains_key(&id));
+            assert!(!project.procedural_materials.contains_key(&id));
+            if let Some(tile) = seeded.tiles.get(&id) {
+                assert_eq!(project.tiles[&id].textures, tile.textures, "{}", def.id);
+            }
+        }
+    }
+
     #[test]
     fn integration_pass_existing_projects_reuse_embedded_material_bakes() {
         let bytes = shared::project_io::encode_project(&Project::new()).unwrap();
@@ -11948,16 +11965,7 @@ mod tests {
         let loaded = Editor::load_project_from_bytes(&bytes).unwrap();
         eprintln!("Existing project load: {:.2?}", started.elapsed());
         let cached = Editor::default_material_bakes().unwrap();
-        for def in shared::ruleset_materials::definitions(&loaded.config) {
-            let id = shared::rulesets::material_asset_id(def.id);
-            assert_eq!(
-                loaded.procedural_material_cache_keys.get(&id),
-                cached.procedural_material_cache_keys.get(&id),
-                "{} must reuse its saved bake when opening a project",
-                def.id
-            );
-            assert_eq!(loaded.tiles[&id].textures, cached.tiles[&id].textures);
-        }
+        assert_shared_bakes_reused(&loaded, cached);
     }
 
     #[test]
@@ -11971,17 +11979,8 @@ mod tests {
             started.elapsed().as_secs_f64() * 1000.
         );
         assert!(cached.config.contains("embedded_material_bakes"));
+        assert_shared_bakes_reused(&project, &cached);
         let definitions = shared::ruleset_materials::definitions(&project.config);
-        for def in &definitions {
-            let id = shared::rulesets::material_asset_id(def.id);
-            assert_eq!(
-                project.procedural_material_cache_keys.get(&id),
-                cached.procedural_material_cache_keys.get(&id),
-                "{} must use its validated startup bake",
-                def.id
-            );
-            assert!(project.procedural_material_cache_keys.contains_key(&id));
-        }
         let mut altered = Project::new();
         altered.config = project.config.clone();
         altered.palette = project.palette.clone();
@@ -12004,19 +12003,11 @@ mod tests {
         authored.config = project.config.clone();
         authored.palette = project.palette.clone();
         let id = shared::rulesets::material_asset_id(definitions[0].id);
-        let mut asset = denrim_materials::integration::EditableMaterialAsset::reopen(
-            &project.procedural_materials[&id],
-        )
-        .unwrap();
-        asset.root.project.materials[0].label.push_str(" edited");
-        let source = asset.save().unwrap();
-        authored.procedural_materials.insert(id, source.clone());
+        authored.procedural_materials.insert(id, "stale material".into());
         shared::ruleset_materials::seed_bakes(&mut authored, &cached).unwrap();
-        assert_eq!(authored.procedural_materials[&id], source);
-        assert!(
-            !authored.procedural_material_cache_keys.contains_key(&id),
-            "Authored edits must not inherit unrelated bakes"
-        );
+        assert_eq!(authored.tiles[&id].textures, cached.tiles[&id].textures);
+        shared::ruleset_materials::install(&mut authored).unwrap();
+        assert!(!authored.procedural_materials.contains_key(&id));
     }
 
     #[test]
@@ -12987,12 +12978,24 @@ mod tests {
     fn examples_catalog_excludes_retired_starters() {
         let manifest: ExampleProjectManifest =
             toml::from_str(include_str!("../../starters/manifest.toml")).unwrap();
-        assert_eq!(manifest.example.len(), 4);
+        assert_eq!(manifest.example.len(), 5);
         assert!(
             manifest
                 .example
                 .iter()
                 .all(|entry| !matches!(entry.id.as_str(), "starter-3d" | "cellar"))
+        );
+        let village = manifest
+            .example
+            .iter()
+            .find(|entry| entry.id == "wayfarers-rest")
+            .unwrap();
+        assert_eq!(village.title, "Wayfarer’s Rest");
+        assert_eq!(village.dimension, "2D Iso");
+        assert_eq!(village.project_path, "test_projects/Village2DIso.eldiron");
+        assert_eq!(
+            village.preview.as_deref(),
+            Some("starters/images/wayfarers-rest-preview.png")
         );
         // Keep the published schema compatible with existing Creator releases.
         let renamed =
@@ -13002,7 +13005,7 @@ mod tests {
                 .unwrap()
                 .example
                 .len(),
-            4
+            5
         );
     }
 

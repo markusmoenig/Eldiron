@@ -1,5 +1,25 @@
 use super::*;
 
+fn sector_cutaway(sector: &Sector, interiors: &[&Sector], player_height: f32) -> bool {
+    let cutaway = sector.properties.get_bool_default("iso_cutaway", false)
+        || sector
+            .properties
+            .get_float("iso_cutaway_below")
+            .is_some_and(|height| player_height < height);
+    if !cutaway {
+        return false;
+    }
+    let area = sector
+        .properties
+        .get_str("iso_cutaway_area")
+        .map(str::trim)
+        .filter(|area| !area.is_empty());
+    let id = area.and_then(|area| Uuid::parse_str(area).ok());
+    interiors.iter().any(|interior| {
+        area.is_none_or(|area| interior.name == area || id == Some(interior.creator_id))
+    })
+}
+
 pub(super) fn collect<'a>(
     map: &'a Map,
     assets: &'a Assets,
@@ -7,6 +27,7 @@ pub(super) fn collect<'a>(
     avatars: &'a HashMap<usize, AvatarSprite>,
     terrain_model: Option<Arc<TerrainSurface>>,
     player_view: crate::party::PlayerView,
+    foreground_fade: &mut super::occlusion::ForegroundFade,
 ) -> ScenePlan<'a> {
     let mut casters = Vec::new();
     let mut mesh_instances = Vec::new();
@@ -24,25 +45,36 @@ pub(super) fn collect<'a>(
             )
         })
         .collect();
-    let player = player_view.player(map).map(|e| e.get_pos_xz()).or_else(|| {
-        (player_view == crate::party::PlayerView::Legacy)
-            .then(|| {
-                map.entities.iter().find_map(|entity| {
-                    let shown = crate::server::data::character_for_display(entity, assets);
-                    shown.is_player().then_some(shown.get_pos_xz())
+    let player = player_view
+        .player(map)
+        .and_then(|player| {
+            map.entities
+                .iter()
+                .position(|entity| std::ptr::eq(entity, player))
+        })
+        .or_else(|| {
+            (player_view == crate::party::PlayerView::Legacy)
+                .then(|| {
+                    map.entities.iter().position(|entity| {
+                        crate::server::data::character_for_display(entity, assets).is_player()
+                    })
                 })
-            })
-            .flatten()
-    });
-    let inside = player.is_some_and(|p| {
-        map.sectors
-            .iter()
-            .any(|s| s.properties.get_bool_default("iso_interior", false) && s.is_inside(map, p))
+                .flatten()
+        });
+    let mut interiors = Vec::new();
+    let player_height = player.map_or(0., |index| {
+        let entity = &map.entities[index];
+        let position = entity.get_pos_xz();
+        interiors.extend(map.sectors.iter().filter(|sector| {
+            sector.properties.get_bool_default("iso_interior", false)
+                && sector.is_inside(map, position)
+        }));
+        entity.position.y
     });
     for sector in &map.sectors {
         // Classic isometric interiors remove the roof and near walls entirely.
         // Keeping translucent roof sprites here obscures furniture and actors.
-        let hidden = inside && sector.properties.get_bool_default("iso_cutaway", false);
+        let hidden = sector_cutaway(sector, &interiors, player_height);
         let Some(source) = sector.properties.get_default_source() else {
             continue;
         };
@@ -54,11 +86,16 @@ pub(super) fn collect<'a>(
             continue;
         };
         let Some(layout) = &tile.isometric else {
-            floors.push((sector, tile));
+            if !hidden {
+                floors.push((sector, tile));
+            }
             continue;
         };
         if layout.ground && !layout.bitmap && (!layout.frames.is_empty() || tile.uv_pages.is_some())
         {
+            if hidden {
+                continue;
+            }
             let height = sector.properties.get_float_default("floor_height", 0.);
             if height.abs() < 0.001 {
                 floors.push((sector, tile));
@@ -420,6 +457,7 @@ pub(super) fn collect<'a>(
     }
     ground.sort_by(Sprite::painter_cmp);
     upright.sort_by(Sprite::painter_cmp);
+    foreground_fade.update((map.id, player_view), &mut upright, player);
 
     ScenePlan {
         material_frame: super::super::materials::animation_frame(seconds),
@@ -429,5 +467,33 @@ pub(super) fn collect<'a>(
         floors,
         casters,
         mesh_instances,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn upper_floor_cutaway_is_limited_to_its_interior_and_the_floor_below() {
+        let mut inn = Sector::new(1, Vec::new());
+        inn.name = "Inn".into();
+        let mut cottage = Sector::new(2, Vec::new());
+        cottage.name = "Cottage".into();
+        let mut upper = Sector::new(3, Vec::new());
+        upper
+            .properties
+            .set("iso_cutaway_area", Value::Str(inn.name.clone()));
+        upper
+            .properties
+            .set("iso_cutaway_below", Value::Float(2.42));
+        assert!(!sector_cutaway(&upper, &[], 0.09));
+        assert!(!sector_cutaway(&upper, &[&cottage], 0.09));
+        assert!(sector_cutaway(&upper, &[&inn], 0.09));
+        assert!(sector_cutaway(&upper, &[&inn], 2.17));
+        assert!(!sector_cutaway(&upper, &[&inn], 2.43));
+
+        upper.properties.set("iso_cutaway", Value::Bool(true));
+        assert!(sector_cutaway(&upper, &[&inn], 2.43));
     }
 }

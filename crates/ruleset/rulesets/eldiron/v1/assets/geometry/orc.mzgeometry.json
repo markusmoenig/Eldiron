@@ -5629,6 +5629,14 @@
       ]
     },
     {
+      "id": "cloak",
+      "label": "Back clothing",
+      "tiles": [
+        {"id":"cloak-model","op":{"type":"asset","source":"ruleset:geometry/hunting_cloak","document":{"version":1,"id":"hunting_cloak","label":"Hunting cloak","rows":[{"id":"rig","label":"Cloak joints","tiles":[{"id":"rig-0","op":{"type":"armature","joints":[{"id":"cloak-collar","label":"Shoulder mount","parent":null,"translation":[0,0,0],"rotation":[0,0,0]},{"id":"cloak-fold","label":"Shoulder fold","parent":"cloak-collar","translation":[0,0.072,-0.157],"rotation":[0,0,0]},{"id":"cloak-hem","label":"Swinging hem","parent":"cloak-fold","translation":[0,-0.45,-0.105],"rotation":[0,0,0]}]}}]},{"id":"cloak-drape","label":"Heavy wool drape","tiles":[{"id":"cloak-drape-0","op":{"type":"loft","segments":20,"sections":[{"center":[-0.01,-0.97,-0.319],"radius":[0.121,0.012]},{"center":[-0.006,-0.958,-0.326],"radius":[0.271,0.024]},{"center":[0.003,-0.926,-0.327],"radius":[0.348,0.037]},{"center":[0.011,-0.85,-0.324],"radius":[0.366,0.047]},{"center":[0.014,-0.725,-0.316],"radius":[0.355,0.048]},{"center":[0.015,-0.565,-0.307],"radius":[0.335,0.043]},{"center":[0.012,-0.414,-0.272],"radius":[0.308,0.043]},{"center":[0.008,-0.253,-0.238],"radius":[0.279,0.045]},{"center":[0.003,-0.121,-0.201],"radius":[0.252,0.042]},{"center":[0,-0.023,-0.175],"radius":[0.228,0.035]},{"center":[0,0.076,-0.152],"radius":[0.211,0.035]},{"center":[0,0.138,-0.122],"radius":[0.186,0.03]},{"center":[0,0.176,-0.094],"radius":[0.126,0.028]},{"center":[0,0.195,-0.072],"radius":[0.061,0.019]}]}},{"id":"cloak-drape-1","op":{"type":"texture","source":"ruleset:material/hunting-cloak-wool","size":64,"axes":[0,1],"origin":[0,0],"span":[1,1],"preserve_uv":true}},{"id":"cloak-drape-2","op":{"type":"skin","rig":"rig","joints":["cloak-collar","cloak-fold","cloak-hem"],"blend":0.88}}]},{"id":"cloak-left","label":"Shoulder fastening","tiles":[{"id":"cloak-left-0","op":{"type":"loft","segments":16,"sections":[{"center":[0.047,0.078,0.115],"radius":[0.01,0.007]},{"center":[0.077,0.105,0.11],"radius":[0.042,0.018]},{"center":[0.117,0.132,0.08],"radius":[0.071,0.059]},{"center":[0.148,0.151,0.018],"radius":[0.079,0.124]},{"center":[0.137,0.169,-0.008],"radius":[0.06,0.102]},{"center":[0.105,0.185,-0.049],"radius":[0.048,0.05]},{"center":[0.078,0.195,-0.063],"radius":[0.026,0.019]}]}},{"id":"cloak-left-1","op":{"type":"texture","source":"ruleset:material/hunting-cloak-wool","size":64,"axes":[0,1],"origin":[0,0],"span":[1,1],"preserve_uv":true}},{"id":"cloak-left-2","op":{"type":"skin","rig":"rig","joints":["cloak-collar"],"blend":1}}]},{"id":"cloak-right","label":"Shoulder fastening","tiles":[{"id":"cloak-right-0","op":{"type":"loft","segments":16,"sections":[{"center":[-0.047,0.078,0.115],"radius":[0.01,0.007]},{"center":[-0.077,0.105,0.11],"radius":[0.042,0.018]},{"center":[-0.117,0.132,0.08],"radius":[0.071,0.059]},{"center":[-0.148,0.151,0.018],"radius":[0.079,0.124]},{"center":[-0.137,0.169,-0.008],"radius":[0.06,0.102]},{"center":[-0.105,0.185,-0.049],"radius":[0.048,0.05]},{"center":[-0.078,0.195,-0.063],"radius":[0.026,0.019]}]}},{"id":"cloak-right-1","op":{"type":"texture","source":"ruleset:material/hunting-cloak-wool","size":64,"axes":[0,1],"origin":[0,0],"span":[1,1],"preserve_uv":true}},{"id":"cloak-right-2","op":{"type":"skin","rig":"rig","joints":["cloak-collar"],"blend":1}}]},{"id":"cloak-clasp","label":"Bronze collar pin","tiles":[{"id":"cloak-clasp-0","op":{"type":"loft","segments":10,"sections":[{"center":[0,0.082,0.117],"radius":[0.012,0.007]},{"center":[0,0.096,0.13],"radius":[0.021,0.014]},{"center":[0,0.113,0.128],"radius":[0.022,0.012]},{"center":[0,0.124,0.118],"radius":[0.012,0.008]}]}},{"id":"cloak-clasp-1","op":{"type":"texture","source":"ruleset:material/item-copper","size":64,"axes":[0,1],"origin":[0,0],"span":[1,1],"preserve_uv":true}},{"id":"cloak-clasp-2","op":{"type":"skin","rig":"rig","joints":["cloak-collar"],"blend":1}}]},{"id":"mount","label":"Attachment origin","tiles":[{"id":"mount-0","op":{"type":"grip","translation":[0,0,0],"rotation":[0,0,0]}}]},{"id":"cloak","label":"Assembled cloak","tiles":[{"id":"cloak-0","op":{"type":"assemble","rows":["cloak-drape","cloak-left","cloak-right","cloak-clasp"]}}]}],"output":"cloak","grip":"mount"}}},
+        {"id":"cloak-mount","op":{"type":"attach","rig":"body","joint":"chest","translation":[0,0.035,-0.064],"rotation":[0,0,0]}}
+      ]
+    },
+    {
       "id": "human",
       "label": "Equipped human",
       "tiles": [
@@ -5639,7 +5647,8 @@
             "rows": [
               "body",
               "sword",
-              "shield"
+              "shield",
+              "cloak"
             ]
           }
         }

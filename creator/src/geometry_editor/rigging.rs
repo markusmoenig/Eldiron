@@ -204,6 +204,7 @@ pub fn parameters(
             rig,
             duration,
             looping,
+            max_cycles_per_second,
             tracks,
             ..
         } => {
@@ -273,6 +274,15 @@ pub fn parameters(
                 vectors(&mut n, &mut p, &key.translation, &key.rotation);
             }
             n.push(number("duration", "Duration (s)", *duration, 0.1, 10.));
+            if *looping {
+                n.push(number(
+                    "max_cycles_per_second",
+                    "Max gait cycles/s (0 = auto)",
+                    max_cycles_per_second.unwrap_or(0.),
+                    0.,
+                    10.,
+                ));
+            }
         }
         _ => {}
     }
@@ -485,12 +495,21 @@ pub fn edit(
             rig,
             duration,
             looping,
+            max_cycles_per_second,
             tracks,
             ..
         } => match key {
             "rig" => *rig = row()?,
             "duration" => *duration = value,
-            "looping" => *looping = index == 1,
+            "max_cycles_per_second" => {
+                *max_cycles_per_second = (value > 0.).then(|| value.max(0.1));
+            }
+            "looping" => {
+                *looping = index == 1;
+                if !*looping {
+                    *max_cycles_per_second = None;
+                }
+            }
             "track_action" => {
                 use denrim_materials::geometry::rig::{Key, Track};
                 let at = selection.track.min(tracks.len().saturating_sub(1));

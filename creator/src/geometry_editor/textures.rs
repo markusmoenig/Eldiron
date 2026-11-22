@@ -6,7 +6,16 @@ pub fn asset(
     palette: &ThePalette,
     project: Option<&Project>,
 ) -> Result<EditableMaterialAsset, String> {
-    let mut asset = if let Some(bundle) = &spec.bundle {
+    let mut asset = if let Some(p) = project
+        && let Some(def) = Uuid::parse_str(&spec.source).ok()
+            .and_then(|id| shared::ruleset_materials::definition(&p.config, id))
+    {
+        shared::ruleset_materials::editable(p, def.id)?
+    } else if spec.source.starts_with("ruleset:")
+        && project.is_some_and(|p| shared::rulesets::selected_ruleset_config(&p.config).source != "project")
+    {
+        ruleset_asset(&spec.source, palette, project)?
+    } else if let Some(bundle) = &spec.bundle {
         EditableMaterialAsset::reopen(bundle).map_err(|e| e.to_string())?
     } else if spec.source.starts_with("ruleset:") {
         ruleset_asset(&spec.source, palette, project)?
@@ -57,10 +66,7 @@ pub fn asset(
         a
     } else {
         let id = Uuid::parse_str(&spec.source).map_err(|_| "Choose a procedural material")?;
-        let bundle = project
-            .and_then(|p| p.procedural_materials.get(&id))
-            .ok_or("Texture material is missing")?;
-        EditableMaterialAsset::reopen(bundle).map_err(|e| e.to_string())?
+        shared::ruleset_materials::editable_id(project.ok_or("Texture material is missing")?, id)?
     };
     crate::procedural_material::palette::resolve(&mut asset, palette)?;
     Ok(asset)
@@ -149,26 +155,12 @@ fn ruleset_asset(
     if resource.is_none() && still.is_none() {
         return Err("Ruleset surface resource is missing".into());
     }
-    let tile_id = resource
-        .and_then(|a| a.tile_id)
-        .and_then(|id| Uuid::parse_str(id).ok());
-    if let Some(bundle) =
-        project.and_then(|p| tile_id.and_then(|id| p.procedural_materials.get(&id)))
-    {
-        return EditableMaterialAsset::reopen(bundle).map_err(|e| e.to_string());
-    }
-    let mut frames =
-        if let Some(tile) = project.and_then(|p| tile_id.and_then(|id| p.tiles.get(&id))) {
-            tile.textures.clone()
-        } else {
-            let bytes = resource
-                .map(|a| a.frames.to_vec())
-                .unwrap_or_else(|| vec![still.unwrap().source]);
-            bytes
-                .into_iter()
-                .map(|b| rusterix::Texture::from_image_safe(b).ok_or("Invalid ruleset image"))
-                .collect::<Result<Vec<_>, _>>()?
-        };
+    let bytes = resource
+        .map(|asset| asset.frames.to_vec())
+        .unwrap_or_else(|| vec![still.unwrap().source]);
+    let mut frames = bytes.into_iter()
+        .map(|bytes| rusterix::Texture::from_image_safe(bytes).ok_or("Invalid ruleset image"))
+        .collect::<Result<Vec<_>, _>>()?;
     for frame in &mut frames {
         shared::palette::fit_rgba(&mut frame.data, palette);
     }
@@ -433,7 +425,7 @@ pub fn input_key(project: &Project, source: &str) -> u64 {
             let id = shared::rulesets::material_asset_id(d.id);
             keys.push(super::fingerprint(&(
                 id,
-                project.procedural_materials.get(&id),
+                d.source, d.palette, d.output,
             )));
         }
     }

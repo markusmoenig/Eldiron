@@ -4,6 +4,7 @@ use crate::{
 };
 use MapEvent::*;
 use rusterix::EntityAction;
+use rusterix::isometric::scene::SpriteOwner;
 use rusterix::prelude::*;
 use theframework::prelude::*;
 
@@ -19,6 +20,7 @@ pub struct EntityTool {
 #[derive(Clone)]
 struct DragState {
     target: DragTarget,
+    select_on_release: bool,
     start_pos: Vec2<f32>,
     changed: bool,
     grab_offset: Vec2<f32>,
@@ -50,6 +52,12 @@ pub(crate) struct SupportSurfaceSample {
 }
 
 impl DragTarget {
+    fn id(self) -> Uuid {
+        match self {
+            Self::Entity(id) | Self::Item(id) => id,
+        }
+    }
+
     fn placement_clearance(self) -> f32 {
         match self {
             DragTarget::Entity(_) => 2.0,
@@ -170,9 +178,14 @@ impl Tool for EntityTool {
                     map.selected_entity_item = Some(hit.id());
 
                     let grab_offset = hit.pos - click_pos;
+                    // The instance's dock can resize or rebind the viewport.
+                    // Defer opening it until a native isometric click completes.
+                    let select_on_release = map.camera == MapCamera::TwoDIso
+                        && self.view_input.as_ref().is_some_and(|view| view.isometric_subject.is_some());
 
                     self.drag_state = Some(DragState {
                         target: hit.target,
+                        select_on_release,
                         start_pos: hit.pos,
                         changed: false,
                         grab_offset,
@@ -211,14 +224,9 @@ impl Tool for EntityTool {
                     }
 
                     self.select_in_tree(ui, server_ctx, hit.id());
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named_with_id("Select Map Entity", hit.id()),
-                        TheValue::Empty,
-                    ));
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Map Selection Changed"),
-                        TheValue::Empty,
-                    ));
+                    if !select_on_release {
+                        Self::publish_selection(ctx, hit.id());
+                    }
                     server_ctx.reference.write().set_dirty();
                 }
             }
@@ -230,6 +238,9 @@ impl Tool for EntityTool {
                 }
 
                 if let Some(state) = self.drag_state.take() {
+                    if state.select_on_release && !state.changed {
+                        Self::publish_selection(ctx, state.target.id());
+                    }
                     if state.changed {
                         match state.target {
                             DragTarget::Entity(id) => {
@@ -357,8 +368,6 @@ impl Tool for EntityTool {
                         }
                     }
                 }
-
-                self.drag_state = None;
             }
             MapDragged(coord) => {
                 if let Some(_render_view) = ui.get_render_view("PolyView") {
@@ -1052,7 +1061,7 @@ impl EntityTool {
         }
     }
 
-    fn pick_hit_2d(&self, map: &Map, pos: Vec2<f32>) -> Option<Hit> {
+    fn pick_hit_2d(map: &Map, pos: Vec2<f32>) -> Option<Hit> {
         let entities = map.entities.iter().filter_map(|entity| {
             let center = entity.get_pos_xz();
             let half = entity
@@ -1089,6 +1098,11 @@ impl EntityTool {
                 .magnitude_squared()
                 .total_cmp(&(b.pos - pos).magnitude_squared())
         })
+    }
+
+    pub(crate) fn pick_2d_subject(map: &Map, pos: Vec2<f32>) -> Option<(Uuid, bool)> {
+        let hit = Self::pick_hit_2d(map, pos)?;
+        Some((hit.id(), matches!(hit.target, DragTarget::Entity(_))))
     }
 
     fn pick_hit(&self, map: &Map, pos: Vec2<f32>, radius2: f32) -> Option<Hit> {
@@ -1133,13 +1147,26 @@ impl EntityTool {
         coord: Vec2<i32>,
     ) -> Option<Hit> {
         if map.camera == rusterix::MapCamera::TwoDIso {
-            if let Some(selected) = self.view_input.as_ref().and_then(|view| view.isometric_item) {
-                let item = map.items.iter().find(|item| Some(item.creator_id) == selected)?;
-                return Some(Hit {
-                    target: DragTarget::Item(item.creator_id),
-                    name: item.attributes.get_str_default("name", "Item".into()),
-                    pos: item.get_pos_xz(),
-                });
+            if let Some(selected) = self.view_input.as_ref().and_then(|view| view.isometric_subject) {
+                return match selected? {
+                    SpriteOwner::Entity { creator_id, .. } => {
+                        let entity = map.entities.iter().find(|entity| entity.creator_id == creator_id)?;
+                        Some(Hit {
+                            target: DragTarget::Entity(creator_id),
+                            name: entity.attributes.get_str_default("name", "Character".into()),
+                            pos: entity.get_pos_xz(),
+                        })
+                    }
+                    SpriteOwner::Item { creator_id, .. } => {
+                        let item = map.items.iter().find(|item| item.creator_id == creator_id)?;
+                        Some(Hit {
+                            target: DragTarget::Item(creator_id),
+                            name: item.attributes.get_str_default("name", "Item".into()),
+                            pos: item.get_pos_xz(),
+                        })
+                    }
+                    _ => None,
+                };
             }
             let dim = *ui.get_render_view("PolyView")?.dim();
             let projection = rusterix::isometric::Projection::editor(
@@ -1242,7 +1269,7 @@ impl EntityTool {
         }
         let pos = self.map_pos_unsnapped(ui, server_ctx, map, coord)?;
         if server_ctx.shared.editor_view_mode == EditorViewMode::D2 {
-            return self.pick_hit_2d(map, pos);
+            return Self::pick_hit_2d(map, pos);
         }
         self.pick_hit(map, pos, 1.44)
     }
@@ -1303,6 +1330,17 @@ impl EntityTool {
         false
     }
 
+    fn publish_selection(ctx: &mut TheContext, id: Uuid) {
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named_with_id("Select Map Entity", id),
+            TheValue::Empty,
+        ));
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Map Selection Changed"),
+            TheValue::Empty,
+        ));
+    }
+
     fn select_in_tree(&self, ui: &mut TheUI, server_ctx: &CreatorContext, id: Uuid) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.shared.curr_region) {
@@ -1348,9 +1386,7 @@ struct Hit {
 
 impl Hit {
     fn id(&self) -> Uuid {
-        match self.target {
-            DragTarget::Entity(id) | DragTarget::Item(id) => id,
-        }
+        self.target.id()
     }
 
     fn status_text(&self) -> String {
@@ -1380,7 +1416,7 @@ pub(crate) fn select_placed_content(
                 && map.camera != rusterix::MapCamera::TwoDIso)
                 .then(|| {
                     tool.map_pos_unsnapped(ui, server_ctx, map, coord)
-                        .and_then(|pos| tool.pick_hit_2d(map, pos))
+                        .and_then(|pos| EntityTool::pick_hit_2d(map, pos))
                 })
                 .flatten()
         });

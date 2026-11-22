@@ -30,3 +30,11 @@ dimension = "2D Iso"
 description = "A bitmap 2D iso dungeon with directional walls, transparent openings, props, and an eight-direction animated character. Original CC0 artwork by Kenney; no procedural mesh recipes required."
 project_path = "starters/projects/KenneyIsoDungeon.eldiron"
 preview = "starters/images/kenney-iso-dungeon-preview.png"
+
+[[starter]]
+id = "wayfarers-rest"
+title = "Wayfarer’s Rest"
+dimension = "2D Iso"
+description = "A working village with daily routines, a leatherworker who makes and sells her stock, a bridge into Deer Wood, and a crypt beyond the North Gate."
+project_path = "test_projects/Village2DIso.eldiron"
+preview = "starters/images/wayfarers-rest-preview.png"

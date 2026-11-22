@@ -7,6 +7,7 @@ use uuid::Uuid;
 use vek::{Vec2, Vec3};
 mod collect;
 mod contact;
+mod occlusion;
 pub use contact::ContactPolicy;
 mod source;
 pub use source::{Sprite, SpriteImage, SpriteOwner, TerrainContact};
@@ -18,6 +19,7 @@ pub struct SceneCache {
     pub player_view: crate::party::PlayerView,
     terrain_key: Option<(Uuid, u32)>,
     terrain_model: Option<Arc<TerrainSurface>>,
+    foreground_fade: occlusion::ForegroundFade,
     pub(super) shadow_geometry: Option<(u64, Arc<scenevm::isometric::ShadowGeometry>)>,
     terrain_shadow: Option<((Uuid, u32), Arc<scenevm::isometric::ShadowGeometry>)>,
 }
@@ -52,13 +54,15 @@ impl SceneCache {
         seconds: f32,
         avatars: &'a HashMap<usize, AvatarSprite>,
     ) -> ScenePlan<'a> {
+        let terrain = self.terrain(map);
         collect::collect(
             map,
             assets,
             seconds,
             avatars,
-            self.terrain(map),
+            terrain,
             self.player_view,
+            &mut self.foreground_fade,
         )
     }
 

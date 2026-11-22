@@ -45,19 +45,24 @@ impl Profile {
 }
 /// The server visual timer and both renderers use the same authored duration.
 pub fn attack_duration(entity: &Entity) -> f32 {
+    let fallback = if entity.equipped.contains_key("main_hand") {
+        0.35
+    } else {
+        0.60
+    };
     let seconds = if entity.attributes.get("avatar_attack_time").is_some() {
         entity
             .attributes
-            .get_float_default("avatar_attack_time", 0.35)
+            .get_float_default("avatar_attack_time", fallback)
     } else {
-        entity.equipped.get("main_hand").map_or(0.35, |item| {
+        entity.equipped.get("main_hand").map_or(fallback, |item| {
             item.attributes
-                .get_float_default("appearance_attack_time", 0.35)
+                .get_float_default("appearance_attack_time", fallback)
         })
     };
     if seconds.is_finite() {
         seconds.clamp(0.1, 10.)
     } else {
-        0.35
+        fallback
     }
 }

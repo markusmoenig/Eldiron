@@ -73,6 +73,84 @@ mod tests {
     }
 
     #[test]
+    fn traverses_both_routes_at_the_same_overpass_without_switching_layers() {
+        let mut map = Map::default();
+        map.camera = MapCamera::TwoDIso;
+        let deck = top(&mut map, 0., 0., 3., 1., 2.43);
+        map.find_sector_mut(deck)
+            .unwrap()
+            .properties
+            .set("iso_overpass", Value::Bool(true));
+        top(&mut map, -2., 0., 2., 1., 2.43);
+        top(&mut map, 3., 0., 2., 1., 2.43);
+        let mini = map.as_mini(&FxHashSet::default());
+        let worlds = crate::CollisionWorld::new(16);
+        let assets = crate::Assets::default();
+        let world = crate::movement::MovementWorld {
+            map: &map,
+            assets: &assets,
+            mapmini: &mini,
+            collision_world: &worlds,
+            mode: crate::movement::CollisionMode::Tile,
+            diagnostics: None,
+        };
+        for (start, end) in [
+            (Vec3::new(-0.5, 2.43, 0.5), Vec3::new(3.5, 2.43, 0.5)),
+            (Vec3::new(1.5, 0., -0.5), Vec3::new(1.5, 0., 1.5)),
+        ] {
+            let mut actor = crate::Entity::default();
+            actor.position = start;
+            actor.set_attribute("radius", Value::Float(0.22));
+            let direct = crate::movement::move_by(
+                &world,
+                &mut actor,
+                Vec2::new(end.x - start.x, end.z - start.z),
+                0,
+            );
+            assert!(!direct.geometry_blocked);
+            assert_eq!(actor.position, end);
+
+            let mut position = start;
+            for _ in 0..100 {
+                let (next, arrived) = mini.move_towards_elevation(
+                    position,
+                    Vec2::new(end.x, end.z),
+                    None,
+                    0.12,
+                    0.21,
+                );
+                position = next;
+                assert_eq!(position.y, start.y);
+                if arrived {
+                    break;
+                }
+            }
+            assert_eq!(position, end);
+        }
+        let (_, blocked) = mini.elevation.move_distance(
+            Vec3::new(1.5, 2.43, 0.5),
+            Vec2::new(0., 1.),
+            0.21,
+            STEP_UP,
+            STEP_DOWN,
+        );
+        assert!(blocked);
+
+        top(&mut map, -3.3, 0., 0.45, 1., 0.27);
+        let mini = map.as_mini(&FxHashSet::default());
+        let mut position = Vec3::new(-3.10, 0.27, 0.5);
+        let goal = Vec2::new(-3.5, 0.5);
+        for _ in 0..20 {
+            let (next, arrived) = mini.move_towards_elevation(position, goal, None, 0.06, 0.21);
+            position = next;
+            if arrived {
+                break;
+            }
+        }
+        assert_eq!(position, Vec3::new(-3.5, 0., 0.5));
+    }
+
+    #[test]
     fn path_uses_stairs_instead_of_cliff_and_unreachable_search_terminates() {
         let mut map = Map::default();
         map.camera = MapCamera::TwoDIso;
@@ -124,6 +202,8 @@ impl Surface {
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ElevationMap {
     surfaces: Vec<Surface>,
+    #[serde(default)]
+    overpasses: Vec<Surface>,
     pub terrain: Option<std::sync::Arc<crate::chunkbuilder::terrain_surface::TerrainSurface>>,
 }
 impl ElevationMap {
@@ -131,45 +211,82 @@ impl ElevationMap {
         if map.camera != crate::MapCamera::TwoDIso {
             return Self::default();
         }
-        Self {
+        let mut elevation = Self {
             terrain: crate::chunkbuilder::terrain_surface::TerrainSurface::from_map(map)
                 .map(std::sync::Arc::new),
-            surfaces: map
-                .sectors
-                .iter()
-                .filter(|s| {
-                    map.camera == crate::MapCamera::TwoDIso
-                        && s.properties.get_bool_default("iso_walkable", false)
-                })
-                .filter_map(|s| {
-                    let (vertices, indices) = s.generate_geometry(map)?;
-                    let height = s.properties.get_float_default("floor_height", 0.);
-                    if !height.is_finite() {
-                        return None;
-                    }
-                    Some(Surface {
-                        bounds: s.bounding_box(map),
-                        height,
-                        triangles: indices
-                            .into_iter()
-                            .map(|(a, b, c)| {
-                                [
-                                    Vec2::from(vertices[a]),
-                                    Vec2::from(vertices[b]),
-                                    Vec2::from(vertices[c]),
-                                ]
-                            })
-                            .collect(),
-                    })
-                })
-                .collect(),
+            ..Self::default()
+        };
+        for (surface, overpass) in map
+            .sectors
+            .iter()
+            .filter(|s| s.properties.get_bool_default("iso_walkable", false))
+            .filter_map(|s| {
+                let (vertices, indices) = s.generate_geometry(map)?;
+                let height = s.properties.get_float_default("floor_height", 0.);
+                if !height.is_finite() {
+                    return None;
+                }
+                let surface = Surface {
+                    bounds: s.bounding_box(map),
+                    height,
+                    triangles: indices
+                        .into_iter()
+                        .map(|(a, b, c)| {
+                            [
+                                Vec2::from(vertices[a]),
+                                Vec2::from(vertices[b]),
+                                Vec2::from(vertices[c]),
+                            ]
+                        })
+                        .collect(),
+                };
+                Some((
+                    surface,
+                    s.properties.get_bool_default("iso_overpass", false),
+                ))
+            })
+        {
+            if overpass {
+                elevation.overpasses.push(surface);
+            } else {
+                elevation.surfaces.push(surface);
+            }
         }
+        elevation
     }
     pub fn is_empty(&self) -> bool {
-        self.surfaces.is_empty() && self.terrain.is_none()
+        self.surfaces.is_empty() && self.overpasses.is_empty() && self.terrain.is_none()
     }
-    /// These are solid terrain columns: the highest authored top replaces the ground.
+    pub fn has_overpasses(&self) -> bool {
+        !self.overpasses.is_empty()
+    }
+
+    /// The highest authored walkable surface, including elevated crossings.
     pub fn height_at(&self, p: Vec2<f32>) -> f32 {
+        self.overpasses
+            .iter()
+            .filter(|surface| surface.contains(p))
+            .fold(self.solid_height_at(p), |highest, surface| {
+                highest.max(surface.height)
+            })
+    }
+
+    /// Keep an actor on the surface nearest their current height where surfaces overlap.
+    pub fn height_near(&self, p: Vec2<f32>, reference_y: f32) -> f32 {
+        let ground = self.solid_height_at(p);
+        self.overpasses
+            .iter()
+            .filter(|surface| surface.height > ground && surface.contains(p))
+            .fold(ground, |nearest, surface| {
+                if (surface.height - reference_y).abs() < (nearest - reference_y).abs() {
+                    surface.height
+                } else {
+                    nearest
+                }
+            })
+    }
+
+    fn solid_height_at(&self, p: Vec2<f32>) -> f32 {
         self.surfaces
             .iter()
             .filter(|s| s.contains(p))
@@ -203,12 +320,12 @@ impl ElevationMap {
         for i in 1..=steps {
             let p = Vec2::new(start.x, start.z) + delta * (i as f32 / steps as f32);
             if probes.iter().any(|probe| {
-                let change = self.height_at(p + *probe) - last.y;
+                let change = self.height_near(p + *probe, last.y) - last.y;
                 change > up + 0.001 || change < -down - 0.001
             }) {
                 return (last, true);
             }
-            last = Vec3::new(p.x, self.height_at(p), p.y);
+            last = Vec3::new(p.x, self.height_near(p, last.y), p.y);
         }
         (last, false)
     }
@@ -232,13 +349,19 @@ impl ElevationMap {
         let ray = Vec2::new(-1.2247449, 1.2247449);
         let mut best = Vec3::new(base.x, 0., base.y);
         let mut depth = base.y - base.x;
-        for s in &self.surfaces {
-            let h = s.height;
-            let p = base + ray * h;
-            let d = p.y - p.x + h * 0.8164966;
-            if s.contains(p) && (self.height_at(p) - h).abs() < 0.001 && d > depth {
-                best = Vec3::new(p.x, h, p.y);
-                depth = d;
+        for (surfaces, overpass) in [(&self.surfaces, false), (&self.overpasses, true)] {
+            for s in surfaces {
+                let h = s.height;
+                let p = base + ray * h;
+                let d = p.y - p.x + h * 0.8164966;
+                if d <= depth || !s.contains(p) {
+                    continue;
+                }
+                let ground = self.solid_height_at(p);
+                if (overpass && ground <= h) || (ground - h).abs() < 0.001 {
+                    best = Vec3::new(p.x, h, p.y);
+                    depth = d;
+                }
             }
         }
         if let Some(terrain) = &self.terrain {
@@ -253,7 +376,8 @@ impl ElevationMap {
                 if let Some(w) = barycentric(projected, pixel) {
                     let p = tri[0] * w[0] + tri[1] * w[1] + tri[2] * w[2];
                     let d = p.z - p.x + p.y * 0.8164966;
-                    if d >= depth && (self.height_at(Vec2::new(p.x, p.z)) - p.y).abs() < 0.002 {
+                    if d >= depth && (self.solid_height_at(Vec2::new(p.x, p.z)) - p.y).abs() < 0.002
+                    {
                         best = p;
                         depth = d;
                     }

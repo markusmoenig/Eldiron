@@ -3,6 +3,52 @@ use crate::project::Project;
 use denrim_materials::geometry::{Document, Operation};
 use theframework_core::prelude::Uuid;
 
+pub fn definitions(config: &str) -> &'static std::collections::BTreeMap<Uuid, crate::rulesets::BundledAppearanceAsset> {
+    use crate::rulesets::*;
+    use std::{collections::BTreeMap, sync::LazyLock};
+    static OFFICIAL: LazyLock<BTreeMap<Uuid, BundledAppearanceAsset>> = LazyLock::new(|| {
+        bundled_appearance_assets_for_ruleset(OFFICIAL_RULESET_ID, OFFICIAL_RULESET_VERSION)
+            .into_iter()
+            .map(|asset| (Uuid::parse_str(asset.asset_id).unwrap(), asset))
+            .collect()
+    });
+    static EMPTY: BTreeMap<Uuid, BundledAppearanceAsset> = BTreeMap::new();
+    let selection = selected_ruleset_config(config);
+    if selection.source != "project"
+        && selection.id == OFFICIAL_RULESET_ID
+        && selection.version == OFFICIAL_RULESET_VERSION
+    {
+        &OFFICIAL
+    } else {
+        &EMPTY
+    }
+}
+
+pub fn is_bundled(project: &Project, id: Uuid) -> bool {
+    definitions(&project.config).contains_key(&id)
+}
+
+pub fn source<'a>(project: &'a Project, id: &Uuid) -> Option<&'a str> {
+    // All current bundled geometry uses the geometry namespace or the original humanoid ID.
+    if (id.as_u128() >> 64 == 0x4d5a47454f4d4554
+        || *id == Uuid::parse_str(crate::rulesets::HUMANOID_APPEARANCE_ASSET_ID).unwrap())
+        && let Some(asset) = definitions(&project.config).get(id)
+    {
+        return Some(asset.source);
+    }
+    project.procedural_appearances.get(id).map(String::as_str)
+}
+
+pub fn sources(project: &Project) -> impl Iterator<Item = (Uuid, &str)> {
+    let bundled = definitions(&project.config);
+    project
+        .procedural_appearances
+        .iter()
+        .filter(|(id, _)| !bundled.contains_key(*id))
+        .map(|(id, source)| (*id, source.as_str()))
+        .chain(bundled.iter().map(|(id, asset)| (*id, asset.source)))
+}
+
 pub fn asset_id(source: &str) -> Result<Uuid, String> {
     if let Some(name) = source.strip_prefix("ruleset:geometry/") {
         return Ok(if name == "humanoid" {
@@ -39,9 +85,7 @@ pub fn resolve_dependencies(project: &Project, document: &Document) -> Result<Do
                     if source == denrim_materials::geometry::WEARER_SOURCE {
                         let id =
                             Uuid::parse_str(crate::rulesets::HUMANOID_APPEARANCE_ASSET_ID).unwrap();
-                        let wearer = project
-                            .procedural_appearances
-                            .get(&id)
+                        let wearer = self::source(project, &id)
                             .map(|text| Document::parse(text).and_then(|doc| doc.wearer_body()))
                             .transpose()
                             .map_err(|e| e.to_string())?;
@@ -53,7 +97,7 @@ pub fn resolve_dependencies(project: &Project, document: &Document) -> Result<Do
                     if stack.contains(&id) {
                         return Err("Cyclic geometry asset reference".into());
                     }
-                    let dependency = if let Some(text) = project.procedural_appearances.get(&id) {
+                    let dependency = if let Some(text) = self::source(project, &id) {
                         Document::parse(text).map_err(|e| e.to_string())?
                     } else {
                         document.as_ref().clone()
@@ -194,7 +238,7 @@ mod tests {
                     continue;
                 };
                 let id = crate::rulesets::geometry_asset_id(name);
-                let source = &project.procedural_appearances[&id];
+                let source = self::source(&project, &id).unwrap();
                 let doc = Document::load(source).unwrap();
                 assert_eq!(doc, Document::load(&doc.save().unwrap()).unwrap());
                 let mesh = resolve(&project, &doc)
@@ -379,14 +423,14 @@ mod tests {
         }
     }
     #[test]
-    fn shared_equipment_edits_propagate_and_cycles_are_rejected() {
+    fn shared_equipment_ignores_legacy_overrides_and_local_cycles_are_rejected() {
         let mut p = Project::default();
         p.sync_ruleset_items().unwrap();
         let human = Uuid::parse_str(crate::rulesets::HUMANOID_APPEARANCE_ASSET_ID).unwrap();
         let sword = crate::rulesets::geometry_asset_id("training_sword");
-        let source = Document::load(&p.procedural_appearances[&human]).unwrap();
+        let source = Document::load(self::source(&p, &human).unwrap()).unwrap();
         let original = resolve(&p, &source).unwrap().evaluate().unwrap().mesh;
-        let mut model = Document::load(&p.procedural_appearances[&sword]).unwrap();
+        let mut model = Document::load(self::source(&p, &sword).unwrap()).unwrap();
         let Operation::Group { controls, .. } = &mut model.rows[0].tiles[0].op else {
             panic!()
         };
@@ -398,7 +442,7 @@ mod tests {
         p.procedural_appearances
             .insert(sword, model.save().unwrap());
         let changed = resolve(&p, &source).unwrap().evaluate().unwrap().mesh;
-        assert_ne!(
+        assert_eq!(
             original
                 .parts
                 .iter()
@@ -412,6 +456,7 @@ mod tests {
                 .map(|v| v.position)
                 .collect::<Vec<_>>()
         );
+        let sword = Uuid::new_v4();
         let mut cycle = model.clone();
         cycle.rows = vec![denrim_materials::geometry::Row {
             id: "cycle".into(),
@@ -428,9 +473,10 @@ mod tests {
         cycle.grip = None;
         p.procedural_appearances
             .insert(sword, cycle.save().unwrap());
-        assert!(resolve(&p, &source).unwrap_err().contains("Cyclic"));
+        assert!(resolve(&p, &cycle).unwrap_err().contains("Cyclic"));
         let bytes = crate::project_io::encode_project(&p).unwrap();
         let reopened = crate::project_io::decode_project(&bytes).unwrap();
-        assert_eq!(p.procedural_appearances, reopened.procedural_appearances);
+        assert_eq!(reopened.procedural_appearances.len(), 1);
+        assert_eq!(reopened.procedural_appearances[&sword], p.procedural_appearances[&sword]);
     }
 }

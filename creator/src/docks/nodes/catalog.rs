@@ -856,6 +856,7 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
                 fl!("node_state_dead"),
                 fl!("node_state_sleeping"),
                 fl!("node_state_unconscious"),
+                fl!("node_state_dormant"),
             ],
             selected: 0,
         },
@@ -985,6 +986,76 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         "go_to",
         &fl!("node_group_actions"),
         &goto,
+    ))
+    .unwrap();
+    let mut perform = GraphNode::new(&fl!("node_perform_intent"), [0., 0.], [35, 87, 134, 255]);
+    row(
+        &mut perform,
+        "intent",
+        &fl!("node_intent"),
+        GraphControlValue::Text(String::new()),
+    );
+    row(
+        &mut perform,
+        "item",
+        &fl!("node_placed_item"),
+        GraphControlValue::Custom {
+            kind: "placed_item".into(),
+            data: String::new().into(),
+        },
+    );
+    port(&mut perform, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut perform,
+        "done",
+        &fl!("node_done"),
+        PortDirection::Output,
+        0.35,
+    );
+    port(
+        &mut perform,
+        "failed",
+        &fl!("node_action_failed"),
+        PortDirection::Output,
+        0.8,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "perform_intent",
+        &fl!("node_group_actions"),
+        &perform,
+    ))
+    .unwrap();
+    let mut chance = GraphNode::new(&fl!("node_random_chance"), [0., 0.], [164, 98, 35, 255]);
+    row(
+        &mut chance,
+        "percent",
+        &fl!("node_chance_percent"),
+        GraphControlValue::Number {
+            value: 50.,
+            min: 0.,
+            max: 100.,
+            step: 1.,
+        },
+    );
+    port(&mut chance, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut chance,
+        "match",
+        &fl!("node_match"),
+        PortDirection::Output,
+        0.35,
+    );
+    port(
+        &mut chance,
+        "no_match",
+        &fl!("node_no_match"),
+        PortDirection::Output,
+        0.8,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "random_chance",
+        &fl!("node_group_logic"),
+        &chance,
     ))
     .unwrap();
     for (id, title, fields) in [
@@ -1421,6 +1492,18 @@ pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
                     .find(|p| Some(&p.id) == row.key.as_ref())
                 {
                     row.label = param.label.clone();
+                    if matches!(param.id.as_str(), "body_build" | "face_style" | "hair_style")
+                        && let GraphControlValue::Text(current) = &row.value
+                        && let GraphControlValue::Choice { options, .. } = &param.default
+                    {
+                        let mut options = options.clone();
+                        let selected = options.iter().position(|style| style == current)
+                            .unwrap_or_else(|| {
+                                options.push(current.clone());
+                                options.len() - 1
+                            });
+                        row.value = GraphControlValue::Choice { options, selected };
+                    }
                     if let (
                         GraphControlValue::Number {
                             value,
@@ -1460,7 +1543,7 @@ pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
                     {
                         let profile = (matches!(
                             row.key.as_deref(),
-                            Some("profile" | "action" | "race" | "class" | "animal" | "command")
+                            Some("profile" | "action" | "race" | "class" | "animal" | "command" | "body_build" | "face_style" | "hair_style")
                         ))
                         .then(|| options.get(*selected).cloned())
                         .flatten();

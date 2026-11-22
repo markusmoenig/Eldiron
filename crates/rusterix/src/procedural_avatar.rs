@@ -1,15 +1,16 @@
 //! Ruleset MZ appearances: one editable recipe, directional 2D sprites and live 3D meshes.
 use crate::{Assets, Entity, Texture};
-use denrim_materials::geometry::{Document, Evaluation, Mesh, Operation, Value as GeoValue};
+use denrim_materials::geometry::{Document, Evaluation, Frame, Mesh, Operation, Value as GeoValue, rig};
 use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 use scenevm::GeoId;
 #[cfg(feature = "graphics")]
 use scenevm::{Atom, DynamicMeshVertex, DynamicObject, SceneVM};
 use std::{
+    collections::BTreeMap,
     hash::{Hash, Hasher},
     sync::{Arc, Mutex},
 };
-use theframework_core::prelude::{ThePalette, Uuid};
+use theframework_core::prelude::{TheColor, ThePalette, Uuid};
 pub mod effects;
 #[cfg(feature = "graphics")]
 mod meshes;
@@ -61,6 +62,8 @@ struct Compiled {
     height: f32,
     floor: f32,
     extent: f32,
+    #[cfg(feature = "graphics")]
+    body_scale: f32,
 }
 pub struct Appearance {
     pub source: String,
@@ -129,7 +132,17 @@ struct VariantPlan {
     replacements: Vec<(usize, Arc<Appearance>, bool)>,
     worn: Vec<Wearable>,
     profile: weapon::Profile,
+    look: AvatarAppearance,
 }
+
+#[derive(Default)]
+struct AvatarAppearance {
+    hair_color: Option<[u8; 3]>,
+    hair_style: Option<Arc<Appearance>>,
+    face_style: Option<Arc<Appearance>>,
+    body_controls: BTreeMap<String, f32>,
+}
+
 impl Appearance {
     /// Public visual attachment bindings, excluding behavior/gameplay assets.
     pub fn public_equipment_bindings(&self) -> &[(String,String,String)] {&self.equipment}
@@ -243,13 +256,32 @@ impl Appearance {
             .into_iter()
             .filter_map(|(_, item)| Runtime::resolve_wearable(item, assets))
             .collect::<Vec<_>>();
-        let key = if signatures.is_empty() && worn.is_empty() {
+        let look = AvatarAppearance {
+            hair_color: Self::hair_color(entity, &assets.palette),
+            hair_style: Self::head_style(entity, assets, "hair_style", "hair_styles").cloned(),
+            face_style: Self::head_style(entity, assets, "face_style", "face_styles").cloned(),
+            body_controls: Self::body_controls(entity, assets),
+        };
+        let key = if signatures.is_empty()
+            && worn.is_empty()
+            && look.hair_color.is_none()
+            && look.hair_style.is_none()
+            && look.face_style.is_none()
+            && look.body_controls.is_empty()
+        {
             mask
         } else {
             fingerprint(&(
                 mask,
                 signatures,
                 &profile,
+                look.hair_color,
+                look.hair_style.as_ref().map(|style| style.signature),
+                look.face_style.as_ref().map(|style| style.signature),
+                look.body_controls
+                    .iter()
+                    .map(|(id, value)| (id, value.to_bits()))
+                    .collect::<Vec<_>>(),
                 worn.iter().map(Wearable::signature).collect::<Vec<_>>(),
                 worn.iter()
                     .filter_map(|w| w.geometry.as_ref())
@@ -264,7 +296,87 @@ impl Appearance {
             replacements,
             worn,
             profile,
+            look,
         }
+    }
+
+    fn body_controls(entity: &Entity, assets: &Assets) -> BTreeMap<String, f32> {
+        let mut controls = BTreeMap::new();
+        if let Some(build) = entity.attributes.get_str("body_build")
+            && let Some(rules) = assets.rules_table()
+            && let Some(values) =
+                eldiron_ruleset::ruleset_table_at_path(&rules, &["visuals", "body_builds", build])
+        {
+            for key in ["shoulder-width", "hip-width", "chest-depth"] {
+                if let Some(value) = values
+                    .get(key)
+                    .and_then(|value| {
+                        value.as_float().or_else(|| value.as_integer().map(|value| value as f64))
+                    })
+                    .map(|value| value as f32)
+                    .filter(|value| value.is_finite())
+                {
+                    controls.insert(key.into(), value);
+                }
+            }
+        }
+        if let Some(height) = entity
+            .attributes
+            .get_float("body_height")
+            .filter(|height| height.is_finite() && *height > 0.)
+        {
+            controls.insert("height".into(), height);
+        }
+        controls
+    }
+
+    fn apply_body_controls(document: &mut Document, values: &BTreeMap<String, f32>) -> f32 {
+        let mut body_scale = 1.;
+        if let Some(body) = document.rows.iter_mut().find(|row| row.id == "body") {
+            for tile in &mut body.tiles {
+                if let Operation::Group { controls, .. } = &mut tile.op {
+                    for control in controls {
+                        if control.expression.is_none() && let Some(value) = values.get(&control.id) {
+                            let value = value.clamp(control.min, control.max);
+                            if control.id == "height" && control.value > 0. {
+                                body_scale = value / control.value;
+                            }
+                            control.value = value;
+                        }
+                    }
+                }
+            }
+        }
+        body_scale
+    }
+
+    fn head_style<'a>(
+        entity: &Entity,
+        assets: &'a Assets,
+        attribute: &str,
+        catalogue: &str,
+    ) -> Option<&'a Arc<Self>> {
+        let style = entity.attributes.get_str(attribute)?;
+        let rules = assets.rules_table()?;
+        let model = eldiron_ruleset::ruleset_table_at_path(&rules, &["visuals", catalogue])?
+            .get(style)?
+            .as_str()?;
+        Runtime::worn_model(model, assets)
+    }
+
+    fn hair_color(entity: &Entity, palette: &ThePalette) -> Option<[u8; 3]> {
+        let attributes = &entity.attributes;
+        let color = if let Some(crate::Value::Color(color)) = attributes.get("avatar_hair") {
+            color.to_u8_array()
+        } else if let Some(hex) = attributes.get_str("hair_color").map(str::trim).filter(|hex| {
+            hex.len() == 7 && hex.starts_with('#') && hex.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
+        }) {
+            TheColor::from_hex(hex).to_u8_array()
+        } else {
+            let index = usize::try_from(attributes.get_int("hair_index")?).ok()?;
+            palette.colors.get(index)?.as_ref()?.to_u8_array()
+        };
+        Some([color[0], color[1], color[2]])
     }
 
     fn compiled_for(
@@ -325,7 +437,9 @@ impl Appearance {
                 (*i, doc)
             })
             .collect::<Vec<_>>();
-        self.build_variant(plan.mask, assets, &replacements, &plan.worn, &plan.profile)
+        self.build_variant(
+            plan.mask, assets, &replacements, &plan.worn, &plan.profile, &plan.look,
+        )
     }
 
     fn publish_variant(&self, key: u64, result: Arc<Compiled>) {
@@ -355,7 +469,9 @@ impl Appearance {
         if let Some(cached) = self.compiled.lock().unwrap().get(&key).cloned() {
             return Ok(cached);
         }
-        let result = self.build_variant(mask, assets, replacements, worn, profile)?;
+        let result = self.build_variant(
+            mask, assets, replacements, worn, profile, &AvatarAppearance::default(),
+        )?;
         self.publish_variant(key, result.clone());
         Ok(result)
     }
@@ -367,8 +483,10 @@ impl Appearance {
         replacements: &[(usize, Document)],
         worn: &[Wearable],
         profile: &weapon::Profile,
+        look: &AvatarAppearance,
     ) -> Result<Arc<Compiled>, String> {
         let mut doc = self.document.clone();
+        let body_scale = Self::apply_body_controls(&mut doc, &look.body_controls);
         for (index, model) in replacements {
             let attachment = &self.equipment[*index].0;
             if let Some(row) = doc
@@ -416,6 +534,9 @@ impl Appearance {
                 if let GeoValue::Motion(m) = value {
                     if m.rig.joints.iter().all(|j| rig.index(&j.id).is_ok()) {
                         m.rig = rig.clone();
+                        for key in m.tracks.iter_mut().flat_map(|track| &mut track.keys) {
+                            key.translation = key.translation.map(|component| component * body_scale);
+                        }
                     }
                 }
             }
@@ -505,11 +626,22 @@ impl Appearance {
                 }
             }
         }
+        const HAIR_MATERIAL: &str = "ruleset:material/hair";
+        // Garments fit the stock rig. Replace only head parts that the worn
+        // outfit still exposes, and keep both layers bound to the head joint.
+        for (style, part, material) in [
+            (&look.face_style, "body-head", "ruleset:material/skin"),
+            (&look.hair_style, "body-hair", HAIR_MATERIAL),
+        ] {
+            if let Some(style) = style {
+                Self::mount_head_layer(&mut evaluation.mesh, style, part, material, body_scale)?;
+            }
+        }
         let mut materials = vec![];
         for part in &evaluation.mesh.parts {
             let surface = part.surface.as_ref();
             let color = palette_color(&assets.palette, surface.map_or(0, |s| s.palette));
-            let texture = part
+            let mut texture = part
                 .texture
                 .as_ref()
                 .and_then(|t| {
@@ -538,6 +670,23 @@ impl Appearance {
                     }
                 })
                 .unwrap_or_else(|| Texture::new(color.to_vec(), 1, 1));
+            // Headwear can replace the hair mesh or its material. Tint only the
+            // exposed hair so equipping a hood never changes the fabric color.
+            if let Some(hair_color) = look.hair_color
+                && (part.id == "body-hair"
+                    || part.id.starts_with("hair-")
+                    || part.id.starts_with("beard-"))
+                && part.texture.as_ref().is_some_and(|t| t.source == HAIR_MATERIAL)
+            {
+                let brightest = texture.data.chunks_exact(4).map(|p| p[0].max(p[1]).max(p[2]))
+                    .max().unwrap_or(1).max(1);
+                for pixel in texture.data.chunks_exact_mut(4) {
+                    let shade = u16::from(pixel[0].max(pixel[1]).max(pixel[2]));
+                    for (channel, color) in pixel[..3].iter_mut().zip(hair_color) {
+                        *channel = (u16::from(color) * shade / u16::from(brightest)) as u8;
+                    }
+                }
+            }
             let r = (surface.map_or(0.65, |s| s.roughness) * 15.).round() as u8;
             let m = (surface.map_or(0., |s| s.metallic) * 15.).round() as u8;
             let rm = r | (m << 4);
@@ -610,8 +759,40 @@ impl Appearance {
             height,
             floor: lo[1],
             extent,
+            #[cfg(feature = "graphics")]
+            body_scale,
         });
         Ok(result)
+    }
+
+    fn mount_head_layer(
+        body: &mut Mesh,
+        style: &Self,
+        target: &str,
+        material: &str,
+        body_scale: f32,
+    ) -> Result<(), String> {
+        if let Some(rig) = &body.rig
+            && rig.index("head").is_ok()
+            && body.parts.iter().any(|part| {
+                part.id == target && part.texture.as_ref().is_some_and(|t| t.source == material)
+            })
+        {
+            let mut mesh = style.document.evaluate().map_err(|e| e.to_string())?.mesh;
+            if mesh.rig.is_none() && mesh.parts.iter().any(|part| part.id == target) {
+                if body_scale != 1. {
+                    mesh.transform([0.; 3], [0.; 3], [body_scale; 3]);
+                }
+                let frame = Frame {
+                    translation: [0.; 3],
+                    rotation: [0.; 3],
+                };
+                rig::attach(&mut mesh, rig, "head", &frame, frame.clone(), target)
+                    .map_err(|e| e.to_string())?;
+                body.replace_parts(mesh).map_err(|e| e.to_string())?;
+            }
+        }
+        Ok(())
     }
     fn motion<'a>(
         c: &'a Compiled,
@@ -1577,19 +1758,28 @@ impl Runtime {
             .attributes
             .get_bool_default("avatar_pose_only", false);
         if animation == "walk" {
-            let duration = Appearance::motion(&c, &animation).map_or(1., |m| m.duration);
+            let motion = Appearance::motion(&c, &animation);
+            let duration = motion.map_or(1., |m| m.duration);
             let stride = entity
                 .attributes
                 .get_float_default("avatar_stride", 0.9)
                 .max(0.05);
-            let speed = entity.attributes.get_float_default(
-                "avatar_walk_rate",
-                entity
-                    .attributes
-                    .get_float_default("avatar_move_speed", stride / duration)
-                    * duration
-                    / stride,
-            );
+            let cycles = entity
+                .attributes
+                .get_float_default("avatar_move_speed", stride / duration)
+                / stride;
+            let cycles = motion
+                .and_then(|m| m.max_cycles_per_second)
+                .map_or(cycles, |limit| {
+                    if cycles.is_finite() {
+                        cycles.min(limit)
+                    } else {
+                        cycles
+                    }
+                });
+            let speed = entity
+                .attributes
+                .get_float_default("avatar_walk_rate", cycles * duration);
             let speed = if speed.is_finite() {
                 speed.clamp(0., 4.)
             } else {
@@ -1700,7 +1890,8 @@ impl Runtime {
             ((now - state.started) / duration).clamp(0., 1.)
         };
         let joints = if let Some(from) = state.from.as_ref().filter(|_| weight < 1.) {
-            rig.blend(from, &pose, weight).map_err(|e| e.to_string())?
+            let eased = weight * weight * (3. - 2. * weight);
+            rig.blend(from, &pose, eased).map_err(|e| e.to_string())?
         } else {
             state.from = None;
             pose
@@ -1727,11 +1918,12 @@ impl Runtime {
                     None
                 }
             })?;
-        assets.procedural_avatars.get(&name).or_else(|| {
+        let name = name.strip_prefix("ruleset:geometry/").unwrap_or(&name);
+        assets.procedural_avatars.get(name).or_else(|| {
             assets
                 .procedural_avatars
                 .iter()
-                .find(|(key, _)| key.eq_ignore_ascii_case(&name))
+                .find(|(key, _)| key.eq_ignore_ascii_case(name))
                 .map(|(_, a)| a)
         })
     }
@@ -1868,6 +2060,31 @@ impl Runtime {
 mod tests {
     use super::*;
     use crate::{Item, Value};
+
+    #[test]
+    fn human_walk_caps_automatic_cadence_and_respects_the_explicit_rate() {
+        let (assets, model, mut entity) = fixture();
+        entity.set_attribute("avatar_animation", Value::Str("Walk".into()));
+        entity.set_attribute("avatar_move_speed", Value::Float(3.));
+        let (compiled, _) = model.compiled_for(&entity, &assets).unwrap();
+        let duration = Appearance::motion(&compiled, "walk").unwrap().duration;
+        for iso in [true, false] {
+            let id = GeoId::Character(1);
+            let mut runtime = Runtime::default();
+            runtime.sample(id, &entity, &model, &assets, iso).unwrap();
+            runtime.time = 1.;
+            let sample = runtime.sample(id, &entity, &model, &assets, iso).unwrap();
+            assert!((sample.time / duration - 1.5).abs() < 0.0001);
+        }
+        let mut runtime = Runtime::default();
+        let id = GeoId::Character(1);
+        entity.set_attribute("avatar_walk_rate", Value::Float(2.5));
+        runtime.sample(id, &entity, &model, &assets, true).unwrap();
+        runtime.time = 1.;
+        let sample = runtime.sample(id, &entity, &model, &assets, true).unwrap();
+        assert!((sample.time - 2.5).abs() < 0.0001);
+    }
+
     #[test]
     fn leather_family_worn_meshes_follow_the_wearer_and_render_every_slot() {
         let (mut assets, human, mut entity) = fixture();
@@ -1969,6 +2186,266 @@ mod tests {
                 "sitting should retain its animation"
             );
         }
+    }
+
+    #[test]
+    fn hunting_cloak_sways_and_clears_seated_and_sleeping_poses() {
+        let (assets, model, mut entity) = fixture();
+        let templates = eldiron_ruleset::ruleset_item_templates_from_source(
+            eldiron_ruleset::latest_official_ruleset(),
+        )
+        .unwrap();
+        for (slot, id) in [
+            ("torso", "hunter_jerkin"),
+            ("legs", "wool_trousers"),
+            ("back", "hunting_cloak"),
+        ] {
+            let mut item = Item::default();
+            crate::server::data::apply_item_data(
+                &mut item,
+                &templates
+                    .iter()
+                    .find(|template| template.id == id)
+                    .unwrap()
+                    .data,
+            );
+            entity.equipped.insert(slot.into(), item);
+        }
+        let (compiled, _) = model.compiled_for(&entity, &assets).unwrap();
+        entity.orientation = Vec2::new(-1., 1.).normalized();
+        let cloaked = model.sprite_isometric(&entity, &assets, "idle", 0., 0., None).unwrap();
+        let mut without_cloak = entity.clone();
+        without_cloak.equipped.shift_remove("back");
+        let bare = model.sprite_isometric(&without_cloak, &assets, "idle", 0., 0., None).unwrap();
+        let pixel = |x: usize, y: usize| (y * 128 + x) * 4;
+        // In the front-facing idle sprite the calf-length drape fills the
+        // transparent space outside the legs and part of the gap between them.
+        for (lo, hi) in [(48, 55), (62, 65), (73, 80)] {
+            assert!(
+                (70..79).any(|y| (lo..=hi).any(|x| {
+                    let p = pixel(x, y);
+                    bare[p + 3] == 0 && cloaked[p + 3] != 0
+                })),
+                "rear drape should be visible in the front-facing lower silhouette"
+            );
+        }
+        assert!(
+            (49..60).all(|y| (60..69).all(|x| {
+                let p = pixel(x, y);
+                cloaked[p..p + 4] == bare[p..p + 4]
+            })),
+            "the clasp and drape should leave the center of the chest visible"
+        );
+        let drape = |mesh: &Mesh| {
+            mesh.parts
+                .iter()
+                .position(|part| part.id == "cloak-drape")
+                .unwrap()
+        };
+        let index = drape(&compiled.evaluation.mesh);
+        let walk = Appearance::motion(&compiled, "walk").unwrap();
+        let mut rigid = walk.clone();
+        rigid
+            .tracks
+            .retain(|track| !track.joint.starts_with("cloak-"));
+        let rigid = compiled
+            .evaluation
+            .mesh
+            .posed(Some(&rigid), 0.29)
+            .unwrap()
+            .mesh;
+        let walking = Appearance::pose(&compiled, "walk", 0.29).unwrap();
+        assert!(
+            walking.parts[index]
+                .vertices
+                .iter()
+                .zip(&rigid.parts[index].vertices)
+                .any(|(a, b)| {
+                    Vec3::<f32>::from(a.position).distance(Vec3::from(b.position)) > 0.02
+                })
+        );
+
+        // A diagonal ray avoids the seams between the loft's rings and faces.
+        let inside = |position: [f32; 3], body: &denrim_materials::geometry::Part| {
+            let origin = Vec3::from(position);
+            let ray = Vec3::new(1., 0.137, 0.179);
+            body.vertices
+                .chunks_exact(3)
+                .filter(|tri| {
+                    let a = Vec3::from(tri[0].position);
+                    let edge1 = Vec3::from(tri[1].position) - a;
+                    let edge2 = Vec3::from(tri[2].position) - a;
+                    let cross = ray.cross(edge2);
+                    let det: f32 = edge1.dot(cross);
+                    if det.abs() < 0.00001 {
+                        return false;
+                    }
+                    let rel = origin - a;
+                    let u = rel.dot(cross) / det;
+                    let v = ray.dot(rel.cross(edge1)) / det;
+                    u >= 0. && v >= 0. && u + v <= 1. && edge2.dot(rel.cross(edge1)) / det > 0.001
+                })
+                .count()
+                % 2
+                == 1
+        };
+        for step in 0..=8 {
+            let seated = Appearance::pose(&compiled, "sit", 1.14 * step as f32 / 8.).unwrap();
+            let drape = &seated.parts[index];
+            assert!(!drape.vertices.is_empty());
+            for body in seated.parts.iter().filter(|part| {
+                ["body-torso", "body-pelvis", "left-thigh", "right-thigh"]
+                    .contains(&part.id.as_str())
+            }) {
+                assert!(
+                    !drape
+                        .vertices
+                        .iter()
+                        .any(|vertex| inside(vertex.position, body)),
+                    "cloak intersects {} at seated sample {step}",
+                    body.id
+                );
+            }
+        }
+        let asleep = Appearance::pose(&compiled, "lie", 1.55).unwrap();
+        assert!(
+            asleep
+                .parts
+                .iter()
+                .filter(|part| part.id.starts_with("cloak-"))
+                .all(|part| part.vertices.is_empty())
+        );
+        assert!(
+            !asleep
+                .parts
+                .iter()
+                .find(|part| part.id == "body-torso")
+                .unwrap()
+                .vertices
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn shared_body_presets_resize_the_rig_and_keep_clothes_fitted() {
+        let (mut assets, appearance, mut entity) = fixture();
+        assets.rules = eldiron_ruleset::latest_official_ruleset().to_owned();
+        entity.set_attribute("face_style", Value::Str("bearded".into()));
+        entity.set_attribute("hair_style", Value::Str("receding".into()));
+        let templates = eldiron_ruleset::ruleset_item_templates_from_source(&assets.rules).unwrap();
+        for (slot, id) in [("legs", "canvas_trousers"), ("feet", "work_boots")] {
+            let mut item = Item::default();
+            let template = templates.iter().find(|template| template.id == id).unwrap();
+            crate::server::data::apply_item_data(&mut item, &template.data);
+            entity.equipped.insert(slot.into(), item);
+        }
+        entity.set_attribute("body_build", Value::Str("stout".into()));
+        entity.set_attribute("body_height", Value::Float(1.60));
+        let (short, short_key) = appearance.compiled_for(&entity, &assets).unwrap();
+        entity.set_attribute("body_build", Value::Str("slender".into()));
+        entity.set_attribute("body_height", Value::Float(1.94));
+        let (tall, tall_key) = appearance.compiled_for(&entity, &assets).unwrap();
+        assert_ne!(short_key, tall_key);
+        assert!((short.height - 1.60).abs() < 0.001);
+        assert!((tall.height - 1.94).abs() < 0.001);
+        let torso_width = |compiled: &Compiled| {
+            let torso = compiled.evaluation.mesh.parts.iter()
+                .find(|part| part.id == "body-torso").unwrap();
+            torso.vertices.iter().map(|v| v.position[0].abs()).fold(0., f32::max)
+        };
+        assert!(torso_width(&short) > torso_width(&tall));
+        for compiled in [&short, &tall] {
+            let posed = Appearance::pose(compiled, "walk", 0.28).unwrap();
+            for (id, source) in [
+                ("left-calf", "ruleset:material/canvas_trousers"),
+                ("body-pelvis", "ruleset:material/canvas_trousers_waist"),
+                ("right-boot", "ruleset:material/work_boots"),
+                ("beard-chin", "ruleset:material/hair"),
+            ] {
+                let part = posed.parts.iter().find(|part| part.id == id).unwrap();
+                assert_eq!(part.texture.as_ref().unwrap().source, source);
+                assert!(part.vertices.iter().all(|vertex| vertex.position.iter().all(|n| n.is_finite())));
+            }
+        }
+    }
+
+    #[test]
+    fn shared_face_presets_vary_the_head_and_tint_the_beard() {
+        let (mut assets, appearance, mut entity) = fixture();
+        assets.rules = eldiron_ruleset::latest_official_ruleset().to_owned();
+        entity.orientation = Vec2::new(-1., 1.).normalized();
+        entity.set_attribute("hair_style", Value::Str("receding".into()));
+        entity.set_attribute("hair_color", Value::Str("#9e9a91".into()));
+        let mut sprites = Vec::new();
+        for style in ["angular", "round", "square", "weathered", "bearded"] {
+            entity.set_attribute("face_style", Value::Str(style.into()));
+            let sprite = appearance.sprite_isometric(&entity, &assets, "idle", 0., 0., None).unwrap();
+            assert!(!sprites.contains(&sprite), "{style} needs a distinct face");
+            sprites.push(sprite);
+        }
+        let (compiled, _) = appearance.compiled_for(&entity, &assets).unwrap();
+        let mesh = &compiled.evaluation.mesh;
+        let head = mesh.rig.as_ref().unwrap().index("head").unwrap();
+        let beard = mesh.parts.iter().position(|part| part.id == "beard-chin").unwrap();
+        assert!(mesh.parts[beard].vertices.iter().all(|vertex| {
+            vertex.skin.as_ref().is_some_and(|weights| usize::from(weights.joints[0]) == head)
+        }));
+        assert!(compiled.materials[beard].texture.data.chunks_exact(4)
+            .any(|p| p[..3] == [0x9e, 0x9a, 0x91]));
+    }
+
+    #[test]
+    fn shared_hairstyles_change_the_silhouette_without_changing_hood_fit() {
+        let (mut assets, appearance, mut entity) = fixture();
+        assets.rules = eldiron_ruleset::latest_official_ruleset().to_owned();
+        entity.orientation = Vec2::new(-1., 1.).normalized();
+        entity.set_attribute("hair_color", Value::Str("#a95330".into()));
+        let mut silhouettes = Vec::new();
+        for style in ["tousled", "receding", "braid", "bob", "crop"] {
+            entity.set_attribute("hair_style", Value::Str(style.into()));
+            let sprite = appearance.sprite_isometric(&entity, &assets, "idle", 0., 0., None).unwrap();
+            let silhouette = sprite.chunks_exact(4).map(|p| p[3]).collect::<Vec<_>>();
+            assert!(!silhouettes.contains(&silhouette), "{style} needs a distinct silhouette");
+            silhouettes.push(silhouette);
+        }
+        let templates = eldiron_ruleset::ruleset_item_templates_from_source(
+            eldiron_ruleset::latest_official_ruleset(),
+        ).unwrap();
+        let mut hood = Item::default();
+        let template = templates.iter().find(|template| template.id == "hunter_hood").unwrap();
+        crate::server::data::apply_item_data(&mut hood, &template.data);
+        entity.equipped.insert("head".into(), hood);
+        let hood_crop = appearance.sprite_isometric(&entity, &assets, "idle", 0., 0., None).unwrap();
+        entity.set_attribute("hair_style", Value::Str("braid".into()));
+        let hood_braid = appearance.sprite_isometric(&entity, &assets, "idle", 0., 0., None).unwrap();
+        assert_eq!(hood_crop, hood_braid);
+    }
+
+    #[test]
+    fn hair_color_varies_between_characters_and_preserves_headwear() {
+        let (assets, model, mut entity) = fixture();
+        entity.orientation = Vec2::new(-1., 1.).normalized();
+        let default = model.sprite_isometric(&entity, &assets, "idle", 0., 0., None).unwrap();
+        entity.set_attribute("hair_color", Value::Str("#b67d41".into()));
+        let blond = model.sprite_isometric(&entity, &assets, "idle", 0., 0., None).unwrap();
+        entity.set_attribute("hair_color", Value::Str("#8a4836".into()));
+        let auburn = model.sprite_isometric(&entity, &assets, "idle", 0., 0., None).unwrap();
+        assert_ne!(default, blond);
+        assert_ne!(blond, auburn);
+        assert_ne!(auburn, default);
+
+        let templates = eldiron_ruleset::ruleset_item_templates_from_source(
+            eldiron_ruleset::latest_official_ruleset(),
+        ).unwrap();
+        let mut hood = Item::default();
+        let template = templates.iter().find(|template| template.id == "hunter_hood").unwrap();
+        crate::server::data::apply_item_data(&mut hood, &template.data);
+        entity.equipped.insert("head".into(), hood);
+        let covered_auburn = model.sprite_isometric(&entity, &assets, "idle", 0., 0., None).unwrap();
+        entity.set_attribute("hair_color", Value::Str("#b67d41".into()));
+        let covered_blond = model.sprite_isometric(&entity, &assets, "idle", 0., 0., None).unwrap();
+        assert_eq!(covered_auburn, covered_blond);
+        assert_ne!(covered_blond, blond);
     }
 
     #[test]
@@ -3237,11 +3714,12 @@ mod tests {
             );
         }
 
-        let attack_duration = Appearance::motion(&bare, "attack").unwrap().duration;
-        let attack_mid = Appearance::animation_seconds(&bare, &entity, "attack", 0.175);
+        let authored_duration = Appearance::motion(&bare, "attack").unwrap().duration;
+        let playback_midpoint = attack_duration(&entity) * 0.5;
+        let attack_mid = Appearance::animation_seconds(&bare, &entity, "attack", playback_midpoint);
         assert!(
-            (attack_mid - attack_duration * 0.5).abs() < 0.001,
-            "the complete attack must fit the gameplay attack window"
+            (attack_mid - authored_duration * 0.5).abs() < 0.001,
+            "the complete attack must fit the visual attack window"
         );
         assert!(armed.evaluation.mesh.vertex_count() > bare.evaluation.mesh.vertex_count());
         assert_eq!((bare.height, bare.floor), (armed.height, armed.floor));

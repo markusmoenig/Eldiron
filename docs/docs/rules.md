@@ -13,8 +13,11 @@ in the world, and choose player starting options. You do not need to enable each
 equipment family or edit its recipes. Content enters the game through placed
 items and obtainable crafting materials and knowledge.
 
-The generic ruleset editor is internal maintenance tooling and is hidden in
-standard Creator builds. Project-owned rules still save, load and run normally.
+In v0.96, Creator and the game host both resolve gameplay definitions from the
+bundled `eldiron.official` ruleset. A project stores its ruleset selection and
+defines what players can encounter through its starting options, placements,
+resource bindings and behaviors. The generic ruleset editor is internal
+maintenance tooling and is hidden in standard Creator builds.
 
 For ruleset-driven artwork, [Appearance](characters_items/appearance) explains
 how to equip characters and edit MZ item icons, models, clothing and independent
@@ -24,15 +27,15 @@ project palette and their own editors.
 ## Official Rules
 
 Read [Official Rules](./official_rules) if you want the rulebook view: races,
-classes, attributes, combat, weapons, spells, progression, visuals, and the
-future crafting model.
+classes, attributes, combat, weapons, spells, progression, world resources,
+crafting, learning, repair and enchantment.
 
 This is the player-facing and creator-facing gameplay guide.
 
 ## Rules In Eldiron
 
 Read [Rules In Eldiron](./rules_in_eldiron) if you want the implementation
-view: how project rules are stored and resolved, how internal maintenance
+view: how the bundled rules are resolved, how internal maintenance
 preserves definitions and checkpoints, how item templates are
 created, and how to test rules from the terminal or Creator console.
 
@@ -50,14 +53,5 @@ implementation baseline. It distinguishes rules that are complete, functional,
 partial, catalogue-only, or missing across runtime, Creator, validation, tests,
 and documentation.
 
-## Short Version
-
-New projects use the bundled `eldiron.official` ruleset by default.
-
-The generic ruleset editor is hidden in standard Creator builds. Projects own
-their complete current rules document and preserve their original
-rules for restoration. Inherited deltas and upgrade workflows remain future work.
-
-During ruleset development, `test_projects/Hideout2D.eldiron` follows the
-current representation. The starter copy remains frozen for the released
-version and is replaced from the tested project only as part of a release.
+Try [Wayfarer’s Rest](./creator/wayfarers_rest) for a playable example of
+how a project uses the shared ruleset for gathering, crafting and trade.

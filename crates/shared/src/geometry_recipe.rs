@@ -292,10 +292,15 @@ fn texture(
     spec: &denrim_materials::geometry::Texture,
 ) -> Result<Uuid, String> {
     use denrim_materials::integration::EditableMaterialAsset;
-    let mut asset = if let Some(bundle) = &spec.bundle {
-        EditableMaterialAsset::reopen(bundle).map_err(|e| e.to_string())?
-    } else if let Some(name) = spec.source.strip_prefix("ruleset:material/") {
+    let mut asset = if let Some(name) = spec.source.strip_prefix("ruleset:material/") {
         crate::ruleset_materials::editable(project, name)?
+    } else if let Some(def) = Uuid::parse_str(&spec.source)
+        .ok()
+        .and_then(|id| crate::ruleset_materials::definition(&project.config, id))
+    {
+        crate::ruleset_materials::editable(project, def.id)?
+    } else if let Some(bundle) = &spec.bundle {
+        EditableMaterialAsset::reopen(bundle).map_err(|e| e.to_string())?
     } else {
         let id = Uuid::parse_str(&spec.source).map_err(
             |_| "Map recipes require a project/ruleset material or an embedded material bundle",
@@ -375,11 +380,9 @@ pub fn generate(
     } else {
         binding.selection(map)?
     };
-    let source = project
-        .procedural_appearances
-        .get(&binding.asset)
+    let source = crate::appearance_assets::source(project, &binding.asset)
         .unwrap_or(&binding.source)
-        .clone();
+        .to_owned();
     let doc = crate::appearance_assets::resolve_dependencies(
         project,
         &Document::parse(&source).map_err(|e| e.to_string())?,
@@ -394,8 +397,12 @@ pub fn generate(
                             .strip_prefix("ruleset:material/")
                             .map(crate::rulesets::material_asset_id)
                     });
-                    if let Some(bundle) = id.and_then(|id| project.procedural_materials.get(&id)) {
-                        out.push(bundle);
+                    if let Some(id) = id {
+                        if let Some(def) = crate::ruleset_materials::definition(&project.config, id) {
+                            out.extend([def.source, def.palette, def.output]);
+                        } else if let Some(bundle) = project.procedural_materials.get(&id) {
+                            out.push(bundle);
+                        }
                     }
                 }
                 Operation::Group { document, .. }

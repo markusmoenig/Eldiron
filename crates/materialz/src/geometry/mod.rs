@@ -148,6 +148,8 @@ pub enum Operation {
         rig: String,
         duration: f32,
         looping: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        max_cycles_per_second: Option<f32>,
         tracks: Vec<rig::Track>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         events: Vec<rig::Event>,
@@ -918,6 +920,7 @@ fn evaluate_tile(
             rig: source,
             duration,
             looping,
+            max_cycles_per_second,
             tracks,
             events,
         } => {
@@ -930,6 +933,7 @@ fn evaluate_tile(
                 rig,
                 duration: *duration,
                 looping: *looping,
+                max_cycles_per_second: *max_cycles_per_second,
                 tracks: tracks.clone(),
                 events: events.clone(),
             };

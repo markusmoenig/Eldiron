@@ -406,6 +406,9 @@ impl GeometryEditor {
         creator_history: &CreatorHistory,
     ) -> Result<(), String> {
         let id = self.selected.ok_or("Select a geometry asset")?;
+        if shared::appearance_assets::is_bundled(project, id) {
+            return Err("Create a variant in Appearance to edit this ruleset model.".into());
+        }
         let next = self.encode_active(doc, project)?;
         let next_doc = Document::parse(&next).map_err(|e| e.to_string())?;
         let mut candidate = project.clone();
@@ -493,9 +496,7 @@ impl GeometryEditor {
             if let Some(source) = source.strip_prefix("geometry_asset:") {
                 let id = Uuid::parse_str(source).map_err(|_| "Invalid geometry source")?;
                 let document = Document::load(
-                    project
-                        .procedural_appearances
-                        .get(&id)
+                    shared::appearance_assets::source(project, &id)
                         .ok_or("Geometry source was removed")?,
                 )
                 .map_err(|e| e.to_string())?;
@@ -657,6 +658,10 @@ impl GeometryEditor {
                 || id.name == "Open Worn Geometry"
                 || id.name == "Open Geometry Recipe"
             {
+                if shared::appearance_assets::is_bundled(project, *asset) {
+                    Self::status(ctx, "Create a variant in Appearance to edit this ruleset model.");
+                    return true;
+                }
                 self.finish_drag(project, ctx, false, creator_history);
                 self.selected = Some(*asset);
                 self.iso_output = None;
@@ -774,44 +779,6 @@ impl GeometryEditor {
                 self.preview_key.clear();
                 Self::mode(ui, ctx, 1);
                 return false;
-            }
-            TheEvent::StateChanged(id, TheWidgetState::Clicked)
-                if id.name == "MZ Use Ruleset Humanoid" =>
-            {
-                self.finish_drag(project, ctx, false, creator_history);
-                if let Some(source) = self
-                    .selected
-                    .and_then(|id| project.procedural_appearances.get(&id))
-                {
-                    let mut doc = match Document::load(source) {
-                        Ok(d) => d,
-                        Err(e) => {
-                            Self::status(ctx, e.to_string());
-                            return true;
-                        }
-                    };
-                    let id =
-                        Uuid::parse_str(shared::rulesets::HUMANOID_APPEARANCE_ASSET_ID).unwrap();
-                    doc.id = id.to_string();
-                    doc.label = "Ruleset humanoid".into();
-                    if let Ok(source) = doc.save() {
-                        let before = project.procedural_appearances.insert(id, source.clone());
-                        if before.as_ref() != Some(&source) {
-                            creator_history.write().add_undo(
-                                ProjectUndoAtom::ProceduralAppearanceEdit(id, before, Some(source)),
-                                ctx,
-                            );
-                        }
-                        self.scene.select_after_refresh = self.selected_operation.clone();
-                        self.selected = Some(id);
-                        self.key = None;
-                        Self::status(
-                            ctx,
-                            "Ruleset humanoid selected. Model edits now update 2D and 3D scenes.",
-                        );
-                    }
-                }
-                return true;
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "MZ Close Geometry" =>

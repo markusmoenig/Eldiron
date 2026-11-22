@@ -1,0 +1,27 @@
+{
+  "base": {
+    "color": 17
+  },
+  "shade": {
+    "color": 2
+  },
+  "stitch": {
+    "color": 20
+  },
+  "@surface": {
+    "base color": 17,
+    "emission": 1
+  },
+  "sole-color": {
+    "color": 2
+  },
+  "icon-outline": {
+    "color": 2
+  },
+  "icon-soles-color": {
+    "color": 17
+  },
+  "icon-laces-color": {
+    "color": 20
+  }
+}

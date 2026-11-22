@@ -36,9 +36,16 @@ fn assert_deer_in_wood(map: &Map) {
 
 #[test]
 fn village_can_make_and_sell_gear_from_finite_stock() {
-    let project = village_project();
+    let mut project = village_project();
+    project.time = TheTime::new_time(9, 30).unwrap();
     assert_eq!(project.name, "Village2DIso");
     let map_id = project.regions[0].map.id;
+    let cask_id = project.regions[0]
+        .items
+        .values()
+        .find(|item| item.name == "Tannery Water Cask")
+        .expect("the tannery needs a placed water source")
+        .id;
     assert!(
         project.regions[0]
             .map
@@ -49,50 +56,36 @@ fn village_can_make_and_sell_gear_from_finite_stock() {
     let mut game = GameSession::new(project);
     game.start(SessionOptions::default()).unwrap();
     let context = game.server.instances[0].lock().unwrap().context().unwrap();
-    let (seller_id, tick_budget) = {
+    let seller_id = {
         let region = context.lock().unwrap();
-        let seller = region
-            .map
-            .entities
-            .iter()
-            .find(|actor| actor.attributes.get_str("name") == Some("Mara the Leatherworker"))
-            .expect("placed leatherworker must spawn");
+        let seller = actor_named(&region.map, "Mara the Leatherworker");
         assert!(find_stock(seller, "leather_boots").is_none());
-        assert!(find_stock(seller, "leather").is_some());
-        let mut inspector =
-            rusterix::server::region::crafting::preview::RecipeInspector::new(region.rules.clone())
-                .unwrap();
-        inspector.bind(seller, &region.map.items, false);
-        let preview = inspector.inspect("craft_make_leather_boots", None);
-        assert!(
-            preview.ready,
-            "{preview:?}; seller height {}; stations {:?}; items {:?}",
-            seller.position.y,
-            region
-                .map
-                .items
-                .iter()
-                .filter_map(|item| item
-                    .attributes
-                    .get("station_capabilities")
-                    .map(|cap| (item.position, cap)))
-                .collect::<Vec<_>>(),
+        assert!(find_stock(seller, "leather_hood").is_none());
+        assert!(find_stock(seller, "leather").is_none());
+        assert!(find_stock(seller, "raw_hide").is_some());
+        let bowl = find_stock(seller, "wooden_bowl").expect("Mara starts with a bowl");
+        assert_eq!(
             seller
-                .iter_inventory()
-                .map(|(_, item)| (
-                    item.attributes.get_str("ruleset_id"),
-                    item.attributes.get("tool_capabilities")
-                ))
-                .collect::<Vec<_>>()
+                .get_item(bowl)
+                .unwrap()
+                .attributes
+                .get_int("liquid_quantity"),
+            Some(0)
         );
-        (
-            seller.id,
-            (region.ticks_per_minute.max(1) * 2 + 12) as usize,
-        )
+        seller.id
     };
-    for _ in 0..tick_budget {
+    let mut tanned_hide = false;
+    for _ in 0..180 {
         game.tick_once();
+        let region = context.lock().unwrap();
+        let seller = actor_named(&region.map, "Mara the Leatherworker");
+        tanned_hide |=
+            find_stock(seller, "raw_hide").is_none() && find_stock(seller, "leather").is_some();
+        if find_stock(seller, "leather_hood").is_some() {
+            break;
+        }
     }
+    assert!(tanned_hide, "the tanning frame must turn hide into leather");
     let (boot_id, buyer_id, price, seller_balance, buyer_balance) = {
         let mut region = context.lock().unwrap();
         let seller = region
@@ -102,6 +95,25 @@ fn village_can_make_and_sell_gear_from_finite_stock() {
             .find(|actor| actor.id == seller_id)
             .unwrap();
         let boot_id = find_stock(seller, "leather_boots").expect("workbench must produce stock");
+        assert!(find_stock(seller, "leather_hood").is_some());
+        let cask = rusterix::server::region::resources::views(&region)
+            .unwrap()
+            .into_iter()
+            .find(|view| view.access == cask_id)
+            .expect("cask must register as a world resource");
+        assert_eq!(cask.supplies["water"], Some(4));
+        for consumed in [
+            "raw_hide",
+            "tree_bark",
+            "plant_fiber",
+            "leather",
+            "twisted_cord",
+        ] {
+            assert!(
+                find_stock(seller, consumed).is_none(),
+                "{consumed} was not consumed"
+            );
+        }
         let price = seller.get_item(boot_id).unwrap().shop_price();
         assert_eq!(price, 14);
         let seller_balance = seller.wallet.get_balance(&region.currencies);
@@ -188,6 +200,47 @@ fn villagers_follow_daily_routes_and_deer_remain_in_deer_wood() {
     let mut game = GameSession::new(project);
     game.start(SessionOptions::default()).unwrap();
     let context = game.server.instances[0].lock().unwrap().context().unwrap();
+    {
+        let region = context.lock().unwrap();
+        let bram = actor_named(&region.map, "Bram the Hunter");
+        assert_eq!(
+            bram.get_equipped_item("back")
+                .and_then(|item| item.attributes.get_str("ruleset_path")),
+            Some("items.clothing.hunting_cloak")
+        );
+        assert!(bram.get_equipped_item("head").is_none());
+        assert!(find_stock(bram, "hunter_hood").is_some());
+        for (name, color, hair, face) in [
+            ("Bram the Hunter", "#6f4937", "tousled", "weathered"),
+            ("Rowan the Innkeeper", "#9e9a91", "receding", "bearded"),
+            ("Mara the Leatherworker", "#a95330", "braid", "round"),
+            ("Nessa the Trader", "#352524", "bob", "angular"),
+            ("Elin the Gate Guard", "#bd9c61", "crop", "square"),
+        ] {
+            let actor = actor_named(&region.map, name);
+            assert_eq!(actor.attributes.get_str("hair_color"), Some(color));
+            assert_eq!(actor.attributes.get_str("hair_style"), Some(hair));
+            assert_eq!(actor.attributes.get_str("face_style"), Some(face));
+        }
+        for (name, build, height, legs, feet) in [
+            ("Bram the Hunter", "lean", 1.87, "forest_trousers", "trail_boots"),
+            ("Rowan the Innkeeper", "stout", 1.73, "wool_trousers", "leather_shoes"),
+            ("Mara the Leatherworker", "compact", 1.63, "canvas_trousers", "work_boots"),
+            ("Nessa the Trader", "slender", 1.69, "slate_trousers", "town_shoes"),
+            ("Elin the Gate Guard", "athletic", 1.94, "watch_trousers", "watch_boots"),
+        ] {
+            let actor = actor_named(&region.map, name);
+            assert_eq!(actor.attributes.get_str("body_build"), Some(build));
+            assert_eq!(actor.attributes.get_float("body_height"), Some(height));
+            for (slot, id) in [("legs", legs), ("feet", feet)] {
+                assert_eq!(
+                    actor.get_equipped_item(slot).and_then(|item| item.attributes.get_str("ruleset_id")),
+                    Some(id),
+                    "wrong {slot} equipment for {name}"
+                );
+            }
+        }
+    }
     let daytime = [
         ("Bram the Hunter", "Bram’s Hunting Trail"),
         ("Mara the Leatherworker", "Mara’s Workbench"),
@@ -200,19 +253,18 @@ fn villagers_follow_daily_routes_and_deer_remain_in_deer_wood() {
         ("Nessa the Trader", "Nessa’s Well Court Stop"),
         ("Rowan the Innkeeper", "Inn Hearthside"),
     ];
-    let mut overnight = evening;
-    overnight[3].1 = "Inn Bedside";
-    for (hour, minute, places, crosses_bridge) in [
-        (9, 30, daytime, true),
-        (19, 0, evening, true),
-        (23, 20, overnight, false),
-        (9, 30, daytime, true),
+    let beds = ["Shepherd Cot", "Mara’s Cot", "Rowan Cot", "Inn Bed"];
+    for (hour, minute, places, crosses_bridge, sleeping) in [
+        (9, 30, daytime, true, false),
+        (19, 0, evening, true, false),
+        (23, 20, evening, false, true),
+        (9, 30, daytime, true, false),
     ] {
         game.server
             .set_time(&map_id, TheTime::new_time(hour, minute).unwrap());
         let mut arrived = false;
         let mut crossed_bridge = false;
-        for _ in 0..180 {
+        for _ in 0..260 {
             game.tick_once();
             let region = context.lock().unwrap();
             assert_deer_in_wood(&region.map);
@@ -225,11 +277,21 @@ fn villagers_follow_daily_routes_and_deer_remain_in_deer_wood() {
                 .unwrap();
             crossed_bridge |=
                 bridge.is_inside(&region.map, bram.get_pos_xz()) && bram.position.y > 0.35;
-            arrived = places.iter().all(|(name, place)| {
-                actor_named(&region.map, name)
-                    .get_pos_xz()
-                    .distance(region.map.named_area_center(place).unwrap())
-                    < 0.32
+            arrived = places.iter().zip(beds).all(|((name, place), bed)| {
+                let actor = actor_named(&region.map, name);
+                if sleeping {
+                    actor.attributes.get_str("posture") == Some("lying")
+                        && region.map.items.iter().any(|item| {
+                            item.attributes.get_str("name") == Some(bed)
+                                && actor.attributes.get_uint("furniture_id") == Some(item.id)
+                        })
+                } else {
+                    actor.attributes.get_str("posture") != Some("lying")
+                        && actor
+                            .get_pos_xz()
+                            .distance(region.map.named_area_center(place).unwrap())
+                            < 0.32
+                }
             });
             if arrived {
                 break;

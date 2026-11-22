@@ -56,6 +56,7 @@ fn effects_follow_transform_attachment_pose_and_roundtrip() {
         rig,
         duration: 1.,
         looping: false,
+        max_cycles_per_second: None,
         tracks: vec![rig::Track {
             joint: "hand".into(),
             keys: vec![
@@ -135,6 +136,7 @@ fn motion_events_handle_skipped_frames_loop_boundaries_and_completion() {
         },
         duration: 2.,
         looping: true,
+        max_cycles_per_second: None,
         tracks: vec![],
         events: vec![
             rig::Event {

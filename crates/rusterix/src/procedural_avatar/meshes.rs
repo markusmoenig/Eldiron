@@ -86,6 +86,7 @@ fn prepare(
     cache: &mut Option<CachedObjects>,
 ) -> Result<(), String> {
     let (c, _) = appearance.compiled_for(entity, assets)?;
+    let height = height * c.body_scale;
     let motion = Appearance::motion(&c, animation);
     let seconds = Appearance::animation_seconds(&c, entity, animation, seconds);
     let joints = if let Some(rig) = &c.evaluation.mesh.rig {

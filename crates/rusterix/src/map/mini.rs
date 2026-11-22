@@ -1,7 +1,7 @@
 use crate::{BBox, CompiledLinedef};
 use pathfinding::prelude::astar;
 use theframework_core::prelude::FxHashSet;
-use vek::Vec2;
+use vek::{Vec2, Vec3};
 
 /// A miniature version of the Map used for client side lighting calculations during the rasterization process and server side collision detection etc.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -554,6 +554,106 @@ impl MapMini {
         };
 
         Some((dist, normal))
+    }
+
+    /// Navigation for maps with crossings at two heights in the same grid cell.
+    pub(crate) fn move_towards_elevation(
+        &self,
+        from: Vec3<f32>,
+        to: Vec2<f32>,
+        target_height: Option<f32>,
+        speed: f32,
+        radius: f32,
+    ) -> (Vec3<f32>, bool) {
+        use crate::isometric::elevation::{STEP_DOWN, STEP_UP};
+
+        let height_key = |height: f32| (height * 1000.).round() as i32;
+        let start_pos = Vec2::new(from.x, from.z);
+        let start_cell = start_pos.floor().as_::<i32>();
+        let goal_cell = to.floor().as_::<i32>();
+        let goal_pos = Self::tile_center(goal_cell, 1.);
+        if !self.is_walkable_position(goal_pos, radius) {
+            return (from, false);
+        }
+        // The actor's position within its cell can need a short approach to the
+        // center before it can turn onto a narrow stair.
+        let start = (start_cell, height_key(from.y), true);
+        let goal = (
+            goal_cell,
+            height_key(
+                self.elevation
+                    .height_near(goal_pos, target_height.unwrap_or(from.y)),
+            ),
+            false,
+        );
+
+        let padding = (goal_cell - start_cell).map(i32::abs).sum().clamp(8, 64);
+        let min = start_cell.map2(goal_cell, i32::min) - padding;
+        let max = start_cell.map2(goal_cell, i32::max) + padding;
+        let step = |pos: Vec3<f32>, dest: Vec2<f32>| {
+            let origin = Vec2::new(pos.x, pos.z);
+            let (xz, blocked) = self.move_distance(origin, dest - origin, radius);
+            let (end, cliff) =
+                self.elevation
+                    .move_distance(pos, xz - origin, radius, STEP_UP, STEP_DOWN);
+            (end, blocked || cliff)
+        };
+        let successors = |node: &(Vec2<i32>, i32, bool)| {
+            let position = if node.2 {
+                from
+            } else {
+                let p = Self::tile_center(node.0, 1.);
+                Vec3::new(
+                    p.x,
+                    self.elevation.height_near(p, node.1 as f32 / 1000.),
+                    p.y,
+                )
+            };
+            [
+                Vec2::zero(),
+                Vec2::unit_x(),
+                -Vec2::unit_x(),
+                Vec2::unit_y(),
+                -Vec2::unit_y(),
+            ]
+            .into_iter()
+            .map(|direction| node.0 + direction)
+            .filter(|cell| *cell != node.0 || node.2)
+            .filter(|cell| cell.x >= min.x && cell.y >= min.y && cell.x <= max.x && cell.y <= max.y)
+            .filter_map(|cell| {
+                let p = Self::tile_center(cell, 1.);
+                if !self.is_walkable_position(p, radius) {
+                    return None;
+                }
+                let (end, blocked) = step(position, p);
+                let next = (cell, height_key(end.y), false);
+                (!blocked && (Vec2::new(end.x, end.z) - p).magnitude_squared() < 1e-4)
+                    .then_some((next, 1))
+            })
+            .collect::<Vec<_>>()
+        };
+        let Some((path, _)) = astar(
+            &start,
+            successors,
+            |node| (goal_cell - node.0).map(i32::abs).sum(),
+            |node| *node == goal,
+        ) else {
+            return (from, false);
+        };
+        let next = path.get(1).copied().unwrap_or(goal);
+        let target_pos = Self::tile_center(next.0, 1.);
+        let delta = target_pos - start_pos;
+        let dist = delta.magnitude();
+        let requested = if dist <= speed {
+            target_pos
+        } else {
+            start_pos + delta * (speed / dist)
+        };
+        let (end, blocked) = step(from, requested);
+        (
+            end,
+            !blocked && next == goal && dist <= speed && height_key(end.y) == goal.1,
+        )
     }
 
     /// Moves towards the target using A* pathfinding on a tile grid.

@@ -343,17 +343,6 @@ pub(super) fn sync_controls(editor: &GeometryEditor, ui: &mut TheUI, ctx: &mut T
             "MZ Edit Texture Material",
             editor.selected_texture().is_some(),
         ),
-        (
-            "MZ Use Ruleset Humanoid",
-            has_rig
-                && editor
-                    .evaluation
-                    .as_ref()
-                    .is_some_and(|e| e.mesh.vertex_count() > 0)
-                && editor.selected.is_some_and(|id| {
-                    id.to_string() != shared::rulesets::HUMANOID_APPEARANCE_ASSET_ID
-                }),
-        ),
         ("MZ Add Motion", has_rig),
         ("MZ Motion Play", !editor.playback.clips.is_empty()),
         ("MZ Motion Phase", !editor.playback.clips.is_empty()),

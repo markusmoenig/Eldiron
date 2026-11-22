@@ -19,6 +19,23 @@ pub fn definitions(config: &str) -> Vec<crate::rulesets::BundledMaterialAsset> {
     ));
     defs
 }
+pub fn definition(config: &str, id: Uuid) -> Option<crate::rulesets::BundledMaterialAsset> {
+    if id.as_u128() >> 64 != 0x52554c454d415453 {
+        return None;
+    }
+    definitions(config)
+        .into_iter()
+        .find(|def| crate::rulesets::material_asset_id(def.id) == id)
+}
+
+pub fn editable_id(project: &Project, id: Uuid) -> Result<rusterix::ruleset_material::EditableAsset, String> {
+    if let Some(def) = definition(&project.config, id) {
+        return rusterix::ruleset_material::editable(&def, &project.palette);
+    }
+    let source = project.procedural_materials.get(&id).ok_or("Material is missing")?;
+    rusterix::ruleset_material::EditableAsset::reopen(source).map_err(|e| e.to_string())
+}
+
 pub fn is_library_tile(_config: &str, id: &Uuid) -> bool {
     matches!(id.as_u128() >> 64, 0x4d5a49434f4e4544 | 0x52554c454d415453)
 }
@@ -95,7 +112,7 @@ pub fn worn_material_sources(project: &Project, data: &str) -> std::collections:
                 Operation::Asset { source, document } if source != WEARER_SOURCE => {
                     let current = crate::appearance_assets::asset_id(source)
                         .ok()
-                        .and_then(|id| project.procedural_appearances.get(&id))
+                        .and_then(|id| crate::appearance_assets::source(project, &id))
                         .and_then(|text| serde_json::from_str::<Document>(text).ok());
                     visit(
                         current.as_ref().unwrap_or(document),
@@ -109,7 +126,7 @@ pub fn worn_material_sources(project: &Project, data: &str) -> std::collections:
         }
     }
     if let Some(doc) = worn_geometry_id(data)
-        .and_then(|id| project.procedural_appearances.get(&id))
+        .and_then(|id| crate::appearance_assets::source(project, &id))
         .and_then(|text| serde_json::from_str::<Document>(text).ok())
     {
         visit(&doc, project, &mut sources, 0);
@@ -144,14 +161,7 @@ pub fn editable(
         .into_iter()
         .find(|d| d.id == name)
         .ok_or("Ruleset material is missing")?;
-    let id = crate::rulesets::material_asset_id(name);
-    let mut asset = if let Some(bundle) = project.procedural_materials.get(&id) {
-        rusterix::ruleset_material::EditableAsset::reopen(bundle).map_err(|e| e.to_string())?
-    } else {
-        rusterix::ruleset_material::editable(&def, &project.palette)?
-    };
-    rusterix::ruleset_material::resolve_palette(&mut asset, &project.palette)?;
-    Ok(asset)
+    rusterix::ruleset_material::editable(&def, &project.palette)
 }
 
 pub fn baked(project: &Project, name: &str) -> Result<Texture, String> {
@@ -159,7 +169,7 @@ pub fn baked(project: &Project, name: &str) -> Result<Texture, String> {
         .into_iter()
         .find(|d| d.id == name)
         .ok_or("Ruleset material is missing")?;
-    if let Some(frames) = saved_frames(project, name, def.resolution) {
+    if let Some(frames) = saved_frames(project, &def) {
         return Ok(frames[0].clone());
     }
     let asset = editable(project, name)?;
@@ -172,7 +182,7 @@ pub fn baked_frames(project: &Project, name: &str) -> Result<Vec<Texture>, Strin
         .into_iter()
         .find(|d| d.id == name)
         .ok_or("Ruleset material is missing")?;
-    if let Some(frames) = saved_frames(project, name, def.resolution) {
+    if let Some(frames) = saved_frames(project, &def) {
         return Ok(frames);
     }
     // Reopening an editable bundle compiles its dependency library. Cache above
@@ -184,9 +194,6 @@ pub fn baked_frames(project: &Project, name: &str) -> Result<Vec<Texture>, Strin
         def.palette,
         def.output,
         def.resolution,
-        project
-            .procedural_materials
-            .get(&crate::rulesets::material_asset_id(name)),
         serde_json::to_string(&project.palette.colors).unwrap_or_default(),
     ));
     let cache = CACHE.get_or_init(Default::default);
@@ -342,14 +349,24 @@ fn saved_key(bundle: &str, palette: &theframework_core::prelude::ThePalette, res
         (h ^ u64::from(b)).wrapping_mul(0x100000001b3)
     })
 }
-fn saved_tile<'a>(project: &'a Project, name: &str, resolution: u32) -> Option<&'a Tile> {
-    let id = crate::rulesets::material_asset_id(name);
-    let bundle = project.procedural_materials.get(&id)?;
-    if project.procedural_material_cache_keys.get(&id)
-        != Some(&saved_key(bundle, &project.palette, resolution))
-    {
+fn canonical_key(def: &crate::rulesets::BundledMaterialAsset, project: &Project) -> u64 {
+    format!("ruleset-bake-v2:{}:{}", definition_key(def),
+        serde_json::to_string(&project.palette.colors).unwrap_or_default())
+        .bytes()
+        .fold(0xcbf29ce484222325u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+        })
+}
+
+fn saved_tile<'a>(project: &'a Project, def: &crate::rulesets::BundledMaterialAsset) -> Option<&'a Tile> {
+    let id = crate::rulesets::material_asset_id(def.id);
+    if project.procedural_material_cache_keys.get(&id) != Some(&canonical_key(def, project)) {
         return None;
     }
+    sized_tile(project, id, def.resolution)
+}
+
+fn sized_tile(project: &Project, id: Uuid, resolution: u32) -> Option<&Tile> {
     let tile = project.tiles.get(&id)?;
     if tile.textures.is_empty()
         || tile.textures.len() != tile.baked_material_data.len()
@@ -371,11 +388,11 @@ fn saved_tile<'a>(project: &'a Project, name: &str, resolution: u32) -> Option<&
 pub fn has_saved_library_bakes(project: &Project) -> bool {
     definitions(&project.config)
         .iter()
-        .all(|def| saved_tile(project, def.id, def.resolution).is_some())
+        .all(|def| saved_tile(project, def).is_some())
 }
 
-fn saved_frames(project: &Project, name: &str, resolution: u32) -> Option<Vec<Texture>> {
-    let tile = saved_tile(project, name, resolution)?;
+fn saved_frames(project: &Project, def: &crate::rulesets::BundledMaterialAsset) -> Option<Vec<Texture>> {
+    let tile = saved_tile(project, def)?;
     let mut frames = tile.textures.clone();
     for (texture, bytes) in frames.iter_mut().zip(&tile.baked_material_data) {
         texture.apply_material_bytes(bytes);
@@ -434,26 +451,18 @@ pub fn seed_bakes(project: &mut Project, cache: &Project) -> Result<usize, Strin
     let mut reused = 0;
     for def in definitions(&project.config) {
         let id = crate::rulesets::material_asset_id(def.id);
-        let bundle = if let Some(bundle) = project.procedural_materials.get(&id) {
-            bundle.clone()
-        } else if manifest.get(def.id).and_then(toml::Value::as_str)
-            == Some(definition_key(&def).as_str())
+        if manifest.get(def.id).and_then(toml::Value::as_str)
+            != Some(definition_key(&def).as_str())
         {
-            let Some(bundle) = cache.procedural_materials.get(&id) else {
-                continue;
-            };
-            bundle.clone()
-        } else {
-            rusterix::ruleset_material::editable(&def, &project.palette)?
-                .save()
-                .map_err(|e| e.to_string())?
-        };
-        let key = saved_key(&bundle, &project.palette, def.resolution);
-        if cache.procedural_material_cache_keys.get(&id) == Some(&key)
-            && saved_tile(cache, def.id, def.resolution).is_some()
-        {
-            project.procedural_materials.insert(id, bundle);
-            let cached = &cache.tiles[&id];
+            continue;
+        }
+        let cached = saved_tile(cache, &def).or_else(|| {
+            let bundle = cache.procedural_materials.get(&id)?;
+            let key = saved_key(bundle, &cache.palette, def.resolution);
+            (cache.procedural_material_cache_keys.get(&id) == Some(&key))
+                .then(|| sized_tile(cache, id, def.resolution)).flatten()
+        });
+        if let Some(cached) = cached {
             let mut tile = project
                 .tiles
                 .get(&id)
@@ -463,15 +472,51 @@ pub fn seed_bakes(project: &mut Project, cache: &Project) -> Result<usize, Strin
             tile.baked_material_data = cached.baked_material_data.clone();
             tile.uv_pages = cached.uv_pages.clone();
             project.tiles.insert(id, tile);
-            project.procedural_material_cache_keys.insert(id, key);
+            project.procedural_material_cache_keys.insert(id, canonical_key(&def, project));
             reused += 1;
         }
     }
     Ok(reused)
 }
 
+/// Promote only legacy tiles whose bake key matches the current shared recipe.
+pub(crate) fn validate_legacy_bakes(project: &mut Project) {
+    if project.procedural_materials.is_empty() {
+        return;
+    }
+    for def in definitions(&project.config) {
+        let id = crate::rulesets::material_asset_id(def.id);
+        if !project.procedural_materials.contains_key(&id)
+            || saved_tile(project, &def).is_some()
+            || sized_tile(project, id, def.resolution).is_none()
+        {
+            continue;
+        }
+        let Some(key) = project.procedural_material_cache_keys.get(&id) else {
+            continue;
+        };
+        let Ok(bundle) = rusterix::ruleset_material::editable(&def, &project.palette)
+            .and_then(|asset| asset.save().map_err(|error| error.to_string()))
+        else {
+            continue;
+        };
+        if *key == saved_key(&bundle, &project.palette, def.resolution) {
+            project.procedural_material_cache_keys.insert(id, canonical_key(&def, project));
+        }
+    }
+}
+
 pub fn install(project: &mut Project) -> Result<(), String> {
-    install_definitions(project, &definitions(&project.config))
+    validate_legacy_bakes(project);
+    let defs = definitions(&project.config);
+    install_definitions(project, &defs)?;
+    for def in defs {
+        let id = crate::rulesets::material_asset_id(def.id);
+        if project.procedural_materials.contains_key(&id) {
+            project.procedural_materials.shift_remove(&id);
+        }
+    }
+    Ok(())
 }
 fn install_definitions(
     project: &mut Project,
@@ -479,19 +524,10 @@ fn install_definitions(
 ) -> Result<(), String> {
     let bake = |def: &crate::rulesets::BundledMaterialAsset| -> Result<_, String> {
         let id = crate::rulesets::material_asset_id(def.id);
-        if saved_tile(project, def.id, def.resolution).is_some() {
+        if saved_tile(project, def).is_some() {
             return Ok(None);
         }
-        let (bundle, frames) = if project.procedural_materials.contains_key(&id) {
-            (None, baked_frames(project, def.id)?)
-        } else {
-            // The fresh editable asset already has the project palette
-            // resolved. Bake it directly instead of saving and reopening it.
-            let asset = rusterix::ruleset_material::editable(def, &project.palette)?;
-            let bundle = asset.save().map_err(|e| e.to_string())?;
-            let frames = animation_frames(&asset, &project.palette, def.resolution)?;
-            (Some(bundle), frames)
-        };
+        let frames = baked_frames(project, def.id)?;
         let mut tile = project
             .tiles
             .get(&id)
@@ -505,12 +541,7 @@ fn install_definitions(
         for texture in &mut tile.textures {
             texture.set_materials_all(0.5, 0., 1., 0.);
         }
-        let key = saved_key(
-            bundle.as_deref().unwrap_or_else(|| &project.procedural_materials[&id]),
-            &project.palette,
-            def.resolution,
-        );
-        Ok(Some((id, bundle, tile, key)))
+        Ok(Some((id, tile, canonical_key(def, project))))
     };
     // Independent MZ recipes can bake concurrently. Collect in library order and
     // publish only after all workers finish, so picker order stays stable and
@@ -522,10 +553,7 @@ fn install_definitions(
     };
     #[cfg(target_arch = "wasm32")]
     let baked: Result<Vec<_>, String> = definitions.iter().map(bake).collect();
-    for (id, bundle, tile, key) in baked?.into_iter().flatten() {
-        if let Some(bundle) = bundle {
-            project.procedural_materials.insert(id, bundle);
-        }
+    for (id, tile, key) in baked?.into_iter().flatten() {
         project.tiles.insert(id, tile);
         project.procedural_material_cache_keys.insert(id, key);
     }
@@ -558,7 +586,7 @@ mod tests {
             .collect();
         install_definitions(&mut project, &definitions).unwrap();
         for (def, (id, texture)) in definitions.iter().zip(&expected) {
-            let actual = saved_frames(&project, def.id, def.resolution).unwrap();
+            let actual = saved_frames(&project, def).unwrap();
             assert_eq!(actual[0].data, texture.data);
             assert_eq!(actual[0].material_bytes(), texture.material_bytes());
             assert_eq!(project.tiles[id].id, *id);
@@ -583,120 +611,32 @@ mod tests {
     #[test]
     fn saved_library_bakes_survive_reopen_and_reject_palette_or_recipe_changes() {
         let mut project = Project::default();
-        let name = "tunic";
-        let id = crate::rulesets::material_asset_id(name);
-        let bundle = rusterix::ruleset_material::editable(
-            &definitions(&project.config)
-                .into_iter()
-                .find(|d| d.id == name)
-                .unwrap(),
-            &project.palette,
-        )
-        .unwrap()
-        .save()
-        .unwrap();
-        project.procedural_materials.insert(id, bundle.clone());
-        let mut texture = Texture::new(vec![255; 16 * 16 * 4], 16, 16);
-        texture.set_materials_all(0.9, 0.4, 1., 0.3);
-        let expected = texture.material_bytes();
-        let mut tile = Tile::from_texture(texture);
-        tile.id = id;
-        tile.baked_material_data = vec![expected.clone()];
-        project.tiles.insert(id, tile);
-        project
-            .procedural_material_cache_keys
-            .insert(id, saved_key(&bundle, &project.palette, 16));
+        let id = crate::rulesets::material_asset_id("tunic");
+        let def = definition(&project.config, id).unwrap();
+        install_definitions(&mut project, std::slice::from_ref(&def)).unwrap();
+        let expected = saved_frames(&project, &def).unwrap()[0].material_bytes();
         let bytes = crate::project_io::encode_project(&project).unwrap();
         let mut reopened = crate::project_io::decode_project(&bytes).unwrap();
-        assert_eq!(
-            saved_frames(&reopened, name, 16).unwrap()[0].material_bytes(),
-            expected
-        );
-        assert!(saved_frames(&reopened, name, 32).is_none());
+        assert_eq!(saved_frames(&reopened, &def).unwrap()[0].material_bytes(), expected);
+        assert!(!reopened.procedural_materials.contains_key(&id));
+
+        let mut changed = def.clone();
+        changed.source = "Updated material recipe";
+        assert!(saved_frames(&reopened, &changed).is_none());
         reopened.palette.colors[0] = reopened.palette.colors[1].clone();
-        assert!(saved_frames(&reopened, name, 16).is_none());
-        reopened.palette = project.palette.clone();
-        reopened
-            .procedural_materials
-            .get_mut(&id)
-            .unwrap()
-            .push(' ');
-        // JSON whitespace is not a material edit.
-        assert!(saved_frames(&reopened, name, 16).is_some());
-        let mut edited = rusterix::ruleset_material::EditableAsset::reopen(&bundle).unwrap();
-        edited
-            .instances
-            .iter_mut()
-            .find(|r| r.id == "eldiron-palette")
-            .unwrap()
-            .palette_bindings[0]
-            .index += 1;
-        reopened
-            .procedural_materials
-            .insert(id, edited.save().unwrap());
-        assert!(saved_frames(&reopened, name, 16).is_none());
+        assert!(saved_frames(&reopened, &def).is_none());
     }
+
     #[test]
-    fn library_edits_survive_sync_and_save_and_invalidate_character_maps() {
+    fn legacy_library_materials_do_not_override_the_shared_recipe() {
         let mut project = Project::default();
-        project.sync_ruleset_items().unwrap();
         let id = crate::rulesets::material_asset_id("tunic");
-        let original_bundle = project.procedural_materials[&id].clone();
-        let mut assets = rusterix::Assets::default();
-        crate::runtime_assets::sync_procedural_avatar_assets(&mut assets, &project);
-        let original_avatar = assets.procedural_avatars["humanoid"].clone();
-        let original_map = assets.ruleset_materials["ruleset:material/tunic"]
-            .data
-            .clone();
-
-        // The editable project copy owns the override, including native MZ palette bindings.
-        let mut material = editable(&project, "tunic").unwrap();
-        let bindings = &mut material
-            .instances
-            .iter_mut()
-            .find(|r| r.id == "eldiron-palette")
-            .unwrap()
-            .palette_bindings;
-        for binding in bindings {
-            if binding.key.tile == "base" {
-                binding.index = 45;
-            }
-            if binding.key.tile == "shade" {
-                binding.index = 44;
-            }
-        }
-        let edited_bundle = material.save().unwrap();
-        project
-            .procedural_materials
-            .insert(id, edited_bundle.clone());
-        project.sync_ruleset_items().unwrap();
-        assert_eq!(project.procedural_materials[&id], edited_bundle);
+        let expected = baked(&project, "tunic").unwrap();
+        project.procedural_materials.insert(id, "stale bundle".into());
+        assert_eq!(baked(&project, "tunic").unwrap(), expected);
         let bytes = crate::project_io::encode_project(&project).unwrap();
-        let mut project = crate::project_io::decode_project(&bytes).unwrap();
-        project.sync_ruleset_items().unwrap();
-        assert_eq!(project.procedural_materials[&id], edited_bundle);
-        crate::runtime_assets::sync_procedural_avatar_assets(&mut assets, &project);
-        assert_ne!(
-            original_map,
-            assets.ruleset_materials["ruleset:material/tunic"].data
-        );
-        assert!(!std::sync::Arc::ptr_eq(
-            &original_avatar,
-            &assets.procedural_avatars["humanoid"]
-        ));
-
-        // Restoring an earlier bundle produces exactly the earlier map again.
-        project.procedural_materials.insert(id, original_bundle);
-        crate::runtime_assets::sync_procedural_avatar_assets(&mut assets, &project);
-        assert_eq!(
-            original_map,
-            assets.ruleset_materials["ruleset:material/tunic"].data
-        );
-        project.palette.colors[41] = project.palette.colors[45].clone();
-        crate::runtime_assets::sync_procedural_avatar_assets(&mut assets, &project);
-        assert_ne!(
-            original_map,
-            assets.ruleset_materials["ruleset:material/tunic"].data
-        );
+        let reopened = crate::project_io::decode_project(&bytes).unwrap();
+        assert!(!reopened.procedural_materials.contains_key(&id));
+        assert_eq!(baked(&reopened, "tunic").unwrap(), expected);
     }
 }

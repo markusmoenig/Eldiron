@@ -2,6 +2,11 @@
 
 ## New Features
 
+### Rendering
+
+- **GPU rendering** moves scene and interface drawing onto the GPU in Creator
+  and the graphical player, including the WebGPU builds.
+
 ### MaterialZ
 
 - **Integrated procedural materials:** Create and edit MaterialZ materials directly in Creator with a live preview. Combine shapes, noise, palette colors, and imported images to produce color, roughness, metallic, opacity, and emission textures.
@@ -16,6 +21,10 @@
 - **Isometric asset importing:** Import sprite sheets or separate images, define the ground diamond and placement anchor, and organize tiles into collections. Conventional direction and animation filenames can be grouped during import.
 - **Isometric lighting:** Combine sunlight, ambient light, and local lights with soft shadows. Keep imported sprites' original colors or tint them with world lighting, while MaterialZ artwork uses its generated surfaces.
 - **Playable isometric starter:** Start with a ready-to-play 2D Iso project, including the Kenney Isometric Dungeon example, to explore placement, movement, and interaction before building your own world.
+- **Faster 2D iso rendering** reuses GPU terrain chunks and streams binary tile
+  bakes as needed. Live lighting stays active as you work and play.
+- **Wayfarer’s Rest** joins Browse Examples as a playable village. Follow the
+  [walkthrough](docs/docs/creator/wayfarers_rest.md) to explore its routines, crafting, trade, and crypt.
 
 ### Terrain and Painting
 
@@ -23,6 +32,8 @@
 - **Geometry-driven terrain:** Turn editable lines into graded corridors and sectors into hills or plateaus. Control heights, widths, and blend distances, then reshape the terrain by moving the guide geometry.
 - **Terrain material guides:** Bind MaterialZ sources to paths and areas, with verges, insets, and soft or noisy edges. Material coverage follows the guides as you edit them.
 - **Painting in 2D Iso:** Add painted details and stamps such as grass, flowers, and rubble directly to isometric regions. Painting supports picking, erasing, selection, filling, and undo, and remains visible during gameplay.
+- **Move buildings in 2D iso** by dragging their sector footprints together
+  with attached content. The move is recorded as one undo step.
 
 ### Characters and Items
 
@@ -30,15 +41,36 @@
 - **Appearance workspace:** Preview characters and items in 2D or 3D, turn them around, and inspect animation frames. Edit item icons, world models, worn models, materials, and on/off states from one place.
 - **Rigging and animation:** Edit joints, body profiles, poses, motion tracks, and attachments in the main viewport. Use grips and sockets to attach equipment to the character rig.
 - **Pixel-style controls:** Set character and map-item sprite resolution and 3D pixel size in Game Settings. These controls let you tune procedural artwork's pixelated appearance independently of world materials and inventory icons.
+- **Character customization** adds individual builds, heights, faces, hairstyles,
+  hair colors, and outfits through Entity Configuration nodes.
+- **Placed animals** use dedicated Animal nodes with species, shared appearances,
+  and behavior graphs for uses such as woodland wildlife and farm animals.
+
+### Shared RPG Ruleset
+
+- **Shared ruleset content** gives projects the same item, class, and recipe
+  definitions. Choose what to place or expose in your game.
+- **World-sourced materials** come from placed resources and creatures, including
+  wood from trees, water from rivers and wells, and bone or hide from remains.
+- **Crafting & Knowledge** shows recipe requirements, permanent lessons, repair,
+  and compatible enchantment targets. Bone and leather armor demonstrate the chain.
 
 ### Creator and Text Play
 
 - **Unified project palette:** Materials, character artwork, and other palette-based content now share one 256-slot project palette. Import local or Lospec palettes, preview color matching, and undo palette changes.
-- **Ruleset catalogue:** Browse and search ruleset definitions in a dedicated editor with typed forms, lists, tables, icon selection, and effect previews. Create, duplicate, rename, and remove definitions without editing a large rules graph.
+- **Behavior Overview** opens a scrollable summary when you click a character or
+  item with the Entity tool. It lists schedules and interactions during editing or Play.
+- **Perform Intent nodes** let NPCs use custom intents on placed items. In the
+  village, they light lanterns and the gate bonfire and use their beds at night.
 - **New Project chooser:** Create playable 2D, 2D Iso, or 3D projects with a player, region, input setup, and responsive screen already connected. Browse examples separately when you want a more developed starting point.
 - **Reworked Tile Picker:** Browse project assets, MaterialZ materials, and local collections, and create procedural assets with Make Proc. Import and export collections to reuse artwork between projects.
 - **Expanded Scepter editing:** Local automation can author maps, entities, MaterialZ materials, and compositions through Creator, with undo and validation. Renderer previews and the built-in Lorebook help scripts inspect results and discover commands.
 - **Optional AI interpretation for text play:** Accept natural-language input and translate it into the game's authored intents. This is opt-in; existing terminal commands remain available.
+
+### Multiplayer Preview
+
+- **Dedicated multiplayer** adds a standalone server for shared worlds, with
+  persistent characters and world state and native and browser player support.
 
 ## Compatibility and Fixes
 

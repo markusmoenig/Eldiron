@@ -206,6 +206,20 @@ fn default_control(key: &str, rules: &Table) -> GraphControlValue {
                 selected: 0,
             }
         }
+        "body_build" | "face_style" | "hair_style" => {
+            let mut options = vec![String::new()];
+            let catalogue = match key {
+                "body_build" => "body_builds",
+                "face_style" => "face_styles",
+                _ => "hair_styles",
+            };
+            if let Some(styles) =
+                eldiron_ruleset::ruleset_table_at_path(rules, &["visuals", catalogue])
+            {
+                options.extend(styles.keys().cloned());
+            }
+            GraphControlValue::Choice { options, selected: 0 }
+        }
         "start_equipped_items" => GraphControlValue::List {
             row_ids: vec![],
             columns: vec![GraphListColumn {
@@ -222,6 +236,7 @@ fn default_control(key: &str, rules: &Table) -> GraphControlValue {
         "level" => number(0., 0., 100., 1.),
         "radius" => number(numeric(0.5), 0., 10., 0.1),
         "size_2d" => number(numeric(1.), 0.1, 10., 0.1),
+        "body_height" => number(0., 0., 2.2, 0.01),
         "inventory_slots" => number(numeric(8.), 0., 100., 1.),
         "wealth" => number(0., 0., 100000., 1.),
         "strength" => number(5., 0., 20., 0.1),
@@ -358,6 +373,9 @@ impl ConfigurationNode for Fields {
             if let Some(value) = value {
                 // Level 0 means inherit; the output key is hydrated from the active ruleset's role.
                 if key == "level" && value.as_integer() == Some(0) {
+                    continue;
+                }
+                if key == "body_height" && matches!(value, Value::Float(0.) | Value::Integer(0)) {
                     continue;
                 }
                 let mapped;
@@ -582,7 +600,10 @@ pub fn builtin_registry() -> ConfigurationRegistry {
             section: "attributes",
             id: "entity_appearance",
             title: "Appearance",
-            keys: &["avatar", "size_2d", "visible"],
+            keys: &[
+                "avatar", "size_2d", "visible", "body_build", "body_height", "face_style",
+                "hair_style", "hair_color",
+            ],
         },
         Fields {
             section: "attributes",
@@ -820,7 +841,9 @@ pub fn import(data: &str, rules: &Table) -> Result<GraphDocument, String> {
                 "ruleset_path" => ("entity_ruleset_item", "Ruleset Item"),
                 key if Some(key) == level_key.as_deref() => ("entity_identity", "Identity"),
                 "tile_id" => ("entity_set_tile", "Set Tile"),
-                "avatar" | "size_2d" | "visible" => ("entity_appearance", "Appearance"),
+                "avatar" | "size_2d" | "visible" | "body_build" | "body_height" | "face_style" | "hair_style" | "hair_color" => {
+                    ("entity_appearance", "Appearance")
+                }
                 "start_equipped_items" => ("entity_equipment", "Equipment"),
                 "radius" | "blocking" => ("entity_body", "Collision"),
                 "active" | "openable" | "locked" | "required_key" => {
@@ -870,7 +893,7 @@ pub fn import(data: &str, rules: &Table) -> Result<GraphDocument, String> {
                 } else {
                     toml_control(value)
                 };
-                if matches!(key.as_str(), "race" | "class" | "animal") {
+                if matches!(key.as_str(), "race" | "class" | "animal" | "body_build" | "face_style" | "hair_style") {
                     control = default_control(key, rules);
                     if let GraphControlValue::Choice { options, selected } = &mut control {
                         let v = value.as_str().unwrap_or_default();
@@ -1005,7 +1028,29 @@ pub fn normalize(doc: &mut GraphDocument) {
         }
     }
     doc.nodes.extend(added);
+    let appearance_overrides = doc.nodes.iter()
+        .filter(|node| node.definition.as_deref() == Some("entity_attribute"))
+        .flat_map(|node| &node.rows)
+        .filter_map(|r| match &r.value {
+            GraphControlValue::Text(key) if r.key.as_deref() == Some("attribute") => Some(key.clone()),
+            _ => None,
+        })
+        .collect::<HashSet<_>>();
     for node in &mut doc.nodes {
+        if node.definition.as_deref() == Some("entity_appearance") {
+            for key in ["body_build", "body_height", "face_style", "hair_style", "hair_color"] {
+                if !appearance_overrides.contains(key)
+                    && !node.rows.iter().any(|r| r.key.as_deref() == Some(key))
+                {
+                    let value = if key == "body_height" {
+                        number(0., 0., 2.2, 0.01)
+                    } else {
+                        GraphControlValue::Text(String::new())
+                    };
+                    row(node, key, value);
+                }
+            }
+        }
         if node.definition.as_deref() == Some("entity_set_tile") {
             for row in &mut node.rows {
                 if row.key.as_deref() == Some("tile_id") {
@@ -1868,6 +1913,27 @@ mod tests {
             p.characters[&id].data.parse::<Table>().unwrap()["input"]["u"].as_str(),
             Some("intent.look")
         );
+    }
+
+    #[test]
+    fn hair_color_round_trips_through_appearance() {
+        let rules = rules();
+        let source = "[attributes]\navatar = \"humanoid\"\nhair_color = \"#a95330\"\n";
+        let mut doc = import(source, &rules).unwrap();
+        let appearance = doc.nodes.iter_mut()
+            .find(|node| node.definition.as_deref() == Some("entity_appearance"))
+            .unwrap();
+        let hair = appearance.rows.iter_mut()
+            .find(|row| row.key.as_deref() == Some("hair_color")).unwrap();
+        hair.value = GraphControlValue::Text("#9e9a91".into());
+        normalize(&mut doc);
+        let table = builtin_registry().compile(&doc, &rules).unwrap();
+        assert_eq!(table["attributes"]["hair_color"].as_str(), Some("#9e9a91"));
+        assert_eq!(table["attributes"]["avatar"].as_str(), Some("humanoid"));
+
+        let older = import("[attributes]\navatar = \"humanoid\"\n", &rules).unwrap();
+        let table = builtin_registry().compile(&older, &rules).unwrap();
+        assert!(table["attributes"].get("hair_color").is_none());
     }
 
     #[test]

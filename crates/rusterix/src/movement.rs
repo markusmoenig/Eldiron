@@ -133,32 +133,16 @@ pub fn move_by(
                 continue;
             }
 
-            if let Some(hit) = crate::item_state::intersects(
+            if let Some(footprint) = crate::item_state::collision_footprint(
                 other,
                 world.assets,
-                new_position,
                 entity.position.y,
                 entity_height,
-                radius,
             ) {
-                if hit && other.attributes.get_bool_default("blocking", false) {
-                    // Try each movement axis before stopping. The same footprint is
-                    // used for mesh and tile movement; opening never leaves a circle behind.
-                    let slide_x = Vec2::new(new_position.x, position.y);
-                    let slide_z = Vec2::new(position.x, new_position.y);
-                    new_position = [slide_x, slide_z]
-                        .into_iter()
-                        .find(|p| {
-                            crate::item_state::intersects(
-                                other,
-                                world.assets,
-                                *p,
-                                entity.position.y,
-                                entity_height,
-                                radius,
-                            ) == Some(false)
-                        })
-                        .unwrap_or(position);
+                if other.attributes.get_bool_default("blocking", false)
+                    && let Some(position) = footprint.slide(position, new_position, radius)
+                {
+                    new_position = position;
                     dynamic_collision = true;
                     pushed = true;
                 }
@@ -279,7 +263,12 @@ pub fn move_by(
 
     let final_pos = entity.get_pos_xz();
     let base_y = if !world.mapmini.elevation.is_empty() {
-        Some(world.mapmini.elevation.height_at(final_pos))
+        Some(
+            world
+                .mapmini
+                .elevation
+                .height_near(final_pos, entity.position.y),
+        )
     } else if world.mode == CollisionMode::Mesh && world.collision_world.has_collision_data() {
         let max_step_height = entity
             .attributes

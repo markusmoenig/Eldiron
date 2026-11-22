@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "id": "hair_bob",
+  "label": "Chin-length bob",
+  "rows": [
+    {"id":"body-hair","label":"Rounded crown","tiles":[{"id":"body-hair-loft","op":{"type":"loft","segments":16,"sections":[{"center":[0,-0.034,-0.047],"radius":[0.053,0.04]},{"center":[0,-0.017,-0.041],"radius":[0.084,0.063]},{"center":[0,0.024,-0.034],"radius":[0.099,0.058]},{"center":[0,0.066,-0.024],"radius":[0.1,0.071]},{"center":[-0.001,0.108,-0.014],"radius":[0.1,0.083]},{"center":[-0.009,0.15,-0.007],"radius":[0.099,0.089]},{"center":[-0.012,0.182,-0.009],"radius":[0.083,0.083]},{"center":[-0.015,0.206,-0.015],"radius":[0.053,0.058]},{"center":[-0.016,0.216,-0.012],"radius":[0.025,0.032]}]}},{"id":"body-hair-texture","op":{"type":"texture","source":"ruleset:material/hair","size":64,"axes":[0,1],"origin":[0,0],"span":[1,1],"preserve_uv":true}}]},
+    {"id":"hair-long-side","label":"Long front sweep","tiles":[{"id":"hair-long-side-loft","op":{"type":"loft","segments":16,"sections":[{"center":[-0.076,-0.061,0.03],"radius":[0.017,0.016]},{"center":[-0.089,-0.04,0.033],"radius":[0.03,0.032]},{"center":[-0.091,-0.004,0.038],"radius":[0.031,0.037]},{"center":[-0.083,0.041,0.047],"radius":[0.034,0.038]},{"center":[-0.07,0.079,0.061],"radius":[0.042,0.032]},{"center":[-0.054,0.116,0.067],"radius":[0.052,0.03]},{"center":[-0.033,0.155,0.07],"radius":[0.062,0.026]},{"center":[-0.024,0.185,0.048],"radius":[0.053,0.023]}]}},{"id":"hair-long-side-texture","op":{"type":"texture","source":"ruleset:material/hair","size":64,"axes":[0,1],"origin":[0,0],"span":[1,1],"preserve_uv":true}}]},
+    {"id":"hair-short-side","label":"Tucked side","tiles":[{"id":"hair-short-side-loft","op":{"type":"loft","segments":16,"sections":[{"center":[0.069,-0.043,0.019],"radius":[0.015,0.019]},{"center":[0.084,-0.031,0.02],"radius":[0.027,0.044]},{"center":[0.092,0.01,0.016],"radius":[0.027,0.049]},{"center":[0.088,0.05,0.016],"radius":[0.031,0.054]},{"center":[0.075,0.087,0.025],"radius":[0.036,0.055]},{"center":[0.058,0.122,0.037],"radius":[0.037,0.048]},{"center":[0.044,0.155,0.043],"radius":[0.029,0.036]}]}},{"id":"hair-short-side-texture","op":{"type":"texture","source":"ruleset:material/hair","size":64,"axes":[0,1],"origin":[0,0],"span":[1,1],"preserve_uv":true}}]},
+    {"id":"hair","label":"Chin-length bob","tiles":[{"id":"hair-parts","op":{"type":"assemble","rows":["body-hair","hair-long-side","hair-short-side"]}}]}
+  ],
+  "output": "hair"
+}

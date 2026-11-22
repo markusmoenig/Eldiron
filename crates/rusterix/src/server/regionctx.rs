@@ -1118,11 +1118,11 @@ impl RegionCtx {
 
     /// Move an entity into or out of the world to match a character state.
     ///
-    /// `dead` characters leave the world; every other state is present. Returns
+    /// Dead and dormant characters leave the world. Returns
     /// `true` when presence actually changed. Visibility is deliberately left
     /// alone in both directions.
-    pub fn set_entity_presence_for_mode(&mut self, entity_id: u32, dead: bool) -> bool {
-        if dead {
+    pub fn set_entity_presence_for_mode(&mut self, entity_id: u32, absent: bool) -> bool {
+        if absent {
             self.stash_entity(entity_id)
         } else {
             self.restore_stashed_entity(entity_id)
@@ -1133,21 +1133,19 @@ impl RegionCtx {
     ///
     /// This is the one place the engine decides what a state means for the
     /// world, so the node services and the script host cannot drift apart:
-    /// `dead` takes the body out of the world, every other state puts it back,
-    /// and `visible` is never written because a living character is allowed to
-    /// be invisible while a dead one is simply absent. A character that rises at
-    /// zero health comes back with one hit point.
+    /// Death and dormancy take the body out of the world. Only death creates
+    /// remains and participates in ruleset respawn. Visibility is independent.
     pub fn apply_entity_mode(&mut self, entity_id: u32, mode: &str) -> bool {
         let health_attr = self.health_attr.clone();
         let Some(entity) = self.get_entity_mut(entity_id) else {
             return false;
         };
         entity.set_attribute("mode", Value::Str(mode.to_string()));
-        let dead = mode.eq_ignore_ascii_case("dead");
-        if !dead {
+        let absent = mode.eq_ignore_ascii_case("dead") || mode.eq_ignore_ascii_case("dormant");
+        if !absent {
             super::region_host::restore_entity_health_if_revived(entity, &health_attr);
         }
-        self.set_entity_presence_for_mode(entity_id, dead);
+        self.set_entity_presence_for_mode(entity_id, absent);
         true
     }
 

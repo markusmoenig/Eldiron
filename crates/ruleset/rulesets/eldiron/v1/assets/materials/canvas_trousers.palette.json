@@ -1,0 +1,12 @@
+{
+  "base": {
+    "color": 21
+  },
+  "shade": {
+    "color": 19
+  },
+  "@surface": {
+    "base color": 21,
+    "emission": 1
+  }
+}

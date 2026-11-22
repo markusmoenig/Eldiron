@@ -9,7 +9,7 @@ anchor instead of projecting the diamond again. It needs no MZ recipe or mesh.
 
 ## Try the Kenney example
 
-Open **File → Browse Examples… → Kenney Isometric Dungeon**, or open
+In the New Project chooser, open **Browse Examples → Kenney Isometric Dungeon**, or open
 `starters/projects/KenneyIsoDungeon.eldiron` in a source checkout.
 The example contains a stone courtyard, walls facing both axes, windows,
 open doorways, tables, barrels, crates, and a character with eight-direction
@@ -58,13 +58,39 @@ The tile picker's **Collections** menu can export the new collection for reuse.
 Loading a source or adding everything at once is one undo step. Canceling the
 dialog creates no assets.
 
-## Choose all tiles or select frames
+## Add Tiles dialog
 
-![Add Tiles source, layout, and loading choices](/img/iso/add-tiles-dialog.png)
+![Add Tiles set to Sprite sheet and 2D Iso, with a 256×512 image frame and the Advanced options open](/img/iso/add-tiles-dialog.png)
+
+| Control | What to choose |
+| --- | --- |
+| **Name** | Name for the source in the project tree and for the collection when using **Add All as Collection**. |
+| **Source** | **Sprite sheet** slices one PNG into a regular grid. **Separate images** uses one or more PNGs as individual frames, preserving each file’s canvas and name. |
+| **Layout** | **2D** creates ordinary tiles. **2D Iso** adds the ground-cell scale and anchor metadata for artwork drawn in Eldiron’s isometric projection. The dialog preselects **2D Iso** when the current map uses it. |
+| **Ground-cell width** | In **2D Iso**, enter an even pixel width from 2 to 4096. The diamond height is half the width. The PNG frame can be taller or wider. |
+| **Image-frame width** and **Image-frame height** | Available for **Sprite sheet**. Enter the full size of each slot, including transparent space within it. The sheet must have complete rows and columns of these frames. |
+| **Choose Images…** | Select the PNG files. The count below the button tells you how many files are selected. |
+| **After loading** | Choose **Select in Tileset Editor** to open the source for selection, or **Add All as Collection** to put the tiles in the picker immediately. |
+
+Enable **Advanced** under **2D Iso** to access these settings.
+
+| Control | What to choose |
+| --- | --- |
+| **Sprite type** | **Ground** for ground art, **Object** for walls and props, **Character** for character sprites, or **Auto from file names** for supported naming conventions. Sheets start at Ground and separate images start at Auto. Use separate imports for sheets that need different sprite types. |
+| **Anchor X** and **Anchor Y** | The pixel in the source frame attached to the map position, measured from its upper-left corner. Leave both at **−1** for the automatic pivot, or enter both coordinates to place it explicitly. |
+| **Group directions and animation** | Available for **Separate images**. Keep it enabled to assemble supported named views and clips. Turn it off for independent tiles. |
+
+After import, select a sprite and choose **Collections → Iso Sprite Settings…**
+to adjust its size, sprite type or anchor. **Sprite lighting** offers
+**Preserve original artwork** and **World lighting tint**. Animated sprites also
+offer **Animation speed (frames/s)**. These settings apply to every view and
+frame of the selected sprite.
+
+## Choose all tiles or select frames
 
 **After loading** offers two workflows for both sprite sheets and separate PNGs:
 
-- **Select in Tileset Editor** (the default): open the source without adding
+- **Select in Tileset Editor** (the default): click **Open Source** to open it without adding
   anything to the tile picker. Select the cells you want, choose **Single Tiles**
   or **Animation**, and click **Add Selected**. Animation adds one tile whose
   frames follow the selection preview order. Unselected frames stay in the
@@ -78,15 +104,8 @@ Tiles** honors the enabled filename conventions; **Animation** combines the
 chosen frames into one clip. For an eight-direction walk/idle character, select
 all its named frames in **Single Tiles** mode with grouping enabled.
 
-Animation speed belongs to the resulting sprite, independently of the game's
-frame rate. **Iso Sprite Settings…** shows **Animation speed (frames/s)** only
-for animated sprites. Sprite lighting is also an asset setting; neither control
-is needed in the Add Tiles dialog.
-
-Selecting a tile prepares it for placement. Its size, pivot and lighting remain
-editable through **Collections → Iso Sprite Settings…**. The full original
-canvas and pixel colors are retained; only picker thumbnails crop empty margins.
-Creation and settings changes can be undone.
+The full original canvas and pixel colors are retained. Picker thumbnails crop
+empty margins. Creation and settings changes can be undone.
 
 ## Size, padding and anchors
 

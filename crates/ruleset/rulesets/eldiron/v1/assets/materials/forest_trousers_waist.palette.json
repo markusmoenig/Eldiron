@@ -1,0 +1,18 @@
+{
+  "base": {
+    "color": 38
+  },
+  "shade": {
+    "color": 39
+  },
+  "leather": {
+    "color": 17
+  },
+  "button": {
+    "color": 24
+  },
+  "@surface": {
+    "base color": 38,
+    "emission": 1
+  }
+}

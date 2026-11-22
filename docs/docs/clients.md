@@ -35,13 +35,19 @@ cargo install eldiron-client
 
 # Running your Game
 
-On **Linux** and **Windows**, just start the client and pass the name of the **.eldiron** game file on the command line.
+For local play on **Linux** or **Windows**, start the client and pass the
+authored **.eldiron** file on the command line.
 
-For the **Web**, rename your **.eldiron** file to **game.eldiron** and put it in the same directory as **index.html** and the other files. You can then run the game on any web server.
+For local play in the **browser**, put the authored project beside the
+browser Player’s **index.html** as **game.eldiron**. For an online multiplayer
+release, follow [Public Client Export](creator/public_client_export).
 
 # Project Files
 
-Creator and every Eldiron client use the same **.eldiron** project file. New files are compressed, versioned containers, so even projects with embedded pixel art remain practical to store and transfer. A project saved by Creator can be opened again in Creator or passed directly to a client; there is no separate client-only export.
+Creator saves editable projects as versioned **.eldiron** containers. Clients
+can open the same document for local play. A public multiplayer Player opens
+the separate **.eldiron-client** release and connects to the host that runs
+the authored project.
 
 Older **.eldiron** files that contain plain JSON remain supported. Opening and saving one in Creator upgrades it to the compressed container automatically. See [Project Files](creator/project_files.md) for the format and compatibility details.
 

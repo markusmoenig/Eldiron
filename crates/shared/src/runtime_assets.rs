@@ -25,11 +25,15 @@ pub fn sync_procedural_avatar_assets(
         match crate::ruleset_materials::baked_frames(project, def.id) {
             Ok(frames) => {
                 let texture = frames[0].clone();
-                let duration = project
-                    .procedural_materials
-                    .get(&crate::rulesets::material_asset_id(def.id))
-                    .and_then(|b| crate::ruleset_materials::animation_settings(b))
-                    .map_or(frames.len() as f32 * 0.25, |a| a.duration);
+                let duration = denrim_materials::format::parse(def.source).ok()
+                    .and_then(|doc| doc.materials.into_iter().find(|m| m.id == def.output))
+                    .map_or(frames.len() as f32 * 0.25, |m| m.animation.duration);
+                let id = crate::rulesets::material_asset_id(def.id);
+                let mut tile = rusterix::Tile::from_textures(frames.clone());
+                tile.id = id;
+                tile.alias = format!("Ruleset · {}", def.id);
+                tile.baked_material_data = frames.iter().map(rusterix::Texture::material_bytes).collect();
+                assets.palette_tile_overrides.insert(id, tile);
                 let animated = (frames, duration);
                 assets
                     .material_animations
@@ -82,12 +86,15 @@ pub fn sync_procedural_avatar_assets(
             }
         }
     }
-    for source in project.procedural_appearances.values() {
+    for (_, source) in crate::appearance_assets::sources(project) {
         if let Ok(doc) = serde_json::from_str::<denrim_materials::geometry::Document>(source) {
             geometry_material_ids(&doc, &mut worn_ids);
         }
     }
     for (id, bundle) in &project.procedural_materials {
+        if crate::ruleset_materials::definition(&project.config, *id).is_some() {
+            continue;
+        }
         let worn = worn_ids.contains(id);
         if id.as_u128() >> 64 != 0x4d5a49434f4e4544 && !worn {
             continue;
@@ -171,31 +178,10 @@ pub fn sync_procedural_avatar_assets(
     }
     trace("materials");
     let previous = std::mem::take(&mut assets.procedural_avatars);
-    let selection = crate::rulesets::selected_ruleset_config(&project.config);
-    let mut sources = Vec::new();
-    if selection.source != "project" {
-        for asset in crate::rulesets::bundled_appearance_assets_for_ruleset(
-            &selection.id,
-            &selection.version,
-        ) {
-            // Explicit bitmap avatars still take precedence over bundled defaults.
-            if project
-                .avatars
-                .values()
-                .any(|a| a.name.eq_ignore_ascii_case(asset.id))
-            {
-                continue;
-            }
-            let id = Uuid::parse_str(asset.asset_id).unwrap();
-            let source = project
-                .procedural_appearances
-                .get(&id)
-                .map_or(asset.source, String::as_str);
-            sources.push((asset.id.to_string(), source, asset.equipment));
-        }
-    }
-    let bundled =
-        crate::rulesets::bundled_appearance_assets_for_ruleset(&selection.id, &selection.version);
+    let bundled = crate::appearance_assets::definitions(&project.config);
+    let mut sources = bundled.values()
+        .map(|asset| (asset.asset_id.to_owned(), asset.source, asset.equipment))
+        .collect::<Vec<_>>();
     let profiles = project
         .characters
         .values()
@@ -209,10 +195,13 @@ pub fn sync_procedural_avatar_assets(
         })
         .collect::<std::collections::BTreeMap<_, _>>();
     for (id, source) in &project.procedural_appearances {
+        if bundled.contains_key(id) {
+            continue;
+        }
         // A project body variant retains the ruleset's explicit attachment-slot contract.
         let profile = profiles.get(&id.to_string());
         let equipment = profile
-            .and_then(|name| bundled.iter().find(|asset| asset.id == name.as_str()))
+            .and_then(|name| bundled.values().find(|asset| asset.id == name.as_str() || asset.asset_id == name.as_str()))
             .map_or(&[][..], |asset| asset.equipment);
         sources.push((id.to_string(), source.as_str(), equipment));
     }
@@ -295,6 +284,15 @@ pub fn sync_procedural_avatar_assets(
                 .insert(avatar.id.to_string(), asset.clone());
         }
         assets.procedural_avatars.insert(id, asset);
+    }
+    for def in bundled.values() {
+        let Some(model) = assets.procedural_avatars.get(def.asset_id).cloned() else {
+            continue;
+        };
+        assets.procedural_avatars.insert(def.id.into(), model.clone());
+        if let Some(bitmap) = assets.avatars.get(def.id) {
+            assets.procedural_avatars.insert(bitmap.id.to_string(), model);
+        }
     }
     trace("appearances");
 }
@@ -465,11 +463,11 @@ mod procedural_appearance_tests {
         // Swapping palette entries changes derived pixels while retaining the authored indices.
         let before = crate::ruleset_materials::baked(&project, "icon/gold_coin/on").unwrap();
         let id = crate::rulesets::material_asset_id("icon/gold_coin/on");
-        let authored = project.procedural_materials[&id].clone();
+        assert!(!project.procedural_materials.contains_key(&id));
         project.palette.colors.swap(24, 42);
         let after = crate::ruleset_materials::baked(&project, "icon/gold_coin/on").unwrap();
         assert_ne!(before.data, after.data);
-        assert_eq!(project.procedural_materials[&id], authored);
+        assert!(!project.procedural_materials.contains_key(&id));
     }
     #[test]
     #[cfg(feature = "graphics")]
@@ -561,11 +559,11 @@ mod procedural_appearance_tests {
             .sprite(&entity, &assets, "idle", 0.)
             .unwrap();
         let original_map = assets.ruleset_materials["ruleset:material/linen-shirt"].clone();
-        let geometry_id = crate::ruleset_materials::worn_geometry_id(&shirt.data).unwrap();
+        let shared_geometry = crate::ruleset_materials::worn_geometry_id(&shirt.data).unwrap();
+        let geometry_id = Uuid::new_v4();
         let human_id = Uuid::parse_str(crate::rulesets::HUMANOID_APPEARANCE_ASSET_ID).unwrap();
-        let body_source = project.procedural_appearances[&human_id].clone();
         let mut garment = denrim_materials::geometry::Document::load(
-            &project.procedural_appearances[&geometry_id],
+            crate::appearance_assets::source(&project, &shared_geometry).unwrap(),
         )
         .unwrap();
         for t in garment.rows.iter_mut().flat_map(|r| &mut r.tiles) {
@@ -573,10 +571,14 @@ mod procedural_appearance_tests {
                 *distance = 0.035;
             }
         }
+        garment.id = geometry_id.to_string();
         let edited_geometry = garment.save().unwrap();
+        crate::entity_graph::set_owner_attribute(&mut project, &crate::entity_graph::item_key(shirt.id),
+            "appearance_worn_geometry", geometry_id.to_string().into()).unwrap();
         project
             .procedural_appearances
             .insert(geometry_id, edited_geometry.clone());
+        insert_project_item_icons(&mut assets, &project);
         sync_procedural_avatar_assets(&mut assets, &project);
         assert_ne!(
             original,
@@ -584,7 +586,7 @@ mod procedural_appearance_tests {
                 .sprite(&entity, &assets, "idle", 0.)
                 .unwrap()
         );
-        assert_eq!(project.procedural_appearances[&human_id], body_source);
+        assert!(!project.procedural_appearances.contains_key(&human_id));
         project.palette.colors[23] = project.palette.colors[42].clone();
         sync_procedural_avatar_assets(&mut assets, &project);
         assert_ne!(
@@ -599,14 +601,8 @@ mod procedural_appearance_tests {
         );
         // A running entity still has its original item attributes. Project bindings
         // must override them when the author edits the worn appearance.
-        let mut data = shirt.data.parse::<toml::Table>().unwrap();
-        data["attributes"].as_table_mut().unwrap().insert(
-            "appearance_materials".into(),
-            toml::Value::Array(vec![toml::Value::String(
-                "body-torso=ruleset:material/leather-vest".into(),
-            )]),
-        );
-        project.items.get_mut(&shirt.id).unwrap().data = toml::to_string(&data).unwrap();
+        crate::entity_graph::set_owner_attribute(&mut project, &crate::entity_graph::item_key(shirt.id),
+            "appearance_materials", serde_json::json!(["body-torso=ruleset:material/leather-vest"])).unwrap();
         project.sync_ruleset_items().unwrap();
         insert_project_item_icons(&mut assets, &project);
         sync_procedural_avatar_assets(&mut assets, &project);
@@ -627,9 +623,11 @@ mod procedural_appearance_tests {
             reopened.procedural_appearances[&geometry_id],
             edited_geometry
         );
-        data["attributes"]["appearance_materials"] = toml::Value::Array(vec![]);
-        data["attributes"]["appearance_worn_geometry"] = toml::Value::String(String::new());
-        project.items.get_mut(&shirt.id).unwrap().data = toml::to_string(&data).unwrap();
+        let key = crate::entity_graph::item_key(shirt.id);
+        crate::entity_graph::set_owner_attribute(&mut project, &key, "appearance_materials",
+            serde_json::json!([])).unwrap();
+        crate::entity_graph::set_owner_attribute(&mut project, &key, "appearance_worn_geometry",
+            "".into()).unwrap();
         project.sync_ruleset_items().unwrap();
         insert_project_item_icons(&mut assets, &project);
         assert!(
@@ -690,7 +688,7 @@ mod procedural_appearance_tests {
         let original = crate::rulesets::geometry_asset_id("training_sword");
         let custom = Uuid::new_v4();
         let mut doc =
-            denrim_materials::geometry::Document::load(&project.procedural_appearances[&original])
+            denrim_materials::geometry::Document::load(crate::appearance_assets::source(&project, &original).unwrap())
                 .unwrap();
         doc.id = custom.to_string();
         let denrim_materials::geometry::Operation::Group { controls, .. } =
@@ -757,7 +755,38 @@ mod procedural_appearance_tests {
         );
     }
     #[test]
-    fn ruleset_model_is_editable_cached_and_does_not_overwrite_project_bitmaps() {
+    fn animal_and_item_models_stay_linked_across_legacy_archives() {
+        use rusterix::procedural_avatar::Runtime;
+        let mut project = Project::default();
+        let rules = project.rules_source().unwrap();
+        let pig = crate::animals::template(&rules, "pig").unwrap();
+        let character = pig.character.id;
+        pig.install(&mut project);
+        project.sync_ruleset_items().unwrap();
+        for name in ["pig", "training_sword"] {
+            let id = crate::rulesets::geometry_asset_id(name);
+            assert!(!project.procedural_appearances.contains_key(&id));
+            project.procedural_appearances.insert(id, "stale recipe".into());
+        }
+        let saved = crate::project_io::encode_project(&project).unwrap();
+        let reopened = crate::project_io::decode_project(&saved).unwrap();
+        assert!(reopened.procedural_appearances.is_empty());
+        let mut assets = rusterix::Assets::default();
+        assets.rules = rules;
+        sync_procedural_avatar_assets(&mut assets, &reopened);
+        let mut entity = Entity::default();
+        rusterix::server::data::apply_entity_data(&mut entity, &reopened.characters[&character].data);
+        let displayed = rusterix::server::data::character_for_display(&entity, &assets);
+        assert!(std::sync::Arc::ptr_eq(Runtime::resolve(&displayed, &assets).unwrap(), &assets.procedural_avatars["pig"]));
+        let template = reopened.items.values()
+            .find(|i| i.data.contains("ruleset_id = \"training_sword\"")).unwrap();
+        let mut item = rusterix::Item::default();
+        rusterix::server::data::apply_item_data(&mut item, &template.data);
+        assert!(std::sync::Arc::ptr_eq(Runtime::resolve_item(&item, &assets).unwrap(), &assets.procedural_avatars["training_sword"]));
+    }
+
+    #[test]
+    fn humanoid_uses_bundled_recipe_despite_a_legacy_copy_and_preserves_project_bitmaps() {
         let mut project = Project::default();
         project.sync_ruleset_items().unwrap();
         let asset = crate::rulesets::bundled_appearance_assets_for_ruleset(
@@ -766,11 +795,16 @@ mod procedural_appearance_tests {
         )
         .remove(0);
         let id = theframework_core::prelude::Uuid::parse_str(asset.asset_id).unwrap();
-        assert!(project.procedural_appearances.contains_key(&id));
+        assert!(!project.procedural_appearances.contains_key(&id));
+        let saved = crate::project_io::encode_project(&project).unwrap();
+        let mut project = crate::project_io::decode_project(&saved).unwrap();
+        project.sync_ruleset_items().unwrap();
+        assert!(!project.procedural_appearances.contains_key(&id));
         let mut assets = rusterix::Assets::default();
         insert_bundled_ruleset_avatars(&mut assets, &project);
         sync_procedural_avatar_assets(&mut assets, &project);
         let original = assets.procedural_avatars["humanoid"].clone();
+        assert!(std::sync::Arc::ptr_eq(&original, &assets.procedural_avatars[asset.asset_id]));
         let bitmap_id = assets.avatars["humanoid"].id.to_string();
         assert!(std::sync::Arc::ptr_eq(
             &original,
@@ -781,20 +815,17 @@ mod procedural_appearance_tests {
             &original,
             &assets.procedural_avatars["humanoid"]
         ));
-        let edited =
-            project.procedural_appearances[&id].replace("Ruleset humanoid", "Edited humanoid");
+        let edited = asset.source.replace("Ruleset humanoid", "Old project humanoid");
         project.procedural_appearances.insert(id, edited.clone());
-        project.sync_ruleset_items().unwrap();
-        assert_eq!(project.procedural_appearances[&id], edited);
         sync_procedural_avatar_assets(&mut assets, &project);
-        assert!(!std::sync::Arc::ptr_eq(
+        assert!(std::sync::Arc::ptr_eq(
             &original,
             &assets.procedural_avatars["humanoid"]
         ));
         let bitmap = assets.avatars["humanoid"].clone();
         project.avatars.insert(bitmap.id, bitmap);
         sync_procedural_avatar_assets(&mut assets, &project);
-        assert!(!assets.procedural_avatars.contains_key("humanoid"));
+        assert!(assets.procedural_avatars.contains_key("humanoid"));
         assert!(assets.procedural_avatars.contains_key(&id.to_string()));
     }
 }
@@ -811,6 +842,17 @@ pub fn insert_bundled_ruleset_avatars(
             }
         }
         Err(err) => eprintln!("Ruleset avatar load error: {}", err),
+    }
+}
+
+/// Bind project bitmaps by their own identity without shadowing ruleset names.
+pub fn insert_project_avatars(assets: &mut rusterix::Assets, project: &Project) {
+    let reserved = assets.avatars.values().map(|avatar| avatar.id).collect::<std::collections::HashSet<_>>();
+    for avatar in project.avatars.values().filter(|avatar| !reserved.contains(&avatar.id)) {
+        assets.avatars.insert(avatar.id.to_string(), avatar.clone());
+        if !assets.avatars.keys().any(|id| id.eq_ignore_ascii_case(&avatar.name)) {
+            assets.avatars.insert(avatar.name.clone(), avatar.clone());
+        }
     }
 }
 
@@ -835,17 +877,6 @@ pub(crate) fn insert_bundled_ruleset_item_icons(
     project: &Project,
 ) {
     assets.palette_tile_overrides.clear();
-    if let Ok(ids) = crate::rulesets::bundled_tile_ids_for_project(&project.config) {
-        for id in ids {
-            if let Some(original) = project.tiles.get(&id) {
-                let mut tile = original.clone();
-                for frame in &mut tile.textures {
-                    crate::palette::fit_rgba(&mut frame.data, &project.palette);
-                }
-                assets.palette_tile_overrides.insert(id, tile);
-            }
-        }
-    }
     assets.item_icons.clear();
     assets.project_item_icon_keys.clear();
     match crate::rulesets::bundled_item_icon_states_for_project(&project.config) {
@@ -894,22 +925,22 @@ pub fn insert_procedural_ruleset_icons(assets: &mut rusterix::Assets, project: &
             Err(e) => eprintln!("Ruleset procedural icon {name}: {e}"),
         }
     }
-    match crate::ruleset_materials::icon_state_tiles(project) {
-        Ok(states) => {
-            for (id, frames) in states {
-                if let Some(tile) = project.tiles.get(&id) {
-                    let mut tile = tile.clone();
-                    tile.textures = frames;
-                    tile.baked_material_data = tile
-                        .textures
-                        .iter()
-                        .map(rusterix::Texture::material_bytes)
-                        .collect();
-                    assets.palette_tile_overrides.insert(id, tile);
+    let tiles = (|| -> Result<_, String> {
+        let states = crate::ruleset_materials::icon_state_tiles(project)?;
+        let mut tiles = crate::rulesets::bundled_tiles_with_frames(&project.config, &states)?;
+        for (id, tile) in &mut tiles {
+            if !states.contains_key(id) {
+                for frame in &mut tile.textures {
+                    crate::palette::fit_rgba(&mut frame.data, &project.palette);
                 }
             }
+            tile.baked_material_data = tile.textures.iter().map(rusterix::Texture::material_bytes).collect();
         }
-        Err(e) => eprintln!("Procedural state tile: {e}"),
+        Ok(tiles)
+    })();
+    match tiles {
+        Ok(tiles) => assets.palette_tile_overrides.extend(tiles),
+        Err(e) => eprintln!("Ruleset state tile: {e}"),
     }
 }
 
@@ -1596,9 +1627,7 @@ pub fn prepare_client_content(assets:&mut rusterix::Assets,project:&mut Project,
     // are authoritative collision data as well as visual appearance resources.
     assets.avatars.clear();
     insert_bundled_ruleset_avatars(assets, project);
-    for avatar in &mut project.avatars.values() {
-        assets.avatars.insert(avatar.name.clone(), avatar.clone());
-    }
+    insert_project_avatars(assets, project);
     insert_bundled_ruleset_textures(assets, project);
     sync_procedural_avatar_assets(assets, project);
     publish_visual_tiles(assets,project);

@@ -106,7 +106,10 @@ impl ContentRecipe<'_> {
                             || name.starts_with("portrait_")
                             || name.ends_with("_color")
                             || name.ends_with("_index")
-                            || matches!(name.as_str(), "source" | "tile_id")
+                            || matches!(
+                                name.as_str(),
+                                "source" | "tile_id" | "body_build" | "body_height" | "face_style" | "hair_style"
+                            )
                     })
                     .collect::<Vec<_>>();
                 attrs.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));

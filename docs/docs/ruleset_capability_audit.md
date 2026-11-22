@@ -13,6 +13,12 @@ Catalogue, internal editor visibility, world resources, bone production, repair 
 **2026-11-18**. This is a scoped update; other sections retain their existing
 audit baseline.
 
+For v0.96, standard Creator projects use the bundled ruleset for gameplay.
+They store a selection and author the world that makes its content available.
+The override and standalone cases below describe resolver capabilities exercised
+by engine tools and tests. See [Rules In Eldiron](./rules_in_eldiron#source-of-truth)
+for the project loading behavior.
+
 Bundled baseline: **`eldiron.official` 1.0.0, schema 1, draft**
 
 The supplied leather family now covers five slots with world-sourced hides,
@@ -23,8 +29,9 @@ world reload, MZ appearances and public-client journal metadata parity.
 
 
 Fauna now supplies seven placeable species: deer, pigs, cattle, sheep, goats,
-horses and chickens. Creator creates editable character templates and wandering
-graphs; MZ owns their meshes, rigs and six motion clips. Actual animal deaths
+horses and chickens. **Add Animal** creates a character template with an
+**Animal** entity node. Authors can add wandering in **Behavior Nodes**. The
+shared MZ assets supply their meshes, rigs and six motion clips. Actual animal deaths
 produce finite species-shaped carcasses. A focused solo/dedicated scenario covers
 hunting, skinning with a world-crafted knife, tanning, stable carcass identities
 and exhausted stock after reload. Breeding and renewable live-animal produce
@@ -36,7 +43,7 @@ executed by the runtime.
 
 ## Delivery Goal
 
-Deliver a coherent, documented, creator-editable Ruleset v1 that supports both
+Deliver a coherent, documented, maintainable Ruleset v1 that supports both
 sandbox and class/level-based games through level 10, contains no
 official-game-specific runtime branches, keeps `test_projects/Hideout2D.eldiron`
 as the canonical integration project, and can grow to level 30 without another
@@ -46,7 +53,7 @@ The goal is reached when:
 
 - the official level-1-to-10 progression and content form a playable,
   internally balanced vertical slice
-- project-owned standalone rules can omit races, classes, levels, spells, or
+- standalone resolver fixtures can omit races, classes, levels, spells, or
   other optional modules without inheriting official assumptions
 - ordinary ruleset extensions require data and assets, not Rust branches
 - icons and procedural FX have reusable fallbacks and explicit validation
@@ -70,8 +77,8 @@ The goal is reached when:
 | Capability | Current evidence | Status | Required next step |
 | --- | --- | --- | --- |
 | Bundled official selection | Config selects an embedded id/version; official parts and assets are compiled into `eldiron-ruleset`; rules and shared asset lookup now use typed `RulesetSelection` | Functional | Route selection through the future shared package loader |
-| Project override | Nested TOML tables merge over the selected official source; scalars and arrays replace | Functional | Document deletion and array semantics; add origin inspection |
-| Project-owned standalone rules | Projects own complete rules documents; custom rules can omit RPG domains | Functional | Improve standalone startup templates and module-wide editing |
+| Overlay resolution | The engine resolver merges nested TOML tables over its base and replaces scalars and arrays. Creator ignores legacy project gameplay snapshots. | Functional in resolver | Document deletion and array semantics if packaging is expanded |
+| Standalone resolution | Engine tools and tests can load a complete custom rules document that omits RPG domains. | Functional in resolver | Define packaging before exposing standalone rules in Creator |
 | External ruleset package | Only the bundled official package is registered; official assets use compile-time lists | Missing | Add manifest discovery, package asset loading, import/export, and version checks |
 | Derived distributable ruleset | No public `extends` package contract or explicit removal mechanism | Missing | Define schema-2 inheritance, removal, conflict, and migration rules |
 | Schema and engine compatibility enforcement | Resolution rejects unsupported selected/declared schema versions, selection/source mismatches, invalid minimum versions, and engines older than the declared minimum | Functional | Add explicit schema migration and compatibility-range policies |
@@ -89,7 +96,7 @@ The goal is reached when:
 | Derived stats | Typed, cycle-validated formulas for `MAX_HP`, `MAX_MP`, `INIT`, `DMG`, `POWER`, and `SPEED` compose ordinary/derived attributes and condition modifiers | TOML remains directly authorable; action UI evaluates the same formulas | Server tests cover dependencies, condition composition, action predicates, and regeneration caps; schema and official-rule docs define syntax | Functional |
 | Configurable semantic attributes | Optional typed `[attributes.roles]` mappings drive health, maximum health, level, experience, weapon damage, and armor across damage/healing/respawn, XP, formulas, equipment summaries, graphical placeholders, avatar damage feedback, and terminal widgets; class growth and action costs name arbitrary resources | Role mappings, resource gains, and typed cost maps are directly TOML-authorable; duplicate Game Settings ownership and the spell-specific MP path were removed | Validation checks role, class-growth, and action-cost references; tests use `VITAL/VITAL_CAP`, `RANK/RENOWN`, `HARM/WARD`, and `FOCUS`, and prove classless rules do not invent official attributes or race | Functional |
 | Class equipment permissions | A cached typed policy enforces weapon and armor categories for classes while leaving classless actors unrestricted | Class summaries and text widgets expose them | Validator checks references and starting loadouts; runtime tests cover startup, drag/drop, commands, and classless actors | Complete |
-| Optional races/classes/levels | Project rules may omit identity defaults, classes, and progression without validation warnings; standalone runtime tests cover classless/level-less actions, UI no longer invents the official Warrior class, and XP formulas cannot advance beyond an authored cap | No module capability UI; some inspectors still assume official-shaped identity | Resolver/runtime/UI contract tests and docs exist | Partial |
+| Optional races/classes/levels | Standalone runtime fixtures may omit identity defaults, classes and progression. The bundled ruleset supplies identity defaults. XP formulas respect the authored cap. | No module capability UI; some inspectors still assume official-shaped identity | Resolver/runtime/UI contract tests and docs exist | Partial |
 | Creature templates | Characters can carry race/class/faction attributes | No ruleset creature catalogue | No reusable creature-template schema | Missing |
 
 ## Disposition And Factions
@@ -109,7 +116,7 @@ The goal is reached when:
 | Damage/healing spells | Known-spell checks and application work; target, range, arbitrary typed resource/item costs, effect source, cooldown, and FX consume the cached resolved action, while spell definitions own identity and roll data | Functional | Type spell identity/roll data and retire the raw spell adapter |
 | Legacy resource-item gathering | Skill, target, range, item costs, output effect, and cooldown consume the resolved action; the resource branch owns node identity, depletion, respawn, inventory transfer, and messages | Complete for this path | Remove duplicated action/resource output ownership in schema 2; new map-bound resources use profile-owned outputs instead |
 | Craft actions | Typed kind, recipe reference, item costs, and cooldown select the existing recipe executor; recipe requirements, inputs, outputs, quality, and messages work | Functional | Consolidate action/recipe ownership and validate acquisition paths |
-| Classless sandbox actions | A project-owned standalone ruleset with no classes or progression executes skill-gated mining, item/world-position targeting, typed take, script events, lockpick-on-chest source/target actions, actor/target attribute predicates, and transactional actor/target state modifications | Functional | Add broader world-state effects |
+| Classless sandbox actions | A standalone runtime fixture with no classes or progression executes skill-gated mining, item/world-position targeting, typed take, script events, lockpick-on-chest source/target actions, actor/target attribute predicates, and transactional actor/target state modifications | Functional in runtime | Add broader world-state effects |
 | Runtime action target | Tagged entity, item-with-optional-owner, and world-position targets flow from selected-action entity/item clicks, 2D terrain clicks, and text commands | Functional | Add 3D position picking, area/shape targets, and explicit multi-target collections |
 | Source item plus target | Script-event actions declare an owned item source, optionally select its exact instance through `use_action`, expose its id in the event payload, and apply success-only condition wear/destruction | Functional | Generalize sources to built-in effects and world-position/multi-target payloads |
 | Generic action executor | Typed policy selects attack, spell, gather, craft, take, and script-event branches; domains still have specialized application code | Partial | Unify damage/healing/item application while retaining domain-specific world-state handlers |
@@ -191,12 +198,12 @@ The goal is reached when:
 | Internal rules authoring | Explicit `internal-rules-editor` builds expose **Game / Rules** and the Rules dock; standard builds omit their navigation and ignore legacy open commands. Shared catalogue/domain metadata, forms, validation and recovery are retained | Functional internal tooling | Complete supplied RPG content and acquisition paths; public generic editing is not a prerequisite |
 | Internal guided armor family | Maintainer **Armor Family** tool previews and atomically creates five bone-pattern pieces, recipes, actions, optional missing ingredient definitions and selected class grants; template UUIDs survive Undo/Redo and save/reload. Bone armor is already supplied | Functional internal tooling | Add further coherent supplied content; creators should not configure each family |
 | Resource binding | Authoring profile/pool selectors and **Bind Resource** for sectors, linedefs and Geometry Objects; validated TOML overrides and Undo/Redo | Functional | Add reusable asset inheritance and policy migration tooling |
-| Ruleset selection | **Game / Settings** exposes official/project fields | Functional | Add package browser and derived ruleset selection |
+| Ruleset selection | **Game / Settings** stores the bundled ruleset selection used by Creator and the host. Legacy project-source settings resolve to the bundled ruleset. | Functional | Package selection is future work |
 | Inspectors | Console/terminal list, show, summarize, roll, class, item, recipe, XP, and validate commands exist | Functional | Make all inspectors consume `ResolvedRuleset` |
 | Item synchronization | Creator creates/refreshes ruleset-backed item templates | Functional | Generalize asset/package origin and conflict handling |
 | Override origin/diff | Effective TOML can be inspected, but field origin and minimal override are not visualized | Missing | Add inherited/effective/source views and “override this value” |
 | Fork/import/export | No first-class ruleset package workflow | Missing | Add Create From, import, export, and package validation |
-| Hot reload | Project rules participate in normal project reload/play workflows | Partial | Define deterministic package and asset hot reload |
+| Ruleset refresh | Opening or playing an authored project resolves the bundled gameplay rules. Maintainers can preview edits in the internal Rules dock. | Partial | Define package and asset hot reload |
 
 ## Validation And Testing
 
@@ -224,7 +231,7 @@ Runtime regression tests cover:
 - race hostility, faction behavior, and attack targeting
 - weapon damage, cooldowns, range, ammunition, and armor
 - spell costs, targets, cooldowns, healing, damage, and events
-- a project-owned classless, level-less sandbox ruleset with skill-gated mining
+- a standalone classless, level-less sandbox fixture with skill-gated mining
 - classless item/world-position actions, script payloads, typed take, range
   rejection, and inventory-full rollback
 - explicit and automatic source-tool selection, wrong/missing tool rejection,
@@ -291,8 +298,8 @@ These ownership conflicts should be settled before schema 2:
 2. Enforce schema and minimum engine compatibility. **Implemented for exact
    schema support and minimum engine versions; compatibility-range policy
    remains.**
-3. Add a shared loader interface for official, project-owned, and packaged
-   rulesets.
+3. Add a shared loader interface for official and future external ruleset
+   packages.
 4. Record source origin for every resolved definition and field.
 
 ### Canonical Execution
@@ -335,8 +342,8 @@ These ownership conflicts should be settled before schema 2:
 ### Typed Schema-1 Resolver
 
 - Official schema-1 TOML resolves without behavior changes.
-- Official plus project override resolves through the new model.
-- Project-owned standalone rules resolve without an official base.
+- The resolver's official-plus-overlay fixture resolves through the new model.
+- Standalone resolver fixtures resolve without an official base.
 - `test_projects/Hideout2D.eldiron` is migrated and remains green.
 - Unknown and unsupported schema versions fail clearly.
 
@@ -346,12 +353,11 @@ These ownership conflicts should be settled before schema 2:
   condition, damage reduction, event, message, audio, and FX data have one
   resolved path.
 - Existing official attack behavior and tests remain unchanged.
-- A project-owned standalone ruleset can define its own Basic Attack through the
-  public schema.
+- A standalone runtime fixture defines its own Basic Attack in the typed schema.
 
 ### Classless Sandbox Actions
 
-- A project-owned standalone ruleset can omit classes and progression.
+- Standalone runtime fixtures can omit classes and progression.
 - Skill-gated world actions resolve and execute without a class or level.
 - Entity, item, and world-position targets retain their target kind through
   execution.

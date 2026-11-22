@@ -118,6 +118,15 @@ pub trait WorldServices {
         Err("Use Action requires a character".into())
     }
 
+    fn perform_intent(
+        &mut self,
+        _actor: &Actor,
+        _target: Uuid,
+        _intent: &str,
+    ) -> Result<(), String> {
+        Err("Perform Intent requires a character".into())
+    }
+
     fn teach(&mut self, _actor: &Actor, _action: &str, _learner: u32) -> Result<(), String> {
         Err("Teach requires a character and a learner".into())
     }

@@ -179,6 +179,7 @@ fn decode_project_with_bakes(
     if let Err(error) = crate::entity_graph::synchronize(&mut project) {
         eprintln!("Entity configuration: {error}");
     }
+    project.restore_ruleset_item_sources()?;
     trace("entity graphs");
     for error in crate::geometry_recipe::synchronize(&mut project).1 {
         eprintln!("MZ geometry recipe: {error}");
@@ -202,8 +203,24 @@ pub fn encode_project(project: &Project) -> Result<Vec<u8>, String> {
     for error in crate::geometry_recipe::synchronize(&mut archived_project).1 {
         eprintln!("MZ geometry recipe: {error}");
     }
-    // Refresh valid projections; incomplete authoring graphs retain their last valid data.
-    let _ = crate::entity_graph::synchronize(&mut archived_project);
+    // Ruleset geometry and materials are linked by stable ID. Binary bake tiles
+    // remain eligible for reuse after their source and palette keys validate.
+    let geometry = crate::appearance_assets::definitions(&archived_project.config);
+    archived_project.procedural_appearances.retain(|id, _| !geometry.contains_key(id));
+    crate::ruleset_materials::validate_legacy_bakes(&mut archived_project);
+    let materials = crate::ruleset_materials::definitions(&archived_project.config)
+        .into_iter()
+        .map(|def| crate::rulesets::material_asset_id(def.id))
+        .collect::<std::collections::HashSet<_>>();
+    archived_project.procedural_materials.retain(|id, _| !materials.contains(id));
+    if !archived_project.avatars.is_empty() {
+        let bitmap_ids = crate::rulesets::bundled_avatar_ids_for_project(&archived_project.config)?;
+        archived_project.avatars.retain(|id, _| !bitmap_ids.contains(id));
+    }
+    // Preserve the last generated data when the authoring graphs are incomplete.
+    if crate::entity_graph::synchronize(&mut archived_project).is_ok() {
+        archived_project.archive_ruleset_item_links()?;
+    }
     let mut binaries = ProjectBinaryWriter::new();
     externalize_bake_entries(&mut archived_project, &mut binaries)?;
     externalize_item_icon_entries(&mut archived_project, &mut binaries)?;

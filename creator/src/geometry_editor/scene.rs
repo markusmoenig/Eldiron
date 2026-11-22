@@ -805,6 +805,7 @@ pub(super) fn quadruped() -> Document {
                 rig: "rig".into(),
                 duration: 1.2,
                 looping: true,
+                max_cycles_per_second: None,
                 tracks: vec![],
             },
         }],

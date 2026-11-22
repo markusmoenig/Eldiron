@@ -6,7 +6,7 @@ use uuid::Uuid;
 use vek::Vec2;
 
 /// Presentation identity remains independent of painter ties and runtime ID reuse.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SpriteOwner {
     Sector(u32),
     Item {
@@ -61,7 +61,13 @@ pub struct TerrainContact {
     pub unit: f32,
 }
 impl TerrainContact {
-    pub fn hides(&self, depth: f32, height: f32, pixel_y: f32, surface_height: Option<f32>) -> bool {
+    pub fn hides(
+        &self,
+        depth: f32,
+        height: f32,
+        pixel_y: f32,
+        surface_height: Option<f32>,
+    ) -> bool {
         if let Some(surface_height) = surface_height {
             // Height increases toward the camera along the ray for this pixel.
             return depth.is_finite() && height > surface_height + 0.06;
@@ -89,9 +95,18 @@ impl<'a> Sprite<'a> {
     }
 
     pub fn image(&self) -> Option<SpriteImage<'a>> {
+        self.image_info(true)
+    }
+
+    // Broad-phase overlap needs dimensions only. Distant archived tiles can stay compressed.
+    pub(super) fn image_info(&self, pixels: bool) -> Option<SpriteImage<'a>> {
         if let Some(stamp) = self.stamp {
             return Some(SpriteImage {
-                data: &stamp.sprite.texture.data,
+                data: if pixels {
+                    &stamp.sprite.texture.data
+                } else {
+                    &[]
+                },
                 width: stamp.sprite.texture.width,
                 height: stamp.sprite.texture.height,
                 anchor: Vec2::from(stamp.sprite.anchor),
@@ -104,7 +119,7 @@ impl<'a> Sprite<'a> {
         }
         if let Some(avatar) = self.avatar {
             return Some(SpriteImage {
-                data: &avatar.pixels,
+                data: if pixels { &avatar.pixels } else { &[] },
                 width: avatar.size[0],
                 height: avatar.size[1],
                 anchor: Vec2::from(avatar.anchor),
@@ -136,7 +151,7 @@ impl<'a> Sprite<'a> {
         };
         let texture = textures.get(self.frame)?;
         Some(SpriteImage {
-            data: &texture.data,
+            data: if pixels { &texture.data } else { &[] },
             width: texture.width,
             height: texture.height,
             anchor,

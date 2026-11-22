@@ -38,6 +38,13 @@ impl Default for ReplicationPolicy {
             "avatar_move_speed",
             "avatar_blend_time",
             "avatar_walk_speed",
+            "body_build",
+            "body_height",
+            "face_style",
+            "hair_style",
+            "hair_color",
+            "hair_index",
+            "avatar_hair",
             "appearance_geometry",
             "appearance_geometry_off",
             "appearance_scale",
@@ -385,6 +392,11 @@ mod visual_tests {
     #[test]
     fn remote_equipment_keeps_render_inputs_and_hides_private_state() {
         let mut actor = Entity::default();
+        actor.set_attribute("body_build", Value::Str("stout".into()));
+        actor.set_attribute("body_height", Value::Float(1.73));
+        actor.set_attribute("face_style", Value::Str("bearded".into()));
+        actor.set_attribute("hair_style", Value::Str("braid".into()));
+        actor.set_attribute("hair_color", Value::Str("#a95330".into()));
         let mut item = Item::default();
         item.id = 12;
         item.attributes
@@ -402,6 +414,11 @@ mod visual_tests {
         actor.equipped.insert("body".into(), item);
         let snapshot = EntitySnapshot::capture(&actor, None, &ReplicationPolicy::default());
         let replica = snapshot.materialize();
+        assert_eq!(replica.attributes.get_str("body_build"), Some("stout"));
+        assert_eq!(replica.attributes.get_float("body_height"), Some(1.73));
+        assert_eq!(replica.attributes.get_str("face_style"), Some("bearded"));
+        assert_eq!(replica.attributes.get_str("hair_style"), Some("braid"));
+        assert_eq!(replica.attributes.get_str("hair_color"), Some("#a95330"));
         let item = &replica.equipped["body"];
         assert_eq!(item.attributes.get_str("rig_template"), Some("armor"));
         if let Some(Value::Light(light)) = item.attributes.get("light") {

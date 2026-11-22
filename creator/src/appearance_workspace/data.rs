@@ -153,7 +153,7 @@ pub fn assets(owner: Owner, p: &Project) -> Vec<Asset> {
                 Operation::Asset { source, document } if source != WEARER_SOURCE => {
                     let current = geometry_id(source)
                         .filter(|id| seen.insert(*id))
-                        .and_then(|id| p.procedural_appearances.get(&id))
+                        .and_then(|id| shared::appearance_assets::source(p, &id))
                         .and_then(|s| serde_json::from_str::<Document>(s).ok());
                     visit(
                         current.as_ref().unwrap_or(document),
@@ -186,7 +186,7 @@ pub fn assets(owner: Owner, p: &Project) -> Vec<Asset> {
     }
     let mut seen = BTreeSet::new();
     for (name, id) in geometries {
-        if let Some(id) = id.filter(|id| p.procedural_appearances.contains_key(id)) {
+        if let Some(id) = id.filter(|id| shared::appearance_assets::source(p, id).is_some()) {
             if result.iter().any(|a: &Asset| a.id == id) {
                 continue;
             }
@@ -196,9 +196,7 @@ pub fn assets(owner: Owner, p: &Project) -> Vec<Asset> {
                 kind: Kind::Geometry,
                 active_state: None,
             });
-            if let Some(doc) = p
-                .procedural_appearances
-                .get(&id)
+            if let Some(doc) = shared::appearance_assets::source(p, &id)
                 .and_then(|s| serde_json::from_str::<Document>(s).ok())
             {
                 visit(&doc, p, &mut materials, &mut seen, 0);
@@ -219,7 +217,7 @@ pub fn assets(owner: Owner, p: &Project) -> Vec<Asset> {
     result.extend(
         materials
             .into_iter()
-            .filter(|(id, _)| p.procedural_materials.contains_key(id))
+            .filter(|(id, _)| p.procedural_materials.contains_key(id) || shared::ruleset_materials::definition(&p.config, *id).is_some())
             .map(|(id, name)| Asset {
                 id,
                 label: format!("Material · {name}"),
@@ -230,7 +228,7 @@ pub fn assets(owner: Owner, p: &Project) -> Vec<Asset> {
     if matches!(owner, Owner::Item(_)) {
         for (on, name) in [(true, "Icon · active"), (false, "Icon · inactive")] {
             if let Some(id) = shared::ruleset_materials::icon_id_for_state(data, on)
-                .filter(|id| p.procedural_materials.contains_key(id))
+                .filter(|id| p.procedural_materials.contains_key(id) || shared::ruleset_materials::definition(&p.config, *id).is_some())
             {
                 result.push(Asset {
                     id,
@@ -252,15 +250,8 @@ pub fn users(asset: &Asset, p: &Project) -> usize {
         .count()
 }
 pub fn is_ruleset_asset(id: Uuid, p: &Project) -> bool {
-    shared::ruleset_materials::definitions(&p.config)
-        .iter()
-        .any(|a| shared::rulesets::material_asset_id(a.id) == id)
-        || shared::rulesets::bundled_appearance_assets_for_ruleset(
-            shared::rulesets::OFFICIAL_RULESET_ID,
-            shared::rulesets::OFFICIAL_RULESET_VERSION,
-        )
-        .iter()
-        .any(|a| a.asset_id == id.to_string())
+    shared::ruleset_materials::definition(&p.config, id).is_some()
+        || shared::appearance_assets::is_bundled(p, id)
 }
 pub fn model_profile(source: &str, p: &Project) -> String {
     let defs = shared::rulesets::bundled_appearance_assets_for_ruleset(
@@ -343,11 +334,7 @@ pub fn make_variant(owner: Owner, p: &mut Project) -> Result<(), String> {
         if let Some(copy) = copies.get(&id) {
             return Ok(*copy);
         }
-        let source = p
-            .procedural_materials
-            .get(&id)
-            .cloned()
-            .ok_or("Material is missing")?;
+        let source = shared::ruleset_materials::editable_id(p, id)?.save().map_err(|e| e.to_string())?;
         let icon = shared::ruleset_materials::is_icon(&p.config, &id);
         let new = if icon {
             shared::ruleset_materials::new_icon_id()
@@ -356,7 +343,7 @@ pub fn make_variant(owner: Owner, p: &mut Project) -> Result<(), String> {
                 (0x52554c454d415453u128 << 64) | (Uuid::new_v4().as_u128() & u64::MAX as u128),
             )
         };
-        p.procedural_materials.insert(new, source);
+        p.procedural_materials.insert(new, crate::procedural_material::duplicate_bundle(&source, new)?);
         if let Some(tile) = p.tiles.get(&id).cloned() {
             let mut tile = tile;
             tile.id = new;
@@ -383,7 +370,7 @@ pub fn make_variant(owner: Owner, p: &mut Project) -> Result<(), String> {
                         .strip_prefix("ruleset:material/")
                         .map(shared::rulesets::material_asset_id)
                         .or_else(|| Uuid::parse_str(source).ok())
-                        .filter(|id| p.procedural_materials.contains_key(id))
+                        .filter(|id| p.procedural_materials.contains_key(id) || shared::ruleset_materials::definition(&p.config, *id).is_some())
                     {
                         *source = material(id, p, mats)?.to_string();
                         *bundle = None;
@@ -397,7 +384,7 @@ pub fn make_variant(owner: Owner, p: &mut Project) -> Result<(), String> {
                     document: inner,
                 } if source != WEARER_SOURCE => {
                     if let Some(id) =
-                        geometry_id(source).filter(|id| p.procedural_appearances.contains_key(id))
+                        geometry_id(source).filter(|id| shared::appearance_assets::source(p, id).is_some())
                     {
                         let new = geometry(id, p, geo, mats, depth + 1)?;
                         *source = new.to_string();
@@ -423,14 +410,13 @@ pub fn make_variant(owner: Owner, p: &mut Project) -> Result<(), String> {
             return Ok(*new);
         }
         let mut doc = Document::load(
-            p.procedural_appearances
-                .get(&id)
-                .ok_or("Model is missing")?,
+            shared::appearance_assets::source(p, &id).ok_or("Model is missing")?,
         )
         .map_err(|e| e.to_string())?;
         let new = Uuid::new_v4();
         geo.insert(id, new);
         document(&mut doc, p, geo, mats, depth)?;
+        doc.id = new.to_string();
         doc.label = format!("{} variant", doc.label);
         p.procedural_appearances
             .insert(new, doc.save().map_err(|e| e.to_string())?);
@@ -440,8 +426,8 @@ pub fn make_variant(owner: Owner, p: &mut Project) -> Result<(), String> {
         .into_iter()
         .filter(|a| a.kind == Kind::Geometry)
     {
-        let doc =
-            Document::load(&p.procedural_appearances[&asset.id]).map_err(|e| e.to_string())?;
+        let source = shared::appearance_assets::source(p, &asset.id).ok_or("Model is missing")?;
+        let doc = Document::load(source).map_err(|e| e.to_string())?;
         shared::appearance_assets::resolve(p, &doc)?;
     }
     let mut candidate = p.clone();
@@ -456,7 +442,11 @@ pub fn make_variant(owner: Owner, p: &mut Project) -> Result<(), String> {
         let id = geometry_id(&old)
             .ok_or("This character uses a bitmap avatar; choose a procedural model first")?;
         let new = geometry(id, &mut candidate, &mut geo, &mut mats, 0)?;
-        let profile = attribute(&data, "appearance_profile").unwrap_or(old);
+        let profile = shared::appearance_assets::definitions(&p.config)
+            .get(&id)
+            .map(|asset| asset.id.to_owned())
+            .or_else(|| attribute(&data, "appearance_profile"))
+            .unwrap_or(old);
         data = with_attribute(&data, "appearance_profile", &profile)?;
         data = bind_character_model(&data, &new.to_string())?;
     } else {

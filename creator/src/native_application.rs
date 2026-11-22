@@ -426,6 +426,113 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires an actual native GPU"]
+    fn native_behavior_overview_inspects_in_edit_and_play_editor_input() {
+        let gpu = pollster::block_on(GpuContext::headless()).unwrap();
+        let mut images = ImageRegistry::new(gpu.clone());
+        let mut application = NativeCreatorApplication::new(vec!["eldiron-creator-native".into()], false);
+        application.start_services = false;
+        let mut app = UiApplicationAdapter::new(application);
+        app.application.editor.check_context_ownership_for_test(&gpu);
+        let mut host = HostContext::new((1200, 800));
+        app.initialize(&mut host, &mut images).unwrap();
+        // Process the queued startup project chooser before opening the fixture.
+        app.update(&mut host, Duration::from_millis(16));
+        app.session.ui.clear_dialog();
+        let player = app.application.editor.begin_native_behavior_overview_test(
+            &mut app.session.ui, &mut app.session.context,
+        );
+        let output = GpuImage::new(&gpu, ImageDescriptor::rgba(1200, 800)).unwrap();
+        let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+        let mut present = |app: &mut UiApplicationAdapter<NativeCreatorApplication>, host: &mut HostContext| {
+            let paint = ready_world_frame(app, host, &mut images, &gpu, &mut renderer, &output);
+            renderer.render(&paint, &images, &output.view, output.descriptor.format,
+                host.physical_size, host.density, [0.; 4]).unwrap();
+            app.presented(host);
+        };
+        let click = |app: &mut UiApplicationAdapter<NativeCreatorApplication>, host: &mut HostContext, (view, at)| {
+            app.session.context.ui.send(TheEvent::RenderViewClicked(view, at));
+            app.update(host, Duration::from_millis(16));
+        };
+        for running in [false, true] {
+            if running {
+                app.session.context.ui.send(TheEvent::StateChanged(
+                    TheId::named("Play"), TheWidgetState::Clicked,
+                ));
+            }
+            present(&mut app, &mut host);
+            // Settle the dock layout changes queued by project activation or Play.
+            present(&mut app, &mut host);
+            assert_eq!(app.application.editor.native_play_stats_for_test().is_some(), running);
+            assert!(app.session.ui.dialog.is_none() && app.session.ui.popover.is_none()
+                && app.session.ui.context_menu.is_none(), "fixture must expose the viewport");
+            assert_eq!(app.application.editor.behavior_overview_input_for_test(), (true, true),
+                "Entity Tool must own a displayed viewport while running={running}");
+            if !running {
+                let position = |app: &UiApplicationAdapter<NativeCreatorApplication>| {
+                    app.application.editor.project_for_native_test().regions[0].characters[&player].position
+                };
+                let before = position(&app);
+                let (view, at) = app.application.editor.behavior_overview_pick_for_test(player).unwrap();
+                let first_destination = at + Vec2::new(72, 0);
+                click(&mut app, &mut host, (view.clone(), at));
+                assert!(app.application.editor.native_retry_state_for_test().1,
+                    "pointer-down at {at:?} must establish capture; {}",
+                    app.application.editor.native_world_debug_for_test());
+                assert_eq!(app.application.editor.project_for_native_test().regions[0]
+                    .map.selected_entity_item, Some(player), "sprite hit must select the character");
+                present(&mut app, &mut host);
+                assert!(app.application.editor.native_retry_state_for_test().1,
+                    "drag must retain capture through a repaint");
+                app.session.context.ui.send(TheEvent::RenderViewDragged(view.clone(), first_destination));
+                app.update(&mut host, Duration::from_millis(16));
+                let preview = app.application.editor.project_for_native_test().regions[0]
+                    .map.entities.iter().find(|entity| entity.creator_id == player).unwrap().position;
+                assert_ne!(preview, before, "a drag from the character silhouette should move the preview");
+                assert_eq!(position(&app), before, "a drag commits on release");
+                present(&mut app, &mut host);
+                let (_, drawn) = app.application.editor.behavior_overview_pick_for_test(player).unwrap();
+                assert!(drawn.x > at.x + 50, "the sprite should redraw at its drag preview");
+                let destination = at + Vec2::new(108, 0);
+                app.session.context.ui.send(TheEvent::RenderViewDragged(view.clone(), destination));
+                app.update(&mut host, Duration::from_millis(16));
+                app.session.context.ui.send(TheEvent::RenderViewUp(view, destination));
+                app.update(&mut host, Duration::from_millis(16));
+                assert!(position(&app).x > preview.x, "release should commit the final position");
+                assert_eq!(app.application.editor.behavior_overview_name_for_test(), None);
+                app.session.context.ui.send(TheEvent::StateChanged(TheId::named("Undo"), TheWidgetState::Clicked));
+                app.update(&mut host, Duration::from_millis(16));
+                assert_eq!(position(&app), before, "undo should restore the placement in one step");
+                present(&mut app, &mut host);
+            }
+            let (view, at) = app.application.editor.behavior_overview_pick_for_test(player).unwrap();
+            click(&mut app, &mut host, (view.clone(), at));
+            assert!(app.application.editor.behavior_overview_waiting_for_test(),
+                "Entity picker must retain the click while running={running}, state={:?}",
+                app.application.editor.behavior_overview_input_for_test());
+            app.session.context.ui.send(TheEvent::RenderViewUp(view, at));
+            app.update(&mut host, Duration::from_millis(16));
+            assert_eq!(app.application.editor.behavior_overview_name_for_test(), Some("Player"),
+                "player inspection while running={running}");
+            present(&mut app, &mut host);
+            let (view, at) = app.application.editor.behavior_overview_close_for_test().unwrap();
+            click(&mut app, &mut host, (view.clone(), at));
+            app.session.context.ui.send(TheEvent::RenderViewUp(view, at));
+            app.update(&mut host, Duration::from_millis(16));
+            assert_eq!(app.application.editor.behavior_overview_name_for_test(), None);
+        }
+        app.session.context.ui.send(TheEvent::StateChanged(
+            TheId::named("GameInput"), TheWidgetState::Clicked,
+        ));
+        present(&mut app, &mut host);
+        let (view, at) = app.application.editor.behavior_overview_pick_for_test(player).unwrap();
+        click(&mut app, &mut host, (view.clone(), at));
+        app.session.context.ui.send(TheEvent::RenderViewUp(view, at));
+        app.update(&mut host, Duration::from_millis(16));
+        assert_eq!(app.application.editor.behavior_overview_name_for_test(), None);
+    }
+
+    #[test]
     #[ignore = "actual native large-plan generation, progressive display and saved channels"]
     fn native_large_bake_plan_generates_without_a_viewport_adapter() {
         let gpu=pollster::block_on(GpuContext::headless()).unwrap();

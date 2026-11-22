@@ -716,17 +716,9 @@ impl Project {
             crate::rulesets::bundled_tiles_with_frames(&self.config, &procedural_states)?;
         let rules = self.rules_source()?;
         let mut changed = 0;
-        let selection = crate::rulesets::selected_ruleset_config(&self.config);
-        if selection.source != "project" {
-            for asset in crate::rulesets::bundled_appearance_assets_for_ruleset(
-                &selection.id,
-                &selection.version,
-            ) {
-                let id = Uuid::parse_str(asset.asset_id).map_err(|e| e.to_string())?;
-                if !self.procedural_appearances.contains_key(&id) {
-                    self.procedural_appearances.insert(id, asset.source.into());
-                }
-            }
+        let geometry = crate::appearance_assets::definitions(&self.config);
+        if self.procedural_appearances.keys().any(|id| geometry.contains_key(id)) {
+            self.procedural_appearances.retain(|id, _| !geometry.contains_key(id));
         }
 
         for (id, mut tile) in bundled_tiles {
@@ -750,6 +742,64 @@ impl Project {
         }
 
         Ok(changed + self.sync_ruleset_item_templates(&rules)?)
+    }
+
+    /// Save linked items as ruleset paths plus their authoring graphs.
+    pub(crate) fn archive_ruleset_item_links(&mut self) -> Result<(), String> {
+        if !self.items.values().any(item_is_ruleset_owned) {
+            return Ok(());
+        }
+        let rules = self.rules_source()?;
+        let templates = crate::rulesets::ruleset_item_templates_from_source(&rules)?
+            .into_iter()
+            .map(|item| (item.ruleset_path.clone(), item))
+            .collect::<std::collections::HashMap<_, _>>();
+        for item in self.items.values_mut() {
+            let Some(template) = item_ruleset_path(item).and_then(|path| templates.get(&path)) else {
+                continue;
+            };
+            let mut data = item.data.parse::<toml::Table>().map_err(|e| e.to_string())?;
+            let link = toml::Table::from_iter([(
+                "ruleset_path".to_string(),
+                toml::Value::String(template.ruleset_path.clone()),
+            )]);
+            data.insert("attributes".into(), toml::Value::Table(link));
+            data.remove("input");
+            data.remove("light");
+            item.data = toml::to_string_pretty(&data).map_err(|e| e.to_string())?;
+            if item.source == template.source {
+                item.source.clear();
+            }
+            if item.authoring == template.authoring {
+                item.authoring.clear();
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn restore_ruleset_item_sources(&mut self) -> Result<(), String> {
+        if self.client_release.is_some()
+            || !self.items.values().any(|item| item_is_ruleset_owned(item) && (item.source.is_empty() || item.authoring.is_empty()))
+        {
+            return Ok(());
+        }
+        let rules = self.rules_source()?;
+        let templates = crate::rulesets::ruleset_item_templates_from_source(&rules)?
+            .into_iter()
+            .map(|item| (item.ruleset_path.clone(), item))
+            .collect::<std::collections::HashMap<_, _>>();
+        for item in self.items.values_mut() {
+            let Some(template) = item_ruleset_path(item).and_then(|path| templates.get(&path)) else {
+                continue;
+            };
+            if item.source.is_empty() {
+                item.source.clone_from(&template.source);
+            }
+            if item.authoring.is_empty() {
+                item.authoring.clone_from(&template.authoring);
+            }
+        }
+        Ok(())
     }
 
     /// Populate item definitions for the headless runtime as well as Creator.

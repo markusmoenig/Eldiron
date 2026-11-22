@@ -1,0 +1,18 @@
+{
+  "base": {
+    "color": 17
+  },
+  "shade": {
+    "color": 2
+  },
+  "stitch": {
+    "color": 20
+  },
+  "@surface": {
+    "base color": 17,
+    "emission": 1
+  },
+  "sole-color": {
+    "color": 2
+  }
+}

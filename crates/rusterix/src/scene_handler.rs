@@ -231,6 +231,19 @@ mod tests {
         handler.rebuild_geometry_particles_3d(&map, &camera, &assets, 1);
         assert!(handler.geometry_emitters_2d.is_empty());
         assert!(handler.geometry_emitters_3d.is_empty());
+
+        map.camera = crate::MapCamera::TwoDIso;
+        map.items[0].position.y = 1.5;
+        map.items[0].set_attribute("active", Value::Bool(true));
+        handler.vm.execute(Atom::ClearLights);
+        assert!(handler.mz_particle_sources(&map, &assets, true).is_empty());
+        let particles = handler.isometric_particles(&map, &assets, 0);
+        assert!(!particles.is_empty());
+        assert!(particles.iter().all(|p| p.position_radius[1] > 1.5));
+        assert_eq!(handler.vm.vm.lights.len(), 1);
+        map.items[0].set_attribute("active", Value::Bool(false));
+        assert!(handler.isometric_particles(&map, &assets, 1).is_empty());
+        assert!(handler.vm.vm.lights.is_empty());
     }
 
     #[test]
@@ -1755,7 +1768,10 @@ impl SceneHandler {
                 }
             }
         }
-        for (index, item) in map.items.iter().enumerate() {
+        // Isometric placed items are sampled in world coordinates by
+        // isometric_particles. Keep the flat emitter and its light out of that pass.
+        let flat_items = !two_d || map.camera != crate::MapCamera::TwoDIso;
+        for (index, item) in map.items.iter().enumerate().filter(|_| flat_items) {
             if !item.attributes.get_bool_default("visible", false)
                 || !crate::procedural_avatar::Runtime::item_effects_enabled(item)
             {
@@ -4104,19 +4120,57 @@ impl SceneHandler {
                     key,
                     effect.clone(),
                     Vec3::new(pos.x, height, pos.y) + Vec3::from(effect.position),
+                    1.,
                 ));
             }
         }
+        for item in &map.items {
+            use crate::procedural_avatar::Runtime;
+            if !item.attributes.get_bool_default("visible", true)
+                || !Runtime::item_effects_enabled(item)
+            {
+                continue;
+            }
+            let Some(model) = Runtime::resolve_item(item, assets).filter(|model| model.has_effects)
+            else {
+                continue;
+            };
+            let scale = item.attributes.get_float_default("appearance_scale", 1.);
+            let size = model.model_height(assets).unwrap_or(0.5) * scale;
+            let Ok(effects) = model.effects(
+                &Runtime::item_entity(item),
+                assets,
+                item.position,
+                size,
+                "idle",
+                0.,
+                item.attributes.get_bool_default("appearance_ground_flat", false),
+                false,
+            ) else {
+                continue;
+            };
+            for effect in effects {
+                let key = crate::procedural_avatar::fingerprint(&(
+                    map.id,
+                    item.creator_id,
+                    item.id,
+                    effect.id,
+                ));
+                sources.push((key, effect.definition, effect.position, effect.scale));
+            }
+        }
         let mut active = FxHashSet::default();
+        let mut lit = FxHashSet::default();
+        let light_id = |key: u64| GeoId::Unknown(key as u32 ^ 0xB1860000);
         let mut particles = Vec::new();
-        for (key, effect, origin) in sources {
+        for (key, effect, origin, scale) in sources {
             active.insert(key);
             let settings = crate::procedural_avatar::effects::emitter(
                 &effect,
                 &assets.palette,
                 origin,
                 Vec3::unit_y(),
-                1.,
+                scale,
             );
             let emitter = self.iso_emitters.entry(key).or_insert_with(|| {
                 let mut e = settings.clone();
@@ -4130,9 +4184,10 @@ impl SceneHandler {
             emitter.direction = Vec3::unit_y();
             emitter.update(dt);
             if effect.light > 0. {
+                lit.insert(key);
                 let color = emitter.color_ramp.unwrap()[0];
                 self.vm.execute(Atom::AddLight {
-                    id: GeoId::Unknown(key as u32 ^ 0xB1860000),
+                    id: light_id(key),
                     light: Light::new_pointlight(origin)
                         .with_color(Vec3::new(
                             color[0] as f32 / 255.,
@@ -4157,6 +4212,12 @@ impl SceneHandler {
                     ],
                 }
             }));
+        }
+        for key in self.iso_emitters.keys().filter(|key| !lit.contains(key)) {
+            let id = light_id(*key);
+            if self.vm.vm.lights.contains_key(&id) {
+                self.vm.execute(Atom::RemoveLight { id });
+            }
         }
         self.iso_emitters.retain(|k, _| active.contains(k));
         particles.sort_by(|a, b| {

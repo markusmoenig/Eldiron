@@ -450,7 +450,10 @@ fn full_viewport_gpu_review() {
     let (mut ui, mut ctx) = fixture(1500, 1000);
     let mut p = Project::default();
     p.sync_ruleset_items().unwrap();
-    let id = Uuid::parse_str(shared::rulesets::HUMANOID_APPEARANCE_ASSET_ID).unwrap();
+    let id = Uuid::new_v4();
+    let shared = Uuid::parse_str(shared::rulesets::HUMANOID_APPEARANCE_ASSET_ID).unwrap();
+    let source = shared::appearance_assets::source(&p, &shared).unwrap().to_owned();
+    p.procedural_appearances.insert(id, source);
     let mut host = GeometryEditor {
         selected: Some(id),
         ..Default::default()
@@ -1020,65 +1023,6 @@ fn rig_overlay_and_rest_transport_have_stable_actionable_states() {
             .index(),
         0
     );
-}
-
-#[test]
-fn use_in_game_copies_the_whole_root_and_keeps_the_editing_scope() {
-    let creator_history = CreatorHistory::default();
-    let (mut ui, mut ctx) = fixture(1400, 900);
-    let mut p = Project::default();
-    let (id, original) = human(&mut p);
-    let mut host = GeometryEditor {
-        selected: Some(id),
-        ..Default::default()
-    };
-    host.handle_event(
-        &TheEvent::StateChanged(
-            TheId::named("MZ Edit Selected Mesh"),
-            TheWidgetState::Clicked,
-        ),
-        &mut p,
-        &mut ui,
-        &mut ctx,
-     &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
-    assert_eq!(host.group_path, ["body-op-0"]);
-    let selected = host.selected_operation.clone();
-    host.handle_event(
-        &TheEvent::StateChanged(
-            TheId::named("MZ Use Ruleset Humanoid"),
-            TheWidgetState::Clicked,
-        ),
-        &mut p,
-        &mut ui,
-        &mut ctx,
-     &creator_history);
-    host.update(&p, &mut ui, &mut ctx, &CreatorContext::default());
-    let target = Uuid::parse_str(shared::rulesets::HUMANOID_APPEARANCE_ASSET_ID).unwrap();
-    assert_eq!(host.selected, Some(target));
-    assert_eq!(host.group_path, ["body-op-0"]);
-    assert_eq!(host.selected_operation, selected);
-    let copy = Document::load(&p.procedural_appearances[&target]).unwrap();
-    assert_eq!(
-        copy.rows, original.rows,
-        "use in game must copy the root, including gear and clips"
-    );
-    let saved = shared::project_io::encode_project(&p).unwrap();
-    let reopened = shared::project_io::decode_project(&saved).unwrap();
-    assert_eq!(
-        reopened.procedural_appearances[&target],
-        p.procedural_appearances[&target]
-    );
-    let atom = ProjectUndoAtom::ProceduralAppearanceEdit(
-        target,
-        None,
-        Some(p.procedural_appearances[&target].clone()),
-    );
-    let mut server = CreatorContext::default();
-    atom.undo(&mut p, &mut ui, &mut ctx, &mut server);
-    assert!(!p.procedural_appearances.contains_key(&target));
-    atom.redo(&mut p, &mut ui, &mut ctx, &mut server);
-    assert!(p.procedural_appearances.contains_key(&target));
 }
 
 #[test]

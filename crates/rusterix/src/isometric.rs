@@ -241,6 +241,7 @@ pub fn item_cutaway_for(map: &Map, item: &crate::Item, view: crate::party::Playe
     else {
         return false;
     };
+    let below = item.attributes.get_float("iso_cutaway_below");
     map.entities
         .iter()
         .filter(|entity| match view {
@@ -249,11 +250,12 @@ pub fn item_cutaway_for(map: &Map, item: &crate::Item, view: crate::party::Playe
             crate::party::PlayerView::Uncontrolled => false,
         })
         .any(|player| {
-            map.sectors.iter().any(|sector| {
-                sector.properties.get_bool_default("iso_interior", false)
-                    && (sector.name == area || sector.creator_id.to_string() == area)
-                    && sector.is_inside(map, player.get_pos_xz())
-            })
+            below.is_none_or(|height| player.position.y < height)
+                && map.sectors.iter().any(|sector| {
+                    sector.properties.get_bool_default("iso_interior", false)
+                        && (sector.name == area || sector.creator_id.to_string() == area)
+                        && sector.is_inside(map, player.get_pos_xz())
+                })
         })
 }
 

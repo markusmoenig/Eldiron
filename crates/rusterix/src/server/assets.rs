@@ -520,9 +520,7 @@ impl Assets {
     pub fn tiles_with_palette(&self, textures: IndexMap<Uuid, Tile>) -> IndexMap<Uuid, Tile> {
         let mut all_tiles = textures;
         for (id, tile) in &self.palette_tile_overrides {
-            if all_tiles.contains_key(id) {
-                all_tiles.insert(*id, tile.clone());
-            }
+            all_tiles.insert(*id, tile.clone());
         }
 
         // Register synthetic 1x1 tiles for all palette indices so PaletteIndex sources

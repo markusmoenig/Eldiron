@@ -11,6 +11,8 @@ pub(super) fn register(registry: &mut Registry) {
         .unwrap();
     registry.register(Box::new(UseActionModule)).unwrap();
     registry.register(Box::new(TeachModule)).unwrap();
+    registry.register(Box::new(PerformIntentModule)).unwrap();
+    registry.register(Box::new(RandomChanceModule)).unwrap();
     registry.register(Box::new(LookoutModule)).unwrap();
     registry.register(Box::new(EngageModule)).unwrap();
     registry.register(Box::new(TimeRangeModule)).unwrap();
@@ -485,7 +487,7 @@ impl Operation for OnEnterArea {
     }
 }
 /// Life states, in picker order. The engine stores them in the `mode` attribute.
-pub const STATES: [&str; 4] = ["Alive", "Dead", "Sleeping", "Unconscious"];
+pub const STATES: [&str; 5] = ["Alive", "Dead", "Sleeping", "Unconscious", "Dormant"];
 struct StateModule;
 impl NodeModule for StateModule {
     fn id(&self) -> &'static str {
@@ -1075,6 +1077,95 @@ impl Operation for Engage {
             Ok(None) => None,
             Err(error) => Some(Err(error)),
         }
+    }
+}
+
+struct PerformIntentModule;
+
+impl NodeModule for PerformIntentModule {
+    fn id(&self) -> &'static str {
+        "perform_intent"
+    }
+
+    fn inputs(&self) -> &'static [&'static str] {
+        &["in"]
+    }
+
+    fn outputs(&self) -> &'static [&'static str] {
+        &["done", "failed"]
+    }
+
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        let target = p
+            .get("item")
+            .filter(|value| {
+                value.pointer("/Custom/kind").and_then(Value::as_str) == Some("placed_item")
+            })
+            .and_then(|value| value.pointer("/Custom/data"))
+            .and_then(Value::as_str)
+            .and_then(|value| Uuid::parse_str(value).ok())
+            .filter(|id| !id.is_nil());
+        Ok(Box::new(PerformIntent {
+            target,
+            intent: text(p, "intent")?.trim().into(),
+        }))
+    }
+}
+
+struct PerformIntent {
+    target: Option<Uuid>,
+    intent: String,
+}
+
+impl Operation for PerformIntent {
+    fn error_output(&self) -> Option<&'static str> {
+        Some("failed")
+    }
+
+    fn execute(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        let target = self.target.ok_or("Select a placed item")?;
+        if self.intent.is_empty() {
+            return Err("Enter an intent".into());
+        }
+        world.perform_intent(ctx.actor, target, &self.intent)?;
+        Ok("done")
+    }
+}
+
+struct RandomChanceModule;
+
+impl NodeModule for RandomChanceModule {
+    fn id(&self) -> &'static str {
+        "random_chance"
+    }
+
+    fn inputs(&self) -> &'static [&'static str] {
+        &["in"]
+    }
+
+    fn outputs(&self) -> &'static [&'static str] {
+        &["match", "no_match"]
+    }
+
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        Ok(Box::new(RandomChance(number(p, "percent", 0., 100.)?)))
+    }
+}
+
+struct RandomChance(f32);
+
+impl Operation for RandomChance {
+    fn execute(&self, _: &EventContext<'_>, _: &mut dyn WorldServices) -> Result<&'static str, String> {
+        use rand::Rng as _;
+        Ok(if rand::rng().random_range(0.0..100.0) < self.0 {
+            "match"
+        } else {
+            "no_match"
+        })
     }
 }
 

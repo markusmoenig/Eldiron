@@ -169,6 +169,71 @@ fn setup_is_not_duplicated_in_the_preview_and_item_states_have_direct_entrances(
     assert!(host.active_state);
 }
 #[test]
+fn customizing_humanoid_creates_an_explicit_variant_for_one_character() {
+    let (mut ui, mut ctx) = fixture();
+    let mut project = Project::default();
+    project.sync_ruleset_items().unwrap();
+    let mut character = Character::new();
+    character.data = "[attributes]\navatar = 'humanoid'\nSTR = 17\n".into();
+    let owner = Owner::Character(character.id);
+    project.characters.insert(character.id, character);
+    let other = Character::new();
+    let other_owner = Owner::Character(other.id);
+    project.characters.insert(other.id, other);
+    shared::entity_graph::synchronize(&mut project).unwrap();
+
+    let mut host = AppearanceWorkspace { owner: Some(owner), ..Default::default() };
+    host.refresh_form(&project, &mut ui, &mut ctx);
+    assert!(host.handle_event(
+        &TheEvent::StateChanged(TheId::named("Definition Appearance Body"), TheWidgetState::Clicked),
+        &mut project, &mut ui, &mut ctx, &mut CreatorContext::default(),
+    ));
+    let shared = data::geometry_id("humanoid").unwrap();
+    let model = Uuid::parse_str(&data::body_source(owner, &project)).unwrap();
+    assert_ne!(model, shared);
+    assert!(project.procedural_appearances.contains_key(&model));
+    assert!(!project.procedural_appearances.contains_key(&shared));
+    assert_eq!(data::body_source(other_owner, &project), "humanoid");
+
+    let bytes = shared::project_io::encode_project(&project).unwrap();
+    let reopened = shared::project_io::decode_project(&bytes).unwrap();
+    assert_eq!(data::body_source(owner, &reopened), model.to_string());
+    assert!(owner.data(&reopened).unwrap().contains("STR = 17"));
+    assert!(!reopened.procedural_appearances.contains_key(&shared));
+}
+
+#[test]
+fn item_appearance_variant_rebinds_geometry_and_icon_after_reopen() {
+    let (mut ui, mut ctx) = fixture();
+    let mut project = Project::default();
+    project.sync_ruleset_items().unwrap();
+    let id = project.items.values()
+        .find(|item| data::attribute(&item.data, "ruleset_id").as_deref() == Some("training_sword"))
+        .unwrap().id;
+    let owner = Owner::Item(id);
+    let original = owner.data(&project).unwrap().to_owned();
+    let mut host = AppearanceWorkspace { owner: Some(owner), ..Default::default() };
+    host.refresh_form(&project, &mut ui, &mut ctx);
+    assert!(host.handle_event(
+        &TheEvent::StateChanged(TheId::named("Definition Appearance Customize Item"), TheWidgetState::Clicked),
+        &mut project, &mut ui, &mut ctx, &mut CreatorContext::default(),
+    ));
+    let data = owner.data(&project).unwrap();
+    let asset = data::geometry_id(&data::attribute(data, "appearance_geometry").unwrap()).unwrap();
+    let icon = shared::ruleset_materials::icon_id(data).unwrap();
+    assert_ne!(Some(asset), data::geometry_id(&data::attribute(&original, "appearance_geometry").unwrap()));
+    assert_ne!(Some(icon), shared::ruleset_materials::icon_id(&original));
+    let bytes = shared::project_io::encode_project(&project).unwrap();
+    let mut reopened = shared::project_io::decode_project(&bytes).unwrap();
+    reopened.sync_ruleset_items().unwrap();
+    let data = owner.data(&reopened).unwrap();
+    assert_eq!(data::attribute(data, "appearance_geometry"), Some(asset.to_string()));
+    assert_eq!(shared::ruleset_materials::icon_id(data), Some(icon));
+    assert!(reopened.procedural_appearances.contains_key(&asset));
+    assert!(reopened.procedural_materials.contains_key(&icon));
+}
+
+#[test]
 #[ignore = "requires a native GPU adapter"]
 fn appearance_roundtrip_preview_and_ui_snapshots() {
     let reference = CreatorReference::default();
@@ -187,12 +252,12 @@ fn appearance_roundtrip_preview_and_ui_snapshots() {
     c.data = "[attributes]\nrace='Orc'\nclass='Warrior'\nstart_equipped_items=['Linen Shirt','Wool Trousers','Leather Shoes','Training Sword','Round Shield']\n".into();
     let id = c.id;
     p.characters.insert(id, c);
-    let canonical = p.procedural_appearances[&shared::rulesets::geometry_asset_id("orc")].clone();
+    let canonical = shared::appearance_assets::source(&p, &shared::rulesets::geometry_asset_id("orc")).unwrap().to_owned();
     data::make_variant(Owner::Character(id), &mut p).unwrap();
     let saved = serde_json::to_string(&p).unwrap();
     p = serde_json::from_str(&saved).unwrap();
     assert_eq!(
-        p.procedural_appearances[&shared::rulesets::geometry_asset_id("orc")],
+        shared::appearance_assets::source(&p, &shared::rulesets::geometry_asset_id("orc")).unwrap(),
         canonical
     );
     {

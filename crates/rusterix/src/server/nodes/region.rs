@@ -783,11 +783,11 @@ impl WorldServices for RegionServices<'_> {
             return Err("Respawn requires a character".into());
         }
         let id = actor.render_id;
-        if !apply_entity_mode(self.ctx, id, "active") {
-            return Err("Character no longer exists".into());
-        }
         if !crate::server::region::return_entity_to_spawn(self.ctx, id) {
             return Err("Character has no spawn position".into());
+        }
+        if !apply_entity_mode(self.ctx, id, "active") {
+            return Err("Character no longer exists".into());
         }
         let health = self.ctx.health_attr.clone();
         let max_health = self.ctx.max_health_attr.clone();
@@ -931,6 +931,13 @@ impl WorldServices for RegionServices<'_> {
             Err(format!("Ruleset action '{action}' could not be performed"))
         }
     }
+    fn perform_intent(&mut self, actor: &Actor, target: Uuid, intent: &str) -> Result<(), String> {
+        if !self.acts_on_entity() {
+            return Err("Perform Intent requires a character".into());
+        }
+        super::super::region::perform_placed_item_intent(self.ctx, actor.render_id, target, intent)
+    }
+
     fn teach(&mut self, actor: &Actor, action: &str, learner: u32) -> Result<(), String> {
         if !self.acts_on_entity() {
             return Err("Teach requires a character".into());
@@ -1492,6 +1499,7 @@ impl WorldServices for RegionServices<'_> {
             "Dead" => "dead",
             "Sleeping" => "sleeping",
             "Unconscious" => "unconscious",
+            "Dormant" => "dormant",
             _ => return Err("Unknown state".into()),
         };
         // Resolve first so a stashed character is still addressable, then let

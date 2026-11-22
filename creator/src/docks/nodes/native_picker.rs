@@ -246,6 +246,9 @@ pub(super) fn picker_at(
         {
             assets.picker(anchor, viewport, allow_empty)
         }
+        GraphControlValue::Custom { kind, .. } if kind == "placed_item" => {
+            GraphPicker::compact(anchor, viewport, assets.placed_items.clone())
+        }
         _ => return None,
     };
     picker.search_label = fl!("node_search");
@@ -329,7 +332,7 @@ impl NativePicker {
                 *selected = index;
             }
             GraphControlValue::Custom { kind, data }
-                if matches!(kind.as_str(), "tile" | "rules_icon" | "event") =>
+                if matches!(kind.as_str(), "tile" | "rules_icon" | "event" | "placed_item") =>
             {
                 *data = item.into();
             }

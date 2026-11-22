@@ -58,12 +58,7 @@ pub fn sync_editor_content_assets(rusterix: &mut Rusterix, project: &Project) {
 
     rusterix.assets.avatars.clear();
     insert_bundled_ruleset_avatars(&mut rusterix.assets, project);
-    for avatar in project.avatars.values() {
-        rusterix
-            .assets
-            .avatars
-            .insert(avatar.name.clone(), avatar.clone());
-    }
+    shared::runtime_assets::insert_project_avatars(&mut rusterix.assets, project);
     sync_item_icon_assets(rusterix, project);
     sync_procedural_avatar_assets(&mut rusterix.assets, project);
 }
@@ -200,12 +195,7 @@ pub fn setup_client_sources(rusterix: &mut Rusterix, project: &mut Project) -> V
     }
     rusterix.assets.avatars.clear();
     insert_bundled_ruleset_avatars(&mut rusterix.assets, project);
-    for avatar in project.avatars.values() {
-        rusterix
-            .assets
-            .avatars
-            .insert(avatar.name.clone(), avatar.clone());
-    }
+    shared::runtime_assets::insert_project_avatars(&mut rusterix.assets, project);
     insert_bundled_ruleset_textures(&mut rusterix.assets, project);
     sync_item_icon_assets(rusterix, project);
     sync_procedural_avatar_assets(&mut rusterix.assets, project);

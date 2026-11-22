@@ -24,6 +24,10 @@ mod visibility;
 mod pixels;
 #[path = "native_world_speech.rs"]
 mod speech;
+#[path = "native_world_character_hover.rs"]
+mod character_hover;
+#[path = "behavior_overview.rs"]
+mod behavior_overview;
 #[path = "native_world_scope.rs"]
 mod scope;
 #[path = "native_world_custom.rs"]
@@ -91,6 +95,14 @@ struct Binding {
     style: HudStyle,
 }
 impl Binding {
+    fn overview_compatible(&self, next: &Self) -> bool {
+        self.document == next.document && self.runtime == next.runtime
+            && self.view == next.view && self.map == next.map && self.tool == next.tool
+            && self.mode == next.mode && self.camera == next.camera
+            && self.context.is_region() && next.context.is_region()
+            && self.paste.is_none() && next.paste.is_none()
+    }
+
     fn capture_compatible(&self, next: &Self) -> bool {
         self.document == next.document
             && self.runtime == next.runtime
@@ -220,7 +232,7 @@ struct SceneInputKey {
     vertices: Vec<u32>,
     linedefs: Vec<u32>,
     sectors: Vec<u32>,
-    entity: Option<Uuid>,
+    entity: Option<(Uuid, Option<Vec3<f32>>)>,
     rectangle: Option<(Vec2<f32>, Vec2<f32>)>,
     polygon: Vec<u32>,
     line: (Option<Vec2<f32>>, Option<Vec2<f32>>),
@@ -372,7 +384,7 @@ impl WorldGpu {
         let input = crate::tools::ToolViewInput {
             camera: Some(pick.camera),
             ray: Some(pick.ray?),
-            isometric_item: None,
+            isometric_subject: None,
             base: pick.base.map(|(geo, at, depth, _)| (geo, at, depth)),
             dynamic: pick.dynamic,
             paint_geo: pick.paint_geo,
@@ -437,6 +449,7 @@ pub(super) struct NativeWorldFrame {
     cube: Option<CubeFrame>,
     isometric: Option<Arc<eldiron_presentation::isometric::IsometricWorldTargets>>,
     overlay: Arc<ToolOverlayFrame>,
+    overview_bounds: Option<behavior_overview::Bounds>,
     pub(super) receipts: Vec<FrameReceipt>,
     pub(super) receipt: FrameReceipt,
 }
@@ -471,6 +484,8 @@ pub(crate) struct NativeWorld {
     published: Option<(TheId, Arc<PaintList>)>,
     gpu: Option<WorldGpu>,
     speech: speech::WorldSpeech,
+    character_hover: character_hover::CharacterHover,
+    behavior_overview: behavior_overview::Overview,
 }
 /// An already accepted down which changed preview geometry before authoring.
 /// Keep its physical continuation bounded until the replacement is presented.
@@ -523,6 +538,8 @@ impl Default for NativeWorld {
             published: None,
             gpu: None,
             speech: Default::default(),
+            character_hover: Default::default(),
+            behavior_overview: Default::default(),
         }
     }
 }
@@ -647,7 +664,16 @@ impl NativeWorld {
         if had_cube_capture && cube_capture.is_none() {
             camera.reset_mouse_tracking();
         }
+        let keep_overview = self.binding.as_ref().zip(next.as_ref())
+            .is_some_and(|(old, new)| old.overview_compatible(new));
+        let overview = keep_overview.then(|| std::mem::take(&mut self.behavior_overview));
         self.invalidate(ui, camera, creator_tools);
+        if let Some(mut overview) = overview {
+            if !same_display {
+                overview.present(None);
+            }
+            self.behavior_overview = overview;
+        }
         self.binding = next;
         if let Some((id, list)) = backdrop
             && let Some(view) = ui.get_render_view(&id.name)
@@ -694,6 +720,8 @@ impl NativeWorld {
         self.presented = None;
         self.paint_cycle = false;
         self.speech.invalidate_geometry();
+        self.character_hover.point = None;
+        self.behavior_overview = Default::default();
         self.overlay_input.invalidate();
         self.world_capture = None;
         self.relative_navigation = None;
@@ -812,20 +840,15 @@ fn snap_cube(
     ));
     ctx.ui.invalidate_scene();
 }
-fn isometric_input(
-    world: &NativeWorld,
+fn displayed_isometric_input(
     frame: &NativeWorldFrame,
     at: Vec2<i32>,
 ) -> Option<crate::tools::ToolViewInput> {
     let targets = frame.isometric.as_ref()?;
-    let current = world.gpu.as_ref()?.scenes.isometric_targets(frame.output)?;
-    if !Arc::ptr_eq(targets, &current) {
-        return None;
-    }
     Some(crate::tools::ToolViewInput {
         camera: None,
         ray: None,
-        isometric_item: Some(targets.editor_item([
+        isometric_subject: Some(targets.editor_subject([
             at.x as f32 / frame.binding.size.0 as f32,
             at.y as f32 / frame.binding.size.1 as f32,
         ])),
@@ -835,6 +858,17 @@ fn isometric_input(
         paint: None,
         rectangle: None,
     })
+}
+fn isometric_input(
+    world: &NativeWorld,
+    frame: &NativeWorldFrame,
+    at: Vec2<i32>,
+) -> Option<crate::tools::ToolViewInput> {
+    let current = world.gpu.as_ref()?.scenes.isometric_targets(frame.output)?;
+    if !Arc::ptr_eq(frame.isometric.as_ref()?, &current) {
+        return None;
+    }
+    displayed_isometric_input(frame, at)
 }
 impl Editor {
     pub(super) fn native_world_waiting(&self) -> bool {
@@ -1202,6 +1236,7 @@ impl Editor {
         {
             if world.gpu.is_some() {
                 world.presented = None;
+                world.behavior_overview.present(None);
                 world.overlay_input.invalidate();
                 world.world_capture = None;
                 world.retry_click = None;
@@ -1331,7 +1366,12 @@ impl Editor {
             vertices: map.selected_vertices.clone(),
             linedefs: map.selected_linedefs.clone(),
             sectors: map.selected_sectors.clone(),
-            entity: map.selected_entity_item,
+            entity: map.selected_entity_item.map(|id| {
+                let position = map.entities.iter().find(|entity| entity.creator_id == id)
+                    .map(|entity| entity.position)
+                    .or_else(|| map.items.iter().find(|item| item.creator_id == id).map(|item| item.position));
+                (id, position)
+            }),
             rectangle: map.curr_rectangle,
             polygon: map.possible_polygon.clone(),
             line: (map.curr_grid_pos, map.curr_mouse_pos),
@@ -1751,6 +1791,29 @@ impl Editor {
                 .map_err(|e| e.to_string())?
                 .ops,
         );
+        if ready
+            && gpu.stamps_ready
+            && gpu.paint_ready
+            && binding.runtime.is_some()
+            && binding.paste.is_none()
+            && runtime_state == rusterix::ServerState::Running
+            && ui.dialog.is_none()
+            && ui.popover.is_none()
+            && ui.context_menu.is_none()
+            && ctx.ui.overlay.is_none()
+            && ctx.ui.hover.as_ref() == Some(&binding.view)
+            && let Some(point) = world.character_hover.point
+            && let Some(name) = character_hover::name_at(
+                &binding,
+                map,
+                &gpu.scenes,
+                output,
+                isometric.as_deref(),
+                point,
+            )
+        {
+            world.character_hover.paint(name, binding.size, &mut ctx.text, &mut list);
+        }
         let cube = if binding.mode == EditorViewMode::Orbit {
             world.cube.prepare(
                 binding.cube_target(world.epoch),
@@ -1774,6 +1837,12 @@ impl Editor {
                 .map_err(|e| e.to_string())?
                 .ops,
         );
+        let overview_bounds = if behavior_overview::available(&binding, &self.server_ctx) {
+            world.behavior_overview.paint(&binding, &mut ctx.text, binding.style.colors, &mut list)
+        } else {
+            world.behavior_overview = Default::default();
+            None
+        };
         world.serial = world
             .serial
             .checked_add(1)
@@ -1813,6 +1882,7 @@ impl Editor {
             cube,
             isometric,
             overlay,
+            overview_bounds,
             receipts,
             receipt,
         })))
@@ -1840,6 +1910,7 @@ impl Editor {
                     .invalidate_overlay();
                 world.presented = None;
             }
+            world.behavior_overview.present(None);
             return;
         };
         if next.as_ref() != Some(&frame.binding) || frame.target.revision != world.epoch {
@@ -1878,6 +1949,7 @@ impl Editor {
                 // frame, even if the pointer has since stopped moving.
                 ctx.ui.invalidate_paint();
             }
+            world.behavior_overview.present(frame.overview_bounds);
             world.presented = Some(frame);
         } else {
             ctx.ui.invalidate_paint();
@@ -1981,6 +2053,27 @@ impl Editor {
         if !self.native_viewport.enabled {
             return false;
         }
+        if let TheEvent::RenderViewLostHover(id) = event
+            && self.native_viewport.world.binding.as_ref().is_some_and(|binding| &binding.view == id)
+        {
+            let world = &mut self.native_viewport.world;
+            world.behavior_overview.cancel_pick();
+            let hover_changed = world.behavior_overview.hover(None);
+            ctx.ui.invalidate_paint_if(world.character_hover.point.take().is_some() || hover_changed);
+        }
+        if let TheEvent::RenderViewScrollBy(id, delta) | TheEvent::RenderViewPreciseScrollBy(id, delta) = event
+            && ui.dialog.is_none()
+            && ui.context_menu.is_none()
+            && ui.popover.is_none()
+            && ctx.ui.overlay.is_none()
+            && self.native_viewport.world.binding.as_ref().is_some_and(|binding| {
+                &binding.view == id && behavior_overview::available(binding, &self.server_ctx)
+            })
+            && self.native_viewport.world.behavior_overview.scroll(-delta.y as f32)
+        {
+            ctx.ui.invalidate_paint();
+            return true;
+        }
         if self.server_ctx.shared.native_game_input {
             if matches!(event, TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Escape))) {
                 self.cancel_native_world_gesture(ui,ctx);
@@ -2009,6 +2102,37 @@ impl Editor {
             .get_current_tool()
             .sync_overlay_sources(&self.documents.project, &self.server_ctx);
         let next = self.native_world_binding(ui, ctx);
+        let modal = ui.dialog.is_some() || ui.popover.is_some()
+            || ui.context_menu.is_some() || ctx.ui.overlay.is_some();
+        // The runtime can publish new assets before the next paint. Query the
+        // frame the pointer was over, before rebinding the authoring tools.
+        let (inspect_subject, entity_press) = if !modal
+            && let (Some(binding), TheEvent::RenderViewClicked(id, at)) = (&next, event)
+            && id == &binding.view
+            && behavior_overview::available(binding, &self.server_ctx)
+        {
+            let world = &self.native_viewport.world;
+            world.presented.as_ref().filter(|frame| frame.ready
+                && frame.binding.overview_compatible(binding) && frame.binding.size == binding.size
+                && !frame.overlay.hud_covers_control(*at))
+                .and_then(|frame| {
+                    let map = scope::map(&self.documents.project, &self.server_ctx)?;
+                    let display_map = self.play_session.as_ref()
+                        .and_then(|play| play.project().regions.iter().find(|region| region.map.id == binding.map))
+                        .map_or(map, |region| &region.map);
+                    let subject = behavior_overview::pick(frame, world, map, display_map, *at)?;
+                    // Sprite hits remain valid through asset refreshes as long
+                    // as the displayed viewport still uses this map transform.
+                    let press = if frame.stamp == SourceStamp::new(map) {
+                        displayed_isometric_input(frame, *at)
+                    } else {
+                        None
+                    };
+                    Some((Some(subject), press))
+                }).unwrap_or_default()
+        } else {
+            (None, None)
+        };
         self.bind_native_world(next.clone(), ui, ctx);
         let Some(binding) = next else {
             return false;
@@ -2044,6 +2168,41 @@ impl Editor {
             }
             if id.uuid != binding.view.uuid {
                 return true;
+            }
+        }
+        let inspect_available = behavior_overview::available(&binding, &self.server_ctx);
+        let inspect_unobstructed = inspect_available && !modal;
+        if inspect_unobstructed {
+            let world = &mut self.native_viewport.world;
+            // Selecting a placed entity can change ProjectContext between down and up.
+            // Keep the inspection click scoped to the viewport independently of tool capture.
+            if let Some(subject) = world.behavior_overview.track_pick(input) {
+                world.behavior_overview.show(subject, &self.documents.project, binding.map);
+                ctx.ui.invalidate_paint();
+            }
+            if let MapEvent::MapHover(at) = input {
+                ctx.ui.invalidate_paint_if(world.behavior_overview.hover(Some(at)));
+            }
+            if world.world_capture.is_none() && world.behavior_overview.input(input) {
+                world.character_hover.point = None;
+                ctx.ui.invalidate_paint();
+                return true;
+            }
+        } else if !inspect_available {
+            self.native_viewport.world.behavior_overview = Default::default();
+        } else {
+            self.native_viewport.world.behavior_overview.cancel_pick();
+        }
+        if binding.runtime.is_some() {
+            match input {
+                MapEvent::MapHover(at) => {
+                    self.native_viewport.world.character_hover.point = Some(at);
+                    ctx.ui.invalidate_paint();
+                }
+                MapEvent::MapClicked(_) | MapEvent::MapDragged(_) => {
+                    self.native_viewport.world.character_hover.point = None;
+                }
+                _ => {}
             }
         }
         if binding.paste.is_some() {
@@ -2138,7 +2297,19 @@ impl Editor {
         }
         let paint_input = self.server_ctx.shared.curr_map_tool_type == MapToolType::IsoPaint;
         let world = &mut self.native_viewport.world;
-        if matches!(input, MapEvent::MapUp(_))
+        if let (MapEvent::MapClicked(at), Some(subject)) = (input, inspect_subject) {
+            world.behavior_overview.begin_pick(at, subject);
+        }
+        if let (MapEvent::MapClicked(at), Some(query)) = (input, entity_press) {
+            self.server_ctx.tools.write().get_current_tool().set_view_input(Some(query.clone()));
+            world.world_capture = Some(WorldGesture {
+                binding,
+                point: at,
+                query: Some(query),
+            });
+            return false;
+        }
+        if let MapEvent::MapUp(_) = input
             && world
                 .world_capture
                 .as_ref()
@@ -2270,6 +2441,9 @@ impl Editor {
                 .is_some_and(|owner| owner.binding == binding)
             && binding.mode == EditorViewMode::D2
             && binding.camera == MapCamera::TwoDIso
+            // The Entity tool captures its target on press and projects drag
+            // coordinates itself. The redraw can replace the sprite receipt.
+            && !self.server_ctx.tools.read().current_game_tool_is("tool.entity")
         {
             if let Some(at) = pointer {
                 let Some(query) = frame

@@ -16,6 +16,7 @@ The Node List is contextual. Character movement and combat nodes are offered for
 | On Area | Handle transitions for the selected place. | Player Entered, NPC Entered, Player Left, NPC Left |
 | Filter | Compare `event.<field>` or `attr.<name>` against a value. | Match, No Match |
 | Time Range | Start/end as HH:MM. Start included, end excluded; overnight ranges supported. Equal times mean all day. | Inside, Outside |
+| Random Chance | Roll from 0 to 100 percent each time flow reaches the node. | Match, No Match |
 | Inventory Has | Check inventory for an item. | Has, Missing |
 | Entities In Radius | Check for another living entity inside the owner's collision radius. | Empty, Occupied |
 
@@ -39,7 +40,19 @@ Pursue and attack the current target using a ruleset combat profile. The ruleset
 
 ### Use Action
 
-Request a ruleset attack once using `event.subject`, or the current target when no subject is supplied. **Done** means accepted; **Failed** means refused, for example due to range or cooldown. The current picker offers attacks targeting characters. This is for graph-initiated actions; ordinary ruleset UI commands already execute their actions directly.
+Request one supported ruleset action. A self-targeted craft acts on the
+character running the graph. A supported entity-targeted attack or spell uses
+`event.subject` when supplied and the current target otherwise. **Done** means
+the action was accepted. **Failed** handles unmet requirements, such as missing
+ingredients, range or cooldown. See
+[Mara’s crafting routine](behavior_examples#craft-and-sell-a-batch) for a craft
+example. Player-facing ruleset UI commands invoke their actions directly.
+
+### Perform Intent
+
+Choose a placed item and type the intent name. The item picker stores the placement ID, so renaming the item preserves the reference. The item needs to be in the character's region and within the intent's allowed range. `Go To → Done → Perform Intent (use, Bed)` lets an NPC occupy a bed through the same furniture interaction as a player.
+
+**Done** means a native interaction succeeded or the item accepted an Intent event. Item graphs can use `event.intent` and `event.subject` to handle custom verbs such as `light` and `extinguish`. **Failed** handles missing items, denied intents, or failures such as an occupied bed.
 
 ### Teach
 
@@ -64,7 +77,7 @@ Restart normal behavior after a temporary interaction. Connect it after the inte
 | Set Tile | Select a visual tile for Self or Target. Changes the entity's sprite; Done or Failed reports the result. |
 | Message | Send text to the game log with a category; supports event references. |
 | Set Attribute | Write a named attribute with Text, Number, Boolean or Toggle type. |
-| State | Set Alive, Dead, Sleeping or Unconscious. Visibility remains a separate attribute. |
+| State | Set Alive, Dead, Sleeping, Unconscious or Dormant. Dormant removes the body from play without creating remains. A behavior timer can later revive it. |
 | Teleport | Move the character to a named area, optionally in another region, after the current event finishes. |
 | Player Camera | Select 2D, 2D Grid, Isometric, First Person, First Person Grid or First Person Mouse Look after character creation. |
 | Add Item | Add an item from ruleset item templates to inventory. |

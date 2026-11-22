@@ -84,10 +84,13 @@ continue to use `on_tile_id` and `off_tile_id`; see [Attributes](attributes#acti
 
 ## Change artwork, not every wearer
 
-An item references its MZ assets. Editing a referenced asset changes every place
-that uses it; duplicating and rebinding an asset creates an independent variant.
-Clothing and equipment keep their ruleset identity and gameplay properties while
-you edit their look. Project edits are saved and survive ruleset refreshes.
+Characters and items reference the bundled MZ assets by default. Use the
+character’s **Appearance** node to choose supported body, face and hair
+settings on the shared model. Use **Customize model** on the Appearance
+workspace for a project-local character model, or **Customize appearance**
+for a project-local item appearance. Project-local artwork survives ruleset
+refreshes, and equipped items keep their ruleset identity and gameplay properties.
+Editing a project-local asset affects every reference to that asset.
 
 All authored recipe colors resolve through the project's single palette. New
 projects start with **Endesga 64**. [Palette switching](../creator/tools/palette)
@@ -96,7 +99,7 @@ body, garment or icon. Direct bitmap overrides keep their own image colors.
 
 ## Model, rig and animation editing
 
-Use **Edit model** on a character's Appearance workspace to open its MZ geometry.
+Use **Edit model** on a character's Appearance workspace to open its project-local MZ geometry.
 Geometry/rig editing uses the **main editor viewport**, with construction rows in
 the sidebar. Material texture previews use the **minimap**.
 

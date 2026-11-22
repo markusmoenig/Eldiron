@@ -31,7 +31,7 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
                 && matches!(key, "entity_ruleset_item" | "entity_item_state"));
     }
     match key {
-        "event" | "on_event" | "filter" | "time_range" => true,
+        "event" | "on_event" | "filter" | "time_range" | "random_chance" => true,
         "quest_state" | "set_quest" | "quest_guard" | "item_guard" | "player_attribute_guard" => {
             matches!(
                 pc,
@@ -46,7 +46,7 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
         "on_enter_area" => !matches!(pc, ProjectContext::RegionArea(_, _)),
         "player_camera" | "routine" | "random_walk" | "resume_routine" | "go_to" | "lookout"
         | "engage" | "use_action" | "teach" | "join_party" | "leave_party" | "health_check"
-        | "set_target" | "respawn_character" => matches!(
+        | "set_target" | "respawn_character" | "perform_intent" => matches!(
             pc,
             ProjectContext::Character(_)
                 | ProjectContext::CharacterCode(_)
@@ -77,6 +77,8 @@ pub fn node_help(key: &str) -> String {
         "lookout" => fl!("node_lookout_help"),
         "engage" => fl!("node_engage_help"),
         "use_action" => fl!("node_use_action_help"),
+        "perform_intent" => fl!("node_perform_intent_help"),
+        "random_chance" => fl!("node_random_chance_help"),
         "teach" => fl!("node_teach_help"),
         "respawn_character" => fl!("node_respawn_character_help"),
         "set_target" => fl!("node_set_target_help"),

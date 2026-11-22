@@ -9,7 +9,7 @@ pub struct ToolViewInput {
     pub camera: Option<Camera3D>,
     pub ray: Option<(Vec3<f32>, Vec3<f32>)>,
     /// Some(None) is a confirmed native isometric source-alpha miss.
-    pub isometric_item: Option<Option<Uuid>>,
+    pub isometric_subject: Option<Option<rusterix::isometric::scene::SpriteOwner>>,
     pub base: Option<(GeoId, Vec3<f32>, f32)>,
     pub dynamic: Option<(GeoId, Vec3<f32>, f32)>,
     pub paint_geo: Option<[u32; 4]>,

@@ -5,22 +5,27 @@ sidebar_position: 2
 
 # Project Files
 
-Eldiron uses the **.eldiron** extension for Creator projects. The same file can be reopened in Creator and played by the desktop, terminal, or web clients.
+Eldiron uses **.eldiron** for editable projects, local play and dedicated
+hosting. For public multiplayer distribution, export a separate
+**.eldiron-client** package for players.
 
 ## Creating a Project
 
-Startup and **File → New** show a compact chooser. **New 2D Project** and
-**New 3D Project** generate a project locally using the current
-bundled settings and ruleset. Each includes a region with a floor, a player
-character with WASD and arrow-key movement, and a responsive screen with a game
-widget. The 2D region starts with a small patch of painted grass tiles and a
-path, editable with the Rect tool. The 3D project opens in isometric view and
+Startup and **File → New** offer **New 2D Project**, **New 2D Iso Project** and
+**New 3D Project**. Each creates a local project with the bundled ruleset, a
+region, a player with WASD and arrow-key movement, and a responsive screen
+with a game widget. The 2D region starts with painted grass and a path that
+you can edit with Rect. The 2D Iso template configures the editor and player
+for the isometric sprite grid. The 3D template opens in isometric view and
 uses an isometric game camera.
 
 **Browse Examples** opens the downloadable example catalog separately. Examples
 open as unsaved projects; save a copy to keep your changes. Internet access is
 needed only to browse and download examples. **Open Project…** opens an existing
 local project.
+
+Follow the [Wayfarer’s Rest walkthrough](wayfarers_rest.md) to try the village’s
+daily routines, crafting, trade, and exploration.
 
 ## Container Format
 
@@ -33,13 +38,18 @@ MyGame.eldiron
 └── binaries/
     ├── bakes/
     │   └── <region-id>/<map-id>/...
+    ├── tile-bakes/
+    │   └── v1/
+    │       ├── index.json
+    │       └── <tile-id>.bin
     └── items/
         └── <item-id>/icons/
             ├── on/0.png
             └── off/0.png
 ```
 
-`manifest.json` identifies the container and its format version. Version 1 contains:
+`manifest.json` identifies the container and its format version. A minimal
+version 1 manifest looks like this.
 
 ```json
 {
@@ -48,12 +58,17 @@ MyGame.eldiron
 }
 ```
 
-`project.json` contains the serialized project model and stable paths to its
-binary payloads. Large byte arrays are written as separate entries through one
-shared archive API. Background-bake color, depth, albedo, normal, and material
-payloads live below `binaries/bakes/`. Customized item icon frames live below
-`binaries/items/` as ordinary PNGs. PNG entries are stored without redundant
-ZIP recompression, while raw data such as bake depth is deflated.
+`project.json` keeps the editable project and the metadata for saved bakes.
+The binary sections are present when a project has the corresponding payloads.
+
+| Archive path | Contents |
+| --- | --- |
+| `binaries/bakes/` | Background-bake color, depth, albedo, normal and material data, including raytraced region bakes. |
+| `binaries/tile-bakes/v1/` | Pixel buffers for eligible baked tiles, including normal 2D Iso terrain and sprite frames and their material channels. The optional manifest field `tile_bakes_path` points to the tile index. Creator can load individual tile entries on demand. |
+| `binaries/items/` | Customized item icon frames as PNGs. |
+
+PNG entries are stored without redundant ZIP recompression. Raw data such as
+bake depth and tile-bake buffers is deflated.
 
 Inherited ruleset and tile icons are not copied into the project. An item gains
 binary icon entries only after its On or Off frames are customized. **Load
@@ -88,10 +103,12 @@ See [Screens](/docs/screens/#procedural-screen-artwork).
 
 ## Ruleset Storage
 
-Projects store the ruleset selection in Game / Settings. Creator and the runtime
+Projects store the ruleset selection in **Game / Settings**. Creator and the runtime
 resolve that selection from the bundled catalogue. Legacy rules snapshots are
 ignored on open and omitted on save. The project defines its world, character
-options, placements, resource bindings and behavior graphs.
+options, placements, resource bindings and behavior graphs. Bundled artwork
+uses shared references, and explicit appearance variants are saved with the
+project. See [Rules in Eldiron](../rules_in_eldiron#source-of-truth).
 
 ## Compatibility
 
@@ -100,14 +117,23 @@ Legacy **.eldiron** files consisting of raw JSON are still accepted by Creator a
 Early version-one archives that stored background payloads directly below
 `bakes/` also remain readable. Saving them again moves those entries under the
 common `binaries/bakes/` layout. Legacy inline icon frames are similarly
-externalized as PNG entries on save.
+externalized as PNG entries on save. Older archives with tile pixels inline
+also open, and eligible buffers move to the tile-bake section on save.
 
 Creator writes saves through a temporary file beside the destination and replaces the old project only after the new archive has been written successfully. This reduces the risk of leaving a partially written project if a save is interrupted.
 
 ## Web Client
 
-For web builds, place the project beside the client files and name it `game.eldiron`. The web client downloads it as binary data and supports both the current container and legacy JSON files.
+For a browser build that runs a local game, place the authored project beside
+the client files and name it `game.eldiron`. The web client supports both the
+current container and legacy JSON. For a browser client that connects to a
+published multiplayer world, use the export workflow below.
 
 ## Public multiplayer clients
 
-For a multiplayer project, **File → Export Public Client…** writes a separate `.eldiron-client` release. Set the project's WSS endpoint first. Give this package to the desktop Player or serve it alongside the browser Player. Export includes public visuals and UI while leaving behavior source, authored occupants and saves private. It does not change the authored project's path or saved state. Keep the `.eldiron` source for editing, dedicated hosting and local Creator Play. See [the export and browser deployment workflow](../../public-client-export.md).
+For a multiplayer project, **File → Export Public Client…** writes a separate
+`.eldiron-client` release. Set the project’s WSS endpoint first. Give the
+package to the desktop Player or serve it alongside the browser Player.
+Export includes public visuals and UI while leaving behavior source, authored
+occupants and saves private. Keep saving your editable `.eldiron` project
+separately. See [Public Client Export](public_client_export).

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "hair_crop",
+  "label": "Cropped hair",
+  "rows": [
+    {"id":"body-hair","label":"Close crop","tiles":[{"id":"body-hair-loft","op":{"type":"loft","segments":16,"sections":[{"center":[0,0.083,-0.02],"radius":[0.063,0.065]},{"center":[0,0.113,-0.011],"radius":[0.084,0.076]},{"center":[0,0.152,-0.011],"radius":[0.086,0.079]},{"center":[0,0.175,-0.012],"radius":[0.073,0.07]},{"center":[0.003,0.197,-0.013],"radius":[0.052,0.053]},{"center":[0.004,0.204,-0.01],"radius":[0.029,0.034]}]}},{"id":"body-hair-texture","op":{"type":"texture","source":"ruleset:material/hair","size":64,"axes":[0,1],"origin":[0,0],"span":[1,1],"preserve_uv":true}}]},
+    {"id":"hair-edge","label":"Straight cropped hairline","tiles":[{"id":"hair-edge-loft","op":{"type":"loft","segments":16,"sections":[{"center":[-0.001,0.1,0.061],"radius":[0.033,0.01]},{"center":[0,0.108,0.064],"radius":[0.058,0.015]},{"center":[0,0.132,0.066],"radius":[0.069,0.016]},{"center":[0.001,0.157,0.057],"radius":[0.067,0.017]},{"center":[0.003,0.178,0.042],"radius":[0.055,0.016]}]}},{"id":"hair-edge-texture","op":{"type":"texture","source":"ruleset:material/hair","size":64,"axes":[0,1],"origin":[0,0],"span":[1,1],"preserve_uv":true}}]},
+    {"id":"hair","label":"Cropped hair","tiles":[{"id":"hair-parts","op":{"type":"assemble","rows":["body-hair","hair-edge"]}}]}
+  ],
+  "output": "hair"
+}
