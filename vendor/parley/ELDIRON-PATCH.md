@@ -29,7 +29,8 @@ word/line segmenters per layout context instead. These include Chinese/Japanese
 and Southeast Asian script data, using the existing ICU `compiled_data`
 dependency. No rasterization, shaping, font selection or Swash code is replaced.
 
-The root Cargo patch pins this source. Dependency tests exercise dictionary word/line boundaries directly for
+TheFramework uses this source as `eldiron-parley`, including when installed from
+crates.io. Dependency tests exercise dictionary word/line boundaries directly for
 Japanese and Thai; native transcript/choice tests exercise the same
 provider through actual shaped text and GPU paint. Parley cursor movement
 also treats line-break opportunities as navigation stops; this patch does not

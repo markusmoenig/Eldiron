@@ -125,7 +125,7 @@ pub enum RegionMessage {
     /// Say: RegionId, SenderId_entity, SenderId_item, Message, Category
     Say(u32, Option<u32>, Option<u32>, String, String),
     /// Region, observing player, explicit world description.
-    WorldText(u32, u32, crate::world_text::WorldText),
+    WorldText(u32, u32, crate::world_text::WorldText, String),
     /// TransferEntity: Move the Entity from the region to a new region (name) in sector (name)
     TransferEntity(u32, Entity, String, String),
     /// Send a multiple choice

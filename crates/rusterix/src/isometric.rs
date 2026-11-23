@@ -126,6 +126,21 @@ impl Projection {
         let p = (screen - self.origin) / self.unit.max(0.001);
         Vec2::new(p.x * 0.5 - p.y, p.x * 0.5 + p.y)
     }
+
+    pub fn visible_bounds(&self, size: (u32, u32), heights: [f32; 2]) -> crate::BBox {
+        let mut min = Vec2::broadcast(f32::INFINITY);
+        let mut max = Vec2::broadcast(f32::NEG_INFINITY);
+        for x in [0., size.0 as f32] {
+            for y in [0., size.1 as f32] {
+                for height in heights {
+                    let world = self.at_height(height).ground(Vec2::new(x, y));
+                    min = min.map2(world, f32::min);
+                    max = max.map2(world, f32::max);
+                }
+            }
+        }
+        crate::BBox::new(min, max)
+    }
 }
 
 /// Convert a flat material frame to the same foot-anchored diamond used by MZ geometry.
@@ -203,6 +218,7 @@ pub struct GroundCache {
     key: Option<u64>,
     pixels: Vec<u8>,
     sprite_owners: Vec<u32>,
+    sprite_depth: Vec<f32>,
     scene: SceneCache,
     terrain_pixels: Vec<[f32; 8]>,
     surface_key: Option<u64>,
@@ -214,10 +230,11 @@ struct CachedSurface {
     offset: Vec2<f32>,
 }
 
-/// Pixel ownership only resolves a floor painting over a sprite it supports.
-/// Higher terrain and foreground props keep their normal painter occlusion.
+/// Pixel ownership protects sprites from their supporting floors. Mesh depth
+/// resolves overlaps between opaque samples on the same orthographic ray.
 struct ContactPass<'a> {
     owners: &'a mut [u32],
+    depth: &'a mut [f32],
     owner: u32,
     protected: &'a [bool],
     /// Union of the affected sprites, in screen pixels. Distant scenery can
@@ -364,7 +381,7 @@ pub fn draw_scene_lit_cached(
     lighting: Option<&lighting::Lighting>,
 ) {
     draw_scene_impl(
-        map, assets, buffer, projection, seconds, guides, avatars, cache, lighting, None,
+        map, assets, buffer, projection, seconds, guides, avatars, cache, lighting, None, 0,
     );
 }
 #[cfg(feature = "graphics")]
@@ -382,6 +399,10 @@ pub fn draw_scene_gpu_cached(
     particles: &[scenevm::isometric::Particle],
 ) -> Result<(), String> {
     let mut result = Ok(());
+    let shadow_storage_bytes = scene.gpu_context().map_or(0, |(device, _)| {
+        let limits = device.limits();
+        limits.max_buffer_size.min(u64::from(limits.max_storage_buffer_binding_size)) as usize
+    });
     draw_scene_impl(
         map,
         assets,
@@ -395,6 +416,7 @@ pub fn draw_scene_gpu_cached(
         Some(&mut |frame, buffer, p| {
             result = lighting::gpu_draw(scene, frame, buffer, p, particles);
         }),
+        shadow_storage_bytes,
     );
     result
 }
@@ -410,11 +432,20 @@ fn draw_scene_impl(
     mut cache: Option<&mut GroundCache>,
     lighting: Option<&lighting::Lighting>,
     mut gpu: Option<&mut dyn FnMut(&lighting::Frame<'_>, &mut TheRGBABuffer, Projection)>,
+    shadow_storage_bytes: usize,
 ) {
     let mut uncached_scene = SceneCache::default();
     let scene_cache = cache.as_deref_mut().map(|c| &mut c.scene).unwrap_or(&mut uncached_scene);
     let plan = scene_cache.prepare(map, assets, seconds, avatars);
-    let geometry = if gpu.is_some() { scene_cache.shadow_geometry(map, assets, &plan) } else { None };
+    let geometry = lighting.filter(|_| gpu.is_some()).and_then(|lighting| {
+        let size = buffer.dim();
+        scene_cache.shadow_geometry_in_view(map, assets, &plan, scene::ShadowView {
+            projection,
+            size: (size.width as u32, size.height as u32),
+            lighting,
+            max_storage_bytes: shadow_storage_bytes,
+        })
+    });
     let ScenePlan { terrain: terrain_model, ground, upright, floors, casters, .. } = plan;
     let mut live = lighting.map(|lighting| {
         if gpu.is_some() {
@@ -549,18 +580,32 @@ fn draw_scene_impl(
         state.surfaces.clear();
         state.surface_key = Some(surface_key);
     }
-    let (surfaces, owners) = (&mut state.surfaces, &mut state.sprite_owners);
     let contact_policy = scene::ContactPolicy::new(map, &upright);
     let protections = &contact_policy.protected;
     let contact_rect = contact_policy.affected_screen_bounds(&upright, projection)
         .unwrap_or([i32::MAX, i32::MAX, i32::MIN, i32::MIN]);
+    let mesh_depth = upright.iter().any(|entry| {
+        entry.floor.is_none()
+            && entry.image_info(false).is_some_and(|image| !image.bitmap && image.surface.is_some())
+    });
+    let pixel_count = buffer.dim().width as usize * buffer.dim().height as usize;
+    let (surfaces, owners, depth) = (
+        &mut state.surfaces,
+        &mut state.sprite_owners,
+        &mut state.sprite_depth,
+    );
+    let depth = if mesh_depth {
+        depth.resize(pixel_count, f32::NEG_INFINITY);
+        depth.fill(f32::NEG_INFINITY);
+        depth.as_mut_slice()
+    } else {
+        &mut []
+    };
     if (contact_rect[0] < contact_rect[2] && contact_rect[1] < contact_rect[3])
         || terrain_model.is_some()
+        || mesh_depth
     {
-        owners.resize(
-            buffer.dim().width as usize * buffer.dim().height as usize,
-            0,
-        );
+        owners.resize(pixel_count, 0);
         owners.fill(0);
         for ((entry, protected), id) in upright.into_iter().zip(protections).zip(contact_policy.owner_by_instance) {
             let terrain = (terrain_model.is_some()
@@ -586,6 +631,7 @@ fn draw_scene_impl(
                 seconds,
                 Some(ContactPass {
                     owners,
+                    depth,
                     owner: id,
                     protected,
                     rect: contact_rect,
@@ -908,6 +954,9 @@ fn raster_floor_pixels(
                             continue;
                         }
                         pass.owners[at] = pass.owner;
+                        if let Some(depth) = pass.depth.get_mut(at) {
+                            *depth = f32::NEG_INFINITY;
+                        }
                     }
                 }
                 let pixel = y as usize * width + x as usize;
@@ -1106,6 +1155,7 @@ fn blit_image(
     let y1 = y0.saturating_add((image_height as f32 * scale).round() as i32);
     let mut contacts = contacts.filter(|pass| {
         pass.terrain.is_some()
+            || !pass.depth.is_empty()
             || (x0 < pass.rect[2] && y0 < pass.rect[3] && x1 > pass.rect[0] && y1 > pass.rect[1])
     });
     let pixels = buffer.pixels_mut();
@@ -1138,15 +1188,13 @@ fn blit_image(
             let dst = (y as usize * width + x as usize) * 4;
             if let Some(pass) = contacts.as_mut() {
                 let at = dst / 4;
+                let height = geometry.and_then(|(surface, base, scale)| {
+                    surface.height_at(src / 4).map(|height| base + height * scale)
+                });
                 if pass
                     .terrain
                     .as_ref()
-                    .is_some_and(|t| {
-                        let height = geometry.and_then(|(surface, base, scale)| {
-                            surface.height_at(src / 4).map(|height| base + height * scale)
-                        });
-                        t.hides(x as usize, y as usize, height)
-                    })
+                    .is_some_and(|t| t.hides(x as usize, y as usize, height))
                 {
                     continue;
                 }
@@ -1157,6 +1205,17 @@ fn blit_image(
                     .unwrap_or(false)
                 {
                     continue;
+                }
+                if let Some(depth) = pass.depth.get_mut(at) {
+                    if let Some(height) = height.filter(|_| alpha == 255) {
+                        let height = f32::from_bits(height.to_bits() & 0xffffff00);
+                        if height < *depth {
+                            continue;
+                        }
+                        *depth = height;
+                    } else {
+                        *depth = f32::NEG_INFINITY;
+                    }
                 }
                 pass.owners[at] = pass.owner;
             }
@@ -1243,7 +1302,7 @@ mod tests {
             if pass==2 {
                 assert!(crate::chunkbuilder::terrain_sculpt::TerrainSculpt::dab(&mut map,Vec2::new(-1.,-1.),2.,1.,crate::chunkbuilder::terrain_sculpt::SculptMode::Raise));
             }
-            draw_scene_impl(&map,&assets,&mut buffer,projection,0.,None,&Default::default(),Some(&mut cache),Some(&lighting),Some(&mut |frame,_,_| snapshots.push(frame.geometry.as_ref().unwrap().clone())));
+            draw_scene_impl(&map,&assets,&mut buffer,projection,0.,None,&Default::default(),Some(&mut cache),Some(&lighting),Some(&mut |frame,_,_| snapshots.push(frame.geometry.as_ref().unwrap().clone())),64 * 1024 * 1024);
         }
         assert!(std::sync::Arc::ptr_eq(&snapshots[0],&snapshots[1]),"camera redraw reuses source triangles");
         assert_ne!(snapshots[0].revision,snapshots[2].revision,"sculpt invalidates shadow cache");

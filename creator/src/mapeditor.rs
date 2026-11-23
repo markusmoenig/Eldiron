@@ -2,6 +2,14 @@ use crate::prelude::*;
 use rusterix::Value;
 use vek::{Vec2, Vec3};
 
+fn minimum_map_zoom(map: &Map) -> f32 {
+    if map.camera == rusterix::MapCamera::TwoDIso {
+        0.125
+    } else {
+        5.0
+    }
+}
+
 pub(crate) fn geometry_selection_status_text(
     map: &Map,
     server_ctx: &CreatorContext,
@@ -754,8 +762,12 @@ impl MapEditor {
                             if ui.ctrl || ui.logo {
                                 let old_grid_size = map.grid_size;
 
-                                map.grid_size += coord.y as f32;
-                                map.grid_size = map.grid_size.clamp(5.0, 100.0);
+                                let zoom = if map.camera == rusterix::MapCamera::TwoDIso {
+                                    old_grid_size * (coord.y as f32 * 0.05).exp()
+                                } else {
+                                    old_grid_size + coord.y as f32
+                                };
+                                map.grid_size = zoom.clamp(minimum_map_zoom(map), 100.0);
 
                                 let scale = map.grid_size / old_grid_size;
                                 map.offset *= scale;
@@ -862,7 +874,8 @@ impl MapEditor {
                         && let Some(map) = project.get_map_mut(&server_ctx.shared)
                     {
                         let old_grid_size = map.grid_size;
-                        map.grid_size = (old_grid_size * (*delta * 2.5).exp()).clamp(5.0, 100.0);
+                        map.grid_size = (old_grid_size * (*delta * 2.5).exp())
+                            .clamp(minimum_map_zoom(map), 100.0);
                         map.offset *= map.grid_size / old_grid_size;
                         map.curr_rectangle = None;
                         redraw = true;

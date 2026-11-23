@@ -16,7 +16,7 @@ For **Windows** download
 
 For **Linux** download
 
-- **eldiron-client-x86_64-unknown-linux-gnu.tar.gz**
+- **eldiron-creator-x86_64-unknown-linux-gnu.tar.gz**
 - or **Eldiron-Creator.deb**
 - or for Arch Linux Users you can install the [AUR](https://aur.archlinux.org/packages/eldiron-bin)
 

@@ -11,6 +11,7 @@ pub(super) fn register(registry: &mut Registry) {
         .unwrap();
     registry.register(Box::new(UseActionModule)).unwrap();
     registry.register(Box::new(TeachModule)).unwrap();
+    registry.register(Box::new(GrantSpellModule)).unwrap();
     registry.register(Box::new(PerformIntentModule)).unwrap();
     registry.register(Box::new(RandomChanceModule)).unwrap();
     registry.register(Box::new(LookoutModule)).unwrap();
@@ -538,6 +539,11 @@ impl NodeModule for MessageModule {
             text: text(p, "text")?,
             role: text(p, "role").unwrap_or_default(),
             recipient: text(p, "recipient").unwrap_or_default(),
+            overhead: p
+                .get("overhead")
+                .and_then(|value| value.get("Toggle"))
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
         }))
     }
 }
@@ -545,6 +551,7 @@ struct Message {
     text: String,
     role: String,
     recipient: String,
+    overhead: bool,
 }
 impl Operation for Message {
     fn execute(
@@ -566,7 +573,11 @@ impl Operation for Message {
                 _ => return Err("Message recipient must reference an event entity".into()),
             }
         };
-        world.message_to(ctx.actor, target, text, self.role.trim())?;
+        if self.overhead {
+            world.message_above(target.unwrap_or(ctx.actor.render_id), text, self.role.trim())?;
+        } else {
+            world.message_to(ctx.actor, target, text, self.role.trim())?;
+        }
         Ok("out")
     }
 }
@@ -1297,6 +1308,41 @@ fn selected(p: &BTreeMap<String, Value>, key: &str) -> Result<u64, String> {
         .and_then(Value::as_u64)
         .ok_or_else(|| format!("Missing choice parameter {key}"))
 }
+struct GrantSpellModule;
+impl NodeModule for GrantSpellModule {
+    fn id(&self) -> &'static str {
+        "grant_spell"
+    }
+    fn inputs(&self) -> &'static [&'static str] {
+        &["in"]
+    }
+    fn outputs(&self) -> &'static [&'static str] {
+        &["done", "failed"]
+    }
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        let spell = text(p, "spell")?.trim().to_owned();
+        if spell.is_empty() {
+            return Err("Grant Spell needs a ruleset spell ID".into());
+        }
+        Ok(Box::new(GrantSpell(spell)))
+    }
+}
+struct GrantSpell(String);
+impl Operation for GrantSpell {
+    fn error_output(&self) -> Option<&'static str> {
+        Some("failed")
+    }
+    fn execute(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        let learner = acting_target(ctx).ok_or("Grant Spell needs an event participant")?;
+        world.grant_spell(learner, &self.0)?;
+        Ok("done")
+    }
+}
+
 struct QuestGuardModule;
 impl NodeModule for QuestGuardModule {
     fn id(&self) -> &'static str {

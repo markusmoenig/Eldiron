@@ -12,7 +12,7 @@ use rusterix::{
         AvatarSprite, Projection, SceneCache,
         lighting::{GpuLightingParameters, Lighting},
         materials::{MaterialSelection, SurfaceMaterials},
-        scene::{ContactPolicy, Sprite},
+        scene::{ContactPolicy, ShadowView, Sprite},
     },
 };
 use scenevm::{
@@ -20,7 +20,6 @@ use scenevm::{
         GpuSpriteSource, IsometricBlitter, IsometricCanvas, IsometricRenderer, Particle,
         SpriteBlit, SpriteContacts, SpriteEnvironment, SpriteTerrainClip,
     },
-    prelude::Vec2,
     render_output::SceneOutput,
 };
 use std::{collections::HashMap, sync::Arc};
@@ -28,6 +27,7 @@ mod frame_sources;
 mod ground_cache;
 mod terrain_chunks;
 mod terrain_materials;
+mod terrain_overview;
 mod terrain_sources;
 #[cfg(test)]
 mod unlit_tests;
@@ -35,6 +35,11 @@ pub(crate) use frame_sources::IsometricFrameSources;
 pub use ground_cache::GroundCacheUsage;
 pub use terrain_chunks::IsometricTerrainCache;
 pub(crate) use terrain_chunks::TerrainConsumer;
+
+const DETAIL_TRIANGLE_BUDGET: usize = 96_000;
+
+type TerrainKey = (theframework_core::Uuid, u32, IsometricSourceVersion);
+type TerrainChunks = Option<Arc<terrain_chunks::GpuTerrainChunks>>;
 
 pub struct IsometricSceneInput<'a> {
     pub map: &'a Map,
@@ -90,12 +95,11 @@ pub struct IsometricSceneRenderer {
     surfaces: IsometricSurfaceRenderer,
     sprites: IsometricSources,
     materials: IsometricMaterialSources,
+    overview_materials: IsometricMaterialSources,
     paints: IsometricPaintSources,
     ground_cache: ground_cache::GroundCache,
-    terrain_chunks: Option<(
-        (theframework_core::Uuid, u32, IsometricSourceVersion),
-        Option<Arc<terrain_chunks::GpuTerrainChunks>>,
-    )>,
+    terrain_chunks: Option<(TerrainKey, TerrainChunks)>,
+    terrain_window: Option<(TerrainKey, BBox, TerrainChunks)>,
     terrain_rasterizer: Option<terrain_chunks::TerrainRasterizer>,
 }
 impl IsometricSceneRenderer {
@@ -118,9 +122,11 @@ impl IsometricSceneRenderer {
             surfaces: IsometricSurfaceRenderer::new(context.clone())?,
             sprites: IsometricSources::new(context.clone(), 64 * 1024 * 1024, 2048),
             materials: IsometricMaterialSources::new(context.clone(), 32 * 1024 * 1024, 1024),
+            overview_materials: IsometricMaterialSources::new(context.clone(), 512 * 1024, 1024),
             paints: IsometricPaintSources::new(context.clone(), 32 * 1024 * 1024, 256),
             ground_cache: Default::default(),
             terrain_chunks: None,
+            terrain_window: None,
             terrain_rasterizer: None,
             context,
             scene: SceneCache::default(),
@@ -142,6 +148,7 @@ impl IsometricSceneRenderer {
         self.elevation = None;
         self.ground_cache.clear();
         self.terrain_chunks = None;
+        self.terrain_window = None;
     }
     pub fn ground_cache_usage(&self) -> GroundCacheUsage {
         self.ground_cache.usage()
@@ -183,7 +190,7 @@ impl IsometricSceneRenderer {
         &mut self,
         size: (u32, u32),
         input: &IsometricSceneInput<'_>,
-        unlit: bool,
+        mut unlit: bool,
         retain_terrain: bool,
         view: Option<(TerrainConsumer, Option<&IsometricTerrainCache>)>,
     ) -> Result<IsometricPreparedFrame> {
@@ -235,22 +242,22 @@ impl IsometricSceneRenderer {
             self.elevation.as_ref().unwrap().3.clone(),
             view.is_some_and(|(consumer, _)| consumer == TerrainConsumer::Editor),
         )?;
-        let geometry = if unlit {
-            None
-        } else {
-            self.scene.shadow_geometry(input.map, input.assets, &plan)
-        };
         let terrain = plan.terrain.is_some();
         let mut ground = Vec::new();
         let mut terrain_draw = None;
+        let mut overview = false;
+        let mut swatches = HashMap::new();
         let use_chunks = (retain_terrain || shared_terrain.is_some())
             && terrain
             && !input.assets.terrain_paint.contains_key(&input.map.id);
         if !use_chunks {
             self.terrain_chunks = None;
+            self.terrain_window = None;
         }
         if let Some(model) = &plan.terrain {
-            let visible = visible_bounds(p, size, 0., model.max_height);
+            let visible = p.visible_bounds(size, [0., model.max_height]);
+            let wide = model.stride_for_triangle_budget(visible, DETAIL_TRIANGLE_BUDGET)
+                .is_some_and(|stride| stride > 1);
             if use_chunks {
                 let key = (input.map.id, input.map.changed, input.source_version);
                 let chunks = if let Some((_, chunks)) =
@@ -270,6 +277,14 @@ impl IsometricSceneRenderer {
                     }
                     chunks
                 };
+                // The retained GPU path has its own geometry and material
+                // limits. The per-triangle fallback budget should not force
+                // a normal editing view into the flat-color overview.
+                let chunks = if chunks.is_none() && retain_terrain {
+                    self.visible_terrain_chunks(key, visible, model, input)?
+                } else {
+                    chunks
+                };
                 if let Some(chunks) = chunks {
                     terrain_draw = Some(terrain_chunks::TerrainDraw {
                         chunks,
@@ -279,7 +294,13 @@ impl IsometricSceneRenderer {
                     self.ground_cache.clear();
                 }
             }
-            if terrain_draw.is_none() {
+            if terrain_draw.is_none() && wide {
+                overview = true;
+                unlit = true;
+                ground.push(Command::Surface(self.prepare_terrain_overview(
+                    input, &plan, model, visible, size, &mut swatches,
+                )?));
+            } else if terrain_draw.is_none() {
                 let policy = SurfaceMaterials::for_terrain(input.map, input.assets);
                 let mut triangles = Vec::new();
                 model.triangles(visible, |t| triangles.push(t));
@@ -296,6 +317,29 @@ impl IsometricSceneRenderer {
                     }
                 }
                 ground.push(Command::Surface(surfaces));
+            } else if terrain_draw.as_ref().is_some_and(|draw| draw.chunks.coarse) {
+                // Keep the overview's authored roads and water visible over
+                // the textured mesh. Layer zero belongs to the terrain itself.
+                let mut floors: Vec<_> = plan
+                    .floors
+                    .iter()
+                    .copied()
+                    .filter(|(sector, _)| sector.layer.is_some_and(|layer| layer > 0))
+                    .collect();
+                floors.sort_by_key(|(sector, _)| sector.layer);
+                let mut overlays = Vec::new();
+                for (sector, tile) in floors {
+                    overlays.extend(self.prepare_overview_floor(
+                        input,
+                        sector,
+                        tile,
+                        size,
+                        &mut swatches,
+                    )?);
+                }
+                if !overlays.is_empty() {
+                    ground.push(Command::Surface(overlays));
+                }
             }
         } else {
             for (sector, tile) in &plan.floors {
@@ -317,13 +361,11 @@ impl IsometricSceneRenderer {
         let mut upright = Vec::new();
         for (i, sprite) in plan.upright.iter().enumerate() {
             let command = if let (Some(sector), Some(tile)) = (sprite.floor, sprite.tile) {
-                Command::Surface(self.prepare_floor(
-                    input,
-                    sector,
-                    tile,
-                    plan.material_frame,
-                    size,
-                )?)
+                Command::Surface(if overview {
+                    self.prepare_overview_floor(input, sector, tile, size, &mut swatches)?
+                } else {
+                    self.prepare_floor(input, sector, tile, plan.material_frame, size)?
+                })
             } else if let Some(sprite) = self.prepare_sprite(sprite, input, size, false)? {
                 Command::Sprite(sprite)
             } else {
@@ -331,6 +373,23 @@ impl IsometricSceneRenderer {
             };
             upright.push((i, command));
         }
+        let geometry = if unlit {
+            None
+        } else {
+            self.scene.shadow_geometry_in_view(
+                input.map,
+                input.assets,
+                &plan,
+                ShadowView {
+                    projection: p,
+                    size,
+                    lighting: input.lighting,
+                    max_storage_bytes: limits.max_buffer_size
+                        .min(u64::from(limits.max_storage_buffer_binding_size)) as usize,
+                },
+            )
+        };
+        let particles = if overview { &[] } else { input.particles };
         let lighting = if unlit {
             // The unlit shader returns source RGBA before reading any lights,
             // shadow geometry or columns. Particles still use the projection.
@@ -338,7 +397,7 @@ impl IsometricSceneRenderer {
                 uniforms: scenevm::isometric::Uniforms {
                     projection: [p.origin.x, p.origin.y, p.unit, size.0 as f32],
                     counts: [size.0, size.1, 0, 0],
-                    shadow: [0., 0., input.particles.len() as f32, -1.],
+                    shadow: [0., 0., particles.len() as f32, -1.],
                     ..Default::default()
                 },
                 lights: Vec::new(),
@@ -351,7 +410,7 @@ impl IsometricSceneRenderer {
                 size,
                 &plan.casters,
                 geometry.is_some(),
-                input.particles.len(),
+                particles.len(),
             )
         };
         Ok(IsometricPreparedFrame {
@@ -365,7 +424,7 @@ impl IsometricSceneRenderer {
             upright,
             contacts,
             lighting,
-            particles: input.particles.to_vec(),
+            particles: particles.to_vec(),
             geometry,
         })
     }
@@ -400,6 +459,14 @@ impl IsometricSceneRenderer {
                 self.terrain_rasterizer = Some(terrain_chunks::TerrainRasterizer::new(&self.context)?);
             }
             self.terrain_rasterizer.as_ref().unwrap().draw(&self.context, canvas, p, terrain);
+            Self::execute(
+                &mut self.blitter,
+                &mut self.surfaces,
+                canvas,
+                p,
+                ground.iter().map(|command| (command, SpriteContacts::default())),
+                false,
+            )?;
         } else if !self.ground_cache.restore(&self.context, canvas, frame)? {
             self.blitter.render(
                 canvas,
@@ -621,7 +688,7 @@ impl IsometricSceneRenderer {
         };
         let height = sector.properties.get_float_default("floor_height", 0.);
         let bounds = sector.bounding_box(input.map);
-        let visible = visible_bounds(input.projection, size, height, height);
+        let visible = input.projection.visible_bounds(size, [height; 2]);
         let min = bounds
             .min
             .map2(visible.min, f32::max)
@@ -656,23 +723,6 @@ impl IsometricSceneRenderer {
         }
         Ok(prepared)
     }
-}
-fn visible_bounds(p: Projection, size: (u32, u32), min_height: f32, max_height: f32) -> BBox {
-    let mut min = Vec2::broadcast(f32::INFINITY);
-    let mut max = Vec2::broadcast(f32::NEG_INFINITY);
-    for q in [
-        Vec2::zero(),
-        Vec2::new(size.0 as f32, 0.),
-        Vec2::new(0., size.1 as f32),
-        Vec2::new(size.0 as f32, size.1 as f32),
-    ] {
-        for height in [min_height, max_height] {
-            let world = p.at_height(height).ground(q);
-            min = min.map2(world, f32::min);
-            max = max.map2(world, f32::max);
-        }
-    }
-    BBox { min, max }
 }
 enum Command {
     Surface(Vec<PreparedSurface>),

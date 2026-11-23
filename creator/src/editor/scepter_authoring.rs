@@ -184,6 +184,19 @@ impl Editor {
                     json!({"command":eldiron_scepter::ScepterLorebook::built_in().describe_command(&name).ok_or("Unknown command")?})
                 }
                 Command::ProjectDescribe => json!({"project":self.scepter_project_snapshot()}),
+                Command::ProjectSave => {
+                    let path = self.documents.project_path.clone().ok_or(
+                        "The project has no file path. Use Save As in Creator first.",
+                    )?;
+                    self.commit_authoring_views(ctx)?;
+                    if self.scepter_revision() != revision {
+                        json!({"http_status":409,"error":"Pending authoring edits changed the project; inspect before retrying"})
+                    } else {
+                        let path = self.save_active_project_to_path(path, ui, ctx)?;
+                        ctx.ui.invalidate_paint();
+                        json!({"saved":true,"path":path.display().to_string(),"dirty":false})
+                    }
+                }
                 Command::RegionList => {
                     json!({"regions":self.scepter_project_snapshot()["regions"]})
                 }

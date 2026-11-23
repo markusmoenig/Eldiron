@@ -10,8 +10,8 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-GPU = {"wgpu", "wgpu-core", "wgpu-hal", "renderkit", "winit", "pixels", "softbuffer"}
-TEXT_UI = {"parley", "swash", "zeno"}
+GPU = {"wgpu", "wgpu-core", "wgpu-hal", "eldiron-renderkit", "winit", "pixels", "softbuffer"}
+TEXT_UI = {"eldiron-parley", "swash", "zeno"}
 CPU_ONLY = GPU | TEXT_UI | {"theframework", "fontdue", "rfd"}
 
 

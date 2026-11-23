@@ -846,6 +846,25 @@ impl WorldServices for RegionServices<'_> {
         }
         Ok(())
     }
+    fn message_above(&mut self, target: u32, text: String, role: &str) -> Result<(), String> {
+        use crate::world_text::{TextAnchor, WorldText};
+
+        if self.ctx.find_entity(target).is_none() {
+            return Err("Overhead message recipient no longer exists".into());
+        }
+        if let Some(sender) = self.ctx.from_sender.get() {
+            let _ = sender.send(RegionMessage::WorldText(
+                self.ctx.region_id,
+                target,
+                WorldText {
+                    anchor: TextAnchor::Entity(target),
+                    text,
+                },
+                role.to_owned(),
+            ));
+        }
+        Ok(())
+    }
     fn join_party(&mut self, actor: &Actor, leader: u32) -> Result<bool, String> {
         if !self.acts_on_entity() {
             return Err("Join Party requires a character".into());
@@ -964,6 +983,9 @@ impl WorldServices for RegionServices<'_> {
         } else {
             Err("Lesson is unavailable or learner requirements are not met".into())
         }
+    }
+    fn grant_spell(&mut self, learner: u32, spell: &str) -> Result<(), String> {
+        super::super::region::grant_entity_spell(self.ctx, learner, spell)
     }
     fn lookout(
         &mut self,

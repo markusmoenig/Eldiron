@@ -16,6 +16,9 @@ struct Params {
 @group(0) @binding(5) var<storage,read_write> terrain:array<vec2<f32>>;
 @group(1) @binding(0) var<storage,read> source:array<u32>;
 @group(1) @binding(1) var<storage,read> geometry:array<vec2<u32>>;
+// The high bit marks an opaque mesh pixel. The lower bits retain the
+// supporting-floor owner index (including for mesh pixels).
+const MESH_OWNER_BIT:u32 = 0x80000000u;
 @compute @workgroup_size(8,8)
 fn clear(@builtin(global_invocation_id) id:vec3<u32>) {
     if any(id.xy>=p.canvas.xy) {return;}
@@ -63,13 +66,22 @@ fn blit(@builtin(global_invocation_id) id:vec3<u32>) {
             return;
         }
     }
-    let previous_owner=owners[dst];
+    let previous=owners[dst];
+    let previous_owner=previous&~MESH_OWNER_BIT;
     if previous_owner<p.contact.z && protection[p.contact.y+previous_owner]!=0u {return;}
-    owners[dst]=p.contact.x;
+    let height_bits=bitcast<u32>(height)&0xffffff00u;
+    let opaque_mesh=has_surface_height && alpha==255u;
+    if opaque_mesh && (previous&MESH_OWNER_BIT)!=0u {
+        // Two opaque samples at the same screen pixel lie on the same
+        // orthographic ray. The higher world point is closer to the camera.
+        let previous_height=bitcast<f32>(surfaces[dst].y&0xffffff00u);
+        if bitcast<f32>(height_bits)<previous_height {return;}
+    }
+    owners[dst]=p.contact.x|select(0u,MESH_OWNER_BIT,opaque_mesh);
     if alpha==255u { albedo[dst]=source[src]; }
     else {
         let under=bytes(albedo[dst]);
         albedo[dst]=word(vec4<u32>((color.rgb*alpha+under.rgb*(255u-alpha)+127u)/255u,255u));
     }
-    surfaces[dst]=vec2<u32>(packed,(bitcast<u32>(height)&0xffffff00u)|(occlusion<<2u)|mode);
+    surfaces[dst]=vec2<u32>(packed,height_bits|(occlusion<<2u)|mode);
 }

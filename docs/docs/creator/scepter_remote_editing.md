@@ -149,6 +149,26 @@ request bodies and 16 MiB results. Requests have a five-second read deadline.
 Retained requests/results have a 64 MiB serialized-data budget and 2048 entries;
 capacity errors are explicit. Restarting Creator begins new session IDs.
 
+## Save the open project
+
+After applying an edit, send `project.save` with the active tab's `session`,
+the resulting `revision`, and a fresh `request_id`.
+
+```json
+{
+  "request_id": "save-courtyard-001",
+  "session": "<current session>",
+  "revision": "<revision after the edit>",
+  "command": "project.save"
+}
+```
+
+Creator writes the current `.eldiron` file using the same atomic save as the
+File menu. The response reports `saved`, `path`, and `dirty`. When HTTP 202 is
+returned, poll the job to confirm the completed write. An untitled tab needs
+its initial Save As in Creator. If pending dock edits change the revision,
+Scepter returns HTTP 409. Read the new revision before retrying.
+
 ## MZ materials and map compositions
 
 - `material.list`: project palette indices, material IDs, composition bindings

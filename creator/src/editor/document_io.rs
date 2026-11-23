@@ -244,6 +244,24 @@ impl Editor {
     }
 }
 impl Editor {
+    pub(super) fn save_active_project_to_path(
+        &mut self,
+        path: PathBuf,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> Result<PathBuf, String> {
+        let path = Self::ensure_project_extension(path);
+        self.persist_active_region_view_state();
+        Self::save_project_to_path(&path, &self.documents.project)?;
+        self.documents.project_path = Some(path.clone());
+        self.mark_current_document_saved(ui);
+        ctx.ui.send(TheEvent::SetStatusText(
+            TheId::empty(),
+            "Project saved successfully.".into(),
+        ));
+        Ok(path)
+    }
+
     pub(super) fn mark_current_document_saved(&mut self, ui: &mut TheUI) {
         self.server_ctx.history.write().mark_saved();
         self.server_ctx.docks.write().mark_saved();

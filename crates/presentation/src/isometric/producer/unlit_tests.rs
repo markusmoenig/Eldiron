@@ -2,6 +2,7 @@ use super::*;
 use crate::screen::ContentRevision;
 use renderkit::{ReadbackTicket, wgpu};
 use rusterix::{PixelSource, RenderSettings, Texture, Value, Vertex};
+use scenevm::prelude::Vec2;
 use std::time::Duration;
 use theframework_core::Uuid;
 
@@ -22,6 +23,55 @@ fn capture(
         })
         .unwrap();
     ticket.try_finish(gpu).unwrap().unwrap().pixels().to_vec()
+}
+
+#[test]
+#[ignore = "native GPU; large terrain overview and narrow floor coverage"]
+fn valley_overview_bounds_terrain_work_and_preserves_roads() {
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut renderer = IsometricSceneRenderer::new(gpu.clone()).unwrap();
+    let grass = Tile::from_texture(Texture::from_color([35, 75, 30, 255]));
+    let road_color = [170, 112, 65, 255];
+    let road = Tile::from_texture(Texture::from_color(road_color));
+    let mut map = Map::default();
+    map.camera = rusterix::MapCamera::TwoDIso;
+    map.vertices = vec![Vertex::new(0, -320., -320.), Vertex::new(1, 320., 320.)];
+    map.properties.set("terrain_enabled", Value::Bool(true));
+    map.properties.set("terrain_subdivisions", Value::Int(4));
+    map.properties.set("default_terrain_tile", Value::Source(PixelSource::TileId(grass.id)));
+    let ids = [[-280., -4.], [280., -4.], [280., 4.], [-280., 4.]]
+        .map(|[x, z]| map.add_vertex_at(x, z));
+    for (a, b) in ids.into_iter().zip(ids.into_iter().cycle().skip(1)) {
+        map.create_linedef_manual(a, b);
+    }
+    let sector_id = map.close_polygon_manual().unwrap();
+    let sector = map.find_sector_mut(sector_id).unwrap();
+    sector.properties.set("source", Value::Source(PixelSource::TileId(road.id)));
+    sector.layer = Some(2);
+    let mut assets = Assets::default();
+    assets.set_tiles([grass, road].into_iter().map(|tile| (tile.id, tile)).collect());
+    let lighting = Lighting::new(&RenderSettings::default(), std::iter::empty(), 0);
+    let size = (128, 96);
+    let frame = renderer.prepare_view(size, &IsometricSceneInput {
+        map: &map,
+        assets: &assets,
+        avatars: &HashMap::new(),
+        seconds: 0.,
+        projection: Projection { origin: [64., 48.].into(), unit: 0.25 },
+        lighting: &lighting,
+        particles: &[],
+        source_version: IsometricSourceVersion {
+            namespace: Uuid::new_v4(),
+            content: ContentRevision(1),
+            tiles: assets.tiles_revision,
+        },
+    }, TerrainConsumer::Editor, None).unwrap();
+    let [Command::Surface(surfaces)] = frame.ground.as_slice() else { panic!("overview missing") };
+    assert!(surfaces.len() <= 2050);
+    assert_eq!(surfaces.iter().filter(|tri| tri.kind == SurfaceKind::Floor).count(), 2);
+    assert!(frame.geometry.is_none());
+    let image = capture(&gpu, &mut renderer, &frame, 1);
+    assert_eq!(&image[(48 * 128 + 64) * 4..][..4], &road_color);
 }
 
 #[test]

@@ -10815,23 +10815,11 @@ impl TheTrait for Editor {
                             continue;
                         }
                         for p in paths {
-                            let p = Self::ensure_project_extension(p);
-                            self.persist_active_region_view_state();
-                            match Self::save_project_to_path(&p, &self.documents.project) {
-                                Ok(()) => {
-                                    self.documents.project_path = Some(p);
-                                    self.mark_current_document_saved(ui);
-                                    ctx.ui.send(TheEvent::SetStatusText(
-                                        TheId::empty(),
-                                        "Project saved successfully.".to_string(),
-                                    ));
-                                }
-                                Err(error) => {
-                                    ctx.ui.send(TheEvent::SetStatusText(
-                                        TheId::empty(),
-                                        format!("Unable to save project: {error}"),
-                                    ));
-                                }
+                            if let Err(error) = self.save_active_project_to_path(p, ui, ctx) {
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    format!("Unable to save project: {error}"),
+                                ));
                             }
                         }
                     }
@@ -11166,23 +11154,11 @@ impl TheTrait for Editor {
                             continue;
                         }
                         if let Some(path) = self.documents.project_path.clone() {
-                            let path = Self::ensure_project_extension(path);
-                            self.persist_active_region_view_state();
-                            match Self::save_project_to_path(&path, &self.documents.project) {
-                                Ok(()) => {
-                                    self.documents.project_path = Some(path.clone());
-                                    self.mark_current_document_saved(ui);
-                                    ctx.ui.send(TheEvent::SetStatusText(
-                                        TheId::empty(),
-                                        "Project saved successfully.".to_string(),
-                                    ));
-                                }
-                                Err(error) => {
-                                    ctx.ui.send(TheEvent::SetStatusText(
-                                        TheId::empty(),
-                                        format!("Unable to save project: {error}"),
-                                    ));
-                                }
+                            if let Err(error) = self.save_active_project_to_path(path, ui, ctx) {
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    format!("Unable to save project: {error}"),
+                                ));
                             }
                         } else {
                             ctx.ui.send(TheEvent::StateChanged(

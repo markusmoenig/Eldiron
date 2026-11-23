@@ -3,11 +3,12 @@ name = "eldiron-runtime"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Renderer-independent local game sessions for Eldiron hosts."
 [dependencies]
-rusterix = {path="../rusterix",default-features=false}
-shared = {package="eldiron-shared",path="../shared",default-features=false}
-theframework-core = {path="../theframework-core"}
+rusterix = { version = "0.96.0",path="../rusterix",default-features=false}
+shared = { version = "0.96.0",package="eldiron-shared",path="../shared",default-features=false}
+theframework-core = { version = "0.96.0",path="../theframework-core"}
 rustc-hash = "2"
 toml = "0.9"
 serde = { version = "1", features = ["derive"] }

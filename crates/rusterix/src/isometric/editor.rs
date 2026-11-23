@@ -100,7 +100,12 @@ fn projected_segment_at_height(
         .then(|| crate::chunkbuilder::terrain_surface::TerrainSurface::cached(map))
         .flatten();
     let steps = if surface.is_some() {
-        ((b - a).magnitude() * 8.).ceil().clamp(1., 512.) as usize
+        let samples_per_unit = if projection.unit < 20. {
+            projection.unit * 0.5
+        } else {
+            8.
+        };
+        ((b - a).magnitude() * samples_per_unit).ceil().clamp(1., 512.) as usize
     } else {
         1
     };
@@ -179,11 +184,21 @@ pub fn guide_segments(
             })
             .map(|v| v.ceil());
         let subdivisions = map.subdivisions.clamp(1., 8.);
+        let wide_grid = p.unit < 20. || p.unit / subdivisions < 12.;
+        let spacing = if wide_grid {
+            // Snap major lines in world space so they remain stable while panning.
+            2f32.powf((12. / p.unit.max(0.001)).log2().ceil().max(0.))
+        } else {
+            1. / subdivisions
+        };
         for axis in 0..2 {
-            let start = (min[axis] * subdivisions) as i32;
-            let end = (max[axis] * subdivisions) as i32;
-            for i in start..=end.min(start + 2048) {
-                let v = i as f32 / subdivisions;
+            let (start, end) = if wide_grid {
+                ((min[axis] / spacing).floor() as i32, (max[axis] / spacing).ceil() as i32)
+            } else {
+                ((min[axis] * subdivisions) as i32, (max[axis] * subdivisions) as i32)
+            };
+            for i in start..=end.min(start.saturating_add(2048)) {
+                let v = if wide_grid { i as f32 * spacing } else { i as f32 / subdivisions };
                 let color = if v.fract() == 0. {
                     [165, 193, 174, 50]
                 } else {
@@ -194,7 +209,7 @@ pub fn guide_segments(
                 } else {
                     (Vec2::new(min.x, v), Vec2::new(max.x, v))
                 };
-                let steps = if surface.is_some() {
+                let steps = if surface.is_some() && !wide_grid {
                     ((b - a).magnitude() * 4.).ceil().min(2048.) as usize
                 } else {
                     1
@@ -218,6 +233,10 @@ pub fn guide_segments(
         (FxHashSet::default(), FxHashSet::default())
     };
     let edit_height = map.properties.get_float_default("iso_edit_height", 0.);
+    let max_height = crate::chunkbuilder::terrain_surface::TerrainSurface::cached(map)
+        .as_ref()
+        .map_or(0., |surface| surface.max_height);
+    let viewport = (size.x.ceil() as u32, size.y.ceil() as u32);
     let selected_sector_lines: FxHashMap<_, _> = map
         .sectors
         .iter()
@@ -271,6 +290,12 @@ pub fn guide_segments(
                 .copied()
                 .unwrap_or(edit_height);
             let projection = p.at_height(height - edit_height);
+            let heights = if height.abs() < 0.001 { [0., max_height] } else { [0.; 2] };
+            let visible = projection.visible_bounds(viewport, heights)
+                .expanded(Vec2::broadcast(4. / projection.unit.max(0.001)));
+            if !visible.line_intersects(a, b) {
+                continue;
+            }
             for segment in projected_segment_at_height(map, projection, a, b, height).windows(2) {
                 emit(segment[0], segment[1], color);
             }
@@ -365,6 +390,24 @@ mod tests {
             map.create_linedef_manual(v[i], v[(i + 1) % 4]);
         }
         map.close_polygon_manual().unwrap()
+    }
+
+    #[test]
+    fn valley_scale_grid_work_tracks_the_viewport() {
+        let mut map = Map::default();
+        map.properties.set("terrain_enabled", Value::Bool(true));
+        map.subdivisions = 8.;
+        map.vertices = vec![crate::Vertex::new(0, -320., -320.), crate::Vertex::new(1, 320., 320.)];
+        let size = Vec2::new(1231., 597.);
+        let mut grid = guides(MapToolType::Sector);
+        grid.grid = true;
+        for unit in [16., 4., 0.7, 0.125] {
+            let mut segments = 0;
+            guide_segments(&map, size, Projection { origin: size * 0.5, unit }, grid, |_, _, _| {
+                segments += 1;
+            });
+            assert!((16..=320).contains(&segments), "{unit}: {segments} segments");
+        }
     }
 
     fn pixel(buffer: &TheRGBABuffer, point: Vec2<f32>) -> &[u8] {

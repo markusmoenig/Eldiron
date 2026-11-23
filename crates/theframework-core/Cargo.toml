@@ -3,6 +3,8 @@ name = "theframework-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+description = "Shared data types and platform-independent utilities for TheFramework"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 vek = "0.17.1"

@@ -855,7 +855,7 @@ impl Server {
                             self.messages.insert(id, messages);
                         }
                     }
-                    RegionMessage::WorldText(id, receiver, text) => {
+                    RegionMessage::WorldText(id, receiver, text, category) => {
                         // Text clients and journals retain the same description; graphical
                         // clients render the structured anchor instead of a message widget.
                         let (entity, item) = match &text.anchor {
@@ -868,7 +868,7 @@ impl Server {
                             item,
                             receiver,
                             text.text.clone(),
-                            "look".into(),
+                            category,
                         ));
                         let pending = self.world_texts.entry(id).or_default();
                         if pending.len() >= 64 {

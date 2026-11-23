@@ -328,7 +328,7 @@ impl TerrainSurface {
             ))
         }
     }
-    pub fn triangles(&self, clip: BBox, mut emit: impl FnMut([Vec3<f32>; 3])) {
+    fn clipped_grid(&self, clip: BBox) -> (Vec2<i32>, Vec2<i32>) {
         let n = self.subdivisions as f32;
         let min = self
             .bounds
@@ -340,13 +340,81 @@ impl TerrainSurface {
             .max
             .map2(clip.max, f32::min)
             .map(|v| (v * n).ceil() as i32);
+        (min, max)
+    }
+
+    pub fn stride_for_triangle_budget(&self, clip: BBox, triangle_budget: usize) -> Option<usize> {
+        let (min, max) = self.clipped_grid(clip);
+        if triangle_budget < 2 || min.x >= max.x || min.y >= max.y {
+            return None;
+        }
+        let width = (i64::from(max.x) - i64::from(min.x)) as usize;
+        let height = (i64::from(max.y) - i64::from(min.y)) as usize;
+        let mut stride = 1usize;
+        while width.div_ceil(stride).saturating_mul(height.div_ceil(stride)) > triangle_budget / 2 {
+            stride = stride.saturating_mul(2);
+        }
+        Some(stride)
+    }
+
+    pub fn triangles(&self, clip: BBox, emit: impl FnMut([Vec3<f32>; 3])) {
+        self.triangles_with_stride(clip, 1, emit);
+    }
+
+    pub fn preview_triangles(
+        &self,
+        clip: BBox,
+        triangle_budget: usize,
+        emit: impl FnMut([Vec3<f32>; 3]),
+    ) {
+        if let Some(stride) = self.stride_for_triangle_budget(clip, triangle_budget) {
+            self.triangles_with_stride(clip, stride, emit);
+        }
+    }
+
+    pub(crate) fn triangles_with_stride(
+        &self,
+        clip: BBox,
+        stride: usize,
+        emit: impl FnMut([Vec3<f32>; 3]),
+    ) {
+        self.grid_triangles(clip, stride, false, emit);
+    }
+
+    /// A lower-detail mesh with boundaries at each world material cell.
+    /// Geometry can be coarser without changing the source assigned to a cell.
+    pub fn material_cell_triangles(&self, clip: BBox, emit: impl FnMut([Vec3<f32>; 3])) {
+        self.grid_triangles(clip, self.subdivisions as usize, true, emit);
+    }
+
+    fn grid_triangles(
+        &self,
+        clip: BBox,
+        stride: usize,
+        align_to_grid: bool,
+        mut emit: impl FnMut([Vec3<f32>; 3]),
+    ) {
+        let (min, max) = self.clipped_grid(clip);
         if min.x >= max.x || min.y >= max.y {
             return;
         }
+        let n = self.subdivisions as f32;
         // Sample each grid corner once, keeping two rows rather than a full
         // height map. This also speeds iso rasterization, shadows and ray picks.
+        let samples = |start: i32, end: i32| {
+            let step = stride as i64;
+            let start = i64::from(start);
+            let first = if align_to_grid {
+                start - start.rem_euclid(step) + step
+            } else {
+                start + step
+            };
+            std::iter::once(start)
+                .chain((first..i64::from(end)).step_by(stride))
+                .chain(std::iter::once(i64::from(end)))
+        };
         let row = |z: i32| {
-            (min.x..=max.x)
+            samples(min.x, max.x)
                 .map(|x| {
                     let p = Vec2::new(x as f32 / n, z as f32 / n);
                     Vec3::new(p.x, self.grid_height(p), p.y)
@@ -354,8 +422,8 @@ impl TerrainSurface {
                 .collect::<Vec<_>>()
         };
         let mut previous = row(min.y);
-        for z in min.y..max.y {
-            let next = row(z + 1);
+        for z in samples(min.y, max.y).skip(1) {
+            let next = row(z as i32);
             for column in 0..previous.len() - 1 {
                 for tri in [
                     [previous[column], next[column], previous[column + 1]],

@@ -362,6 +362,8 @@ pub fn built_in_commands() -> Vec<ScepterCommandMeta> {
         .capabilities(vec![ProjectRead]),
         ScepterCommandMeta::new("project.describe", "Describe the open Eldiron project.")
             .capabilities(vec![ProjectRead]),
+        ScepterCommandMeta::new("project.save", "Save the open project to its current file.")
+            .capabilities(vec![ProjectWrite]),
         ScepterCommandMeta::new("project.undo", "Undo the last undoable Creator change.")
             .capabilities(vec![Undo, ProjectWrite])
             .undoable(),

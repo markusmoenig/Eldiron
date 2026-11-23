@@ -2,7 +2,9 @@
 use rusterix::{
     Assets, Entity, Item, Map, PixelSource, Texture, Tile, Value, Vertex,
     isometric::{
-        AvatarSprite, Projection, SceneCache, SpriteLayout, scene::SpriteOwner,
+        AvatarSprite, Projection, SceneCache, SpriteLayout,
+        lighting::Lighting,
+        scene::{ShadowView, SpriteOwner},
         surface::SurfaceFrame,
     },
 };
@@ -224,6 +226,43 @@ fn terrain_ownership_is_camera_independent_and_invalidated_by_source_revision() 
         Arc::strong_count(&first) >= 2,
         "old plans retain their geometry lease"
     );
+}
+
+#[test]
+fn large_map_shadows_follow_the_view_and_fit_the_storage_budget() {
+    let mut map = Map::default();
+    map.properties.set("terrain_enabled", Value::Bool(true));
+    map.properties.set("terrain_subdivisions", Value::Int(4));
+    map.vertices = vec![Vertex::new(0, -320., -320.), Vertex::new(1, 320., 320.)];
+    let mut cache = SceneCache::default();
+    let assets = Assets::default();
+    let lighting = Lighting::new(&rusterix::RenderSettings::default(), std::iter::empty(), 0);
+    let avatars = HashMap::new();
+    let plan = cache.prepare(&map, &assets, 0., &avatars);
+    let size = (720, 480);
+    let shadow = |camera: Vec2<f32>, unit, bytes, cache: &mut SceneCache| {
+        let mut projection = Projection { origin: Vec2::new(360., 240.), unit };
+        projection.origin -= projection.screen(camera, 0.) - projection.origin;
+        cache.shadow_geometry_in_view(&map, &assets, &plan, ShadowView {
+            projection,
+            size,
+            lighting: &lighting,
+            max_storage_bytes: bytes,
+        }).unwrap()
+    };
+
+    let first = shadow(Vec2::zero(), 24., 64 * 1024 * 1024, &mut cache);
+    assert!(first.vertices.iter().all(|v| v.position[0].abs() <= 64. && v.position[2].abs() <= 64.));
+    assert!(Arc::ptr_eq(&first, &shadow(Vec2::zero(), 24., 64 * 1024 * 1024, &mut cache)));
+    let moved = shadow(Vec2::new(240., 0.), 24., 64 * 1024 * 1024, &mut cache);
+    assert_ne!(first.revision, moved.revision);
+    assert!(moved.vertices.iter().all(|v| v.position[0] > 170.));
+
+    let budget = 1024 * 1024;
+    let overview = shadow(Vec2::zero(), 1., budget, &mut cache);
+    assert!(overview.vertices.len() * std::mem::size_of::<scenevm::isometric::ShadowVertex>() <= budget);
+    assert!(overview.vertices.iter().any(|v| v.position[0] == -320.));
+    assert!(overview.vertices.iter().any(|v| v.position[0] == 320.));
 }
 
 #[test]

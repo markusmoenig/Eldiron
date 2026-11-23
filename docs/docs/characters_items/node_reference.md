@@ -111,3 +111,7 @@ A support branch can be **Party Damaged → Health Check (50%) → Use Action (m
 **Set Target** sets the normal, highlighted current target from a field such as `event.attacker` or `event.subject`. An empty field clears it. **Respawn Character** restores life state, returns to the recorded spawn and restores ruleset maximum health, without changing optional visibility.
 
 **Message** can address an event entity through its Recipient field, for example `event.subject`. Empty addresses the graph owner.
+Enable **Show above recipient** to also display the message as private world text anchored to the recipient.
+
+**Grant Spell** adds a ruleset spell to the character in `event.subject`.
+**Done** also handles a spell the character already received. **Failed** handles an unknown spell or missing recipient.

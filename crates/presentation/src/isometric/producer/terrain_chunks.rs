@@ -24,6 +24,43 @@ const MAX_INDICES: usize = 5_000_000;
 type Word = [u32; 4];
 type Triangle = [Word; 5];
 
+impl super::IsometricSceneRenderer {
+    pub(super) fn visible_terrain_chunks(
+        &mut self,
+        key: super::TerrainKey,
+        clip: BBox,
+        terrain: &TerrainSurface,
+        input: &super::IsometricSceneInput<'_>,
+    ) -> Result<Option<Arc<GpuTerrainChunks>>> {
+        const WINDOW_STEP: f32 = 8.;
+        let bounds = BBox::new(
+            (clip.min / WINDOW_STEP).map(f32::floor) * WINDOW_STEP,
+            (clip.max / WINDOW_STEP).map(f32::ceil) * WINDOW_STEP,
+        );
+        let coarse = terrain
+            .stride_for_triangle_budget(bounds, MAX_TRIANGLES)
+            .is_some_and(|stride| stride > 1);
+        if let Some((prior, cached_bounds, chunks)) = &self.terrain_window
+            && *prior == key
+            && (*cached_bounds == bounds
+                || chunks.as_ref().is_some_and(|chunks| !chunks.coarse || coarse)
+                    && cached_bounds.contains(clip.min)
+                    && cached_bounds.contains(clip.max))
+        {
+            return Ok(chunks.clone());
+        }
+        let policy = SurfaceMaterials::for_terrain(input.map, input.assets);
+        let mut chunks =
+            GpuTerrainChunks::prepare_in_bounds(&self.context, &policy, terrain, bounds, coarse)?;
+        if chunks.is_none() && !coarse && terrain.subdivisions > 1 {
+            chunks =
+                GpuTerrainChunks::prepare_in_bounds(&self.context, &policy, terrain, bounds, true)?;
+        }
+        self.terrain_window = Some((key, bounds, chunks.clone()));
+        Ok(chunks)
+    }
+}
+
 /// One immutable terrain publication for the authoring view, overview and Play.
 /// Cameras, lighting, outputs and render receipts remain local to each view.
 #[derive(Clone, Default)]
@@ -122,6 +159,7 @@ pub(super) struct GpuTerrainChunks {
     geometry: WorkingBufferLease,
     materials: [WorkingBufferLease; 2],
     subdivisions: f32,
+    pub(super) coarse: bool,
     model_bounds: BBox,
     geometry_source: ([u32; 6], u64),
 }
@@ -156,9 +194,23 @@ impl GpuTerrainChunks {
         policy: &SurfaceMaterials<'a>,
         terrain: &TerrainSurface,
     ) -> Result<Option<Arc<Self>>> {
-        let bounds = terrain.bounds;
+        Self::prepare_in_bounds(gpu, policy, terrain, terrain.bounds, false)
+    }
+
+    fn prepare_in_bounds<'a>(
+        gpu: &GpuContext,
+        policy: &SurfaceMaterials<'a>,
+        terrain: &TerrainSurface,
+        clip: BBox,
+        coarse: bool,
+    ) -> Result<Option<Arc<Self>>> {
         let subdivisions = terrain.subdivisions as f32;
-        let extent = (bounds.max * subdivisions).ceil() - (bounds.min * subdivisions).floor();
+        let bounds = BBox::new(
+            (terrain.bounds.min.map2(clip.min, f32::max) * subdivisions).floor() / subdivisions,
+            (terrain.bounds.max.map2(clip.max, f32::min) * subdivisions).ceil() / subdivisions,
+        );
+        let mesh_resolution = if coarse { 1. } else { subdivisions };
+        let extent = (bounds.max * mesh_resolution).ceil() - (bounds.min * mesh_resolution).floor();
         if !extent.into_array().iter().all(|v| v.is_finite() && *v > 0.)
             || extent.x as f64 * extent.y as f64 * 2. > MAX_TRIANGLES as f64
             || bounds
@@ -182,7 +234,8 @@ impl GpuTerrainChunks {
         let mut max = Vec2::broadcast(i32::MIN);
         let mut unsupported = false;
         let mut geometry_hash = FxHasher::default();
-        terrain.triangles(bounds, |vertices| {
+        let bin_scale = BINS_PER_UNIT / (subdivisions / mesh_resolution);
+        let emit_triangle = |vertices: [Vec3<f32>; 3]| {
             if unsupported
                 || vertices
                     .iter()
@@ -241,12 +294,17 @@ impl GpuTerrainChunks {
             let high = projected[0]
                 .map2(projected[1], f32::max)
                 .map2(projected[2], f32::max);
-            let low = ((low - BIN_MARGIN) * BINS_PER_UNIT).floor().as_::<i32>();
-            let high = ((high + BIN_MARGIN) * BINS_PER_UNIT).floor().as_::<i32>();
+            let low = ((low - BIN_MARGIN) * bin_scale).floor().as_::<i32>();
+            let high = ((high + BIN_MARGIN) * bin_scale).floor().as_::<i32>();
             min = min.map2(low, i32::min);
             max = max.map2(high, i32::max);
             ranges.push((low, high));
-        });
+        };
+        if coarse {
+            terrain.material_cell_triangles(bounds, emit_triangle);
+        } else {
+            terrain.triangles(bounds, emit_triangle);
+        }
         if unsupported || triangles.is_empty() {
             return Ok(None);
         }
@@ -299,19 +357,30 @@ impl GpuTerrainChunks {
             geometry: upload(packet)?,
             materials: [upload(first)?, upload(second)?],
             subdivisions,
+            coarse,
             model_bounds: bounds,
             geometry_source: (geometry_layout(terrain), geometry_hash.finish()),
         })))
     }
 
     fn grid_bounds(&self, clip: BBox) -> [i32; 4] {
-        let min = (self.model_bounds.min.map2(clip.min, f32::max) * self.subdivisions)
+        let low = self.model_bounds.min.map2(clip.min, f32::max);
+        let low = if self.coarse { low.floor() } else { low };
+        let min = (low * self.subdivisions)
             .floor()
             .as_::<i32>();
         let max = (self.model_bounds.max.map2(clip.max, f32::min) * self.subdivisions)
             .ceil()
             .as_::<i32>();
         [min.x, min.y, max.x, max.y]
+    }
+
+    fn bins_per_unit(&self) -> f32 {
+        if self.coarse {
+            BINS_PER_UNIT / self.subdivisions
+        } else {
+            BINS_PER_UNIT
+        }
     }
 }
 
@@ -428,7 +497,7 @@ impl TerrainRasterizer {
                 projection.origin.x,
                 projection.origin.y,
                 projection.unit,
-                0.,
+                draw.chunks.bins_per_unit(),
             ],
             canvas: [width, height, draw.phase as u32, 0],
             grid_bounds: draw.chunks.grid_bounds(draw.clip),

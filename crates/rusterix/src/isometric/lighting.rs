@@ -70,6 +70,22 @@ pub struct GpuLightingParameters {
     pub columns: Vec<[f32; 2]>,
 }
 impl Lighting {
+    pub(super) fn shadow_bounds(&self, receivers: crate::BBox) -> Option<crate::BBox> {
+        if self.shadow_distance <= 0. || self.shadow_strength <= 0. {
+            return None;
+        }
+        let mut bounds = receivers.expanded(Vec2::broadcast(2. * (self.shadow_distance + 1.)));
+        for light in &self.points {
+            let position = Vec2::new(light.position.x, light.position.z);
+            let radius = Vec2::broadcast(light.end_distance);
+            let reach = crate::BBox::new(position - radius, position + radius);
+            if receivers.intersects(&reach) {
+                bounds.expand_bbox(reach);
+            }
+        }
+        Some(bounds)
+    }
+
     /// Identical light, flicker, shadow-column and exact-mesh policy for native
     /// GPU production and the compatibility adapter. No canvas is built here.
     pub fn gpu_parameters(

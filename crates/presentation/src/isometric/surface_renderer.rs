@@ -225,7 +225,17 @@ impl IsometricSurfaceRenderer {
         projection: Projection,
         triangles: &[SurfaceTriangle<'_>],
     ) -> Result<()> {
-        self.append_impl(canvas, projection, triangles, true)
+        // Large views can reach many terrain chunks. Submit consecutive ranges
+        // in painter order so a single parameter buffer stays bounded.
+        let bytes = self.context.device.limits().max_buffer_size.min(32 * 1024 * 1024);
+        let batch_size = (bytes / self.stride).max(1) as usize;
+        if triangles.len() <= batch_size {
+            return self.append_impl(canvas, projection, triangles, true);
+        }
+        for batch in triangles.chunks(batch_size) {
+            self.append_impl(canvas, projection, batch, true)?;
+        }
+        Ok(())
     }
     fn append_impl(
         &mut self, canvas: &IsometricCanvas, projection: Projection,

@@ -4494,7 +4494,7 @@ mod ruleset_progression_tests {
         );
         assert!(matches!(
             from_receiver.try_recv(),
-            Ok(RegionMessage::WorldText(_, 1, message))
+            Ok(RegionMessage::WorldText(_, 1, message, _))
                 if message.text == "A heavy oak door."
         ));
 
@@ -4640,7 +4640,7 @@ mod ruleset_progression_tests {
         ));
         assert!(matches!(
             from_receiver.try_recv(),
-            Ok(RegionMessage::WorldText(_, 1, text))
+            Ok(RegionMessage::WorldText(_, 1, text, _))
                 if text.text == "An old table covered in knife marks." && text.anchor == crate::world_text::TextAnchor::Prefab(instance_id)
         ));
     }
@@ -15196,6 +15196,7 @@ fn send_look(ctx: &RegionCtx, receiver: u32, anchor: crate::world_text::TextAnch
                 ctx.region_id,
                 receiver,
                 crate::world_text::WorldText { anchor, text },
+                "look".into(),
             ))
             .unwrap();
     }
@@ -17491,6 +17492,43 @@ fn entity_spell_attr_contains(entity: &Entity, spell_id: &str) -> bool {
             .any(|value| value == spell_id),
         _ => false,
     }
+}
+
+pub(super) fn grant_entity_spell(
+    ctx: &mut RegionCtx,
+    learner: u32,
+    spell: &str,
+) -> Result<(), String> {
+    if ctx
+        .rules
+        .get("spells")
+        .and_then(|spells| spells.get(spell))
+        .is_none()
+    {
+        return Err(format!("Unknown ruleset spell '{spell}'"));
+    }
+    let entity = ctx
+        .map
+        .entities
+        .iter_mut()
+        .find(|entity| entity.id == learner)
+        .ok_or("Spell recipient no longer exists")?;
+    if entity_spell_attr_contains(entity, spell) {
+        return Ok(());
+    }
+    let mut spells = match entity.attributes.get("spells") {
+        Some(Value::StrArray(list)) => list.clone(),
+        Some(Value::Str(list)) => list
+            .split(',')
+            .map(str::trim)
+            .filter(|entry| !entry.is_empty())
+            .map(str::to_owned)
+            .collect(),
+        _ => Vec::new(),
+    };
+    spells.push(spell.to_owned());
+    entity.set_attribute("spells", Value::StrArray(spells));
+    Ok(())
 }
 
 fn class_unlocks_spell(class: &toml::value::Table, spell_id: &str, level: f32) -> bool {

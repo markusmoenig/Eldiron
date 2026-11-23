@@ -31,10 +31,10 @@ can be visible concurrently.
 - Clicking the text consumes the click, so it never starts a walk or uses an
   object underneath it. Leaving the region clears the previous region's text.
 
-Descriptions use the existing message font, color and locale resolver. The
-current feature is interactive Look text. Existing speech and dialogue nodes
-retain their behavior; dialogue response choices are not yet part of these Look
-panels.
+Descriptions use the existing message font, color and locale resolver. A
+behavior graph's **Message** node can also use this overlay. Enable **Show
+above recipient** to anchor the message over its recipient and include it in
+their message log.
 
 ## Author content on the placement
 

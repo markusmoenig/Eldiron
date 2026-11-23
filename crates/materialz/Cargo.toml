@@ -4,6 +4,7 @@ version = "0.96.0"
 edition = "2024"
 description = "Shared procedural material IR, text format, CPU evaluator and Metal generator"
 license = "MIT"
+repository.workspace = true
 
 [lib]
 crate-type = ["rlib", "staticlib"]
@@ -22,7 +23,7 @@ serde_json = { version = "1", optional = true }
 wgpu = { version = "29.0.3", optional = true }
 naga = { version = "29.0.3", features = ["glsl-in", "wgsl-out"], optional = true }
 
-renderkit = { path = "../renderkit", optional = true }
+renderkit = { package = "eldiron-renderkit", version = "0.96.0", path = "../renderkit", optional = true }
 
 [features]
 default = []

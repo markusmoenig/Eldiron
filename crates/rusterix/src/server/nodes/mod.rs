@@ -131,6 +131,10 @@ pub trait WorldServices {
         Err("Teach requires a character and a learner".into())
     }
 
+    fn grant_spell(&mut self, _learner: u32, _spell: &str) -> Result<(), String> {
+        Err("Grant Spell is unavailable in this context".into())
+    }
+
     fn join_party(&mut self, _actor: &Actor, _leader: u32) -> Result<bool, String> {
         Err("Join Party requires a character".into())
     }
@@ -158,6 +162,9 @@ pub trait WorldServices {
             return Err("Targeted messages are not supported by this world".into());
         }
         self.message(actor, text, role)
+    }
+    fn message_above(&mut self, _target: u32, _text: String, _role: &str) -> Result<(), String> {
+        Err("Overhead messages are unavailable in this context".into())
     }
     fn activity_status(&self, _actor: &Actor) -> Option<String> {
         None

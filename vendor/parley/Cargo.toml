@@ -12,16 +12,16 @@
 [package]
 edition = "2021"
 rust-version = "1.88"
-name = "parley"
+name = "eldiron-parley"
 version = "0.9.0"
 build = false
-exclude = ["/tests"]
+exclude = ["/tests", "/Cargo.toml.orig"]
 autolib = false
 autobins = false
 autoexamples = false
 autotests = false
 autobenches = false
-description = "Parley provides an API for implementing rich text layout."
+description = "Parley rich text layout with Eldiron's editor and segmentation patches"
 readme = "README.md"
 keywords = [
     "text",
@@ -32,7 +32,7 @@ categories = [
     "graphics",
 ]
 license = "Apache-2.0 OR MIT"
-repository = "https://github.com/linebender/parley"
+repository = "https://github.com/markusmoenig/Eldiron"
 
 [package.metadata.docs.rs]
 all-features = true

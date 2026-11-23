@@ -74,11 +74,19 @@ impl TextSystem {
 }
 #[cfg(any(target_arch = "wasm32", test))]
 pub(super) fn cjk_data() -> Arc<[u8]> {
+    // Join the source collection at compile time to preserve all faces and
+    // keep each registry archive within the upload limit.
+    const HEAD: &[u8] = include_bytes!("../../webfonts/NotoSansCJK-Regular.ttc.part1");
+    const TAIL: &[u8] = eldiron_cjk_font_data::NOTO_SANS_CJK_REGULAR_TAIL;
+    static FONT: [u8; HEAD.len() + TAIL.len()] = {
+        let mut bytes = [0; HEAD.len() + TAIL.len()];
+        let (head, tail) = bytes.split_at_mut(HEAD.len());
+        head.copy_from_slice(HEAD);
+        tail.copy_from_slice(TAIL);
+        bytes
+    };
     static DATA: std::sync::OnceLock<Arc<[u8]>> = std::sync::OnceLock::new();
-    DATA.get_or_init(|| {
-        Arc::from(include_bytes!("../../webfonts/NotoSansCJK-Regular.ttc").as_slice())
-    })
-    .clone()
+    DATA.get_or_init(|| Arc::from(FONT.as_slice())).clone()
 }
 
 #[cfg(any(target_arch = "wasm32", test))]

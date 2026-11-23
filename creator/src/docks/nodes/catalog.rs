@@ -831,6 +831,12 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         &fl!("node_message_recipient"),
         GraphControlValue::Text(String::new()),
     );
+    row(
+        &mut message,
+        "overhead",
+        "Show above recipient",
+        GraphControlValue::Toggle(false),
+    );
     port(&mut message, "in", "", PortDirection::Input, 0.5);
     port(
         &mut message,
@@ -1270,6 +1276,23 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         "teach",
         &fl!("node_group_actions"),
         &teach,
+    ))
+    .unwrap();
+    let mut grant_spell = GraphNode::new("Grant Spell", [0., 0.], [35, 87, 134, 255]);
+    grant_spell.width = 300.;
+    row(
+        &mut grant_spell,
+        "spell",
+        "Ruleset spell ID",
+        GraphControlValue::Text(String::new()),
+    );
+    port(&mut grant_spell, "in", "", PortDirection::Input, 0.5);
+    port(&mut grant_spell, "done", &fl!("node_done"), PortDirection::Output, 0.35);
+    port(&mut grant_spell, "failed", &fl!("node_action_failed"), PortDirection::Output, 0.8);
+    defs.register_node(GraphNodeDefinition::from_template(
+        "grant_spell",
+        &fl!("node_group_actions"),
+        &grant_spell,
     ))
     .unwrap();
     for (id, title, default_profile, outputs) in [

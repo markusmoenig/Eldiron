@@ -39,11 +39,11 @@ required-features = ["reference-cpu"]
 [dependencies]
 parking_lot = { version = "0.12.5", features = ["arc_lock"] }
 web-time = "1.1.0"
-eldiron-network = { path = "../crates/network" }
-eldiron-runtime = { path = "../crates/runtime" }
-theframework-core = { path = "../crates/theframework-core" }
-renderkit = { path = "../crates/renderkit", optional = true }
-eldiron-presentation = { path = "../crates/presentation" }
+eldiron-network = { version = "0.96.0", path = "../crates/network" }
+eldiron-runtime = { version = "0.96.0", path = "../crates/runtime" }
+theframework-core = { version = "0.96.0", path = "../crates/theframework-core" }
+renderkit = { package = "eldiron-renderkit", version = "0.96.0", path = "../crates/renderkit", optional = true }
+eldiron-presentation = { version = "0.96.0", path = "../crates/presentation" }
 denrim-materials.workspace = true
 wgpu = "29.0.3"
 half = "2"

@@ -40,7 +40,8 @@ fn raster(@builtin(global_invocation_id) id:vec3<u32>) {
     }
     let sampled=sampling_world(world.xz);
     if p.cell.z!=0 && any(vec2<i32>(floor(sampled))!=p.cell.xy) {return;}
-    let dst=u32(at.y)*p.canvas.x+u32(at.x);let previous=owners[dst];
+    // Sprite blits reserve the high owner bit for opaque mesh depth.
+    let dst=u32(at.y)*p.canvas.x+u32(at.x);let previous=owners[dst]&0x7fffffffu;
     if previous<p.contact.z&&protection[p.contact.y+previous]!=0u{return;}
     let depth=world.z-world.x+world.y*0.8164966;
     if p.canvas.z!=0u&&depth<=terrain[dst].x{return;}

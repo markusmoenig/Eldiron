@@ -99,7 +99,7 @@ impl<'a> Sprite<'a> {
     }
 
     // Broad-phase overlap needs dimensions only. Distant archived tiles can stay compressed.
-    pub(super) fn image_info(&self, pixels: bool) -> Option<SpriteImage<'a>> {
+    pub(in crate::isometric) fn image_info(&self, pixels: bool) -> Option<SpriteImage<'a>> {
         if let Some(stamp) = self.stamp {
             return Some(SpriteImage {
                 data: if pixels {

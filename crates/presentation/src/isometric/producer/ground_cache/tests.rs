@@ -2,6 +2,7 @@ use super::*;
 use crate::screen::ContentRevision;
 use renderkit::{ReadbackTicket, wgpu};
 use rusterix::{PixelSource, RenderSettings, Texture, Value, Vertex};
+use scenevm::prelude::Vec2;
 use std::time::Duration;
 use theframework_core::Uuid;
 

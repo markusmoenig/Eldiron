@@ -32,6 +32,16 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
     }
     match key {
         "event" | "on_event" | "filter" | "time_range" | "random_chance" => true,
+        "quest_state" | "set_quest"
+            if matches!(
+                pc,
+                ProjectContext::Item(_)
+                    | ProjectContext::ItemCode(_)
+                    | ProjectContext::RegionItemInstance(_, _)
+            ) =>
+        {
+            true
+        }
         "quest_state" | "set_quest" | "quest_guard" | "item_guard" | "player_attribute_guard" => {
             matches!(
                 pc,
@@ -45,7 +55,7 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
         "on_area" => matches!(pc, ProjectContext::RegionArea(_, _)),
         "on_enter_area" => !matches!(pc, ProjectContext::RegionArea(_, _)),
         "player_camera" | "routine" | "random_walk" | "resume_routine" | "go_to" | "lookout"
-        | "engage" | "use_action" | "teach" | "join_party" | "leave_party" | "health_check"
+        | "engage" | "use_action" | "teach" | "grant_spell" | "join_party" | "leave_party" | "health_check"
         | "set_target" | "respawn_character" | "perform_intent" => matches!(
             pc,
             ProjectContext::Character(_)
@@ -80,6 +90,7 @@ pub fn node_help(key: &str) -> String {
         "perform_intent" => fl!("node_perform_intent_help"),
         "random_chance" => fl!("node_random_chance_help"),
         "teach" => fl!("node_teach_help"),
+        "grant_spell" => "Grant a ruleset spell to the character in event.subject.".into(),
         "respawn_character" => fl!("node_respawn_character_help"),
         "set_target" => fl!("node_set_target_help"),
         "join_party" => fl!("node_join_party_help"),

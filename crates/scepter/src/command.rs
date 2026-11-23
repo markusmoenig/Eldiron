@@ -531,6 +531,8 @@ pub enum ScepterCommand {
     ScepterDescribeCommand { name: String },
     #[serde(rename = "project.describe")]
     ProjectDescribe,
+    #[serde(rename = "project.save")]
+    ProjectSave,
     #[serde(rename = "project.undo")]
     ProjectUndo,
     #[serde(rename = "project.redo")]
@@ -622,6 +624,7 @@ impl ScepterCommand {
             Self::ScepterListCommands => "scepter.list_commands",
             Self::ScepterDescribeCommand { .. } => "scepter.describe_command",
             Self::ProjectDescribe => "project.describe",
+            Self::ProjectSave => "project.save",
             Self::ProjectUndo => "project.undo",
             Self::ProjectRedo => "project.redo",
             Self::RegionList => "region.list",
@@ -665,6 +668,7 @@ impl ScepterCommand {
         matches!(
             self,
             Self::Transaction(Transaction { dry_run: false, .. })
+                | Self::ProjectSave
                 | Self::ProjectUndo
                 | Self::ProjectRedo
                 | Self::RegionPaintRect(_)
@@ -699,6 +703,7 @@ pub fn creator_implements(name: &str) -> bool {
             | "scepter.list_commands"
             | "scepter.describe_command"
             | "project.describe"
+            | "project.save"
             | "project.undo"
             | "project.redo"
             | "project.transaction"

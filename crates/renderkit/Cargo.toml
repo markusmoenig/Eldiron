@@ -1,13 +1,19 @@
 [package]
-name = "renderkit"
+name = "eldiron-renderkit"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+description = "Shared WebGPU rendering and resource management for Eldiron"
+
+[lib]
+name = "renderkit"
+
 [dependencies]
 wgpu = "29.0.3"
 half = "2.7"
 rustc-hash = "2"
-theframework-core = { path = "../theframework-core" }
+theframework-core = { version = "0.96.0", path = "../theframework-core" }
 [dev-dependencies]
 pollster = "0.4"
 

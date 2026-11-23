@@ -16,7 +16,7 @@ name = "eldiron-client"
 path = "src/main.rs"
 
 [dependencies]
-eldiron-presentation = { path = "../../crates/presentation", optional = true }
+eldiron-presentation = { version = "0.96.0", path = "../../crates/presentation", optional = true }
 theframework = { workspace = true }
 scenevm_unified_app = {package="eldiron-player",path="../../crates/player",version="0.96.0",default-features=false,features=["native-window"]}
 rusterix.workspace = true

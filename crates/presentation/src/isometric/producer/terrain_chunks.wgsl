@@ -40,7 +40,7 @@ fn raster(@builtin(global_invocation_id) id: vec3<u32>) {
     if any(id.xy >= frame.canvas.xy) { return; }
     let q = vec2<f32>(id.xy) + 0.5;
     let directory = chunks[0];
-    let bin = vec2<i32>(floor((q - frame.projection.xy) / frame.projection.z * 4.0));
+    let bin = vec2<i32>(floor((q - frame.projection.xy) / frame.projection.z * frame.projection.w));
     let local = bin - bitcast<vec2<i32>>(directory.xy);
     if any(local < vec2<i32>(0)) || any(vec2<u32>(local) >= directory.zw) { return; }
     let bin_index = u32(local.y) * directory.z + u32(local.x);

@@ -1,3 +1,18 @@
+# Eldiron v0.96.1
+
+## New Features
+
+- Added Scepter's `project.save` command so automation can save the active Creator project to disk.
+- Added **Show above recipient** to the **Message** node. The same private message appears over the recipient and in their message log.
+- Added a **Grant Spell** node so behavior graphs can teach ruleset spells as quest rewards.
+
+## Bug Fixes
+
+- Fixed 2D Iso draw order for overlapping opaque meshes. Per-pixel depth keeps nearby details visible even when the meshes' anchor points sort in the opposite order.
+- Improved zooming out on large 2D Iso maps. Creator draws fewer editor guides at wide zoom, uses a terrain overview for distant views, and bounds shadow geometry to fit GPU limits.
+
+---
+
 # Eldiron v0.96.0
 
 ## New Features

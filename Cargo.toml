@@ -1,11 +1,11 @@
 [workspace]
 exclude = ["vendor/parley"]
 
-members = ["crates/network", "servers/dedicated", "clients/online", "crates/presentation", "crates/runtime", "crates/renderkit", "crates/theframework-core", "creator", "run-wasm", "crates/ruleset", "crates/shared", "clients/client", "crates/player", "clients/client-terminal", "crates/rusterix", "crates/theframework", "crates/scenevm", "crates/scepter", "crates/icon_builder", "crates/character_generator", "crates/materialz"]
+members = ["crates/network", "servers/dedicated", "clients/online", "crates/presentation", "crates/runtime", "crates/renderkit", "crates/theframework-core", "crates/cjk-font-data", "creator", "run-wasm", "crates/ruleset", "crates/shared", "clients/client", "crates/player", "clients/client-terminal", "crates/rusterix", "crates/theframework", "crates/scenevm", "crates/scepter", "crates/icon_builder", "crates/character_generator", "crates/materialz"]
 resolver = "2"
 
 [workspace.dependencies]
-denrim-materials = { path = "crates/materialz", features = ["wgpu"] }
+denrim-materials = { path = "crates/materialz", version = "0.96.0", features = ["wgpu"] }
 theframework = { path = "crates/theframework", version = "0.96.0", default-features = false }
 
 rusterix = { path = "crates/rusterix", version = "0.96.0" }
@@ -29,6 +29,3 @@ incremental = false
 [profile.test]
 debug = 1
 incremental = false
-
-[patch.crates-io]
-parley = { path = "vendor/parley" }

@@ -128,6 +128,7 @@ fn late_join_private_state_deltas_and_events_use_independent_owned_replicas() {
                     anchor: rusterix::world_text::TextAnchor::Entity(b.entity_id),
                     text: "Alice inspection".into(),
                 },
+                "look".into(),
             ))
             .unwrap();
     }
