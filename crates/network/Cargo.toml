@@ -8,10 +8,10 @@ description = "Networking and public client asset delivery for Eldiron RPGs"
 [lib]
 crate-type = ["rlib", "cdylib"]
 [dependencies]
-shared = { version = "0.96.0", package = "eldiron-shared", path = "../shared", default-features = false }
-eldiron-runtime = { version = "0.96.0", path = "../runtime" }
-rusterix = { version = "0.96.0", path = "../rusterix", default-features = false }
-theframework-core = { version = "0.96.0", path = "../theframework-core" }
+shared = { version = "0.96.1", package = "eldiron-shared", path = "../shared", default-features = false }
+eldiron-runtime = { version = "0.96.1", path = "../runtime" }
+rusterix = { version = "0.96.1", path = "../rusterix", default-features = false }
+theframework-core = { version = "0.96.1", path = "../theframework-core" }
 rmp-serde = "1.3"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"

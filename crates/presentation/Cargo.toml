@@ -6,24 +6,24 @@ license.workspace = true
 repository.workspace = true
 description = "Shared scene views and graphical game presentation for Eldiron hosts."
 [dependencies]
-shared = { version = "0.96.0",package="eldiron-shared",path="../shared",default-features=false,features=["graphics"]}
+shared = { version = "0.96.1",package="eldiron-shared",path="../shared",default-features=false,features=["graphics"]}
 fontdue = "0.9.3"
 bytemuck = { version = "1.24", features = ["derive"] }
 web-time = "1.1.0"
-eldiron-runtime = { version = "0.96.0",path="../runtime"}
+eldiron-runtime = { version = "0.96.1",path="../runtime"}
 toml = "0.9"
-renderkit = { package = "eldiron-renderkit", version = "0.96.0",path="../renderkit"}
-scenevm = { version = "0.96.0",path="../scenevm",default-features=false,features=["gpu"]}
-rusterix = { version = "0.96.0",path="../rusterix",default-features=false,features=["graphics"]}
-theframework-core = { version = "0.96.0",path="../theframework-core"}
+renderkit = { package = "eldiron-renderkit", version = "0.96.1",path="../renderkit"}
+scenevm = { version = "0.96.1",path="../scenevm",default-features=false,features=["gpu"]}
+rusterix = { version = "0.96.1",path="../rusterix",default-features=false,features=["graphics"]}
+theframework-core = { version = "0.96.1",path="../theframework-core"}
 rustc-hash = "2"
 unicode-segmentation = "1.12"
-theframework = { version = "0.96.0",path="../theframework",default-features=false,features=["text"]}
+theframework = { version = "0.96.1",path="../theframework",default-features=false,features=["text"]}
 [dev-dependencies]
-denrim-materials = { version = "0.96.0", path = "../materialz", features = ["integration"] }
+denrim-materials = { version = "0.96.1", path = "../materialz", features = ["integration"] }
 vek = "0.17"
 zip = { version = "6.0", default-features = false, features = ["deflate-flate2"] }
 serde_json = "1"
 futures = "0.3"
 png = "0.18"
-theframework = { version = "0.96.0",path="../theframework",default-features=false,features=["render-wgpu"]}
+theframework = { version = "0.96.1",path="../theframework",default-features=false,features=["render-wgpu"]}

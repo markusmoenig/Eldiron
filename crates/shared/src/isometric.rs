@@ -710,8 +710,14 @@ impl Baker<'_> {
                 .unwrap_or(&spec.source),
         ) {
             let asset = ruleset_materials::editable_id(self.project, id).or_else(|error| {
-                let source = self.project.procedural_materials.get(&id).ok_or(error)?;
-                EditableMaterialAsset::parse(&spec.source, source, "surface").map_err(|e| e.to_string())
+                let source = self
+                    .project
+                    .procedural_materials
+                    .get(&id)
+                    .filter(|source| !source.trim_start().starts_with(['{', '[']))
+                    .ok_or(error)?;
+                EditableMaterialAsset::parse(&spec.source, source, "surface")
+                    .map_err(|e| e.to_string())
             })?;
             ruleset_materials::bake_asset(&asset, &self.project.palette, size)?
         } else if let Some(name) = spec.source.strip_prefix("ruleset:material/") {
@@ -1217,6 +1223,35 @@ material "surface" called "Texture resolution study"
                 .unwrap(),
         );
         assert_ne!(baker.texture(&spec).unwrap().data, first.data);
+    }
+
+    #[test]
+    fn mesh_texture_preserves_bundle_errors_and_accepts_legacy_recipes() {
+        let mut project = Project::default();
+        let id = Uuid::new_v4();
+        let source = "project 1\nmaterial \"surface\" called \"Ground\"\n  mode pbr\n  tiling raw\n  default base color to 0.1 0.2 0.1\n";
+        let asset = EditableMaterialAsset::parse(&id.to_string(), source, "surface").unwrap();
+        let mut bundle: serde_json::Value = serde_json::from_str(&asset.save().unwrap()).unwrap();
+        bundle["source_library"] = "materialz-0.96.0-different-definitions".into();
+        project.procedural_materials.insert(id, bundle.to_string());
+        let spec = denrim_materials::geometry::Texture {
+            source: id.to_string(),
+            bundle: None,
+            size: 16,
+        };
+        let mut baker = Baker {
+            project: &project,
+            textures: BTreeMap::new(),
+        };
+        let error = baker.texture(&spec).unwrap_err();
+        assert!(error.contains("Unsupported bundle or source-library version"), "{error}");
+
+        project.procedural_materials.insert(id, source.into());
+        let mut baker = Baker {
+            project: &project,
+            textures: BTreeMap::new(),
+        };
+        assert!(baker.texture(&spec).is_ok());
     }
 
     #[test]

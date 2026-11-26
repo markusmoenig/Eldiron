@@ -23,9 +23,8 @@ struct SpriteTarget {
     scale: f32,
     alpha: Arc<[u8]>,
 }
-/// Retains the reference isometric policy: source-alpha item selection precedes
-/// ground-cell living/item/dead targets. This is a source hit policy, not a
-/// newly introduced depth/occlusion policy. Animation/scale use the drawn frame.
+/// Source-alpha item and character hits precede the ground-cell fallback.
+/// Animation and scale use the displayed frame.
 pub struct IsometricWorldTargets {
     region: Uuid,
     size: (u32, u32),
@@ -42,7 +41,6 @@ impl IsometricWorldTargets {
         sprites: impl Iterator<Item = &'a Sprite<'a>>,
         sources: &mut IsometricSources,
         elevation: ElevationMap,
-        characters: bool,
     ) -> Result<Arc<Self>> {
         let leader = rusterix::party::resolve_party_entity(input.map, Some("leader"))
             .or_else(|| input.map.entities.iter().find(|e| e.is_player()))
@@ -55,9 +53,7 @@ impl IsometricWorldTargets {
             else {
                 continue;
             };
-            if matches!(owner, SpriteOwner::Entity { .. })
-                && (!characters || sprite.opacity <= 0.125)
-            {
+            if matches!(owner, SpriteOwner::Entity { .. }) && sprite.opacity <= 0.125 {
                 continue;
             }
             let Some(image) = sprite.image() else {
@@ -166,16 +162,23 @@ impl IsometricWorldTargets {
             return None;
         }
         let pixel = Vec2::new(uv[0] * self.size.0 as f32, uv[1] * self.size.1 as f32);
-        if let Some(item) = self.sprite_at(uv, false)
-            && let SpriteOwner::Item { id, .. } = item.owner
-        {
+        let target = self
+            .sprite_at(uv, false)
+            .or_else(|| self.sprite_at(uv, true));
+        if let Some(target) = target {
+            let (entity, item) = match target.owner {
+                SpriteOwner::Entity { id, .. } => (Some(id), None),
+                SpriteOwner::Item { id, .. } => (None, Some(id)),
+                _ => unreachable!("only items and characters are captured"),
+            };
             return Some(WorldHit {
                 region: self.region,
-                item: Some(id),
-                world: Some(item.position),
+                entity,
+                item,
+                world: Some(target.position),
                 distance: self
                     .leader
-                    .distance(Vec2::new(item.position.x, item.position.z)),
+                    .distance(Vec2::new(target.position.x, target.position.z)),
                 ..Default::default()
             });
         }

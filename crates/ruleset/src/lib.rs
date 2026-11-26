@@ -536,6 +536,7 @@ pub fn bundled_icon_material_assets_for_ruleset(
         icon!("fox_inscription_manual", "icon"),
         icon!("ui_actions", "icon"),
         icon!("look", "icon"),
+        icon!("talk", "icon"),
         icon!("use", "icon"),
         icon!("open", "icon"),
         icon!("close", "icon"),

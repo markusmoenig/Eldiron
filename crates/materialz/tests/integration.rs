@@ -1,5 +1,5 @@
 #![cfg(feature = "integration")]
-use denrim_materials::{cpu::Evaluator, format, integration::*, ir::Channel};
+use denrim_materials::{cpu::Evaluator, format, integration::*, ir::Channel, metadata::Kernel, tilelang};
 const SOURCE: &str = "project 1\nmaterial \"grass\" called \"Grass\"\n  mode pbr\n  tiling raw\n  row \"color\"\n    use \"Color\" id \"grass-color\"\n      set \"color\" to 0.1 0.2 0.3 1\n    use \"Color\" id \"another-color\"\n  row \"unused\"\n    use \"Color\" id \"unused-color\"\n  output base color from row \"color\" xyz\n";
 #[test]
 fn persistent_keys_survive_structural_edits_and_reopen() {
@@ -194,4 +194,25 @@ fn release_numbers_do_not_invalidate_unchanged_material_definitions() {
     bundle["source_library"] = library.into();
     bundle["version"] = 999.into();
     assert!(EditableMaterialAsset::reopen(&bundle.to_string()).is_err());
+}
+
+#[test]
+fn material_bundles_saved_with_legacy_crlf_fingerprints_can_reopen() {
+    let mut legacy_hash = 0xcbf29ce484222325u64;
+    for kernel in Kernel::ALL {
+        let source = tilelang::source(kernel).replace("\r\n", "\n").replace('\n', "\r\n");
+        for byte in kernel.source_id().bytes().chain(source.bytes()) {
+            legacy_hash = (legacy_hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+        }
+    }
+    let legacy_fingerprint = format!("{legacy_hash:016x}");
+    let canonical_library = source_library_version();
+    assert!(!canonical_library.ends_with(&legacy_fingerprint));
+
+    let asset = EditableMaterialAsset::parse("version-test", SOURCE, "grass").unwrap();
+    let mut bundle: serde_json::Value = serde_json::from_str(&asset.save().unwrap()).unwrap();
+    bundle["source_library"] = format!("materialz-0.96.0-{legacy_fingerprint}").into();
+    let reopened = EditableMaterialAsset::reopen(&bundle.to_string()).unwrap();
+    assert_eq!(reopened.root.project, asset.root.project);
+    assert_eq!(reopened.save().unwrap(), asset.save().unwrap());
 }

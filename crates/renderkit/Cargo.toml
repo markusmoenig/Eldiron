@@ -13,7 +13,7 @@ name = "renderkit"
 wgpu = "29.0.3"
 half = "2.7"
 rustc-hash = "2"
-theframework-core = { version = "0.96.0", path = "../theframework-core" }
+theframework-core = { version = "0.96.1", path = "../theframework-core" }
 [dev-dependencies]
 pollster = "0.4"
 

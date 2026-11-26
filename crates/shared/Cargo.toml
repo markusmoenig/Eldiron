@@ -12,11 +12,11 @@ readme = "README.md"
 
 [dependencies]
 web-time = "1.1.0"
-denrim-materials = { version = "0.96.0", path = "../materialz", features = ["integration"] }
-theframework-core = { version = "0.96.0", path = "../theframework-core" }
-eldiron-ruleset = { path = "../ruleset", version = "0.96.0" }
-rusterix = { path = "../rusterix", version = "0.96.0", default-features = false }
-scenevm = { path = "../scenevm", version = "0.96.0", default-features = false }
+denrim-materials = { version = "0.96.1", path = "../materialz", features = ["integration"] }
+theframework-core = { version = "0.96.1", path = "../theframework-core" }
+eldiron-ruleset = { path = "../ruleset", version = "0.96.1" }
+rusterix = { path = "../rusterix", version = "0.96.1", default-features = false }
+scenevm = { path = "../scenevm", version = "0.96.1", default-features = false }
 
 serde = { version = "1.0", features = ["derive"] }
 sha2 = "0.10"

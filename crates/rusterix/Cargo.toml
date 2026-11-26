@@ -11,11 +11,11 @@ keywords = ["software", "rendering", "graphics", "game", "engine"]
 readme = "README.md"
 
 [dependencies]
-denrim-materials = { version = "0.96.0", path = "../materialz", features = ["integration"] }
+denrim-materials = { version = "0.96.1", path = "../materialz", features = ["integration"] }
 theframework = { workspace = true, optional = true }
-theframework-core = { version = "0.96.0", path = "../theframework-core" }
-scenevm = { path = "../scenevm", version = "0.96.0", default-features = false }
-eldiron-ruleset = { path = "../ruleset", version = "0.96.0" }
+theframework-core = { version = "0.96.1", path = "../theframework-core" }
+scenevm = { path = "../scenevm", version = "0.96.1", default-features = false }
+eldiron-ruleset = { path = "../ruleset", version = "0.96.1" }
 
 fontdue = { version = "0.9.3", optional = true }
 rayon = "1.10"

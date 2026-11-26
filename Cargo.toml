@@ -5,15 +5,15 @@ members = ["crates/network", "servers/dedicated", "clients/online", "crates/pres
 resolver = "2"
 
 [workspace.dependencies]
-denrim-materials = { path = "crates/materialz", version = "0.96.0", features = ["wgpu"] }
-theframework = { path = "crates/theframework", version = "0.96.0", default-features = false }
+denrim-materials = { path = "crates/materialz", version = "0.96.1", features = ["wgpu"] }
+theframework = { path = "crates/theframework", version = "0.96.1", default-features = false }
 
-rusterix = { path = "crates/rusterix", version = "0.96.0" }
-scenevm = { path = "crates/scenevm", version = "0.96.0" }
+rusterix = { path = "crates/rusterix", version = "0.96.1" }
+scenevm = { path = "crates/scenevm", version = "0.96.1" }
 
 [workspace.package]
 edition = "2024"
-version = "0.96.0"
+version = "0.96.1"
 license = "MIT"
 authors = ["Markus Moenig"]
 description = "A retro-style RPG game creator."

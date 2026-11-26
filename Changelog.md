@@ -8,6 +8,7 @@
 
 ## Bug Fixes
 
+- Fixed a Windows Play startup failure in Wayfarer’s Rest and other 2D Iso projects that rebake MaterialZ tiles. Material bundles now load across platforms regardless of line endings.
 - Fixed 2D Iso draw order for overlapping opaque meshes. Per-pixel depth keeps nearby details visible even when the meshes' anchor points sort in the opposite order.
 - Improved zooming out on large 2D Iso maps. Creator draws fewer editor guides at wide zoom, uses a terrain overview for distant views, and bounds shadow geometry to fit GPU limits.
 

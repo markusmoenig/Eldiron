@@ -240,7 +240,6 @@ impl IsometricSceneRenderer {
             plan.ground.iter().chain(&plan.upright),
             &mut self.sprites,
             self.elevation.as_ref().unwrap().3.clone(),
-            view.is_some_and(|(consumer, _)| consumer == TerrainConsumer::Editor),
         )?;
         let terrain = plan.terrain.is_some();
         let mut ground = Vec::new();

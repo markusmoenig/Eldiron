@@ -167,22 +167,30 @@ struct DocumentRecord {
 /// Bundle compatibility depends on the schema and definition fingerprint; a release
 /// number alone does not change the material language.
 pub fn source_library_version() -> String {
-    static VERSION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    VERSION
+    let (canonical, _) = source_library_fingerprints();
+    format!("materialz-{}-{canonical}", env!("CARGO_PKG_VERSION"))
+}
+
+fn source_library_fingerprints() -> &'static (String, String) {
+    static FINGERPRINTS: std::sync::OnceLock<(String, String)> = std::sync::OnceLock::new();
+    FINGERPRINTS
         .get_or_init(|| {
-            let mut hash = 0xcbf29ce484222325u64;
-            for k in Kernel::ALL {
-                for byte in k
-                    .source_id()
-                    .bytes()
-                    .chain(crate::tilelang::source(k).bytes())
-                {
-                    hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
-                }
+            let mut canonical = 0xcbf29ce484222325u64;
+            let mut legacy_crlf = canonical;
+            for kernel in Kernel::ALL {
+                let source = crate::tilelang::source(kernel).replace("\r\n", "\n");
+                let crlf_source = source.replace('\n', "\r\n");
+                canonical = fingerprint_source(canonical, kernel.source_id(), &source);
+                legacy_crlf = fingerprint_source(legacy_crlf, kernel.source_id(), &crlf_source);
             }
-            format!("materialz-{}-{hash:016x}", env!("CARGO_PKG_VERSION"))
+            (format!("{canonical:016x}"), format!("{legacy_crlf:016x}"))
         })
-        .clone()
+}
+
+fn fingerprint_source(hash: u64, id: &str, source: &str) -> u64 {
+    id.bytes().chain(source.bytes()).fold(hash, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+    })
 }
 pub fn source_catalog() -> Vec<SourceInfo> {
     Kernel::ALL
@@ -258,9 +266,10 @@ impl EditableMaterialAsset {
     pub fn reopen(text: &str) -> Result<Self> {
         let bundle: Bundle = serde_json::from_str(text)
             .map_err(|e| Diagnostic::new("reopen", Location::asset(""), e))?;
-        let current_library = source_library_version();
-        let definitions_match =
-            bundle.source_library.rsplit('-').next() == current_library.rsplit('-').next();
+        let (canonical, legacy_crlf) = source_library_fingerprints();
+        let fingerprint = bundle.source_library.rsplit('-').next().unwrap_or_default();
+        // Older builds fingerprinted the checkout's line endings when saving bundles.
+        let definitions_match = fingerprint == canonical || fingerprint == legacy_crlf;
         if bundle.version != 1 || !definitions_match {
             return Err(Diagnostic::new(
                 "reopen",

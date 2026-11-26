@@ -25,15 +25,15 @@ name = "legacy_reference"
 required-features = ["legacy-reference"]
 
 [dependencies]
-eldiron-presentation = { version = "0.96.0",path="../presentation"}
-theframework = { version = "0.96.0",path="../theframework", default-features=false, features=["render-wgpu"], optional=true}
-renderkit = { package = "eldiron-renderkit", version = "0.96.0",path="../renderkit", optional=true}
-eldiron-network = { version = "0.96.0", path = "../network" }
-eldiron-runtime = { version = "0.96.0", path = "../runtime" }
+eldiron-presentation = { version = "0.96.1",path="../presentation"}
+theframework = { version = "0.96.1",path="../theframework", default-features=false, features=["render-wgpu"], optional=true}
+renderkit = { package = "eldiron-renderkit", version = "0.96.1",path="../renderkit", optional=true}
+eldiron-network = { version = "0.96.1", path = "../network" }
+eldiron-runtime = { version = "0.96.1", path = "../runtime" }
 rustc-hash = "2"
 scenevm = { workspace = true, default-features = false, features=["gpu"] }
 rusterix.workspace = true
-shared = { path = "../shared", version = "0.96.0", package = "eldiron-shared" }
+shared = { path = "../shared", version = "0.96.1", package = "eldiron-shared" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.9.5"

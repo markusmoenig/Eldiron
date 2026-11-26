@@ -1009,7 +1009,7 @@ checksum = "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
 
 [[package]]
 name = "denrim-materials"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "eldiron-renderkit",
  "half",
@@ -1300,7 +1300,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "eldiron-character-generator"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "eldiron-presentation",
  "eldiron-ruleset",
@@ -1317,11 +1317,11 @@ dependencies = [
 
 [[package]]
 name = "eldiron-cjk-font-data"
-version = "0.96.0"
+version = "0.96.1"
 
 [[package]]
 name = "eldiron-client"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "console_error_panic_hook",
  "eldiron-player",
@@ -1342,7 +1342,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-client-terminal"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "crossterm 0.29.0",
  "eldiron-runtime",
@@ -1358,7 +1358,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-creator"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "arboard",
  "console_error_panic_hook",
@@ -1410,7 +1410,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-icon-builder"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "image",
  "serde",
@@ -1420,7 +1420,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-network"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "eldiron-runtime",
  "eldiron-shared",
@@ -1445,7 +1445,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-online"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "eldiron-network",
  "eldiron-runtime",
@@ -1473,7 +1473,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-player"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "console_error_panic_hook",
  "eldiron-network",
@@ -1505,7 +1505,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-presentation"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "bytemuck",
  "denrim-materials",
@@ -1530,7 +1530,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-renderkit"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "half",
  "objc2-quartz-core 0.3.2",
@@ -1542,7 +1542,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-ruleset"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -1553,7 +1553,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-runtime"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "eldiron-shared",
  "instant",
@@ -1573,7 +1573,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-server"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "argon2",
  "base64",
@@ -1600,7 +1600,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-shared"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "base64",
  "denrim-materials",
@@ -1640,7 +1640,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron_scepter"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -4955,7 +4955,7 @@ dependencies = [
 
 [[package]]
 name = "run-wasm"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "cargo-run-wasm",
  "wasm-bindgen-cli-support",
@@ -5025,7 +5025,7 @@ dependencies = [
 
 [[package]]
 name = "rusterix"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "base64",
  "bincode",
@@ -5238,7 +5238,7 @@ dependencies = [
 
 [[package]]
 name = "scenevm"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "bytemuck",
  "eldiron-renderkit",
@@ -5872,7 +5872,7 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "arboard",
  "bincode",
@@ -5925,7 +5925,7 @@ dependencies = [
 
 [[package]]
 name = "theframework-core"
-version = "0.96.0"
+version = "0.96.1"
 dependencies = [
  "bincode",
  "flate2",
