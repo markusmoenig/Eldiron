@@ -27,6 +27,32 @@ pub struct ScreenActivation {
     pub effects: Vec<ScreenEffect>,
 }
 impl GameScreenController {
+    /// Keep the cursor and selected toolbar button in step with the server
+    /// when a direction consumes a one-shot 2D intent.
+    pub fn consume_directional_intent(
+        &mut self,
+        world: &RuntimeView<'_>,
+        action: &EntityAction,
+    ) -> Result<(), String> {
+        if !self.intent.trim().is_empty()
+            && matches!(
+                action,
+                EntityAction::Forward
+                    | EntityAction::Backward
+                    | EntityAction::Left
+                    | EntityAction::Right
+                    | EntityAction::ForwardLeft
+                    | EntityAction::ForwardRight
+                    | EntityAction::BackwardLeft
+                    | EntityAction::BackwardRight
+            )
+            && self.immediate_intents(world)?
+        {
+            self.consume_targeting_intent();
+        }
+        Ok(())
+    }
+
     pub(super) fn immediate_intents(&self, world: &RuntimeView<'_>) -> Result<bool, String> {
         let config = world
             .config()
@@ -108,7 +134,7 @@ impl GameScreenController {
                         .is_none_or(|w| !screen_model::is_targeting_button(w))
                 });
             }
-            if !self.intent.trim().is_empty() && self.immediate_intents(world)? {
+            if self.immediate_intents(world)? {
                 effects.push(ScreenEffect::Action(EntityAction::Intent(
                     self.intent.clone(),
                 )));
@@ -188,7 +214,7 @@ impl GameScreenController {
             Some(ClientCommandBinding::Control(control)) => action = Some(control),
             Some(ClientCommandBinding::Intent(intent)) => {
                 self.intent = intent.clone();
-                if !intent.trim().is_empty() && immediate {
+                if immediate {
                     action = Some(EntityAction::Intent(intent));
                 }
             }

@@ -233,10 +233,15 @@ impl AvatarRuntimeBuilder {
                     AvatarDirection::Left => 270.,
                     AvatarDirection::FrontLeft => 315.,
                 };
-                preview_entity.orientation =
-                    vek::Vec2::new(heading.to_radians().sin(), heading.to_radians().cos());
+                preview_entity.set_attribute("appearance_yaw", Value::Float(heading));
                 if !include_weapons {
-                    preview_entity.equipped.clear();
+                    let rules = assets.value_rules();
+                    preview_entity.equipped.retain(|slot, _| {
+                        !matches!(slot.as_str(), "main_hand" | "off_hand" | "tool")
+                            && !rules.as_ref().is_some_and(|rules| {
+                                rules.equipment.avatar_anchors.contains_key(slot)
+                            })
+                    });
                 }
                 let animation = animation_name
                     .or_else(|| entity.attributes.get_str("avatar_animation"))

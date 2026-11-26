@@ -13,8 +13,8 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Project, Error> {
     validate_depth(bytes)?;
     let mut legacy = false;
     let mut reader = serde_json::Deserializer::from_slice(bytes);
-    // The remote derive is the original field decoder. Observe the retired
-    // root group field while decoding, avoiding a second full-document probe.
+    // The remote derive is the original field decoder. Observe retired
+    // root fields while decoding so only legacy projects need another pass.
     let project =
         Project::deserialize(ProjectReader(&mut reader, &mut legacy)).and_then(|project| {
             reader.end()?;
@@ -108,6 +108,7 @@ impl<'de, M: MapAccess<'de>> MapAccess<'de> for ProjectFields<'_, M> {
         let Some(key) = self.map.next_key::<String>()? else {
             return Ok(None);
         };
+        *self.legacy |= key == "art_palette";
         self.group = key == "tile_groups";
         // Root Project keys are named struct identifiers, not numeric map keys.
         seed.deserialize(serde::de::value::StringDeserializer::<M::Error>::new(key))
@@ -116,7 +117,7 @@ impl<'de, M: MapAccess<'de>> MapAccess<'de> for ProjectFields<'_, M> {
     fn next_value_seed<S: DeserializeSeed<'de>>(&mut self, seed: S) -> Result<S::Value, M::Error> {
         if self.group {
             let raw: &RawValue = self.map.next_value()?;
-            *self.legacy = has_groups(raw).map_err(M::Error::custom)?;
+            *self.legacy |= has_groups(raw).map_err(M::Error::custom)?;
             seed.deserialize(Sorted(raw)).map_err(M::Error::custom)
         } else {
             self.map.next_value_seed(Seed(seed))

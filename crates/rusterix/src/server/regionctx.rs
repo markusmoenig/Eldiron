@@ -654,7 +654,7 @@ impl RegionCtx {
         best.map(|(sector_id, _)| sector_id)
     }
 
-    fn stored_entity_sector_id(&self, entity: &Entity) -> Option<u32> {
+    pub(super) fn stored_entity_sector_id(&self, entity: &Entity) -> Option<u32> {
         entity
             .attributes
             .get("sector_id")

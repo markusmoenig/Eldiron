@@ -62,8 +62,24 @@ struct Compiled {
     height: f32,
     floor: f32,
     extent: f32,
+    humanoid_rig: bool,
     #[cfg(feature = "graphics")]
     body_scale: f32,
+}
+impl Compiled {
+    fn top_down_yaw(&self, yaw: f32) -> f32 {
+        if self.humanoid_rig {
+            // Show some of the torso on east/west headings, where a strict
+            // profile tends to hide the arms and legs behind one another.
+            yaw - 35. * yaw.to_radians().sin().powi(3)
+        } else {
+            yaw
+        }
+    }
+
+    fn top_down_width_scale(&self) -> f32 {
+        if self.humanoid_rig { 1.45 } else { 1. }
+    }
 }
 pub struct Appearance {
     pub source: String,
@@ -80,7 +96,14 @@ pub struct Appearance {
     last_ready: Mutex<FxHashMap<(Uuid, u32), u64>>,
     preparing: Mutex<FxHashSet<((Uuid, u32), u64)>>,
 }
-type SpriteKey = (u64, String, u32, i32, u64, bool, bool);
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum SpriteProjection {
+    Preview,
+    TopDown,
+    IsometricFixed,
+    IsometricFit,
+}
+type SpriteKey = (u64, String, u32, i32, u64, SpriteProjection);
 /// Metadata and immutable compiled geometry retained for one selected sprite.
 /// Resolution does not rasterize the selected sprite. A late variant job cannot change the
 /// source between a presentation cache lookup and its materialization.
@@ -115,7 +138,6 @@ impl ResolvedSprite<'_> {
             &self.assets.palette,
             self.surface_seconds,
             self.key.5,
-            self.key.6,
         );
         let mut cache = self.appearance.sprites.lock().unwrap();
         if cache.len() >= 512 {
@@ -124,6 +146,16 @@ impl ResolvedSprite<'_> {
         cache.insert(self.key.clone(), pixels.clone());
         Ok(pixels)
     }
+}
+
+fn sprite_yaw(entity: &Entity) -> f32 {
+    entity
+        .attributes
+        .get_float("appearance_yaw")
+        .unwrap_or_else(|| {
+            (entity.orientation.x.atan2(entity.orientation.y).to_degrees() / 45.).round() * 45.
+        })
+        .rem_euclid(360.)
 }
 
 struct VariantPlan {
@@ -591,6 +623,11 @@ impl Appearance {
         // Broad quadrupeds need the same horizontal room as broad props. The
         // un-equipped body's diagonal keeps framing stable through every heading.
         let extent = height.max((hi[0] - lo[0]).hypot(hi[2] - lo[2])) * 0.70;
+        let humanoid_rig = body.rig.as_ref().is_some_and(|rig| {
+            ["left-shoulder", "right-shoulder", "left-hip", "right-hip"]
+                .iter()
+                .all(|id| rig.joints.iter().any(|joint| joint.id == *id))
+        });
         let wearer = doc.wearer_body().map_err(|e| e.to_string())?;
         // Fitted material layers retain the recipe's UVs and skin weights. Body
         // framing and sockets above are measured before garment padding.
@@ -759,6 +796,7 @@ impl Appearance {
             height,
             floor: lo[1],
             extent,
+            humanoid_rig,
             #[cfg(feature = "graphics")]
             body_scale,
         });
@@ -902,8 +940,7 @@ impl Appearance {
             seconds,
             surface_seconds,
             joints,
-            true,
-            false,
+            SpriteProjection::IsometricFixed,
         )?
         .render()
         .map(|frame| frame.pixels)
@@ -940,7 +977,17 @@ impl Appearance {
         isometric: bool,
     ) -> Result<ResolvedSprite<'a>, String> {
         self.resolve_sprite_frame(
-            entity, assets, animation, seconds, surface_seconds, joints, isometric, isometric,
+            entity,
+            assets,
+            animation,
+            seconds,
+            surface_seconds,
+            joints,
+            if isometric {
+                SpriteProjection::IsometricFit
+            } else {
+                SpriteProjection::Preview
+            },
         )
     }
     fn resolve_sprite_frame<'a>(
@@ -951,8 +998,7 @@ impl Appearance {
         seconds: f32,
         surface_seconds: f32,
         joints: Option<&'a [denrim_materials::geometry::rig::Pose]>,
-        isometric: bool,
-        fit_mesh: bool,
+        projection: SpriteProjection,
     ) -> Result<ResolvedSprite<'a>, String> {
         let (c, mask) = self.compiled_for(entity, assets)?;
         let seconds = Self::animation_seconds(&c, entity, animation, seconds);
@@ -972,20 +1018,7 @@ impl Appearance {
         } else {
             (seconds * FPS).floor()
         } as u32;
-        let yaw = entity
-            .attributes
-            .get_float("appearance_yaw")
-            .unwrap_or_else(|| {
-                (entity
-                    .orientation
-                    .x
-                    .atan2(entity.orientation.y)
-                    .to_degrees()
-                    / 45.)
-                    .round()
-                    * 45.
-            })
-            .rem_euclid(360.);
+        let yaw = sprite_yaw(entity);
         let textures = fingerprint(&(
             c.materials
                 .iter()
@@ -1004,8 +1037,7 @@ impl Appearance {
             frame,
             yaw.to_bits() as i32,
             textures,
-            isometric,
-            fit_mesh,
+            projection,
         );
         let sample = clip
             .filter(|m| !m.looping)
@@ -1107,11 +1139,10 @@ impl Appearance {
                 .map_err(|e| e.to_string())?;
             (effects, 0., [0.; 2])
         };
-        let yaw = entity.orientation.x.atan2(entity.orientation.y);
         let yaw = if two_d {
-            (yaw.to_degrees() / 45.).round() * 45f32.to_radians()
+            c.top_down_yaw(sprite_yaw(entity)).to_radians()
         } else {
-            yaw
+            entity.orientation.x.atan2(entity.orientation.y)
         };
         let (s, co) = yaw.sin_cos();
         Ok(effects
@@ -1124,7 +1155,7 @@ impl Appearance {
                     let z = -s * p[0] + co * p[2];
                     (
                         feet + Vec3::new(
-                            x / (2. * c.extent) * size,
+                            x / (2. * c.extent) * size * c.top_down_width_scale(),
                             0.,
                             (-(p[1] - c.floor - c.height * 0.5) * 0.94 + z * 0.34)
                                 / (2. * c.extent)
@@ -1292,7 +1323,12 @@ fn raster_sprite_at(
     seconds: f32,
     isometric: bool,
 ) -> Vec<u8> {
-    (*raster_sprite_frame(mesh, c, yaw, palette, seconds, isometric, isometric).pixels).clone()
+    let projection = if isometric {
+        SpriteProjection::IsometricFit
+    } else {
+        SpriteProjection::Preview
+    };
+    (*raster_sprite_frame(mesh, c, yaw, palette, seconds, projection).pixels).clone()
 }
 fn raster_sprite_frame(
     mesh: &Mesh,
@@ -1300,9 +1336,17 @@ fn raster_sprite_frame(
     yaw: f32,
     palette: &ThePalette,
     seconds: f32,
-    isometric: bool,
-    fit_mesh: bool,
+    projection: SpriteProjection,
 ) -> crate::isometric::AvatarSprite {
+    let isometric = matches!(
+        projection,
+        SpriteProjection::IsometricFixed | SpriteProjection::IsometricFit
+    );
+    let yaw = if projection == SpriteProjection::TopDown {
+        c.top_down_yaw(yaw)
+    } else {
+        yaw
+    };
     let (s, co) = yaw.to_radians().sin_cos();
     let rotate = |p: [f32; 3]| [co * p[0] + s * p[2], p[1], -s * p[0] + co * p[2]];
     let pixels_per_unit = 32.;
@@ -1317,7 +1361,7 @@ fn raster_sprite_frame(
         // posed mesh that extends beyond it, including large world props.
         let mut min = Vec2::<f32>::new(-64., -100.);
         let mut max = Vec2::<f32>::new(64., 28.);
-        if fit_mesh {
+        if projection == SpriteProjection::IsometricFit {
             for (part, _) in mesh.parts.iter().zip(&c.materials).filter(|(_, m)| m.visible) {
                 for vertex in &part.vertices {
                     let xy = iso_xy(rotate(vertex.position));
@@ -1956,23 +2000,51 @@ impl Runtime {
         id: GeoId,
         style: Option<crate::avatar_builder::AvatarFrameStyle>,
     ) -> bool {
-        let Some(asset) = Self::resolve(entity, assets) else {
-            return false;
-        };
-        let sample = match self.sample(id, entity, asset, assets, true) {
-            Ok(s) => s,
-            Err(_) => return false,
-        };
-        match asset.sprite_with_pose(
+        self.upload_sprite(vm, entity, assets, id, style, SpriteProjection::Preview)
+            .is_some()
+    }
+    #[cfg(feature = "graphics")]
+    pub(crate) fn top_down_sprite(
+        &mut self,
+        vm: &mut SceneVM,
+        entity: &Entity,
+        assets: &Assets,
+        id: GeoId,
+        style: Option<crate::avatar_builder::AvatarFrameStyle>,
+    ) -> Option<f32> {
+        self.upload_sprite(vm, entity, assets, id, style, SpriteProjection::TopDown)
+    }
+    #[cfg(feature = "graphics")]
+    fn upload_sprite(
+        &mut self,
+        vm: &mut SceneVM,
+        entity: &Entity,
+        assets: &Assets,
+        id: GeoId,
+        style: Option<crate::avatar_builder::AvatarFrameStyle>,
+        projection: SpriteProjection,
+    ) -> Option<f32> {
+        let asset = Self::resolve(entity, assets)?;
+        let sample = self.sample(id, entity, asset, assets, true).ok()?;
+        let sprite = asset.resolve_sprite_frame(
             entity,
             assets,
             &sample.animation,
             sample.time,
             self.time,
             (!sample.joints.is_empty()).then_some(sample.joints.as_slice()),
-        ) {
-            Ok(pixels) => {
-                let mut rgba = (*pixels).clone();
+            projection,
+        );
+        match sprite.and_then(|sprite| {
+            let width_scale = if projection == SpriteProjection::TopDown {
+                sprite.compiled.top_down_width_scale()
+            } else {
+                1.
+            };
+            Ok((sprite.render()?, width_scale))
+        }) {
+            Ok((frame, width_scale)) => {
+                let mut rgba = (*frame.pixels).clone();
                 if let Some(style) = style {
                     crate::avatar_builder::AvatarRuntimeBuilder::draw_alpha_outline(
                         SPRITE_SIZE,
@@ -1986,11 +2058,11 @@ impl Runtime {
                     size: SPRITE_SIZE as u32,
                     rgba,
                 });
-                true
+                Some(width_scale)
             }
             Err(e) => {
                 eprintln!("Procedural avatar: {e}");
-                false
+                None
             }
         }
     }
@@ -2083,6 +2155,39 @@ mod tests {
         runtime.time = 1.;
         let sample = runtime.sample(id, &entity, &model, &assets, true).unwrap();
         assert!((sample.time - 2.5).abs() < 0.0001);
+    }
+
+    #[test]
+    fn top_down_human_shows_more_of_the_side_facing_silhouette() {
+        let (assets, model, mut entity) = fixture();
+        entity.orientation = Vec2::unit_x();
+        let preview = model
+            .resolve_sprite(&entity, &assets, "idle", 0., 0., None, false)
+            .unwrap();
+        let top_down = model
+            .resolve_sprite_frame(
+                &entity,
+                &assets,
+                "idle",
+                0.,
+                0.,
+                None,
+                SpriteProjection::TopDown,
+            )
+            .unwrap();
+        let width = |sprite: crate::isometric::AvatarSprite| {
+            let w = sprite.size[0];
+            let columns = sprite
+                .pixels
+                .chunks_exact(4)
+                .enumerate()
+                .filter(|(_, pixel)| pixel[3] != 0)
+                .map(|(i, _)| i % w);
+            columns.clone().max().unwrap() - columns.min().unwrap() + 1
+        };
+        assert_ne!(preview.fingerprint(), top_down.fingerprint());
+        assert!(top_down.compiled.top_down_width_scale() > 1.);
+        assert!(width(top_down.render().unwrap()) > width(preview.render().unwrap()));
     }
 
     #[test]
@@ -2456,7 +2561,14 @@ mod tests {
         for vertex in mesh.parts.iter_mut().flat_map(|part| &mut part.vertices) {
             vertex.position[1] = compiled.floor + (vertex.position[1] - compiled.floor) * 3.;
         }
-        let sprite = raster_sprite_frame(&mesh, &compiled, 0., &assets.palette, 0., true, true);
+        let sprite = raster_sprite_frame(
+            &mesh,
+            &compiled,
+            0.,
+            &assets.palette,
+            0.,
+            SpriteProjection::IsometricFit,
+        );
         let [width, height] = sprite.size;
         assert!(height > 128);
         assert!(sprite.anchor[1] > 100.);
@@ -2608,6 +2720,57 @@ mod tests {
         );
         assert_eq!(looped.build().unwrap().texture.data, art.texture.data);
         assert_eq!(model.sprites.lock().unwrap().len(), 1);
+    }
+
+    #[cfg(feature = "graphics")]
+    #[test]
+    fn avatar_preview_hides_held_gear_and_tracks_worn_equipment() {
+        use crate::client::content::{AvatarSourceSettings, ContentRecipe};
+        let (mut assets, body, mut actor) = fixture();
+        assets.procedural_avatars.insert("humanoid".into(), Arc::new(body));
+        assets.avatars.insert("humanoid".into(), crate::Avatar::default());
+        assets.rules = eldiron_ruleset::latest_official_ruleset().into();
+        let templates = eldiron_ruleset::ruleset_item_templates_from_source(&assets.rules)
+            .unwrap();
+        for (slot, id) in [("torso", "leather_vest"), ("main_hand", "hunting_bow")] {
+            let mut item = crate::Item::default();
+            crate::server::data::apply_item_data(
+                &mut item,
+                &templates.iter().find(|template| template.id == id).unwrap().data,
+            );
+            actor.equipped.insert(slot.into(), item);
+        }
+
+        let preview = |entity: &Entity, weapons| {
+            let source = ContentRecipe::Avatar {
+                entity,
+                settings: AvatarSourceSettings {
+                    avatar: None,
+                    animation: Some("Idle"),
+                    direction: crate::AvatarDirection::FrontRight,
+                    frame: 1,
+                    weapons,
+                },
+            }.resolve(&assets);
+            (source.fingerprint(), source.build().unwrap().texture.data)
+        };
+        let (armed_key, armed) = preview(&actor, true);
+        let (dressed_key, dressed) = preview(&actor, false);
+        assert_ne!(armed, dressed);
+        let bow = actor.equipped.shift_remove("main_hand").unwrap();
+        let (unarmed_key, unarmed) = preview(&actor, true);
+        assert_ne!(armed_key, unarmed_key);
+        assert_eq!(dressed, unarmed, "the vest remains visible");
+
+        let vest = actor.equipped.shift_remove("torso").unwrap();
+        let (changed_key, changed) = preview(&actor, false);
+        assert_ne!(dressed_key, changed_key);
+        assert_ne!(dressed, changed, "unequipping the vest changes the preview");
+
+        actor.equipped.insert("torso".into(), vest);
+        assert_eq!(dressed, preview(&actor, false).1);
+        actor.equipped.insert("main_hand".into(), bow);
+        assert_eq!(armed, preview(&actor, true).1);
     }
 
     #[test]

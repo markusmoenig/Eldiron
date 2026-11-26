@@ -657,9 +657,10 @@ impl NativePlay {
                 continue;
             }
             match effect {
-                ScreenEffect::Action(action) => runtime
-                    .play
-                    .submit_action(&mut runtime.bridge.server, action)?,
+                ScreenEffect::Action(action) => {
+                    owner.screen.consume_directional_intent(&runtime.world(), &action)?;
+                    runtime.play.submit_action(&mut runtime.bridge.server, action)?;
+                }
                 ScreenEffect::Command(ClientCommandBinding::Screen(command)) => {
                     let name = command
                         .trim()
@@ -825,6 +826,7 @@ impl NativePlay {
                 if *pressed && !*repeat {
                     if matches!(binding, ClientCommandBinding::Control(_)) {
                         if let Some(action) = runtime.play.input.controls.control_key(&key, true) {
+                            owner.screen.consume_directional_intent(&runtime.world(), &action)?;
                             runtime
                                 .play
                                 .submit_action(&mut runtime.bridge.server, action)?;

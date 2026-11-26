@@ -94,6 +94,47 @@ fn worldless_menu_tooltip_waits_for_ack_and_exact_host_deadline_and_retains_layo
     );
     assert!(session.server.state == ServerState::Off);
 }
+
+#[test]
+fn gameplay_action_hover_is_compact_and_direction_clears_the_selected_intent() {
+    let (mut session, mut screen, mut fonts, _) = setup();
+    screen.resize((640, 480));
+    session.assets.rules = r#"
+        [actions.basic_attack]
+        name = "Basic Attack"
+        kind = "attack"
+        description = "Strike an attackable target with the equipped weapon."
+        range = "weapon"
+    "#.into();
+    let mut button = Widget::new();
+    button.id = 40;
+    button.name = "Basic Attack".into();
+    button.command = Some("rules.basic_attack".into());
+    button.rect = Rect::new(420., 200., 80., 40.);
+    screen.elements.button_widgets.insert(40, button);
+    screen.set_tooltip_shortcuts(
+        [("rules.basic_attack".into(), vec!["T".into()])]
+            .into_iter()
+            .collect(),
+    );
+
+    ready(&session, &mut screen, &mut fonts);
+    hover(&session, &mut screen, &mut fonts);
+    let description = screen.hover_content(&session.view()).unwrap().description;
+    assert_eq!(description.title, "Basic Attack");
+    assert_eq!(description.lines, ["Shortcut: T"]);
+    assert!(description.subtitle.is_none());
+    assert_eq!(
+        screen.activate_button(&session.view(), 40).unwrap().effects,
+        [ScreenEffect::Action(EntityAction::Intent("action:basic_attack".into()))]
+    );
+    screen
+        .consume_directional_intent(&session.view(), &EntityAction::Forward)
+        .unwrap();
+    assert!(screen.intent.is_empty());
+    assert!(!screen.elements.activated_widgets.contains(&40));
+}
+
 #[test]
 fn reauthored_hidden_covered_or_unacknowledged_commands_cannot_supply_a_tooltip() {
     for change in 0..4 {

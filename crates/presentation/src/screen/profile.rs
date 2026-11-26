@@ -135,11 +135,18 @@ impl ScreenPainter<'_> {
         let Some(content) = content else {
             return Ok(());
         };
+        let size = widget.rect.width.min(widget.rect.height);
+        let bounds = Rect::new(
+            widget.rect.x + (widget.rect.width - size) * 0.5,
+            widget.rect.y + (widget.rect.height - size) * 0.5,
+            size,
+            size,
+        );
         let image = content.resolve(self.images)?;
         self.list.ops.push(PaintOp::PushClip(rect(widget.rect)));
         self.silhouette(
             image,
-            widget.rect,
+            bounds,
             Uv::new(0., 0., 1., 1.),
             outline.1,
             outline.0,

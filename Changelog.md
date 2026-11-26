@@ -11,6 +11,14 @@
 - Fixed a Windows Play startup failure in Wayfarer’s Rest and other 2D Iso projects that rebake MaterialZ tiles. Material bundles now load across platforms regardless of line endings.
 - Fixed 2D Iso draw order for overlapping opaque meshes. Per-pixel depth keeps nearby details visible even when the meshes' anchor points sort in the opposite order.
 - Improved zooming out on large 2D Iso maps. Creator draws fewer editor guides at wide zoom, uses a terrain overview for distant views, and bounds shadow geometry to fit GPU limits.
+- Fixed mouse drag and drop from inventory and equipment slots in the standalone Player.
+- Preserved the art palette when loading older projects. Hideout’s wooden arrow icons now keep their intended brown colors.
+- Updated Hideout’s character preview with a front view and correct proportions. Equipped clothing and weapons update immediately as items are equipped or removed.
+- Improved top-down character readability with wider humanoid sprites and clearer side-facing poses. Both Hideout versions also use a larger player sprite.
+- Fixed quick direction taps after selecting **Basic Attack** in top-down play. The game now tells you when there’s no target within weapon range in that direction.
+- Weapon attacks now use the equipped weapon’s range across map sectors. Blocked cross-sector shots show a warning and leave ammunition untouched.
+- Made in-game action tooltips compact so they cover less of the map. The Actions panel still shows the full details.
+- Fixed opening corpses and other ground containers in top-down play. One-shot actions also clear the targeting cursor when used with a direction key.
 
 ---
 

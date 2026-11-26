@@ -403,9 +403,10 @@ impl AvatarWidget {
         let stride = self.buffer.stride();
         let dst_w = self.buffer.dim().width as usize;
         let dst_h = self.buffer.dim().height as usize;
+        let size = dst_w.min(dst_h);
         draw2d.blend_scale_chunk(
             self.buffer.pixels_mut(),
-            &(0, 0, dst_w, dst_h),
+            &((dst_w - size) / 2, (dst_h - size) / 2, size, size),
             stride,
             &out.rgba,
             &(out.size as usize, out.size as usize),

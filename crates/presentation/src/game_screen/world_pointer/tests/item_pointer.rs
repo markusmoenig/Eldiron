@@ -102,6 +102,18 @@ fn owned_item_drag_routes_inventory_equipment_and_world_destinations_without_cli
     ready(&session, &mut screen, &mut fonts, view);
     for (point, index, slot) in [([40., 8.], Some(1), None), ([72., 8.], None, Some("body"))] {
         begin(&session, &mut screen, &mut fonts);
+        dispatch(
+            &session,
+            &mut screen,
+            &mut fonts,
+            InputEvent::RelativeMotion { delta: [1., 0.] },
+        );
+        dispatch(
+            &session,
+            &mut screen,
+            &mut fonts,
+            InputEvent::PointerMoved { position: point },
+        );
         let result = finish(&session, &mut screen, &mut fonts, point);
         assert_eq!(
             result.effects,
@@ -120,6 +132,12 @@ fn owned_item_drag_routes_inventory_equipment_and_world_destinations_without_cli
         );
     }
     begin(&session, &mut screen, &mut fonts);
+    dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        InputEvent::RelativeMotion { delta: [1., 1.] },
+    );
     let dropped = finish(&session, &mut screen, &mut fonts, [80., 70.]);
     assert!(
         matches!(&dropped.effects[..], [ScreenEffect::Action(EntityAction::DropItemAt { item_id:7, owner_entity_id:Some(1), position })] if position.x.is_finite() && position.y.is_finite())

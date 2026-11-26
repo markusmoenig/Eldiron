@@ -125,6 +125,18 @@ impl GameScreenController {
                 )
             }
         };
+        if !self.elements.game_widgets.is_empty()
+            && matches!(target.owner, DropOwner::Button(_))
+            && matches!(
+                command.and_then(|command| parse_client_command(command)),
+                Some(ClientCommandBinding::RulesAction(_))
+            )
+        {
+            // The in-game toolbar leaves room for the map. The Actions
+            // catalogue still describes costs, targeting and other details.
+            description.subtitle = None;
+            description.lines.clear();
+        }
         if let Some(labels) = command.and_then(|command| self.tooltip_shortcuts.get(command)) {
             rules_ui::add_shortcut_line(&mut description, labels.clone());
         }

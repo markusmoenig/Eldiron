@@ -516,6 +516,22 @@ impl<'de> serde::Deserialize<'de> for Project {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let mut value = serde_json::Value::deserialize(deserializer)?;
         crate::legacy_tiles::migrate(&mut value).map_err(serde::de::Error::custom)?;
+        if let Some(fields) = value.as_object_mut()
+            && !fields.contains_key("palette_source_colors")
+            && !fields.contains_key("palette_source_name")
+            && let Some(palette) = fields.remove("art_palette").filter(serde_json::Value::is_object)
+        {
+            // Older clients rendered with the separate art palette. Keep its
+            // colors and material slots when loading into the unified palette.
+            fields.insert("palette".into(), palette);
+            fields.remove("palette_materials");
+            if let Some(materials) = fields
+                .remove("art_palette_materials")
+                .filter(serde_json::Value::is_array)
+            {
+                fields.insert("palette_materials".into(), materials);
+            }
+        }
         let mut project = Project::deserialize(value).map_err(serde::de::Error::custom)?;
         // Old projects could opt into a rules document embedded in the archive.
         // Select the bundled rules for those files and keep all world settings.
@@ -1814,6 +1830,20 @@ mod tests {
                 .values()
                 .any(|screen| screen.map.name == "Start"),
             "Hideout2D fixture should contain the Start screen"
+        );
+
+        let starter = load_project_fixture(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../starters/projects/Hideout2D.eldiron"),
+        );
+        assert_eq!(project.palette.colors, starter.palette.colors);
+        let icon = "icon/wooden_arrows/on";
+        let legacy_frames = crate::ruleset_materials::baked_frames(&project, icon).unwrap();
+        let starter_frames = crate::ruleset_materials::baked_frames(&starter, icon).unwrap();
+        assert_eq!(
+            legacy_frames[0].data,
+            starter_frames[0].data,
+            "both Hideout copies should use the same palette for the wooden arrows"
         );
     }
 

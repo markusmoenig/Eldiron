@@ -337,6 +337,9 @@ pub(super) fn input(
             screen.world.pointer = None;
             return Some(ScreenInputResponse::handled(true));
         }
+        // Desktop mice send raw motion alongside positioned pointer events.
+        // The item capture owns motion while held, so raw input cannot cancel it.
+        InputEvent::RelativeMotion { .. } => Some(ScreenInputResponse::handled(false)),
         InputEvent::Key {
             physical: PhysicalKey::Escape,
             pressed: true,

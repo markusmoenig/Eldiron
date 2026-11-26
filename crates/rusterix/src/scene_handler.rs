@@ -3975,7 +3975,7 @@ impl SceneHandler {
                     .attributes
                     .get_float_default("size_2d", 1.0)
                     .max(0.01);
-                if self.procedural_avatars.sprite(
+                if let Some(width_scale) = self.procedural_avatars.top_down_sprite(
                     &mut self.vm,
                     entity,
                     assets,
@@ -3984,8 +3984,13 @@ impl SceneHandler {
                 ) {
                     active_avatar_geo.insert(geo_id);
                     self.vm.execute(Atom::AddDynamic {
-                        object: DynamicObject::billboard_avatar_2d(geo_id, pos, size_2d, size_2d)
-                            .with_layer(D2_CHARACTER_LAYER),
+                        object: DynamicObject::billboard_avatar_2d(
+                            geo_id,
+                            pos,
+                            size_2d * width_scale,
+                            size_2d,
+                        )
+                        .with_layer(D2_CHARACTER_LAYER),
                     });
                     continue;
                 }

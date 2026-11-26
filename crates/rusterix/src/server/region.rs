@@ -2404,6 +2404,96 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn top_down_tap_fires_a_ranger_bow_before_the_key_release() {
+        let mut ctx = directional_intent_test_ctx(PlayerCamera::D2, false);
+        let source = eldiron_ruleset::latest_official_ruleset();
+        ctx.rules = source.parse().unwrap();
+        ctx.assets.locales_src = eldiron_ruleset::latest_official_ruleset_locales().into();
+        ctx.assets.read_locales();
+        let (messages, output) = unbounded();
+        ctx.from_sender.take();
+        ctx.from_sender.set(messages).unwrap();
+        ctx.simulation_mode = crate::server::regionctx::SimulationMode::Hybrid;
+        let templates = eldiron_ruleset::ruleset_item_templates_from_source(source).unwrap();
+        let ranger = &mut ctx.map.entities[0];
+        ranger.set_attribute("class", Value::Str("Ranger".into()));
+        apply_ruleset_character_defaults(&ctx.rules, ranger);
+        ranger.inventory.resize(1, None);
+        for (id, template_id) in [(101, "hunting_bow"), (102, "wooden_arrows")] {
+            let template = templates.iter().find(|item| item.id == template_id).unwrap();
+            let mut item = Item::new();
+            item.id = id;
+            crate::server::data::apply_item_data(&mut item, &template.data);
+            if template_id == "hunting_bow" {
+                ranger.equipped.insert("main_hand".into(), item);
+            } else {
+                ranger.add_item(item).unwrap();
+            }
+        }
+        let start = ranger.position;
+        ranger.set_attribute("sector_id", Value::Int64(341));
+        let orc = &mut ctx.map.entities[1];
+        orc.position = start - Vec3::new(0.0, 0.0, 5.0);
+        orc.set_attribute("sector_id", Value::Int64(274));
+        orc.set_attribute("HP", Value::Int(16));
+        orc.set_attribute("autodamage", Value::Bool(true));
+        ctx.health_attr = "HP".into();
+        let obstacle = Vec2::new(1, -2);
+        ctx.mapmini.blocked_tiles.insert(obstacle);
+        let ctx = Arc::new(Mutex::new(ctx));
+        let mut instance = RegionInstance::with_context(9910, ctx.clone());
+
+        let tap_attack = |instance: &mut RegionInstance| {
+            for action in [
+                EntityAction::Intent("action:basic_attack".into()),
+                EntityAction::Forward,
+                EntityAction::Off,
+            ] {
+                instance
+                    .to_sender
+                    .send(RegionMessage::UserAction(1, action))
+                    .unwrap();
+            }
+            instance.movement_tick();
+        };
+        tap_attack(&mut instance);
+        {
+            let mut ctx = ctx.lock().unwrap();
+            assert!(!is_action_on_cooldown(&ctx, 1, "basic_attack"));
+            assert_eq!(ctx.map.entities[0].get_item(102).unwrap().stack_quantity(), 20);
+            assert_eq!(ctx.map.entities[1].attributes.get_int("HP"), Some(16));
+            assert!(output.try_iter().any(|message| matches!(
+                message,
+                RegionMessage::Message(_, _, _, 1, text, _)
+                    if text == "There is no clear path to the target."
+            )));
+            ctx.mapmini.blocked_tiles.remove(&obstacle);
+        }
+        tap_attack(&mut instance);
+
+        {
+            let mut ctx = ctx.lock().unwrap();
+            let ranger = &ctx.map.entities[0];
+            assert!(is_action_on_cooldown(&ctx, 1, "basic_attack"));
+            assert_eq!(ranger.get_item(102).unwrap().stack_quantity(), 19);
+            assert_eq!(ranger.position, start);
+            assert_eq!(ranger.orientation, Vec2::new(0.0, -1.0));
+            assert_eq!(ranger.attributes.get_str("intent"), Some(""));
+            assert!(ctx.map.entities[1].attributes.get_int("HP").unwrap() < 16);
+            ctx.map.entities[1].position = start - Vec3::new(0.0, 0.0, 8.0);
+        }
+
+        tap_attack(&mut instance);
+        let ctx = ctx.lock().unwrap();
+        assert_eq!(ctx.map.entities[0].get_item(102).unwrap().stack_quantity(), 19);
+        assert!(output.try_iter().any(|message| matches!(
+            message,
+            RegionMessage::Message(_, _, _, 1, text, _)
+                if text == "No target within weapon range in that direction."
+        )));
+    }
+
+    #[test]
     fn directional_intent_stays_separate_from_click_target_modes() {
         // The click/hover target method (2D persistent intents and 3D cameras)
         // must never turn a direction press into a direct action.
@@ -3419,6 +3509,53 @@ mod ruleset_progression_tests {
                 .map(|item| item.id),
             Some(31)
         );
+    }
+
+    #[test]
+    fn top_down_corpse_opens_on_click_and_use_within_reach() {
+        let mut ctx = directional_intent_test_ctx(PlayerCamera::D2, false);
+        ctx.map.entities.truncate(1);
+        let (sender, messages) = unbounded();
+        ctx.from_sender.take();
+        ctx.from_sender.set(sender).unwrap();
+
+        let mut corpse = Item::new();
+        corpse.id = 30;
+        corpse.position = Vec3::new(1.5, 0., -4.5);
+        corpse.set_attribute("container_slots", Value::Int(1));
+        corpse.apply_container_attributes();
+        let mut loot = Item::new();
+        loot.id = 31;
+        corpse.add_item_to_container(loot).unwrap();
+        ctx.map.items.push(corpse);
+        let ctx = Arc::new(Mutex::new(ctx));
+        let mut instance = RegionInstance::with_context(9911, ctx.clone());
+        let process = |instance: &mut RegionInstance, action| {
+            instance.to_sender.send(RegionMessage::UserAction(1, action)).unwrap();
+            instance.redraw_tick();
+        };
+        process(&mut instance, EntityAction::ItemClicked(30, 0., None, None));
+        assert!(instance.active_container_for(1).is_none());
+        assert!(messages.try_iter().any(|message| matches!(
+            message,
+            RegionMessage::Message(_, _, _, 1, text, _) if text == "{system.too_far_away}"
+        )));
+
+        ctx.lock().unwrap().map.items[0].position.z = 0.5;
+        for intent in [None, Some("use".into()), Some("open".into())] {
+            process(&mut instance, EntityAction::ItemClicked(30, 1., intent, None));
+            assert!(messages.try_iter().any(|message| matches!(
+                message,
+                RegionMessage::OpenContainer(_, 1, 30, None)
+            )));
+        }
+        process(&mut instance, EntityAction::Intent("use".into()));
+        process(&mut instance, EntityAction::Forward);
+        assert!(messages.try_iter().any(|message| matches!(
+            message,
+            RegionMessage::OpenContainer(_, 1, 30, None)
+        )));
+        assert_eq!(instance.active_container_for(1), Some((30, None)));
     }
 
     #[test]
@@ -6046,6 +6183,55 @@ impl RegionInstance {
                 permitted && Self::find_drag_container_location(ctx, item_id, Some(owner)).is_some()
             }),
         }
+    }
+
+    fn open_container_for_entity(
+        ctx: &mut RegionCtx,
+        actor_id: u32,
+        item_id: u32,
+        owner: Option<u32>,
+    ) {
+        if !requests::remote_inventory_owner_allowed(ctx, actor_id, owner, true)
+            || Self::find_drag_container_location(ctx, item_id, owner).is_none()
+        {
+            return;
+        }
+        if !Self::can_inspect_container(ctx, actor_id, item_id, owner) {
+            if owner.is_none() && !world_item_in_drag_reach(ctx, actor_id, item_id) {
+                send_drag_too_far_message(ctx, actor_id);
+            }
+            return;
+        }
+        ctx.active_container_sessions.insert(actor_id, (item_id, owner));
+        if let Some(sender) = ctx.from_sender.get() {
+            let _ = sender.send(RegionMessage::OpenContainer(
+                ctx.region_id,
+                actor_id,
+                item_id,
+                owner,
+            ));
+        }
+    }
+
+    fn try_open_world_container(
+        ctx: &mut RegionCtx,
+        actor_id: u32,
+        item_id: u32,
+        intent: &str,
+    ) -> bool {
+        if !matches!(intent, "" | "use" | "open")
+            || !ctx.map.items.iter().any(|item| {
+                item.id == item_id
+                    && Self::item_is_container(item)
+                    && !ctx.assets.node_behaviors.as_ref().is_some_and(|assets| {
+                        assets.owns_item_intent(ctx, item)
+                    })
+            })
+        {
+            return false;
+        }
+        Self::open_container_for_entity(ctx, actor_id, item_id, None);
+        true
     }
 
     pub fn active_container_for(&self, actor: u32) -> Option<(u32, Option<u32>)> {
@@ -9703,11 +9889,9 @@ impl RegionInstance {
                                 && action != EntityAction::Off =>
                         {
                             with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
-                                // Grid players move by chaining StepTo actions, which
-                                // never pass through the directional intent branch in
-                                // the movement loop. When a rules/action intent is
-                                // active, apply it in the pressed direction instead of
-                                // queueing a step so the shortcut behaves like Eldrin.
+                                // An armed directional intent acts on the press. A
+                                // release or an in-progress grid step can otherwise
+                                // replace the direction before the movement loop.
                                 let click_intents_2d = get_config_bool_default(
                                     ctx,
                                     "game",
@@ -9724,46 +9908,35 @@ impl RegionInstance {
                                     "persistent_2d_intents",
                                     false,
                                 );
-                                let directional_intent = ctx
+                                let facing = Self::intent_facing_for_action(&action);
+                                let directional_actor = ctx
                                     .map
                                     .entities
                                     .iter()
                                     .find(|entity| entity.id == entity_id)
-                                    .is_some_and(|entity| {
+                                    .filter(|entity| {
                                         let is_grid_player = matches!(
                                             entity.attributes.get("player_camera"),
                                             Some(Value::PlayerCamera(camera))
                                                 if Self::is_grid_camera(camera)
                                         );
-                                        is_grid_player
+                                        (is_grid_player || (facing.is_some() && !ctx.paused))
                                             && Self::should_use_directional_player_intent(
                                                 entity,
                                                 click_intents_2d,
                                             )
-                                    });
-                                if directional_intent {
-                                    let Some(mut actor) = ctx
-                                        .map
-                                        .entities
-                                        .iter()
-                                        .find(|entity| entity.id == entity_id)
-                                        .cloned()
-                                    else {
-                                        return;
-                                    };
-                                    if let Some(facing) = Self::intent_facing_for_action(&action) {
+                                    })
+                                    .cloned();
+                                if let Some(mut actor) = directional_actor {
+                                    if let Some(facing) = facing {
                                         actor.set_orientation(facing);
                                     }
                                     let position = actor.get_forward_pos(1.0);
                                     Self::send_entity_intent_events_in_ctx(
                                         ctx, &mut actor, position,
                                     );
-                                    if let Some(entity) = ctx
-                                        .map
-                                        .entities
-                                        .iter_mut()
-                                        .find(|entity| entity.id == entity_id)
-                                    {
+                                    if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                                        entity.set_orientation(actor.orientation);
                                         entity.action = EntityAction::Off;
                                         let intent = actor
                                             .attributes
@@ -10364,6 +10537,11 @@ impl RegionInstance {
                                     handled_shortcut =
                                         apply_furniture_intent(ctx, entity_id, clicked_item_id);
                                 }
+                                if !handled_shortcut && owner_entity_id.is_none() {
+                                    handled_shortcut = Self::try_open_world_container(
+                                        ctx, entity_id, clicked_item_id, &intent_lower,
+                                    );
+                                }
                                 if !handled_shortcut {
                                     // Send default script-driven intent events.
                                     ctx.to_execute_entity.push((
@@ -10582,33 +10760,7 @@ impl RegionInstance {
                             owner_entity_id,
                         } => {
                             with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
-                                if !requests::remote_inventory_owner_allowed(
-                                    ctx,
-                                    entity_id,
-                                    owner_entity_id,
-                                    true,
-                                ) {
-                                    return;
-                                }
-                                let container_exists = Self::find_drag_container_location(
-                                    ctx,
-                                    item_id,
-                                    owner_entity_id,
-                                )
-                                .is_some();
-                                if !container_exists || !Self::can_inspect_container(ctx, entity_id, item_id, owner_entity_id) {
-                                    return;
-                                }
-                                ctx.active_container_sessions
-                                    .insert(entity_id, (item_id, owner_entity_id));
-                                if let Some(sender) = ctx.from_sender.get() {
-                                    let _ = sender.send(RegionMessage::OpenContainer(
-                                        ctx.region_id,
-                                        entity_id,
-                                        item_id,
-                                        owner_entity_id,
-                                    ));
-                                }
+                                Self::open_container_for_entity(ctx, entity_id, item_id, owner_entity_id);
                             });
                         }
                         MoveItem {
@@ -14008,6 +14160,10 @@ impl RegionInstance {
         if let Some(action_id) = intent.trim().strip_prefix("action:") {
             if let Some(target_id) = target_entity_id.or(target_item_id) {
                 _ = execute_ruleset_action(ctx, entity.id, action_id.trim(), Some(target_id));
+            } else if rules.distance.source.as_deref() == Some("weapon_range")
+                && let Some(message) = localized_template(ctx, "actions.no_target_in_weapon_range")
+            {
+                send_message(ctx, entity.id, message, "warning");
             } else {
                 send_message(ctx, entity.id, "{system.cant_do_that}".into(), "warning");
             }
@@ -14153,6 +14309,14 @@ impl RegionInstance {
             && apply_item_state_intent(ctx, entity, item_id, &intent_lower)
         {
             queue_intent_cooldown(ctx, entity.id, &intent_lower, rules.cooldown_seconds);
+            if !keep_intent {
+                entity.set_attribute("intent", Value::Str(String::new()));
+            }
+            return;
+        }
+        if let Some(item_id) = target_item_id
+            && Self::try_open_world_container(ctx, entity.id, item_id, &intent_lower)
+        {
             if !keep_intent {
                 entity.set_attribute("intent", Value::Str(String::new()));
             }
@@ -18753,6 +18917,12 @@ fn execute_resolved_attack_action(
         );
         return false;
     };
+    if !damage_path_allowed(ctx, actor, target, source_item_id) {
+        let message = localized_template(ctx, "combat.path_blocked")
+            .unwrap_or_else(|| "{system.not_seen_target}".into());
+        send_message(ctx, actor_id, message, "warning");
+        return false;
+    }
     if !has_attack_ammunition_or_message(ctx, actor_id, source_item_id, &action.name) {
         return false;
     }
@@ -20457,17 +20627,31 @@ fn spell_target_filter_allows(
     }
 }
 
-fn close_visible_damage_allowed(ctx: &RegionCtx, from_id: u32, target_id: u32) -> bool {
-    let Some(attacker) = ctx.map.entities.iter().find(|e| e.id == from_id) else {
-        return false;
+fn damage_path_allowed(
+    ctx: &RegionCtx,
+    attacker: &Entity,
+    target: &Entity,
+    source_item_id: Option<u32>,
+) -> bool {
+    let sector = |entity: &Entity| {
+        ctx.stored_entity_sector_id(entity)
+            .or_else(|| ctx.map.find_sector_at(entity.get_pos_xz()).map(|sector| sector.id))
     };
-    let Some(target) = ctx.map.entities.iter().find(|e| e.id == target_id) else {
-        return false;
+    let (Some(attacker_sector), Some(target_sector)) = (sector(attacker), sector(target)) else {
+        return true;
     };
-
+    if attacker_sector == target_sector {
+        return true;
+    }
     let attacker_pos = attacker.get_pos_xz();
     let target_pos = target.get_pos_xz();
-    if attacker_pos.distance(target_pos) > 2.1 {
+    // Use the same item override and weapon category as range validation.
+    // Unattributed damage retains the existing short cross-sector allowance.
+    let range = current_attack_weapon_for_entity(ctx, attacker)
+        .filter(|weapon| source_item_id == Some(weapon.id))
+        .and_then(|weapon| configured_weapon_range(ctx, weapon))
+        .unwrap_or(2.1);
+    if attacker_pos.distance(target_pos) > range {
         return false;
     }
 
@@ -20602,48 +20786,10 @@ pub(crate) fn apply_damage_direct(
         _ => false,
     };
 
-    let attacker_sector = ctx
-        .map
-        .entities
-        .iter()
-        .find(|e| e.id == from_id)
-        .and_then(|entity| {
-            entity
-                .attributes
-                .get("sector_id")
-                .and_then(|value| match value {
-                    Value::Int64(v) if *v >= 0 => Some(*v as u32),
-                    Value::Int(v) if *v >= 0 => Some(*v as u32),
-                    _ => None,
-                })
-                .or_else(|| ctx.map.find_sector_at(entity.get_pos_xz()).map(|s| s.id))
-        })
-        .map(|id| id.to_string())
-        .unwrap_or_else(|| "<none>".to_string());
-    let target_sector_before = ctx
-        .map
-        .entities
-        .iter()
-        .find(|e| e.id == target_id)
-        .and_then(|entity| {
-            entity
-                .attributes
-                .get("sector_id")
-                .and_then(|value| match value {
-                    Value::Int64(v) if *v >= 0 => Some(*v as u32),
-                    Value::Int(v) if *v >= 0 => Some(*v as u32),
-                    _ => None,
-                })
-                .or_else(|| ctx.map.find_sector_at(entity.get_pos_xz()).map(|s| s.id))
-        })
-        .map(|id| id.to_string())
-        .unwrap_or_else(|| "<none>".to_string());
-
     if from_id != 0
-        && attacker_sector != "<none>"
-        && target_sector_before != "<none>"
-        && attacker_sector != target_sector_before
-        && !close_visible_damage_allowed(ctx, from_id, target_id)
+        && let Some(attacker) = ctx.map.entities.iter().find(|entity| entity.id == from_id)
+        && let Some(target) = ctx.map.entities.iter().find(|entity| entity.id == target_id)
+        && !damage_path_allowed(ctx, attacker, target, source_item_id)
     {
         return false;
     }
@@ -23388,16 +23534,18 @@ fn current_attack_range_for_entity(
     fallback: Option<f32>,
 ) -> Option<f32> {
     let weapon = current_attack_weapon_for_entity(ctx, entity)?;
+    configured_weapon_range(ctx, weapon).or(fallback)
+}
+
+fn configured_weapon_range(ctx: &RegionCtx, weapon: &Item) -> Option<f32> {
     let range = weapon.attributes.get_float_default("range", 0.0);
     if range > 0.0 {
         return Some(range);
     }
-    if let Some(category) = weapon.attributes.get_str("category")
-        && let Some(range) = weapon_category_range(ctx, category)
-    {
-        return Some(range);
-    }
-    fallback
+    weapon
+        .attributes
+        .get_str("category")
+        .and_then(|category| weapon_category_range(ctx, category))
 }
 
 fn follow_attack_range_for_entity(ctx: &RegionCtx, entity: &Entity) -> f32 {

@@ -340,6 +340,7 @@ impl PlayerApplication {
             }
             match effect {
                 ScreenEffect::Action(action) => {
+                    self.screen.consume_directional_intent(&self.player.view(), &action)?;
                     if let Err(error)=self.player.submit_action(action) {
                         if let Some(online)=&mut self.online {online.set_status(error);} else {return Err(error);}
                     }
@@ -486,6 +487,7 @@ impl PlayerApplication {
                         if !repeat && pressed {
                             if matches!(binding, ClientCommandBinding::Control(_)) {
                                 if let Some(action) = self.player.control_key(&key, true) {
+                                    self.screen.consume_directional_intent(&self.player.view(), &action)?;
                                     self.player.submit_action(action)?;
                                 }
                             } else {
